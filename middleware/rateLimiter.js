@@ -13,6 +13,8 @@
 
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
+// Import ipKeyGenerator from express-rate-limit
+import { ipKeyGenerator } from 'express-rate-limit';
 import { getRedisClient } from '../config/redis.js';
 import { getFeatureValue } from '../utils/feature.js';
 
@@ -53,7 +55,7 @@ function makeLimiter({ prefix, windowMs, max, message, keyGenerator }) {
         standardHeaders: true,   // Return RateLimit-* headers
         legacyHeaders: false,
         store: makeRedisStore(prefix),
-        keyGenerator: keyGenerator ?? ((req) => req.ip),
+        keyGenerator: keyGenerator ?? ipKeyGenerator,
         handler(_req, res) {
             res.status(429).json({
                 status: 'error',
@@ -84,25 +86,24 @@ export const generalLimiter = IS_DEV
  * OTP send rate limiter: 3 req/hr per normalised phone number.
  * Key: zarva:otp_rate:{phone}
  * Applied on POST /api/auth/send-otp
+ * Note: Enforced even in dev mode to allow local testing of OTP limits.
  */
-export const otpLimiter = IS_DEV
-    ? passthrough
-    : makeLimiter({
-        prefix: 'zarva:otp_rate:',
-        windowMs: 60 * 60 * 1000,
-        max: getFeatureValue('rate_limiting.otp_per_phone_per_hour', 3),
-        message: 'OTP limit reached. Maximum 3 OTPs per phone per hour.',
-        keyGenerator(req) {
-            // Prefer normalizedPhone (set by normalizePhone middleware);
-            // fall back to raw body value so the limiter works even without the mw.
-            return (
-                req.normalizedPhone ??
-                req.body?.phone ??
-                req.body?.phone_number ??
-                req.ip
-            );
-        },
-    });
+export const otpLimiter = makeLimiter({
+    prefix: 'zarva:otp_rate:',
+    windowMs: 60 * 60 * 1000,
+    max: getFeatureValue('rate_limiting.otp_per_phone_per_hour', 3),
+    message: 'OTP limit reached. Maximum 3 OTPs per phone per hour.',
+    keyGenerator(req) {
+        // Prefer normalizedPhone (set by normalizePhone middleware);
+        // fall back to raw body value so the limiter works even without the mw.
+        return (
+            req.normalizedPhone ??
+            req.body?.phone ??
+            req.body?.phone_number ??
+            ipKeyGenerator(req)
+        );
+    },
+});
 
 /**
  * Job creation rate limiter: 5 req/hr per authenticated user ID.
@@ -117,6 +118,6 @@ export const jobCreateLimiter = IS_DEV
         max: getFeatureValue('rate_limiting.job_create_per_hour', 5),
         message: 'Job creation limit reached. Maximum 5 jobs per hour.',
         keyGenerator(req) {
-            return req.user?.id ? String(req.user.id) : req.ip;
+            return req.user?.id ? String(req.user.id) : ipKeyGenerator(req);
         },
     });

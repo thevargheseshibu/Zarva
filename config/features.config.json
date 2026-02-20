@@ -1,7 +1,6 @@
 {
   "auth": {
-    "phone_otp_enabled": true,
-    "mock_otp": "123456"
+    "phone_otp_enabled": false
   },
   "payment": {
     "enabled": true,

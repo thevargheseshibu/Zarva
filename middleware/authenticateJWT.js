@@ -105,7 +105,14 @@ export async function authenticate(rawToken, pool = null, features = null) {
     return { user: { id: user.id, phone: user.phone, roles, active_role } };
 }
 
-// ── Middleware ───────────────────────────────────────────────────
+// ── Public paths — skip JWT enforcement ─────────────────────────
+//    These paths handle their own auth (OTP flow, refresh, dev-login).
+const PUBLIC_PATHS = new Set([
+    '/api/auth/send-otp',
+    '/api/auth/verify-otp',
+    '/api/auth/refresh-token',
+    '/api/auth/dev-login',
+]);
 
 /**
  * @param {import('express').Request}  req
@@ -114,6 +121,11 @@ export async function authenticate(rawToken, pool = null, features = null) {
  */
 async function authenticateJWT(req, res, next) {
     try {
+        // Skip auth for public paths (OTP flow, refresh, dev-login)
+        if (PUBLIC_PATHS.has(req.path)) {
+            return next();
+        }
+
         const authHeader = req.headers['authorization'] ?? '';
         if (!authHeader.startsWith('Bearer ')) {
             return res.status(401).json({

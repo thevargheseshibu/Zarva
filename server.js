@@ -15,6 +15,8 @@ import { getPool } from './config/database.js';
 import { connectRedis } from './config/redis.js';
 import healthRouter from './routes/health.js';
 import adminRouter from './routes/admin.js';
+import authRouter from './routes/auth.js';
+import meRouter from './routes/me.js';
 import {
     generalLimiter,
     authenticateJWT,
@@ -51,6 +53,8 @@ async function bootstrap() {
     // 4. Mount routes
     app.use('/api/health', healthRouter);
     app.use('/api/admin', adminRouter);
+    app.use('/api/auth', authRouter);   // public — skip-listed in authenticateJWT
+    app.use('/api/me', meRouter);     // protected — requires valid JWT
 
     // 5. 404 handler
     app.use((_req, res) => {
