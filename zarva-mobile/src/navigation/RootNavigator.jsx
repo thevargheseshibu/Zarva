@@ -10,7 +10,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { useAuthStore } from '../stores/authStore';
 import AuthNavigator from './AuthNavigator';
-import CustomerNavigator from './CustomerNavigator';
+import CustomerStack from './CustomerStack';
 import WorkerNavigator from './WorkerNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
 
@@ -25,6 +25,12 @@ const ZarvaTheme = {
         border: '#1A1A26',
         notification: '#FF4D6A',
     },
+    fonts: {
+        regular: { fontFamily: '', fontWeight: '400' },
+        medium: { fontFamily: '', fontWeight: '500' },
+        bold: { fontFamily: '', fontWeight: '700' },
+        heavy: { fontFamily: '', fontWeight: '900' },
+    }
 };
 
 export default function RootNavigator() {
@@ -37,7 +43,7 @@ export default function RootNavigator() {
         const onboardingDone = user.onboarding_complete ?? true;
 
         if (role === 'worker' && !onboardingDone) return <OnboardingNavigator />;
-        if (role === 'customer') return <CustomerNavigator />;
+        if (role === 'customer') return <CustomerStack />;
         if (role === 'worker') return <WorkerNavigator />;
 
         // Fallback to auth

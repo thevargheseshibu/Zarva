@@ -18,7 +18,26 @@ export default function OTPInput({ onComplete, value = '' }) {
     const [otp, setOtp] = useState(Array(BOX_COUNT).fill(''));
 
     const handleChange = (text, index) => {
-        const digit = text.replace(/[^0-9]/g, '').slice(-1);
+        const digits = text.replace(/[^0-9]/g, '');
+
+        // Handle Paste
+        if (digits.length > 1) {
+            const next = Array(BOX_COUNT).fill('');
+            for (let j = 0; j < Math.min(digits.length, BOX_COUNT); j++) {
+                next[j] = digits[j];
+            }
+            setOtp(next);
+
+            const nextFocus = Math.min(digits.length, BOX_COUNT - 1);
+            inputs.current[nextFocus]?.focus();
+
+            const full = next.join('');
+            if (full.length === BOX_COUNT) onComplete?.(full);
+            return;
+        }
+
+        // Handle single keystroke
+        const digit = digits.slice(-1);
         const next = [...otp];
         next[index] = digit;
         setOtp(next);

@@ -56,7 +56,8 @@ router.post(
             return fail(res, 'Valid Indian phone number required.', 400, 'INVALID_PHONE');
         }
 
-        if (isEnabled('auth.phone_otp_enabled')) {
+        const isBypassed = !isEnabled('auth.phone_otp_enabled');
+        if (!isBypassed) {
             // Real mode: Firebase triggers the OTP SMS itself via client SDK;
             // server-side we just acknowledge. (Firebase REST trigger optional.)
             console.log(`[Auth] OTP requested for ${phone}`);
@@ -66,7 +67,7 @@ router.post(
         }
 
         // NEVER reveal whether the phone exists in DB (security spec)
-        return ok(res, { message: 'OTP sent', expires_in: 300 });
+        return ok(res, { message: 'OTP sent', expires_in: 300, bypassed: isBypassed });
     },
 );
 
