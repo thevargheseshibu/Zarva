@@ -6,7 +6,7 @@
  */
 
 import { getPool } from '../config/database.js';
-import redisClient from '../config/redis.js';
+import { getRedisClient } from '../config/redis.js';
 import configLoader from '../config/loader.js';
 
 // Helper: Sleep for wave delays
@@ -206,6 +206,7 @@ export async function acceptJob(jobId, workerId) {
     const pool = getPool();
     const lockKey = 'zarva:job:' + jobId + ':lock';
 
+    const redisClient = getRedisClient();
     // Atomic SET NX - exactly 5 seconds TTL to protect concurrency without deadlocks
     const locked = await redisClient.set(lockKey, workerId, 'NX', 'EX', 5);
     if (!locked) {
@@ -251,6 +252,7 @@ export async function acceptJob(jobId, workerId) {
         }
 
     } finally {
+        const redisClient = getRedisClient();
         await redisClient.del(lockKey); // release Redis lock
     }
 }
