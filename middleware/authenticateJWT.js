@@ -17,7 +17,7 @@
 
 import jwt from 'jsonwebtoken';
 import { createHash } from 'node:crypto';
-import { getPool } from '../config/database.js';
+import * as dbModule from '../config/database.js';
 import { isEnabled } from '../utils/feature.js';
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -35,7 +35,77 @@ function forbidden(res, message = 'Account suspended.') {
     return res.status(403).json({ status: 'error', code: 'FORBIDDEN', message });
 }
 
-// ── Middleware ─────────────────────────────────────────────────
+// ── Core authenticate logic (exported for unit tests) ─────────────
+
+/**
+ * Core authentication logic, separated for testability.
+ * @param {string} rawToken         The raw Bearer token string
+ * @param {object|null} [pool]      Optional pool override (tests inject a mock pool)
+ * @param {object|null} [features]  Optional feature overrides (tests inject flags directly)
+ * @returns {Promise<{user: object}|{error: {status: number, code: string, message: string}}>}
+ */
+export async function authenticate(rawToken, pool = null, features = null) {
+    // 1. Verify JWT
+    let payload;
+    try {
+        payload = jwt.verify(rawToken, process.env.JWT_SECRET || 'zarva_dev_secret');
+    } catch (err) {
+        const msg = err.name === 'TokenExpiredError' ? 'Token has expired.' : 'Invalid token.';
+        return { error: { status: 401, code: 'UNAUTHORIZED', message: msg } };
+    }
+
+    // 2. Hash + DB lookup
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const db = pool ?? dbModule.getPool();
+
+    const [tokenRows] = await db.query(
+        `SELECT id, user_id, expires_at, revoked_at FROM auth_tokens WHERE token_hash = ? LIMIT 1`,
+        [tokenHash],
+    );
+
+    if (tokenRows.length === 0) {
+        return { error: { status: 401, code: 'UNAUTHORIZED', message: 'Token not recognised.' } };
+    }
+
+    const dbToken = tokenRows[0];
+
+    if (dbToken.revoked_at !== null) {
+        return { error: { status: 401, code: 'UNAUTHORIZED', message: 'Token has been revoked.' } };
+    }
+
+    if (new Date(dbToken.expires_at) <= new Date()) {
+        return { error: { status: 401, code: 'UNAUTHORIZED', message: 'Token has expired.' } };
+    }
+
+    // 3. Load user
+    const [userRows] = await db.query(
+        `SELECT id, phone, role, is_blocked FROM users WHERE id = ? LIMIT 1`,
+        [dbToken.user_id],
+    );
+
+    if (userRows.length === 0) {
+        return { error: { status: 401, code: 'UNAUTHORIZED', message: 'User not found.' } };
+    }
+
+    const user = userRows[0];
+
+    // 4. Block check (feature-flagged)
+    //    Use injected features object (tests) or live isEnabled() (production)
+    const checkBlocked = features
+        ? Boolean(features?.security?.check_blocked_on_every_request)
+        : isEnabled('security.check_blocked_on_every_request');
+    if (checkBlocked && user.is_blocked) {
+        return { error: { status: 403, code: 'FORBIDDEN', message: 'Account suspended.' } };
+    }
+
+    // 5. Build req.user
+    const roles = payload.roles ?? [user.role];
+    const active_role = payload.active_role ?? user.role;
+
+    return { user: { id: user.id, phone: user.phone, roles, active_role } };
+}
+
+// ── Middleware ───────────────────────────────────────────────────
 
 /**
  * @param {import('express').Request}  req
@@ -44,84 +114,27 @@ function forbidden(res, message = 'Account suspended.') {
  */
 async function authenticateJWT(req, res, next) {
     try {
-        // 1. Extract token
         const authHeader = req.headers['authorization'] ?? '';
         if (!authHeader.startsWith('Bearer ')) {
-            return unauthorized(res, 'Missing or malformed Authorization header.');
+            return res.status(401).json({
+                status: 'error',
+                code: 'UNAUTHORIZED',
+                message: 'Missing or malformed Authorization header.',
+            });
         }
         const rawToken = authHeader.slice(7).trim();
 
-        // 2. Verify JWT signature & expiry
-        let payload;
-        try {
-            payload = jwt.verify(rawToken, process.env.JWT_SECRET || 'zarva_dev_secret');
-        } catch (err) {
-            const msg =
-                err.name === 'TokenExpiredError'
-                    ? 'Token has expired.'
-                    : 'Invalid token.';
-            return unauthorized(res, msg);
+        const result = await authenticate(rawToken);
+
+        if (result.error) {
+            return res.status(result.error.status).json({
+                status: 'error',
+                code: result.error.code,
+                message: result.error.message,
+            });
         }
 
-        // 3. Hash and look up in auth_tokens
-        const tokenHash = hashToken(rawToken);
-        const pool = getPool();
-
-        const [tokenRows] = await pool.query(
-            `SELECT id, user_id, expires_at, revoked_at
-         FROM auth_tokens
-        WHERE token_hash = ?
-        LIMIT 1`,
-            [tokenHash],
-        );
-
-        if (tokenRows.length === 0) {
-            return unauthorized(res, 'Token not recognised.');
-        }
-
-        const dbToken = tokenRows[0];
-
-        if (dbToken.revoked_at !== null) {
-            return unauthorized(res, 'Token has been revoked.');
-        }
-
-        if (new Date(dbToken.expires_at) <= new Date()) {
-            return unauthorized(res, 'Token has expired.');
-        }
-
-        // 4. Load user
-        const [userRows] = await pool.query(
-            `SELECT id, phone, role, is_blocked
-         FROM users
-        WHERE id = ?
-        LIMIT 1`,
-            [dbToken.user_id],
-        );
-
-        if (userRows.length === 0) {
-            return unauthorized(res, 'User not found.');
-        }
-
-        const user = userRows[0];
-
-        // 5. Check block status (always-on if feature flag is set)
-        const checkBlocked = isEnabled('security.check_blocked_on_every_request');
-        if (checkBlocked && user.is_blocked) {
-            return forbidden(res, 'Account suspended.');
-        }
-
-        // 6. Attach req.user
-        //    roles array derived from the DB role column + any claim in JWT payload
-        const roles = payload.roles ?? [user.role];
-        const active_role = payload.active_role ?? user.role;
-
-        req.user = {
-            id: user.id,
-            phone: user.phone,
-            roles,
-            active_role,
-        };
-
+        req.user = result.user;
         next();
     } catch (err) {
         console.error('[authenticateJWT] Unexpected error:', err.message);

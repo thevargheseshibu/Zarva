@@ -15,6 +15,11 @@ import { getPool } from './config/database.js';
 import { connectRedis } from './config/redis.js';
 import healthRouter from './routes/health.js';
 import adminRouter from './routes/admin.js';
+import {
+    generalLimiter,
+    authenticateJWT,
+    normalizePhone,
+} from './middleware/index.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const ENV = process.env.NODE_ENV || 'development';
@@ -33,6 +38,15 @@ async function bootstrap() {
     const app = express();
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
+
+    // ── Global middleware (order matters) ─────────────────────
+    // Rate limit first — cheapest check, no DB hit
+    app.use(generalLimiter);
+    // JWT auth — verifies token, attaches req.user
+    app.use(authenticateJWT);
+    // Phone normalisation — populates req.normalizedPhone (never blocks)
+    app.use(normalizePhone);
+    // roleGuard is NOT global — apply per-route: roleGuard('worker')
 
     // 4. Mount routes
     app.use('/api/health', healthRouter);
