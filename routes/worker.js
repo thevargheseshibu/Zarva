@@ -6,7 +6,11 @@
  */
 
 import { Router } from 'express';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { getPool } from '../config/database.js';
+import { getRedisClient } from '../config/redis.js';
+import configLoader from '../config/loader.js';
 import * as WorkerService from '../services/worker.service.js';
 import * as MatchingEngine from '../services/matchingEngine.js';
 
@@ -103,6 +107,222 @@ router.post('/jobs/:id/decline', (req, res) =>
     handle(req, res, async (userId, pool) => {
         await MatchingEngine.declineJob(req.params.id, userId, pool);
         return { message: 'Job declined successfully' };
+    })
+);
+
+/**
+ * 4.3 OTP FLOWS - Start/End Work Lifecycles 
+ */
+
+/**
+ * Worker Arrived at Location
+ * Guards: worker_en_route
+ */
+router.post('/jobs/:id/arrived', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+
+        // 1. Guard State
+        const [jobs] = await pool.query('SELECT id, status, worker_id FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+        const job = jobs[0];
+
+        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Job not associated with you'), { status: 403 });
+        if (job.status !== 'worker_en_route') throw Object.assign(new Error(`Invalid job state: ${job.status}`), { status: 400 });
+
+        // 2. Generate Physical Start OTP
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(otp, 10);
+
+        // 3. MySQL Storage (Hash)
+        await pool.query(
+            `UPDATE jobs SET start_otp_hash=?, start_otp_generated_at=NOW(), status='worker_arrived', arrived_at=NOW() WHERE id=?`,
+            [hash, jobId]
+        );
+
+        // 4. Redis Storage (Plaintext Relayed to Customer) -> 60 min TTL (3600s)
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:start:${jobId}`, otp, 'EX', 3600);
+
+        // Mock Firebase Update
+        console.log(`[Firebase Mock] active_jobs/${jobId}/status = 'worker_arrived'`);
+
+        return { arrived: true }; // NEVER return OTP to worker
+    })
+);
+
+/**
+ * Worker Verifies Start OTP internally
+ * Guards: worker_arrived
+ */
+router.post('/jobs/:id/verify-start-otp', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { otp } = req.body;
+
+        const [jobs] = await pool.query('SELECT id, status, worker_id, start_otp_hash, start_otp_generated_at, start_otp_attempts FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+        const job = jobs[0];
+
+        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (job.status !== 'worker_arrived') throw Object.assign(new Error('Invalid job state'), { status: 400 });
+
+        const features = configLoader.get('features');
+        if (!features?.otp?.start_otp_enabled) {
+            // Bypass logic
+            await pool.query(
+                `UPDATE jobs SET status='in_progress', work_started_at=NOW(), otp_bypass_reason='Feature Flag Disabled' WHERE id=?`,
+                [jobId]
+            );
+            return { verified: true, bypassed: true };
+        }
+
+        // Validity Checks
+        if (!job.start_otp_hash) throw new Error('OTP was never generated');
+        const generatedAt = new Date(job.start_otp_generated_at);
+        if ((Date.now() - generatedAt.getTime()) > 3600000) throw Object.assign(new Error('OTP Expired'), { status: 400 });
+
+        // Evaluate Bcrypt Hash
+        const match = await bcrypt.compare(String(otp), job.start_otp_hash);
+
+        if (match) {
+            await pool.query(`UPDATE jobs SET status='in_progress', work_started_at=NOW() WHERE id=?`, [jobId]);
+            console.log(`[Firebase Mock] active_jobs/${jobId}/status = 'in_progress'`);
+
+            const redisClient = getRedisClient();
+            await redisClient.del(`zarva:otp:start:${jobId}`); // Clean cache natively
+            return { verified: true };
+        } else {
+            const attempts = job.start_otp_attempts + 1;
+            if (attempts >= 5) {
+                // Dispute cascade
+                await pool.query(
+                    `UPDATE jobs SET status='disputed', start_otp_attempts=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
+                    [attempts, jobId]
+                );
+                throw Object.assign(new Error('Too many failed attempts. Job disputed.'), { status: 403 });
+            } else {
+                await pool.query(`UPDATE jobs SET start_otp_attempts=? WHERE id=?`, [attempts, jobId]);
+                throw Object.assign(new Error('Incorrect OTP'), { status: 400 });
+            }
+        }
+    })
+);
+
+/**
+ * Worker Triggers Completion (Produces End OTP)
+ * Guards: in_progress
+ */
+router.post('/jobs/:id/complete', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+
+        const [jobs] = await pool.query('SELECT id, status, worker_id FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+        const job = jobs[0];
+
+        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (job.status !== 'in_progress') throw Object.assign(new Error('Invalid job state'), { status: 400 });
+
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(otp, 10);
+
+        await pool.query(
+            `UPDATE jobs SET end_otp_hash=?, end_otp_generated_at=NOW(), status='pending_completion', work_ended_at=NOW() WHERE id=?`,
+            [hash, jobId]
+        );
+
+        // Redis Storage (Relayed to Worker to SHOW Customer) 180m TTL (10800s)
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800);
+
+        console.log(`[Firebase Mock] active_jobs/${jobId}/status = 'pending_completion'`);
+        console.log(`[Push Notification Mock] -> Customer: "Worker is done - enter completion code"`);
+
+        return { end_otp: otp }; // Worker SEES this in their app to show customer
+    })
+);
+
+/**
+ * 4.4 CANCELLATION ENGINE
+ */
+
+/**
+ * Worker Cancels Job
+ */
+router.post('/jobs/:id/cancel', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        try {
+            const [jobs] = await conn.query('SELECT status, customer_id, worker_id, cancellation_locked_at FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+            const job = jobs[0];
+
+            if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+
+            if (['in_progress', 'pending_completion', 'completed', 'disputed', 'cancelled', 'searching', 'open'].includes(job.status)) {
+                throw Object.assign(new Error('Cannot cancel at this stage. Raise a dispute.'), { status: 403, code: 'CANNOT_CANCEL' });
+            }
+
+            let applyPenalty = false;
+
+            if (job.status === 'assigned' || job.status === 'worker_en_route') {
+                if (job.cancellation_locked_at && new Date() > new Date(job.cancellation_locked_at)) {
+                    throw Object.assign(new Error('Too late to cancel without dispute.'), { status: 403, code: 'CANCELLATION_LOCKED' });
+                }
+            } else if (job.status === 'worker_arrived') {
+                // Allowed but with a strict penalty metric applied to their profile for abandoning customer at location
+                applyPenalty = true;
+            }
+
+            // Valid Cancellation Process
+            await conn.query(`UPDATE jobs SET status='cancelled', cancelled_by='worker', cancel_reason='Worker requested cancellation' WHERE id=?`, [jobId]);
+            await conn.query(`UPDATE worker_profiles SET current_job_id = NULL ${applyPenalty ? ', worker_cancel_penalty = 1' : ''} WHERE user_id=?`, [userId]);
+
+            console.log(`[Firebase Mock] Customer Notification: The worker cancelled the assignment.`);
+
+            // Trigger full refund sweep for Customer
+            const [payments] = await conn.query(`SELECT id, amount FROM payments WHERE job_id=? AND status='captured'`, [jobId]);
+            for (let payment of payments) {
+                await conn.query(`INSERT INTO refund_queue (payment_id, job_id, amount, status) VALUES (?, ?, ?, 'pending')`, [payment.id, jobId, payment.amount]);
+            }
+
+            await conn.commit();
+            return { cancelled: true, message: applyPenalty ? 'Cancelled with penalty' : 'Cancelled successfully' };
+        } catch (txnErr) {
+            await conn.rollback();
+            throw txnErr;
+        } finally {
+            conn.release();
+        }
+    })
+);
+
+/**
+ * Worker Disputes Job
+ */
+router.post('/jobs/:id/dispute', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { reason } = req.body;
+
+        if (!reason) throw Object.assign(new Error('reason field is required for dispute'), { status: 400 });
+
+        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = ?', [jobId]);
+        const job = jobs[0];
+
+        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+
+        if (job.status === 'completed' || job.status === 'cancelled') {
+            throw Object.assign(new Error('Job is finalized.'), { status: 400 });
+        }
+
+        await pool.query(
+            `UPDATE jobs SET status='disputed', dispute_reason=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
+            [reason, jobId]
+        );
+
+        console.log(`[Firebase Mock] -> Customer & Worker: "Dispute raised. Our team will review within 48 hours."`);
+        return { disputed: true, message: 'Dispute submitted. Admin will review within 48h.' };
     })
 );
 

@@ -13,6 +13,7 @@ import express from 'express';
 import configLoader from './config/loader.js';
 import { getPool } from './config/database.js';
 import { connectRedis } from './config/redis.js';
+import { initCronJobs } from './services/cron.service.js'; // Added this line
 import healthRouter from './routes/health.js';
 import adminRouter from './routes/admin.js';
 import authRouter from './routes/auth.js';
@@ -20,6 +21,7 @@ import meRouter from './routes/me.js';
 import uploadsRouter from './routes/uploads.js';
 import workerRouter from './routes/worker.js';
 import jobsRouter from './routes/jobs.js';
+import paymentRouter from './routes/payment.js';
 import {
     generalLimiter,
     authenticateJWT,
@@ -58,6 +60,7 @@ async function bootstrap() {
     app.use('/api/admin', adminRouter);
     app.use('/api/auth', authRouter);   // public — skip-listed in authenticateJWT
     app.use('/api/me', meRouter);     // protected — requires valid JWT
+    app.use('/api/payment', paymentRouter);     // protected — requires valid JWT
     app.use('/api/uploads', uploadsRouter); // protected — requires valid JWT
     app.use('/api/worker', workerRouter);   // protected — requires valid JWT
     app.use('/api/jobs', jobsRouter);       // protected — requires valid JWT
@@ -73,7 +76,10 @@ async function bootstrap() {
         res.status(500).json({ status: 'error', message: 'Internal server error' });
     });
 
-    // 7. Start listening
+    // 7. Initialize Background Sweeps
+    initCronJobs(); // Added this line
+
+    // 8. Start listening
     app.listen(PORT, () => {
         console.log(`[Server] Zarva API running on port ${PORT} (${ENV})`);
     });
