@@ -17,6 +17,8 @@ import healthRouter from './routes/health.js';
 import adminRouter from './routes/admin.js';
 import authRouter from './routes/auth.js';
 import meRouter from './routes/me.js';
+import uploadsRouter from './routes/uploads.js';
+import workerRouter from './routes/worker.js';
 import {
     generalLimiter,
     authenticateJWT,
@@ -55,6 +57,8 @@ async function bootstrap() {
     app.use('/api/admin', adminRouter);
     app.use('/api/auth', authRouter);   // public — skip-listed in authenticateJWT
     app.use('/api/me', meRouter);     // protected — requires valid JWT
+    app.use('/api/uploads', uploadsRouter); // protected — requires valid JWT
+    app.use('/api/worker', workerRouter);   // protected — requires valid JWT
 
     // 5. 404 handler
     app.use((_req, res) => {

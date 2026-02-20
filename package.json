@@ -10,6 +10,8 @@
         "dev:env": "node --env-file=.env.development --watch server.js"
     },
     "dependencies": {
+        "@aws-sdk/client-s3": "^3.994.0",
+        "@aws-sdk/s3-request-presigner": "^3.994.0",
         "bcrypt": "^5.1.1",
         "dotenv": "^16.4.5",
         "express": "^4.19.2",
