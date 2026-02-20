@@ -1,0 +1,25 @@
+{
+    "name": "zarva-server",
+    "version": "2.0.0",
+    "description": "Zarva — Hyperlocal On-Demand Service Marketplace for Kerala",
+    "type": "module",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --watch server.js",
+        "dev:env": "node --env-file=.env.development --watch server.js"
+    },
+    "dependencies": {
+        "bcrypt": "^5.1.1",
+        "dotenv": "^16.4.5",
+        "express": "^4.19.2",
+        "express-rate-limit": "^8.2.1",
+        "ioredis": "^5.3.2",
+        "jsonwebtoken": "^9.0.3",
+        "mysql2": "^3.9.7",
+        "rate-limit-redis": "^4.3.1"
+    },
+    "engines": {
+        "node": ">=20.6.0"
+    }
+}

@@ -1,0 +1,23 @@
+{
+    "app": {
+        "name": "Zarva",
+        "version": "2.0.0",
+        "timezone": "Asia/Kolkata",
+        "currency": "INR"
+    },
+    "geo": {
+        "default_city": "Kochi",
+        "search_radius_km": 10,
+        "max_radius_km": 25
+    },
+    "session": {
+        "token_expiry_days": 30,
+        "refresh_token_expiry_days": 90
+    },
+    "phone": {
+        "normalization": "E.164"
+    },
+    "dispute": {
+        "auto_escalate_hours": 48
+    }
+}

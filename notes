@@ -1,0 +1,30 @@
+Based on your 
+
+.env.development
+ file, your project expects Redis to run on localhost port 6379 with no password.
+
+You can start a Redis instance that perfectly matches your configuration by running the following command in your terminal (or command prompt / PowerShell):
+
+powershell
+docker run --name zarva-redis -p 6379:6379 -d redis:alpine
+What this command does:
+docker run: Starts a new container.
+--name zarva-redis: Assigns the name "zarva-redis" to your container so you can easily identify it.
+-p 6379:6379: Maps port 6379 inside the container to port 6379 on your local machine (which matches your REDIS_PORT=6379 in 
+
+.env.development
+).
+-d: Runs the container in the background (detached mode) so it doesn't block your terminal.
+redis:alpine: Uses the official, lightweight Alpine-based Redis image.
+Useful commands to manage it later:
+
+To stop it: docker stop zarva-redis
+To start it again: docker start zarva-redis
+To view logs: docker logs zarva-redis
+Bonus: I also noticed your 
+
+.env.development
+ expects a local MySQL database. If you also want to run the MySQL database inside Docker with the same credentials, you can run:
+
+powershell
+docker run --name zarva-mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=Vs@123456 -e MYSQL_DATABASE=zarva_dev -d mysql:8.0

@@ -1,0 +1,40 @@
+{
+  "auth": {
+    "phone_otp_enabled": true,
+    "mock_otp": "123456"
+  },
+  "payment": {
+    "enabled": true,
+    "advance_collection_enabled": true,
+    "cash_payment_allowed": true,
+    "idempotency_window_seconds": 300
+  },
+  "otp": {
+    "start_otp_enabled": true,
+    "end_otp_enabled": true,
+    "mock_start_otp": "0000",
+    "mock_end_otp": "9999"
+  },
+  "notifications": {
+    "push_enabled": true,
+    "whatsapp_enabled": false,
+    "sms_enabled": false
+  },
+  "location": {
+    "live_tracking_enabled": true,
+    "mock_worker_location": false,
+    "mock_lat": 10.0261,
+    "mock_lng": 76.3083
+  },
+  "matching": {
+    "geo_matching_enabled": true
+  },
+  "rate_limiting": {
+    "otp_per_phone_per_hour": 3,
+    "api_requests_per_minute": 60,
+    "job_create_per_hour": 5
+  },
+  "security": {
+    "check_blocked_on_every_request": true
+  }
+}
