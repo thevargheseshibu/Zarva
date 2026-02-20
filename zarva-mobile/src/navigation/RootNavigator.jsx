@@ -6,12 +6,13 @@
  *   customer    → CustomerNavigator
  *   worker      → WorkerNavigator  (or OnboardingNavigator if incomplete)
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { useAuthStore } from '../stores/authStore';
 import AuthNavigator from './AuthNavigator';
 import CustomerStack from './CustomerStack';
-import WorkerNavigator from './WorkerNavigator';
+import WorkerStack from './WorkerStack';
 import OnboardingNavigator from './OnboardingNavigator';
 
 // Dark navigation theme
@@ -35,8 +36,26 @@ const ZarvaTheme = {
 
 export default function RootNavigator() {
     const { user, isAuthenticated } = useAuthStore();
+    const [isHydrated, setIsHydrated] = useState(false);
+
+    useEffect(() => {
+        // Wait for AsyncStorage to be extracted into Zustand
+        const checkHydration = () => {
+            if (useAuthStore.persist.hasHydrated()) {
+                setIsHydrated(true);
+            }
+        };
+        checkHydration();
+
+        const unsub = useAuthStore.persist.onFinishHydration(() => setIsHydrated(true));
+        return () => {
+            if (unsub) unsub();
+        };
+    }, []);
 
     const renderNavigator = () => {
+        if (!isHydrated) return <View style={{ flex: 1, backgroundColor: ZarvaTheme.colors.background }} />;
+
         if (!isAuthenticated || !user) return <AuthNavigator />;
 
         const role = user.active_role || user.role;
@@ -44,7 +63,7 @@ export default function RootNavigator() {
 
         if (role === 'worker' && !onboardingDone) return <OnboardingNavigator />;
         if (role === 'customer') return <CustomerStack />;
-        if (role === 'worker') return <WorkerNavigator />;
+        if (role === 'worker') return <WorkerStack />;
 
         // Fallback to auth
         return <AuthNavigator />;

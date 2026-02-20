@@ -4,40 +4,36 @@ import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import OTPInput from '../../components/OTPInput';
 import GoldButton from '../../components/GoldButton';
-// import { ref, onValue, off } from 'firebase/database';
-// import { db } from '../../utils/firebase';
+import { ref, onValue, off } from 'firebase/database';
+import { db } from '../../utils/firebase';
 
 export default function JobStatusDetailScreen({ route, navigation }) {
     const { jobId } = route.params || { jobId: 'mock-123' };
 
     // DEV MOCK: hardcoded status progression for UI testing
     const [status, setStatus] = useState('assigned'); // 'searching', 'assigned', 'worker_arrived', 'in_progress', 'pending_completion', 'completed'
-    const [mockWorker] = useState({
+    const [mockWorker, setMockWorker] = useState({
         name: 'Rahul R', rating: 4.8, category: 'Plumber', phone: '+91 9876543210',
         photo: 'https://i.pravatar.cc/150?img=11'
     });
 
-    // SIMULATED REAL-TIME UPDATES (Firebase stand-in)
+    // Firebase REAL-TIME UPDATES
     useEffect(() => {
-        const sequence = [
-            { s: 'assigned', t: 3000 },
-            { s: 'worker_arrived', t: 4000 },
-            { s: 'in_progress', t: 4000 },
-            { s: 'pending_completion', t: 4000 }
-        ];
-
-        // This is strictly for dev demonstration purposes.
-        // In reality, this would be an onValue Firebase listener.
-        let step = 0;
-        const advance = () => {
-            if (step < sequence.length) {
-                setStatus(sequence[step].s);
-                setTimeout(advance, sequence[step].t);
-                step++;
+        const jobRef = ref(db, `active_jobs/${jobId}`);
+        const listener = onValue(jobRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                if (data.status) {
+                    setStatus(data.status);
+                }
+                if (data.worker) {
+                    setMockWorker(data.worker);
+                }
             }
-        };
-        setTimeout(advance, 2000);
-    }, []);
+        });
+
+        return () => off(jobRef, 'value', listener);
+    }, [jobId]);
 
     // Timeline logic
     const STAGES = ['searching', 'assigned', 'worker_arrived', 'in_progress', 'pending_completion'];

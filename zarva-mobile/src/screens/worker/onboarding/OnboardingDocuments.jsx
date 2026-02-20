@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Alert, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { colors, spacing, radius } from '../../../design-system/tokens';
 import GoldButton from '../../../components/GoldButton';
 import apiClient from '../../../services/api/client';
@@ -17,21 +18,22 @@ const DOCS = [
 
 async function uploadImage(uri, docKey) {
     try {
-        // 1. Get presigned URL from the backend (Task 3.1)
+        // 1. Get presigned URL from the backend
         const presignRes = await apiClient.post('/api/upload/presign', {
-            file_type: `${docKey}.jpg`,
+            file_type: `worker_${docKey}_${Date.now()}.jpg`,
             mime_type: 'image/jpeg',
         });
         const { upload_url, public_url } = presignRes.data;
 
-        // 2. Upload directly to S3
-        const blob = await fetch(uri).then(r => r.blob());
-        await fetch(upload_url, {
-            method: 'PUT', body: blob, headers: { 'Content-Type': 'image/jpeg' },
+        // 2. Upload directly to S3 using FileSystem.uploadAsync
+        await FileSystem.uploadAsync(upload_url, uri, {
+            httpMethod: 'PUT',
+            headers: { 'Content-Type': 'image/jpeg' },
         });
         return public_url;
     } catch (err) {
-        // Dev stub: return local uri
+        // Dev mock: return local uri on error
+        console.error("Upload failed:", err);
         return uri;
     }
 }
@@ -49,7 +51,7 @@ export default function OnboardingDocuments({ data, onNext }) {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             quality: 0.6,
-            allowsEditing: false,
+            allowsEditing: true, // Known bug: Android sometimes crashes if false and returning from gallery
         });
         if (result.canceled) return;
 

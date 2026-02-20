@@ -7,6 +7,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 import { colors } from '../design-system/tokens';
+import WorkerHomeScreen from '../screens/worker/WorkerHomeScreen';
 import AvailableJobsScreen from '../screens/worker/AvailableJobsScreen';
 import MyWorkScreen from '../screens/worker/MyWorkScreen';
 import WorkerProfileScreen from '../screens/worker/WorkerProfileScreen';
@@ -32,14 +33,19 @@ export default function WorkerNavigator() {
             }}
         >
             <Tab.Screen
+                name="WorkerHome"
+                component={WorkerHomeScreen}
+                options={{ tabBarIcon: icon('🏠'), tabBarLabel: 'Home' }}
+            />
+            <Tab.Screen
                 name="AvailableJobs"
                 component={AvailableJobsScreen}
-                options={{ tabBarIcon: icon('🔍'), tabBarLabel: 'Available Jobs' }}
+                options={{ tabBarIcon: icon('🔍'), tabBarLabel: 'Jobs' }}
             />
             <Tab.Screen
                 name="MyWork"
                 component={MyWorkScreen}
-                options={{ tabBarIcon: icon('⚒️'), tabBarLabel: 'My Work' }}
+                options={{ tabBarIcon: icon('⚒️'), tabBarLabel: 'History' }}
             />
             <Tab.Screen
                 name="WorkerProfile"

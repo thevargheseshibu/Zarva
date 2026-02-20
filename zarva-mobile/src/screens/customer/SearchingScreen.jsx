@@ -2,16 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, spacing } from '../../design-system/tokens';
 import RadarAnimation from '../../components/RadarAnimation';
-// import { ref, onValue, off } from 'firebase/database';
-// import { db } from '../../utils/firebase';
+import { ref, onValue, off } from 'firebase/database';
+import { db } from '../../utils/firebase';
 
 export default function SearchingScreen({ route, navigation }) {
     const { category, jobId } = route.params || { category: 'electrician', jobId: 'mock-123' };
     const [nearbyCount, setNearbyCount] = useState(5);
 
     useEffect(() => {
-        // Mock Firebase active_jobs listener
-        /*
+        // Monitor Firebase active_jobs
         const jobRef = ref(db, `active_jobs/${jobId}`);
         const listener = onValue(jobRef, (snapshot) => {
             const data = snapshot.val();
@@ -19,15 +18,8 @@ export default function SearchingScreen({ route, navigation }) {
                 navigation.replace('JobStatusDetail', { jobId });
             }
         });
+
         return () => off(jobRef, 'value', listener);
-        */
-
-        // Dev mock: auto-assign after 4 seconds
-        const timer = setTimeout(() => {
-            navigation.replace('JobStatusDetail', { jobId });
-        }, 4000);
-
-        return () => clearTimeout(timer);
     }, [jobId, navigation]);
 
     return (

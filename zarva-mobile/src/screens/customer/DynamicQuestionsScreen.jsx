@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import apiClient from '../../services/api/client';
@@ -58,7 +59,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             quality: 0.6,
-            allowsEditing: false,
+            allowsEditing: true, // Known bug: Android sometimes crashes if false and returning from certain gallery intent
         });
 
         if (result.canceled) return;
@@ -73,8 +74,11 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                 mime_type: 'image/jpeg',
             });
             const { upload_url, public_url } = presignRes.data;
-            const blob = await fetch(localUri).then(r => r.blob());
-            await fetch(upload_url, { method: 'PUT', body: blob, headers: { 'Content-Type': 'image/jpeg' } });
+
+            await FileSystem.uploadAsync(upload_url, localUri, {
+                httpMethod: 'PUT',
+                headers: { 'Content-Type': 'image/jpeg' },
+            });
 
             handleAnswer(questionId, public_url);
         } catch (err) {
