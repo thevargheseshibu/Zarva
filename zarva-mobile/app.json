@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "zarva-mobile",
-    "slug": "zarva-mobile",
+    "name": "Zarva",
+    "slug": "zarva",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0A0F"
     },
     "ios": {
       "supportsTablet": true
@@ -18,15 +18,15 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0A0A0F"
       },
+      "package": "com.zarva.app",
       "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router",
       "expo-font"
     ]
   }

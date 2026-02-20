@@ -1,0 +1,52 @@
+/**
+ * src/navigation/RootNavigator.jsx
+ *
+ * Auth-gated root: reads authStore.user.active_role and renders the correct navigator.
+ *   no user     → AuthNavigator
+ *   customer    → CustomerNavigator
+ *   worker      → WorkerNavigator  (or OnboardingNavigator if incomplete)
+ */
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { useAuthStore } from '../stores/authStore';
+import AuthNavigator from './AuthNavigator';
+import CustomerNavigator from './CustomerNavigator';
+import WorkerNavigator from './WorkerNavigator';
+import OnboardingNavigator from './OnboardingNavigator';
+
+// Dark navigation theme
+const ZarvaTheme = {
+    dark: true,
+    colors: {
+        primary: '#C9A84C',
+        background: '#0A0A0F',
+        card: '#12121A',
+        text: '#F0EDE8',
+        border: '#1A1A26',
+        notification: '#FF4D6A',
+    },
+};
+
+export default function RootNavigator() {
+    const { user, isAuthenticated } = useAuthStore();
+
+    const renderNavigator = () => {
+        if (!isAuthenticated || !user) return <AuthNavigator />;
+
+        const role = user.active_role || user.role;
+        const onboardingDone = user.onboarding_complete ?? true;
+
+        if (role === 'worker' && !onboardingDone) return <OnboardingNavigator />;
+        if (role === 'customer') return <CustomerNavigator />;
+        if (role === 'worker') return <WorkerNavigator />;
+
+        // Fallback to auth
+        return <AuthNavigator />;
+    };
+
+    return (
+        <NavigationContainer theme={ZarvaTheme}>
+            {renderNavigator()}
+        </NavigationContainer>
+    );
+}
