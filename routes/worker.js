@@ -13,6 +13,11 @@ import { getRedisClient } from '../config/redis.js';
 import configLoader from '../config/loader.js';
 import * as WorkerService from '../services/worker.service.js';
 import * as MatchingEngine from '../services/matchingEngine.js';
+import {
+    updateWorkerPresence,
+    updateJobNode,
+    createJobNode
+} from '../services/firebase.service.js';
 
 const router = Router();
 
@@ -95,7 +100,17 @@ router.get('/onboard/status', (req, res) =>
  */
 router.post('/jobs/:id/accept', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        await MatchingEngine.acceptJob(req.params.id, userId, pool);
+        const jobId = req.params.id;
+        await MatchingEngine.acceptJob(jobId, userId, pool);
+
+        // Hook: create Firebase active_jobs node with the full structure
+        const [jobs] = await pool.query(
+            'SELECT customer_id, latitude, longitude FROM jobs WHERE id=?', [jobId]
+        );
+        if (jobs[0]) {
+            await createJobNode(jobId, userId, jobs[0].latitude, jobs[0].longitude);
+        }
+
         return { message: 'Job accepted successfully' };
     })
 );
@@ -327,3 +342,90 @@ router.post('/jobs/:id/dispute', (req, res) =>
 );
 
 export default router;
+
+// ─── PUT /api/worker/location ────────────────────────────────────────────────
+// Authenticated worker updates their GPS position
+router.put('/location', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const { lat, lng } = req.body;
+        if (lat == null || lng == null) throw Object.assign(new Error('lat and lng required'), { status: 400 });
+
+        // Guard: must be verified and online
+        const [wp] = await pool.query(
+            'SELECT is_verified, is_online, current_job_id FROM worker_profiles WHERE user_id=?',
+            [userId]
+        );
+        const profile = wp[0];
+        if (!profile) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
+        if (!profile.is_verified) throw Object.assign(new Error('Worker not verified'), { status: 403 });
+        if (!profile.is_online) throw Object.assign(new Error('Worker must be online to update location'), { status: 403 });
+
+        // 1. Update DB
+        await pool.query(
+            'UPDATE worker_profiles SET last_location_lat=?, last_location_lng=?, last_location_at=NOW() WHERE user_id=?',
+            [lat, lng, userId]
+        );
+
+        // 2. Sync Firebase worker_presence
+        await updateWorkerPresence(userId, {
+            is_online: true,
+            lat,
+            lng,
+            current_job_id: profile.current_job_id || null
+        });
+
+        // 3. If on an active job — update active_jobs node + log to history
+        if (profile.current_job_id) {
+            await updateJobNode(profile.current_job_id, { worker_lat: lat, worker_lng: lng });
+
+            await pool.query(
+                'INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude) VALUES (?, ?, ?, ?)',
+                [userId, profile.current_job_id, lat, lng]
+            );
+        } else {
+            // Idle ping — still log to history (job_id = NULL)
+            await pool.query(
+                'INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude) VALUES (?, NULL, ?, ?)',
+                [userId, lat, lng]
+            );
+        }
+
+        return { updated: true, lat, lng };
+    })
+);
+
+// ─── PUT /api/worker/availability ───────────────────────────────────────────
+// Toggle worker online / offline
+router.put('/availability', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const { is_online } = req.body;
+        if (is_online == null) throw Object.assign(new Error('is_online required'), { status: 400 });
+
+        const goingOnline = Boolean(is_online);
+
+        const [wp] = await pool.query(
+            'SELECT current_job_id FROM worker_profiles WHERE user_id=?',
+            [userId]
+        );
+        const profile = wp[0];
+        if (!profile) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
+
+        // Update DB
+        await pool.query(
+            'UPDATE worker_profiles SET is_online=? WHERE user_id=?',
+            [goingOnline ? 1 : 0, userId]
+        );
+
+        // Sync Firebase
+        await updateWorkerPresence(userId, { is_online: goingOnline });
+
+        const response = { is_online: goingOnline };
+
+        // Warn — don't clear the active job, just notify
+        if (!goingOnline && profile.current_job_id) {
+            response.warning = `You went offline with an active job (${profile.current_job_id}). Please complete or cancel it.`;
+        }
+
+        return response;
+    })
+);

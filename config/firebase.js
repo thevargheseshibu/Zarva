@@ -2,8 +2,8 @@
  * config/firebase.js — Firebase Admin SDK singleton
  *
  * Lazy-initialises the app on first call.
- * If env vars are missing (dev mode), initialisation is skipped and
- * verifyIdToken() returns null — the caller must handle this gracefully.
+ * If env vars are missing (dev mode), all helpers return null.
+ * Callers must handle null gracefully.
  */
 
 import { createRequire } from 'node:module';
@@ -12,12 +12,11 @@ const require = createRequire(import.meta.url);
 
 let _app = null;
 let _admin = null;
+let _db = null;
 
 /**
  * Initialise (or return cached) Firebase Admin app.
  * Returns null when Firebase env vars are not configured.
- *
- * @returns {import('firebase-admin').app.App | null}
  */
 function getFirebaseApp() {
     if (_app) return _app;
@@ -31,10 +30,11 @@ function getFirebaseApp() {
         return null;
     }
 
-    // Lazy-require to avoid slowing down test runs that never call this
     _admin = require('firebase-admin');
 
-    // Avoid re-initialising if somehow already done
+    // Expose globally so firebase.service.js can access without re-require
+    globalThis.__firebaseAdmin = _admin;
+
     if (_admin.apps.length > 0) {
         _app = _admin.apps[0];
         return _app;
@@ -44,9 +44,9 @@ function getFirebaseApp() {
         credential: _admin.credential.cert({
             projectId,
             clientEmail,
-            // GCP stores newlines as literal \n in env vars
             privateKey: privateKey.replace(/\\n/g, '\n'),
         }),
+        databaseURL: process.env.FIREBASE_DATABASE_URL,
     });
 
     console.log('[Firebase] Admin SDK initialised for project:', projectId);
@@ -54,17 +54,28 @@ function getFirebaseApp() {
 }
 
 /**
+ * Returns the Firebase Realtime Database instance, or null in stub mode.
+ */
+function getDatabase() {
+    if (_db) return _db;
+    const app = getFirebaseApp();
+    if (!app) return null;
+    if (!process.env.FIREBASE_DATABASE_URL) {
+        console.warn('[Firebase] FIREBASE_DATABASE_URL not set — RTDB unavailable.');
+        return null;
+    }
+    _db = _admin.database(app);
+    return _db;
+}
+
+/**
  * Verify a Firebase ID token and return its decoded payload.
  * Returns null when Firebase is not configured (dev stub mode).
- *
- * @param {string} idToken
- * @returns {Promise<object|null>}
  */
 async function verifyIdToken(idToken) {
     const app = getFirebaseApp();
     if (!app) return null;
-
     return _admin.auth(app).verifyIdToken(idToken);
 }
 
-export { getFirebaseApp, verifyIdToken };
+export { getFirebaseApp, getDatabase, verifyIdToken };

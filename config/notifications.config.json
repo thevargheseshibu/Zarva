@@ -1,0 +1,104 @@
+{
+    "templates": {
+        "job_new": {
+            "title": {
+                "en": "New Job Available!",
+                "ml": "പുതിയ ജോലി ലഭ്യമാണ്!"
+            },
+            "body": {
+                "en": "A {{category}} job is available {{distance}}km away.",
+                "ml": "{{distance}}കിമി അകലെ {{category}} ജോലി ഉണ്ട്."
+            }
+        },
+        "worker_found": {
+            "title": {
+                "en": "Worker Found!",
+                "ml": "തൊഴിലാളിയെ കിട്ടി!"
+            },
+            "body": {
+                "en": "{{worker_name}} is on the way. ETA: {{eta}} min.",
+                "ml": "{{worker_name}} വരുന്നു. ETA: {{eta}} മിനിറ്റ്."
+            }
+        },
+        "worker_arrived": {
+            "title": {
+                "en": "Worker Arrived!",
+                "ml": "തൊഴിലാളി എത്തി!"
+            },
+            "body": {
+                "en": "{{worker_name}} has arrived. Your start OTP is {{otp}}.",
+                "ml": "{{worker_name}} എത്തി. നിങ്ങളുടെ OTP: {{otp}}."
+            }
+        },
+        "job_taken": {
+            "title": {
+                "en": "Job Taken",
+                "ml": "ജോലി ഏറ്റെടുത്തു"
+            },
+            "body": {
+                "en": "This job has been accepted by another worker.",
+                "ml": "ഈ ജോലി മറ്റൊരു തൊഴിലാളി ഏറ്റെടുത്തു."
+            }
+        },
+        "job_completed": {
+            "title": {
+                "en": "Job Completed!",
+                "ml": "ജോലി പൂർത്തിയായി!"
+            },
+            "body": {
+                "en": "Job #{{job_id}} has been completed. Thank you!",
+                "ml": "ജോലി #{{job_id}} പൂർത്തിയായി. നന്ദി!"
+            }
+        },
+        "payment_received": {
+            "title": {
+                "en": "Payment Received!",
+                "ml": "പേയ്മെൻ്റ് ലഭിച്ചു!"
+            },
+            "body": {
+                "en": "You received ₹{{amount}} for job #{{job_id}}.",
+                "ml": "ജോലി #{{job_id}}-ൽ ₹{{amount}} ലഭിച്ചു."
+            }
+        },
+        "job_cancelled": {
+            "title": {
+                "en": "Job Cancelled",
+                "ml": "ജോലി റദ്ദാക്കി"
+            },
+            "body": {
+                "en": "Job #{{job_id}} was cancelled by the {{cancelled_by}}.",
+                "ml": "ജോലി #{{job_id}} {{cancelled_by}} റദ്ദാക്കി."
+            }
+        },
+        "no_worker_found": {
+            "title": {
+                "en": "No Workers Available",
+                "ml": "തൊഴിലാളികൾ ലഭ്യമല്ല"
+            },
+            "body": {
+                "en": "We couldn't find a worker nearby. Please try again later.",
+                "ml": "അടുത്ത് തൊഴിലാളിയെ കണ്ടെത്താനായില്ല. ദയവായി വീണ്ടും ശ്രമിക്കുക."
+            }
+        },
+        "worker_approved": {
+            "title": {
+                "en": "You're Approved!",
+                "ml": "അംഗീകരിച്ചു!"
+            },
+            "body": {
+                "en": "Congratulations! You can now start accepting jobs on ZARVA.",
+                "ml": "അഭിനന്ദനങ്ങൾ! ZARVA-യിൽ ജോലി സ്വീകരിക്കാൻ ഇനി തയ്യാർ."
+            }
+        },
+        "dispute_raised": {
+            "title": {
+                "en": "Dispute Raised",
+                "ml": "തർക്കം ഉന്നയിച്ചു"
+            },
+            "body": {
+                "en": "A dispute has been raised for job #{{job_id}}. Our team will review within 48 hours.",
+                "ml": "ജോലി #{{job_id}}-ൽ തർക്കം ഉന്നയിച്ചു. 48 മണിക്കൂറിനുള്ളിൽ പരിശോധിക്കും."
+            }
+        }
+    }
+}

@@ -22,6 +22,7 @@ import uploadsRouter from './routes/uploads.js';
 import workerRouter from './routes/worker.js';
 import jobsRouter from './routes/jobs.js';
 import paymentRouter from './routes/payment.js';
+import reviewsRouter from './routes/reviews.js';
 import {
     generalLimiter,
     authenticateJWT,
@@ -61,6 +62,7 @@ async function bootstrap() {
     app.use('/api/auth', authRouter);   // public — skip-listed in authenticateJWT
     app.use('/api/me', meRouter);     // protected — requires valid JWT
     app.use('/api/payment', paymentRouter);     // protected — requires valid JWT
+    app.use('/api/reviews', reviewsRouter);      // protected — requires valid JWT
     app.use('/api/uploads', uploadsRouter); // protected — requires valid JWT
     app.use('/api/worker', workerRouter);   // protected — requires valid JWT
     app.use('/api/jobs', jobsRouter);       // protected — requires valid JWT

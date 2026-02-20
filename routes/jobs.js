@@ -11,6 +11,7 @@ import bcrypt from 'bcrypt';
 import { getRedisClient } from '../config/redis.js';
 import * as JobService from '../services/job.service.js';
 import { generateEstimate, calculatePricing } from '../utils/pricingEngine.js';
+import { readWorkerPresence } from '../services/firebase.service.js';
 
 const router = Router();
 
@@ -331,3 +332,41 @@ router.post('/:id/dispute', async (req, res) => {
 });
 
 export default router;
+
+// ─── GET /api/jobs/:id/worker-location ────────────────────────────────────────
+// Customer: get live worker GPS for their active job
+router.get('/:id/worker-location', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    const jobId = Number(req.params.id);
+    const ACTIVE_STATUSES = ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress'];
+
+    try {
+        const pool = getPool();
+        const [jobs] = await pool.query(
+            'SELECT customer_id, worker_id, status FROM jobs WHERE id=?',
+            [jobId]
+        );
+        const job = jobs[0];
+
+        if (!job) return fail(res, 'Job not found', 404);
+        if (job.customer_id !== userId) return fail(res, 'Forbidden', 403, 'FORBIDDEN');
+        if (!ACTIVE_STATUSES.includes(job.status)) {
+            return fail(res, `Worker location only available when job is active (current: ${job.status})`, 400, 'INVALID_STATE');
+        }
+
+        const presence = await readWorkerPresence(job.worker_id);
+        if (!presence) return fail(res, 'Worker location unavailable', 503);
+
+        return ok(res, {
+            lat: presence.lat,
+            lng: presence.lng,
+            last_seen: presence.last_seen,
+            eta_minutes: presence.eta_minutes || null,
+            is_mock: presence._mock || false
+        });
+    } catch (err) {
+        return fail(res, err.message, 500);
+    }
+});

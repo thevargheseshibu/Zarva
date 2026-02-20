@@ -154,18 +154,20 @@ async function run() {
         const [vDB] = await pool.query("SELECT status, razorpay_payment_id FROM payments WHERE id=?", [resV1.body.data.payment_id]);
         assert(vDB[0].status === 'captured', "Database mutated tracking structure securely to CAPTURED");
 
-        // --- Tampered signature must 400 ---
+        // --- Tampered signature must 400 (use a fresh pending row so HMAC check is reached) ---
+        const tamperOrderId = `mock_tamper_${Date.now()}`;
+        await pool.query(
+            `INSERT INTO payments (job_id, customer_id, type, method, status, amount, razorpay_order_id, idempotency_key)
+             VALUES (99991, 99991, 'advance', 'razorpay', 'pending', 50, ?, ?)`,
+            [tamperOrderId, `tamper_key_${Date.now()}`]
+        );
         const resTamper = await mockRequest(paymentRouter, 'POST', '/verify', 99991, {
-            razorpay_order_id: trackedOrderId,
-            razorpay_payment_id: dummyPaymentId,
+            razorpay_order_id: tamperOrderId,
+            razorpay_payment_id: 'pay_tamper123',
             razorpay_signature: 'TAMPERED_INVALID_SIGNATURE_XYZ'
         });
         assert(resTamper.status === 400, "Tampered signature correctly rejected with 400");
-        assert(
-            resTamper.body.code === 'SIGNATURE_MISMATCH' ||
-            resTamper.body.message?.includes('Already captured') === false,
-            "400 error code is SIGNATURE_MISMATCH or already-captured short-circuit"
-        );
+        assert(resTamper.body.code === 'SIGNATURE_MISMATCH', "Error code is SIGNATURE_MISMATCH");
 
 
         console.log('\n--- Test 6. Dynamic JSON Invoice Generation ---');
