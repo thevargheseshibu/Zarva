@@ -8,9 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-const CONFIG_NAMES = ['features', 'zarva', 'pricing'];
-
+const CONFIG_NAMES = ['features', 'zarva', 'pricing', 'jobs'];
 /**
  * Deep-merge source into target (source wins on conflicts).
  * @param {object} target

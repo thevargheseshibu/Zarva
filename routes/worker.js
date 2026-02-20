@@ -8,6 +8,7 @@
 import { Router } from 'express';
 import { getPool } from '../config/database.js';
 import * as WorkerService from '../services/worker.service.js';
+import * as MatchingEngine from '../services/matchingEngine.js';
 
 const router = Router();
 
@@ -78,7 +79,31 @@ router.post('/onboard/agree', (req, res) => {
  * 6. GET /onboard/status
  */
 router.get('/onboard/status', (req, res) =>
-    handle(req, res, (userId, pool) => WorkerService.getOnboardingStatus(userId, pool))
+    handle(req, res, async (userId, pool) => {
+        const statusRes = await WorkerService.getOnboardingStatus(userId, pool);
+        return { data: statusRes }; // handle() will wrap this in { status: 'ok', ... }
+    })
+);
+
+/**
+ * ATOMIC Job Acceptance
+ * Uses Redis SET NX locks explicitly under the hood. Returns 409 if stolen.
+ */
+router.post('/jobs/:id/accept', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        await MatchingEngine.acceptJob(req.params.id, userId, pool);
+        return { message: 'Job accepted successfully' };
+    })
+);
+
+/**
+ * Job Rejection
+ */
+router.post('/jobs/:id/decline', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        await MatchingEngine.declineJob(req.params.id, userId, pool);
+        return { message: 'Job declined successfully' };
+    })
 );
 
 export default router;

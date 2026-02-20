@@ -19,6 +19,7 @@ import authRouter from './routes/auth.js';
 import meRouter from './routes/me.js';
 import uploadsRouter from './routes/uploads.js';
 import workerRouter from './routes/worker.js';
+import jobsRouter from './routes/jobs.js';
 import {
     generalLimiter,
     authenticateJWT,
@@ -59,6 +60,7 @@ async function bootstrap() {
     app.use('/api/me', meRouter);     // protected — requires valid JWT
     app.use('/api/uploads', uploadsRouter); // protected — requires valid JWT
     app.use('/api/worker', workerRouter);   // protected — requires valid JWT
+    app.use('/api/jobs', jobsRouter);       // protected — requires valid JWT
 
     // 5. 404 handler
     app.use((_req, res) => {

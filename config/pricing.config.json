@@ -38,9 +38,12 @@
     },
     "platform_commission_percent": 10,
     "advance_percent": 15,
+    "night_surcharge_percent": 20,
+    "emergency_surcharge_percent": 25,
     "travel": {
         "petrol_rate_per_km": 8,
         "free_km_radius": 2,
-        "max_travel_charge": 150
+        "max_travel_charge": 150,
+        "min_travel_charge": 30
     }
 }

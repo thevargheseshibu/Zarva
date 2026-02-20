@@ -1,0 +1,39 @@
+{
+    "questions": {
+        "electrician": [
+            "What type of electrical work do you need?",
+            "Is it a repair, installation, or replacement?",
+            "Are there any exposed wires or immediate safety hazards?"
+        ],
+        "plumber": [
+            "What plumbing issue are you experiencing?",
+            "Is there an active leak?",
+            "Do you need pipe replacement or block clearing?"
+        ],
+        "carpenter": [
+            "What kind of woodwork is needed?",
+            "Do you need repair or custom furniture building?",
+            "Do you have the materials ready?"
+        ],
+        "ac_technician": [
+            "What is the issue with your AC?",
+            "Is it split AC or Window AC?",
+            "Has the AC been serviced in the last 6 months?"
+        ],
+        "painter": [
+            "How many rooms need painting?",
+            "Do you require interior or exterior painting?",
+            "Will we need to scrape existing paint?"
+        ],
+        "cleaner": [
+            "Is this a deep clean or regular cleaning?",
+            "How many bedrooms and bathrooms?",
+            "Do you have pets at home?"
+        ],
+        "driver": [
+            "What type of vehicle needs driving?",
+            "Is it a manual or automatic transmission?",
+            "Will this be a round trip or one-way drop?"
+        ]
+    }
+}

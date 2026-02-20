@@ -19,5 +19,8 @@
     },
     "dispute": {
         "auto_escalate_hours": 48
+    },
+    "matching": {
+        "cancellation_lock_minutes": 15
     }
 }
