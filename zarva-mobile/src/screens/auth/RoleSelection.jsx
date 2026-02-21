@@ -3,7 +3,7 @@
  * "I am a..." — Customer or Service Provider cards, GoldButton confirm.
  */
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, UIManager, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, UIManager, Platform, Alert } from 'react-native';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
     UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -12,38 +12,57 @@ import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import { useAuthStore } from '../../stores/authStore';
 import apiClient from '../../services/api/client';
-
-const ROLES = [
-    {
-        role: 'customer',
-        icon: '🏠',
-        title: 'Customer',
-        sub: 'Book skilled workers on-demand',
-    },
-    {
-        role: 'worker',
-        icon: '🔧',
-        title: 'Service Provider',
-        sub: 'Earn money with your skills',
-    },
-];
+import { useT } from '../../hooks/useT';
 
 export default function RoleSelection() {
     const [selected, setSelected] = useState(null);
     const [loading, setLoading] = useState(false);
     const { user, token, login } = useAuthStore();
+    const t = useT();
+
+    const ROLES = [
+        {
+            role: 'customer',
+            icon: '🏠',
+            title: t('customer'),
+            sub: t('customer_desc'),
+        },
+        {
+            role: 'worker',
+            icon: '🔧',
+            title: t('worker'),
+            sub: t('worker_desc'),
+        },
+    ];
 
     const handleContinue = async () => {
         if (!selected) return;
         setLoading(true);
         try {
-            const res = await apiClient.post('/api/auth/role', { role: selected });
-            const updated = { ...user, role: selected, active_role: selected, onboarding_complete: selected === 'customer' };
-            login(updated, res.data?.token || token);
-        } catch (_) {
-            // Dev fallback
-            const updated = { ...user, role: selected, active_role: selected, onboarding_complete: selected === 'customer' };
+            const res = await apiClient.put('/api/me', { active_role: selected });
+            const userResponse = res.data?.user || res.data;
+            const updated = {
+                ...user,
+                role: selected,
+                active_role: selected,
+                onboarding_complete: selected === 'customer',
+                ...userResponse
+            };
             login(updated, token);
+        } catch (err) {
+            if (err.response?.status === 409) {
+                // Role already set in DB, likely logged in elsewhere and synced back
+                const dbProfile = err.response.data?.user;
+                if (dbProfile) {
+                    Alert.alert('Role Locked', err.response.data?.message || 'Role cannot be changed.');
+                    login({ ...user, ...dbProfile }, token);
+                }
+            } else {
+                // Dev fallback / Network Error
+                console.warn('Role selection update failed, applying locally: ', err);
+                const updated = { ...user, role: selected, active_role: selected, onboarding_complete: selected === 'customer' };
+                login(updated, token);
+            }
         } finally {
             setLoading(false);
         }
@@ -51,8 +70,7 @@ export default function RoleSelection() {
 
     return (
         <View style={styles.screen}>
-            <Text style={styles.title}>I am a...</Text>
-            <Text style={styles.sub}>Choose how you'll use ZARVA</Text>
+            <Text style={styles.title}>{t('choose_role')}</Text>
 
             <View style={styles.cards}>
                 {ROLES.map((r) => {
@@ -83,7 +101,7 @@ export default function RoleSelection() {
             </View>
 
             <GoldButton
-                title="Continue"
+                title={t('continue')}
                 disabled={!selected}
                 loading={loading}
                 onPress={handleContinue}

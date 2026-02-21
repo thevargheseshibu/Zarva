@@ -57,10 +57,11 @@ function makeLimiter({ prefix, windowMs, max, message, keyGenerator }) {
         store: makeRedisStore(prefix),
         keyGenerator: keyGenerator ?? ipKeyGenerator,
         handler(_req, res) {
+            const msg = typeof message === 'function' ? message() : (message ?? 'Too many requests. Please try again later.');
             res.status(429).json({
                 status: 'error',
                 code: 'RATE_LIMITED',
-                message: message ?? 'Too many requests. Please try again later.',
+                message: msg,
             });
         },
         skip: () => false,
@@ -91,8 +92,15 @@ export const generalLimiter = IS_DEV
 export const otpLimiter = makeLimiter({
     prefix: 'zarva:otp_rate:',
     windowMs: 60 * 60 * 1000,
-    max: getFeatureValue('rate_limiting.otp_per_phone_per_hour', 3),
-    message: 'OTP limit reached. Maximum 3 OTPs per phone per hour.',
+    max: () => {
+        const envLimit = Number(process.env.OTP_RATE_LIMIT_PER_HOUR);
+        return envLimit > 0 ? envLimit : getFeatureValue('rate_limiting.otp_per_phone_per_hour', 3);
+    },
+    message: () => {
+        const envLimit = Number(process.env.OTP_RATE_LIMIT_PER_HOUR);
+        const limit = envLimit > 0 ? envLimit : getFeatureValue('rate_limiting.otp_per_phone_per_hour', 3);
+        return `OTP limit reached. Maximum ${limit} OTPs per phone per hour.`;
+    },
     keyGenerator(req) {
         // Prefer normalizedPhone (set by normalizePhone middleware);
         // fall back to raw body value so the limiter works even without the mw.

@@ -8,7 +8,6 @@ import SplashScreen from '../screens/auth/SplashScreen';
 import LanguageScreen from '../screens/auth/LanguageScreen';
 import PhoneScreen from '../screens/auth/PhoneScreen';
 import OTPScreen from '../screens/auth/OTPScreen';
-import RoleSelection from '../screens/auth/RoleSelection';
 
 const Stack = createStackNavigator();
 
@@ -19,7 +18,6 @@ export default function AuthNavigator() {
             <Stack.Screen name="Language" component={LanguageScreen} />
             <Stack.Screen name="Phone" component={PhoneScreen} />
             <Stack.Screen name="OTP" component={OTPScreen} />
-            <Stack.Screen name="RoleSelection" component={RoleSelection} />
         </Stack.Navigator>
     );
 }

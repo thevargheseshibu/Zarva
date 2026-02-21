@@ -48,10 +48,15 @@ export default function OnboardingDocuments({ data, onNext }) {
             Alert.alert('Permission needed', 'Please allow access to your photo library.');
             return;
         }
+
+        // Delay to allow the TouchableOpacity 'blur' or touch release to complete natively
+        // before the modal intent takes over, preventing the SoftException crash.
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
-            quality: 0.6,
-            allowsEditing: true, // Known bug: Android sometimes crashes if false and returning from gallery
+            quality: 0.2,
+            allowsEditing: false, // Disabling this because Android's ExpoCropImageActivity consumes too much memory and causes background process kills.
         });
         if (result.canceled) return;
 

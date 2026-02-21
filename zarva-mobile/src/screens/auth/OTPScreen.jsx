@@ -11,17 +11,19 @@ import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import { useAuthStore } from '../../stores/authStore';
 import apiClient from '../../services/api/client';
+import { useT } from '../../hooks/useT';
 
 const BOX_COUNT = 6;
 const RESEND_SECONDS = 30;
 
 export default function OTPScreen({ navigation, route }) {
-    const { phone } = route.params || {};
+    const { phone, authMethod = 'sms' } = route.params || {};
     const [digits, setDigits] = useState(Array(BOX_COUNT).fill(''));
     const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
     const [loading, setLoading] = useState(false);
     const inputs = useRef([]);
     const login = useAuthStore(s => s.login);
+    const t = useT();
 
     // Countdown timer
     useEffect(() => {
@@ -57,20 +59,34 @@ export default function OTPScreen({ navigation, route }) {
         const code = codeOverride || digits.join('');
         if (code.length < BOX_COUNT) return;
         setLoading(true);
+
+        const verifyEndpoint = authMethod === 'whatsapp' ? '/api/whatsapp/verify-otp' : '/api/auth/otp/verify';
+
         try {
-            const res = await apiClient.post('/api/auth/otp/verify', { phone, otp: code });
+            const res = await apiClient.post(verifyEndpoint, { phone, otp: code });
             const { token, user } = res.data;
             login(user, token);
             if (!user.role && !user.active_role) {
                 navigation.navigate('RoleSelection');
             }
         } catch (err) {
-            // Dev/stub mode: simulate success with mock data
+            // Dev/stub mode: simulate success with actual signed dev backend token
             if (__DEV__) {
-                login({ phone, role: null, active_role: null, onboarding_complete: true }, 'dev-mock-token');
-                navigation.navigate('RoleSelection');
+                try {
+                    // Normalize phone structure to satisfy basic node route middleware
+                    const mockAuthPhone = (phone || '').startsWith('+91') ? phone : `+91${phone || '0000000000'}`;
+                    const devRes = await apiClient.post('/api/auth/dev-login', { phone: mockAuthPhone.replace(/\s+/g, '') });
+                    const { token, user } = devRes.data;
+                    login(user, token);
+                    if (!user.role && !user.active_role) {
+                        navigation.navigate('RoleSelection');
+                    }
+                } catch (devErr) {
+                    console.error("DEV Login error: ", devErr?.response?.data || devErr);
+                    Alert.alert('Error', `Could not reach backend. ${devErr?.response?.data?.message || ''}`);
+                }
             } else {
-                Alert.alert('Invalid OTP', 'The code you entered is incorrect. Please try again.');
+                Alert.alert('Error', t('error_otp_invalid'));
                 setDigits(Array(BOX_COUNT).fill(''));
                 inputs.current[0]?.focus();
             }
@@ -81,7 +97,8 @@ export default function OTPScreen({ navigation, route }) {
 
     const handleResend = async () => {
         try {
-            await apiClient.post('/api/auth/otp/send', { phone });
+            const sendEndpoint = authMethod === 'whatsapp' ? '/api/whatsapp/send-otp' : '/api/auth/otp/send';
+            await apiClient.post(sendEndpoint, { phone });
         } catch (_) { }
         setSecondsLeft(RESEND_SECONDS);
         setDigits(Array(BOX_COUNT).fill(''));
@@ -98,8 +115,8 @@ export default function OTPScreen({ navigation, route }) {
             </TouchableOpacity>
 
             <View style={styles.content}>
-                <Text style={styles.title}>Enter the 6-digit code</Text>
-                <Text style={styles.sub}>Sent to <Text style={styles.phone}>{maskedPhone}</Text></Text>
+                <Text style={styles.title}>{t('enter_6_digit_code')}</Text>
+                <Text style={styles.sub}>{t('sent_to_number')} <Text style={styles.phone}>{maskedPhone}</Text></Text>
 
                 {/* OTP Boxes */}
                 <View style={styles.boxRow}>
@@ -122,10 +139,10 @@ export default function OTPScreen({ navigation, route }) {
                 {/* Timer / Resend */}
                 <View style={styles.resendRow}>
                     {secondsLeft > 0 ? (
-                        <Text style={styles.timerText}>Resend in <Text style={styles.timerNum}>{minuteStr}</Text></Text>
+                        <Text style={styles.timerText}>{t('resend_in')} <Text style={styles.timerNum}>{minuteStr}</Text></Text>
                     ) : (
                         <TouchableOpacity onPress={handleResend}>
-                            <Text style={styles.resendBtn}>Resend OTP</Text>
+                            <Text style={styles.resendBtn}>{t('resend_otp')}</Text>
                         </TouchableOpacity>
                     )}
                 </View>

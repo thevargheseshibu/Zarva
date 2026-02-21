@@ -1,27 +1,82 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import * as Location from 'expo-location';
+import apiClient from '../../services/api/client';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
+import { useJobStore } from '../../stores/jobStore';
 
 export default function LocationScheduleScreen({ route, navigation }) {
     const { category, label, answers, basePrice } = route.params || {};
 
-    const [address, setAddress] = useState('');
+    const [locationText, setLocationText] = useState('');
+    const [locationCoords, setLocationCoords] = useState(null);
+    const [locationLoading, setLocationLoading] = useState(false);
+
     const [scheduleType, setScheduleType] = useState('now'); // 'now' or 'later'
     const [date, setDate] = useState('');
     const [time, setTime] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const handleConfirm = () => {
-        setLoading(true);
-        // Normally: apiClient.post('/api/jobs', { category, answers, location: address, schedule: scheduleType === 'now' ? 'ASAP' : `${date} ${time}` })
-        setTimeout(() => {
-            setLoading(false);
-            navigation.navigate('Searching', { category, jobId: `job-${Date.now()}` });
-        }, 600);
+    const handleLocationPress = async () => {
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission denied', 'Please allow location access in your phone settings.');
+                return;
+            }
+            setLocationLoading(true);
+            const coords = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const [place] = await Location.reverseGeocodeAsync({
+                latitude: coords.coords.latitude,
+                longitude: coords.coords.longitude,
+            });
+            const readable = [place.name, place.street, place.district, place.city, place.region]
+                .filter(Boolean)
+                .join(', ');
+            setLocationText(readable);
+            setLocationCoords({
+                lat: coords.coords.latitude,
+                lng: coords.coords.longitude,
+            });
+        } catch (err) {
+            Alert.alert('Could not get location', 'Please type your address manually.');
+        } finally {
+            setLocationLoading(false);
+        }
     };
 
-    const isReady = address.trim().length > 5 && (scheduleType === 'now' || (date && time));
+    const handleConfirm = async () => {
+        setLoading(true);
+        try {
+            const payload = {
+                category,
+                answers,
+                address: locationText,
+                customer_lat: locationCoords.lat,
+                customer_lng: locationCoords.lng,
+                scheduled_at: scheduleType === 'now' ? null : `${date} ${time}`
+            };
+            const res = await apiClient.post('/api/jobs', payload);
+            const newJobId = res.data?.job?.id || `job-${Date.now()}`;
+
+            // Register active job in store to survive screen unmounts
+            const store = useJobStore.getState();
+            store.setActiveJob({ id: newJobId, category });
+            store.setSearchPhase('searching');
+            store.setCanMinimize(false);
+            store.startListening(newJobId);
+
+            navigation.navigate('Searching', { category, jobId: newJobId });
+        } catch (e) {
+            console.error('Job dispatch error', e);
+            Alert.alert('Error', 'Failed to dispatch job.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const isReady = locationText.trim().length > 5 && locationCoords !== null && (scheduleType === 'now' || (date && time));
 
     return (
         <View style={styles.screen}>
@@ -43,12 +98,20 @@ export default function LocationScheduleScreen({ route, navigation }) {
                         style={styles.input}
                         placeholder="e.g. 404, Skyline Apartments, Kakkanad..."
                         placeholderTextColor={colors.text.muted}
-                        value={address}
-                        onChangeText={setAddress}
+                        value={locationText}
+                        onChangeText={setLocationText}
                         multiline
                     />
-                    <TouchableOpacity style={styles.gpsBtn}>
-                        <Text style={styles.gpsTxt}>📍 Use Current Location</Text>
+                    <TouchableOpacity
+                        style={styles.gpsBtn}
+                        onPress={handleLocationPress}
+                        disabled={locationLoading}
+                    >
+                        {locationLoading ? (
+                            <ActivityIndicator size="small" color={colors.gold.primary} />
+                        ) : (
+                            <Text style={styles.gpsTxt}>📍 Use Current Location</Text>
+                        )}
                     </TouchableOpacity>
                 </Card>
 

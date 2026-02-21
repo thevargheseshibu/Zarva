@@ -36,11 +36,13 @@ router.post('/presign', async (req, res) => {
     }
 
     try {
+        console.log(`[Uploads API] Generating presigned URL for U:${userId} -> Purpose: ${purpose}, File: ${filename}`);
         const pool = getPool();
         const result = await generatePresignedUpload(userId, purpose, filename, mime_type, pool);
+        console.log(`[Uploads API] Presigned URL generated successfully: ${result.s3_key}`);
         return ok(res, result);
     } catch (err) {
-        console.error(`[Uploads] /presign failed for U:${userId}:`, err.message);
+        console.error(`[Uploads API] /presign API failed for U:${userId}:`, err.message);
         const status = err.status ?? 500;
         const msg = status < 500 ? err.message : 'Failed to generate presigned URL.';
         return fail(res, msg, status, 'PRESIGN_ERROR');
@@ -64,11 +66,13 @@ router.post('/confirm', async (req, res) => {
     }
 
     try {
+        console.log(`[Uploads API] Confirming upload for U:${userId} -> S3 Key: ${s3_key}`);
         const pool = getPool();
         await confirmUpload(userId, s3_key, pool);
+        console.log(`[Uploads API] Upload confirmed and locked for: ${s3_key}`);
         return ok(res, { s3_key, confirmed: true });
     } catch (err) {
-        console.warn(`[Uploads] /confirm failed for U:${userId}, Key:${s3_key}:`, err.message);
+        console.warn(`[Uploads API] /confirm API failed for U:${userId}, Key:${s3_key}:`, err.message);
         const status = err.status ?? 500;
         const msg = status < 500 ? err.message : 'Failed to confirm upload token.';
         return fail(res, msg, status, 'CONFIRM_ERROR');

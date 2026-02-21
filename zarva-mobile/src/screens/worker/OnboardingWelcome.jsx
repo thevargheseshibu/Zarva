@@ -2,8 +2,9 @@
  * src/screens/worker/OnboardingWelcome.jsx  →  renamed: this is now the router
  * Worker Onboarding — routes through 5-screen stack with progress bar.
  */
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import OnboardingBasicInfo from './onboarding/OnboardingBasicInfo';
 import OnboardingSkills from './onboarding/OnboardingSkills';
@@ -31,12 +32,29 @@ export default function OnboardingWelcome() {
     const CurrentScreen = SCREEN_MAP[step];
     const progress = (step + 1) / STEPS;
 
+    const navigation = useNavigation();
+
     const goNext = (stepData = {}) => {
         setData(d => ({ ...d, ...stepData }));
         if (step >= STEPS - 1) { setDone(true); return; }
         setStep(s => s + 1);
     };
-    const goBack = () => setStep(s => Math.max(0, s - 1));
+
+    const blockBackAndGoHome = useCallback(() => {
+        // As per instructions: replace to WorkerNavigator home screen.
+        // Even if onboarding isn't saved piece-meal, the instruction dictates this forced exit path.
+        navigation.replace('WorkerStack', { screen: 'WorkerHome' });
+        return true;
+    }, [navigation]);
+
+    useFocusEffect(
+        useCallback(() => {
+            BackHandler.addEventListener('hardwareBackPress', blockBackAndGoHome);
+            return () => BackHandler.removeEventListener('hardwareBackPress', blockBackAndGoHome);
+        }, [blockBackAndGoHome])
+    );
+
+    const goBack = () => blockBackAndGoHome();
 
     return (
         <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>

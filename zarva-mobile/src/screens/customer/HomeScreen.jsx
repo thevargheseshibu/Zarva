@@ -3,21 +3,39 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
-
-const SERVICES = [
-    { id: 'electrician', label: 'Electrician', icon: '⚡' },
-    { id: 'plumber', label: 'Plumber', icon: '🔧' },
-    { id: 'carpenter', label: 'Carpenter', icon: '🪵' },
-    { id: 'ac_repair', label: 'AC Repair', icon: '❄️' },
-    { id: 'painter', label: 'Painter', icon: '🎨' },
-    { id: 'cleaning', label: 'Cleaning', icon: '🧹' },
-    { id: 'driver', label: 'Driver', icon: '🚗' },
-    { id: 'helper', label: 'Helper', icon: '📦' },
-];
+import RadarAnimation from '../../components/RadarAnimation';
+import GoldButton from '../../components/GoldButton';
+import { useT } from '../../hooks/useT';
+import { useJobStore } from '../../stores/jobStore';
 
 export default function HomeScreen({ navigation }) {
-    // Mock active job for now
-    const activeJob = null;
+    const t = useT();
+
+    const SERVICES = [
+        { id: 'electrician', label: t('cat_electrician'), icon: '⚡' },
+        { id: 'plumber', label: t('cat_plumber'), icon: '🔧' },
+        { id: 'carpenter', label: t('cat_carpenter'), icon: '🪵' },
+        { id: 'ac_repair', label: t('cat_ac_repair'), icon: '❄️' },
+        { id: 'painter', label: t('cat_painter'), icon: '🎨' },
+        { id: 'cleaning', label: t('cat_cleaner'), icon: '🧹' },
+        { id: 'driver', label: t('cat_driver'), icon: '🚗' },
+        { id: 'helper', label: 'Helper', icon: '📦' },
+    ];
+
+    const { activeJob, searchPhase, clearActiveJob } = useJobStore();
+
+    React.useEffect(() => {
+        if (['completed', 'cancelled', 'no_worker_found'].includes(searchPhase)) {
+            const timer = setTimeout(() => { clearActiveJob(); }, 10000);
+            return () => clearTimeout(timer);
+        }
+    }, [searchPhase, clearActiveJob]);
+
+    const handleTryAgain = () => {
+        clearActiveJob();
+        // Depending on navigation architecture, returning to LocationSchedule or DynamicQuestions
+        navigation.navigate('DynamicQuestions', { category: activeJob?.category || 'electrician' });
+    };
 
     return (
         <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -28,22 +46,41 @@ export default function HomeScreen({ navigation }) {
                 <Text style={styles.locationArrow}>⌄</Text>
             </TouchableOpacity>
 
-            <Text style={styles.heading}>What do you need today?</Text>
+            <Text style={styles.heading}>{t('customer_home_greeting')}</Text>
 
-            {/* Active Job Banner */}
-            {activeJob && (
-                <Card glow style={styles.activeBanner}>
+            {/* Persistent Minimizable Job Widget */}
+            {activeJob && searchPhase && (
+                <Card glow={searchPhase === 'searching' || searchPhase === 'in_progress'}
+                    style={[styles.activeBanner, searchPhase === 'no_worker_found' && styles.errorBanner]}>
                     <View style={styles.activeBannerHeader}>
-                        <Text style={styles.activeTitle}>Active Job</Text>
-                        <StatusPill status={activeJob.status} />
+                        <Text style={[styles.activeTitle, searchPhase === 'no_worker_found' && { color: colors.danger }]}>
+                            {searchPhase === 'no_worker_found' ? 'Search Failed' : t('active_job')}
+                        </Text>
+                        <StatusPill status={searchPhase} />
                     </View>
-                    <Text style={styles.activeService}>{activeJob.category}</Text>
-                    <TouchableOpacity
-                        style={styles.trackBtn}
-                        onPress={() => navigation.navigate('JobStatusDetail', { jobId: activeJob.id })}
-                    >
-                        <Text style={styles.trackBtnText}>Track Status →</Text>
-                    </TouchableOpacity>
+                    <View style={styles.midRow}>
+                        {searchPhase === 'searching' && (
+                            <View style={{ width: 40, height: 40, overflow: 'hidden' }}>
+                                <RadarAnimation size={40} />
+                            </View>
+                        )}
+                        <Text style={styles.activeService}>{t(`cat_${activeJob.category}`) || activeJob.category}</Text>
+                    </View>
+
+                    {searchPhase === 'no_worker_found' ? (
+                        <TouchableOpacity style={styles.trackBtn} onPress={handleTryAgain}>
+                            <Text style={[styles.trackBtnText, { color: colors.danger }]}>Try Again ↻</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            style={styles.trackBtn}
+                            onPress={() => searchPhase === 'searching' ? navigation.navigate('Searching', { category: activeJob.category, jobId: activeJob.id }) : navigation.navigate('JobStatusDetail', { jobId: activeJob.id })}
+                        >
+                            <Text style={styles.trackBtnText}>
+                                {searchPhase === 'searching' ? 'View Search →' : 'Track Status →'}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </Card>
             )}
 
@@ -65,7 +102,7 @@ export default function HomeScreen({ navigation }) {
             {/* Recent Posts Section */}
             <View style={styles.recentSection}>
                 <View style={styles.recentHeader}>
-                    <Text style={styles.recentTitle}>Recent Posts</Text>
+                    <Text style={styles.recentTitle}>{t('recent_posts')}</Text>
                     <TouchableOpacity onPress={() => navigation.navigate('MyJobs')}>
                         <Text style={styles.viewAll}>View All</Text>
                     </TouchableOpacity>
@@ -104,8 +141,10 @@ const styles = StyleSheet.create({
     heading: { color: colors.text.primary, fontSize: 24, fontWeight: '700', fontFamily: 'Sohne' },
 
     activeBanner: { gap: spacing.sm, borderColor: colors.gold.primary, borderWidth: 1 },
+    errorBanner: { borderColor: colors.danger },
     activeBannerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     activeTitle: { color: colors.text.secondary, fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 },
+    midRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     activeService: { color: colors.text.primary, fontSize: 18, fontWeight: '600' },
     trackBtn: { alignSelf: 'flex-start', marginTop: spacing.xs },
     trackBtnText: { color: colors.gold.primary, fontWeight: '600' },

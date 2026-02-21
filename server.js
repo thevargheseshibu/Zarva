@@ -17,6 +17,7 @@ import { initCronJobs } from './services/cron.service.js'; // Added this line
 import healthRouter from './routes/health.js';
 import adminRouter from './routes/admin.js';
 import authRouter from './routes/auth.js';
+import authWhatsappRouter from './routes/auth_whatsapp.js';
 import meRouter from './routes/me.js';
 import uploadsRouter from './routes/uploads.js';
 import workerRouter from './routes/worker.js';
@@ -47,6 +48,18 @@ async function bootstrap() {
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 
+    // Global Request Logger to track all Events
+    app.use((req, res, next) => {
+        console.log(`\n\x1b[36m---> [INCOMING REQUEST]\x1b[0m ${req.method} ${req.url}`);
+        if (Object.keys(req.body).length > 0) {
+            console.log(`\x1b[32m[PAYLOAD]\x1b[0m`, JSON.stringify(req.body, null, 2));
+        }
+        if (Object.keys(req.query).length > 0) {
+            console.log(`\x1b[33m[QUERY PARAMS]\x1b[0m`, JSON.stringify(req.query, null, 2));
+        }
+        next();
+    });
+
     // ── Global middleware (order matters) ─────────────────────
     // Rate limit first — cheapest check, no DB hit
     app.use(generalLimiter);
@@ -60,6 +73,7 @@ async function bootstrap() {
     app.use('/api/health', healthRouter);
     app.use('/api/admin', adminRouter);
     app.use('/api/auth', authRouter);   // public — skip-listed in authenticateJWT
+    app.use('/api/whatsapp', authWhatsappRouter); // public - WhatsApp OTP handler
     app.use('/api/me', meRouter);     // protected — requires valid JWT
     app.use('/api/payment', paymentRouter);     // protected — requires valid JWT
     app.use('/api/reviews', reviewsRouter);      // protected — requires valid JWT

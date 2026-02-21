@@ -8,6 +8,7 @@
 import { getPool } from '../config/database.js';
 import { getRedisClient } from '../config/redis.js';
 import configLoader from '../config/loader.js';
+import * as fcmService from './fcmService.js';
 
 // Helper: Sleep for wave delays
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -115,13 +116,10 @@ async function bulkInsertNotifications(jobId, workers, waveNum, pool) {
 }
 
 /**
- * FCM Push trigger (Stubbed context as config not provided)
+ * FCM Push trigger
  */
 async function sendJobAlertFCM(jobId, workers) {
-    const tokens = workers.map(w => w.fcm_token).filter(Boolean);
-    if (tokens.length > 0) {
-        console.log(`[MatchingEngine] Pushing Firebase FCM to ${tokens.length} devices...`);
-    }
+    await fcmService.sendJobAlertToWorkers(jobId, workers);
 }
 
 /**

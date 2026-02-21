@@ -76,12 +76,14 @@ export async function generatePresignedUpload(userId, purpose, filename, mimeTyp
     const expiresAt = new Date(Date.now() + UPLOAD_EXPIRY_SECONDS * 1000);
 
     // Mark in DB schema (is_used defaults to 0)
+    console.log(`[Uploads Service] Logging token to DB s3_upload_tokens: U:${userId} S3Key:${s3Key}`);
     await pool.query(
         `INSERT INTO s3_upload_tokens (user_id, s3_key, purpose, expires_at)
      VALUES (?, ?, ?, ?)`,
         [userId, s3Key, purpose, expiresAt]
     );
 
+    console.log(`[Uploads Service] DB Logging complete. Returning URL payload.`);
     return {
         upload_url: uploadUrl,
         s3_key: s3Key,
@@ -99,6 +101,7 @@ export async function generatePresignedUpload(userId, purpose, filename, mimeTyp
  * @returns {Promise<boolean>}
  */
 export async function confirmUpload(userId, s3Key, pool) {
+    console.log(`[Uploads Service] Verifying S3 Token DB entry: U:${userId} S3Key:${s3Key}`);
     // Check token existence, ownership, unused status, and unexpired
     const [rows] = await pool.query(
         `SELECT id, is_used, expires_at
@@ -109,6 +112,7 @@ export async function confirmUpload(userId, s3Key, pool) {
     );
 
     if (rows.length === 0) {
+        console.warn(`[Uploads Service] S3 Token NOT FOUND in DB for S3Key:${s3Key}`);
         throw Object.assign(new Error('Invalid or unknown S3 token.'), { status: 404 });
     }
 
@@ -119,10 +123,12 @@ export async function confirmUpload(userId, s3Key, pool) {
     }
 
     if (new Date(token.expires_at) < new Date()) {
+        console.warn(`[Uploads Service] S3 Token EXPIRED for S3Key:${s3Key}`);
         throw Object.assign(new Error('Upload token expired.'), { status: 400 });
     }
 
     // Update token to used
+    console.log(`[Uploads Service] S3 Token Validated. Updating is_used = 1 in DB for ID:${token.id}`);
     await pool.query(
         `UPDATE s3_upload_tokens SET is_used = 1 WHERE id = ?`,
         [token.id]

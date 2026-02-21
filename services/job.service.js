@@ -130,7 +130,7 @@ export async function createJob(customerId, payload, idempotencyKey, pool) {
     const [finalJob] = await pool.query(`SELECT * FROM jobs WHERE id = ?`, [jobId]);
 
     // 5. Fire Matching Engine asynchronously
-    matchingEngine.start(jobId).catch(e => {
+    matchingEngine.startMatching(jobId).catch(e => {
         console.error(`[JobService] Async matching failed for ${jobId}:`, e.message);
     });
 

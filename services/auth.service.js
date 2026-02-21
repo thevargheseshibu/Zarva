@@ -41,7 +41,7 @@ function signJwt(user) {
     const payload = {
         userId: user.id,
         roles: [user.role],
-        active_role: user.role,
+        active_role: user.active_role,
     };
     return jwt.sign(payload, getSecret(), { expiresIn: JWT_EXPIRY_SECONDS });
 }
@@ -59,7 +59,7 @@ function signJwt(user) {
 async function findOrCreateUser(phone, pool) {
     // 1. Try to find existing user
     const [rows] = await pool.query(
-        `SELECT id, phone, role, is_blocked, last_login_at
+        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at
        FROM users WHERE phone = ? LIMIT 1`,
         [phone],
     );
@@ -87,7 +87,7 @@ async function findOrCreateUser(phone, pool) {
     );
 
     const [newRows] = await pool.query(
-        `SELECT id, phone, role, is_blocked, last_login_at
+        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at
        FROM users WHERE id = ? LIMIT 1`,
         [userId],
     );
@@ -159,7 +159,7 @@ async function refreshTokenPair(oldRefreshToken, pool) {
 
     const [rows] = await pool.query(
         `SELECT at.id, at.user_id, at.expires_at, at.revoked_at,
-            u.id as uid, u.phone, u.role, u.is_blocked
+            u.id as uid, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference
        FROM auth_tokens at
        JOIN users u ON u.id = at.user_id
       WHERE at.token_hash = ?
@@ -177,7 +177,7 @@ async function refreshTokenPair(oldRefreshToken, pool) {
     // Revoke old refresh token
     await revokeToken(oldHash, pool);
 
-    const user = { id: rows[0].user_id, role: rows[0].role };
+    const user = { id: rows[0].uid, role: rows[0].role, active_role: rows[0].active_role };
     return issueTokenPair(user, pool);
 }
 
@@ -190,7 +190,7 @@ async function refreshTokenPair(oldRefreshToken, pool) {
  */
 async function getUserProfile(userId, pool) {
     const [userRows] = await pool.query(
-        `SELECT u.id, u.phone, u.role, u.is_blocked, u.last_login_at, u.created_at,
+        `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference, u.last_login_at, u.created_at,
             cp.name, cp.email, cp.profile_s3_key, cp.city,
             cp.default_lat, cp.default_lng, cp.total_jobs as customer_total_jobs,
             wp.name        as worker_name,
@@ -215,8 +215,9 @@ async function getUserProfile(userId, pool) {
         id: row.id,
         phone: row.phone,
         roles: [role],
-        active_role: role,
+        active_role: row.active_role,
         is_blocked: Boolean(row.is_blocked),
+        language_preference: row.language_preference,
         last_login_at: row.last_login_at,
         created_at: row.created_at,
     };

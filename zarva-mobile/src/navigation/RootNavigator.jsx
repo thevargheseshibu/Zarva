@@ -8,12 +8,14 @@
  */
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { useAuthStore } from '../stores/authStore';
 import AuthNavigator from './AuthNavigator';
+import { createStackNavigator } from '@react-navigation/stack';
 import CustomerStack from './CustomerStack';
 import WorkerStack from './WorkerStack';
 import OnboardingNavigator from './OnboardingNavigator';
+import RoleSelection from '../screens/auth/RoleSelection';
+
+const Stack = createStackNavigator();
 
 // Dark navigation theme
 const ZarvaTheme = {
@@ -58,7 +60,15 @@ export default function RootNavigator() {
 
         if (!isAuthenticated || !user) return <AuthNavigator />;
 
-        const role = user.active_role || user.role;
+        if (!user.active_role) {
+            return (
+                <Stack.Navigator screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="RoleSelection" component={RoleSelection} />
+                </Stack.Navigator>
+            );
+        }
+
+        const role = user.active_role;
         const onboardingDone = user.onboarding_complete ?? true;
 
         if (role === 'worker' && !onboardingDone) return <OnboardingNavigator />;

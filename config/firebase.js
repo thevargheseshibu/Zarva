@@ -78,4 +78,13 @@ async function verifyIdToken(idToken) {
     return _admin.auth(app).verifyIdToken(idToken);
 }
 
-export { getFirebaseApp, getDatabase, verifyIdToken };
+/**
+ * Returns the Firebase Messaging instance, or null in stub mode.
+ */
+function getMessaging() {
+    const app = getFirebaseApp();
+    if (!app || !globalThis.__firebaseAdmin) return null;
+    return globalThis.__firebaseAdmin.messaging(app);
+}
+
+export { getFirebaseApp, getDatabase, verifyIdToken, getMessaging };

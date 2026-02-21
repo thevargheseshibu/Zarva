@@ -13,7 +13,10 @@
       "backgroundColor": "#0A0A0F"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Zarva needs your location to find nearby workers"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +24,10 @@
         "backgroundColor": "#0A0A0F"
       },
       "package": "com.zarva.app",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

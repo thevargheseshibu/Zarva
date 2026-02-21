@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert } f
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
+import { useT } from '../../hooks/useT';
 
 export default function WorkerHomeScreen({ navigation }) {
+    const t = useT();
     // Mock user state
     const [isOnline, setIsOnline] = useState(false);
     const worker = { name: 'Rahul R', rating: 4.8, verified: true };
@@ -32,7 +34,7 @@ export default function WorkerHomeScreen({ navigation }) {
             <View style={styles.header}>
                 <View style={styles.headerRow}>
                     <View>
-                        <Text style={styles.greeting}>Welcome back,</Text>
+                        <Text style={styles.greeting}>{t('worker_home_greeting', { name: '' })}</Text>
                         <View style={styles.nameRow}>
                             <Text style={styles.name}>{worker.name}</Text>
                             {worker.verified && <Text style={styles.badge}>✅</Text>}
@@ -43,7 +45,7 @@ export default function WorkerHomeScreen({ navigation }) {
                     {/* Online Toggle */}
                     <View style={styles.toggleBox}>
                         <Text style={[styles.toggleTxt, isOnline && styles.toggleTxtActive]}>
-                            {isOnline ? 'ONLINE' : 'OFFLINE'}
+                            {isOnline ? t('go_online').toUpperCase() : t('go_offline').toUpperCase()}
                         </Text>
                         <Switch
                             value={isOnline}
@@ -57,7 +59,7 @@ export default function WorkerHomeScreen({ navigation }) {
                 {/* Earnings Card */}
                 <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('EarningsDetail')}>
                     <Card glow style={styles.earningsCard}>
-                        <Text style={styles.eLabel}>Earnings Today</Text>
+                        <Text style={styles.eLabel}>{t('earnings_today')}</Text>
                         <Text style={styles.eValue}>₹{earningsToday}</Text>
                         <Text style={styles.eSub}>Tap to view history →</Text>
                     </Card>
@@ -67,15 +69,15 @@ export default function WorkerHomeScreen({ navigation }) {
                 <View style={styles.statsRow}>
                     <View style={styles.statBox}>
                         <Text style={styles.sValue}>{stats.today}</Text>
-                        <Text style={styles.sLabel}>Jobs Today</Text>
+                        <Text style={styles.sLabel}>{t('stats_jobs')}</Text>
                     </View>
                     <View style={styles.statBox}>
                         <Text style={styles.sValue}>{stats.week}</Text>
-                        <Text style={styles.sLabel}>This Week</Text>
+                        <Text style={styles.sLabel}>{t('tab_this_week')}</Text>
                     </View>
                     <View style={styles.statBox}>
                         <Text style={styles.sValue}>{worker.rating}</Text>
-                        <Text style={styles.sLabel}>Rating</Text>
+                        <Text style={styles.sLabel}>{t('stats_rating')}</Text>
                     </View>
                 </View>
             </View>
@@ -85,7 +87,7 @@ export default function WorkerHomeScreen({ navigation }) {
                 {/* Active Job Section */}
                 {activeJob && (
                     <View style={styles.activeSection}>
-                        <Text style={styles.sectionTitle}>Current Job</Text>
+                        <Text style={styles.sectionTitle}>{t('active_job')}</Text>
                         <Card style={styles.activeJobCard}>
                             <View style={styles.ajHeader}>
                                 <Text style={styles.ajCategory}>{activeJob.category}</Text>

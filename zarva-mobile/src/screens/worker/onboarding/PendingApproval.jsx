@@ -2,8 +2,9 @@
  * src/screens/worker/onboarding/PendingApproval.jsx
  * Shown after Agreement submission — Reanimated2 checkmark animation, 24hr message.
  */
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, BackHandler } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -25,6 +26,14 @@ export default function PendingApproval() {
         scale.value = withDelay(300, withSpring(1, { damping: 10, stiffness: 180 }));
         opacity.value = withDelay(200, withTiming(1, { duration: 500, easing: Easing.out(Easing.ease) }));
     }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            const onBackPress = () => true; // Prevent default behavior
+            BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+        }, [])
+    );
 
     const circleStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],

@@ -141,8 +141,11 @@ export async function submitDocuments(userId, docs, pool) {
     );
 
     if (tokens.length !== keysToVerify.length) {
+        console.error(`[Worker Onboarding] S3 Token Mismatch for U:${userId}. Expected 3 confirmed keys, found ${tokens.length}`);
         throw Object.assign(new Error('One or more document keys are invalid, unconfirmed, or do not belong to you.'), { status: 400 });
     }
+
+    console.log(`[Worker Onboarding] Valid S3 keys matched for U:${userId}. Inserting into worker_documents schema.`);
 
     // Insert into worker_documents
     // (IGNORE in case they repeatedly submit)
@@ -155,6 +158,7 @@ export async function submitDocuments(userId, docs, pool) {
     );
 
     // Update status
+    console.log(`[Worker Onboarding] Documents Saved. Progressing pipeline to pending_review for U:${userId}`);
     await pool.query(`UPDATE worker_profiles SET kyc_status = 'pending_review' WHERE user_id = ?`, [userId]);
 
     return { success: true };

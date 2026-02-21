@@ -1,6 +1,6 @@
 {
   "auth": {
-    "phone_otp_enabled": false
+    "phone_otp_enabled": true
   },
   "payment": {
     "enabled": true,

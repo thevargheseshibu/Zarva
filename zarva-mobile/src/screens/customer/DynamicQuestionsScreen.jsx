@@ -56,10 +56,13 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
             return;
         }
 
+        // Delay to prevent Android SoftException unmount crash
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
-            quality: 0.6,
-            allowsEditing: true, // Known bug: Android sometimes crashes if false and returning from certain gallery intent
+            quality: 0.2,
+            allowsEditing: false, // Disabled to prevent ExpoCropImageActivity from causing Android OOM kills
         });
 
         if (result.canceled) return;
