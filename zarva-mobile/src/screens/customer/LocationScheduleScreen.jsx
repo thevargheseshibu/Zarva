@@ -6,6 +6,10 @@ import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import LocationInput from '../../components/LocationInput';
 import { useJobStore } from '../../stores/jobStore';
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+dayjs.extend(customParseFormat);
 
 export default function LocationScheduleScreen({ route, navigation }) {
     const { category, label, answers, basePrice } = route.params || {};
@@ -18,6 +22,18 @@ export default function LocationScheduleScreen({ route, navigation }) {
     const [loading, setLoading] = useState(false);
 
     const handleConfirm = async () => {
+        if (scheduleType === 'later') {
+            const d = dayjs(`${date} ${time}`, ['DD/MM/YYYY h:mm A', 'DD/MM/YYYY hh:mm A', 'D/M/YYYY h:mm A'], true);
+            if (!d.isValid()) {
+                Alert.alert('Invalid Format', 'Please enter a valid Date (DD/MM/YYYY) and Time (e.g. 10:30 AM).');
+                return;
+            }
+            if (d.isBefore(dayjs())) {
+                Alert.alert('Invalid Time', 'Scheduled time must be in the future.');
+                return;
+            }
+        }
+
         setLoading(true);
         try {
             const payload = {
@@ -48,7 +64,13 @@ export default function LocationScheduleScreen({ route, navigation }) {
             store.setActiveJob({ id: newJobId, category });
             store.setSearchPhase('searching');
             store.setCanMinimize(false);
-            store.startListening(newJobId);
+            try {
+                store.startListening(newJobId);
+            } catch (fbErr) {
+                // Firebase listener failed — job exists in DB, we still navigate.
+                // The user will see the Searching screen; Firebase may reconnect.
+                console.error('[LocationSchedule] Firebase listener failed — continuing anyway:', fbErr);
+            }
 
             navigation.navigate('Searching', { category, jobId: newJobId });
         } catch (e) {
@@ -59,7 +81,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
         }
     };
 
-    const isReady = customerLocation.isValid && (scheduleType === 'now' || (date && time));
+    const isReady = customerLocation?.isValid && (scheduleType === 'now' || (date.length >= 8 && time.length >= 4));
 
     return (
         <View style={styles.screen}>

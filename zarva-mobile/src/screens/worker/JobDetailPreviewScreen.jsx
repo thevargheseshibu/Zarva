@@ -3,18 +3,21 @@ import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert } fr
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import apiClient from '../../services/api/client';
+import { parseJobDescription } from '../../utils/jobParser';
 
 export default function JobDetailPreviewScreen({ route, navigation }) {
     const { job } = route.params || {};
 
     // Mock full data since AvailableJobs only sends snippet
+    const { text: parsedDesc, photo: parsedPhoto } = parseJobDescription(job?.desc);
+
     const fullJob = {
         id: job?.id || 'job-999',
         category: job?.category || 'Plumber',
         est: job?.est || '₹800 - ₹1200',
         dist: job?.dist || '3.4',
-        desc: job?.desc || 'Pipe broken under the kitchen sink. Water leaking fast and flooding the area.',
-        photo: null, // "https://example.com/photo.jpg"
+        desc: parsedDesc || 'Pipe broken under the kitchen sink. Water leaking fast and flooding the area.',
+        photo: parsedPhoto || null,
         area: 'Kakkanad',
         notes: 'Please bring your own mop if possible.'
     };

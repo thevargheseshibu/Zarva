@@ -6,6 +6,7 @@ import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
 import apiClient from '../../services/api/client';
 import dayjs from 'dayjs';
+import { parseJobDescription } from '../../utils/jobParser';
 
 const FILTERS = ['All', 'Active', 'Completed', 'Cancelled'];
 
@@ -47,15 +48,8 @@ export default function MyJobsScreen({ navigation }) {
     });
 
     const renderJob = ({ item }) => {
-        // Parse the dynamic form question data for a description if available
-        let desc = 'Service Request';
-        try {
-            if (item.questions_data) {
-                const qd = typeof item.questions_data === 'string' ? JSON.parse(item.questions_data) : item.questions_data;
-                const topAnswers = Object.values(qd).filter(v => typeof v === 'string' && v.length > 0);
-                if (topAnswers.length > 0) desc = topAnswers.join(', ');
-            }
-        } catch (e) { }
+        const { text: parsedDesc } = parseJobDescription(item.description);
+        const desc = parsedDesc || 'Service Request';
 
         return (
             <TouchableOpacity

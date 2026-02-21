@@ -1,28 +1,52 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
+import apiClient from '../../services/api/client';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { parseJobDescription } from '../../utils/jobParser';
+
+dayjs.extend(relativeTime);
 
 const CATEGORIES = ['All', 'Electrician', 'Plumber', 'Carpenter', 'AC Repair', 'Painter', 'Cleaning'];
 
 export default function AvailableJobsScreen({ navigation }) {
     const [filter, setFilter] = useState('All');
     const [refreshing, setRefreshing] = useState(false);
+    const [jobs, setJobs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [isOnline, setIsOnline] = useState(true);
 
-    // DEV MOCK STATE
-    const isOnline = true; // In real app, fetch from authStore/workerStore
+    const fetchJobs = async () => {
+        try {
+            const res = await apiClient.get('/api/worker/available-jobs');
+            setIsOnline(res.data?.is_online);
+            setJobs(res.data?.jobs || []);
+        } catch (err) {
+            console.error('Failed to fetch available jobs:', err);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
 
-    const mockJobs = [
-        { id: 'job-1', category: 'Electrician', icon: '⚡', dist: '1.2', est: '₹300 - ₹500', desc: 'Ceiling fan making weird noise, needs minor repair.', time: '10m ago' },
-        { id: 'job-2', category: 'Plumber', icon: '🔧', dist: '3.4', est: '₹800+', desc: 'Pipe broken under the kitchen sink. Water leaking fast.', time: '22m ago' },
-        { id: 'job-3', category: 'Electrician', icon: '⚡', dist: '5.0', est: '₹200 - ₹400', desc: 'Need living room switchboard replaced completely.', time: '1h ago' },
-    ];
+    useFocusEffect(
+        useCallback(() => {
+            fetchJobs();
+        }, [])
+    );
 
-    const filtered = filter === 'All' ? mockJobs : mockJobs.filter(j => j.category === filter);
+    const filtered = jobs.filter(j => {
+        if (filter === 'All') return true;
+        // Basic case-insensitive matching for the category
+        return j.category?.toLowerCase() === filter.toLowerCase();
+    });
 
     const onRefresh = () => {
         setRefreshing(true);
-        setTimeout(() => setRefreshing(false), 800);
+        fetchJobs();
     };
 
     if (!isOnline) {
@@ -35,30 +59,50 @@ export default function AvailableJobsScreen({ navigation }) {
         );
     }
 
-    const renderJob = ({ item }) => (
-        <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('JobDetailPreview', { job: item })}>
-            <Card glow style={styles.jobCard}>
-                <View style={styles.cardHeader}>
-                    <View style={styles.catRow}>
-                        <Text style={styles.catIcon}>{item.icon}</Text>
-                        <Text style={styles.catName}>{item.category}</Text>
+    const renderJob = ({ item }) => {
+        const { text: descText } = parseJobDescription(item.desc);
+
+        return (
+            <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('JobDetailPreview', { job: item })}>
+                <Card glow style={styles.jobCard}>
+                    <View style={styles.cardHeader}>
+                        <View style={styles.catRow}>
+                            <Text style={styles.catIcon}>{item.icon}</Text>
+                            <Text style={styles.catName}>{item.category || 'Service'}</Text>
+                        </View>
+                        <Text style={styles.timeTxt}>{dayjs(item.time).fromNow()}</Text>
                     </View>
-                    <Text style={styles.timeTxt}>{item.time}</Text>
-                </View>
 
-                <View style={styles.distRow}>
-                    <Text style={styles.distTxt}>📍 {item.dist} km away</Text>
-                    <Text style={styles.estTxt}>Est: {item.est}</Text>
-                </View>
+                    <View style={styles.distRow}>
+                        <Text style={styles.distTxt}>📍 {item.dist} km away</Text>
+                        <Text style={styles.estTxt}>Est: {item.est}</Text>
+                    </View>
 
-                <Text style={styles.descTxt} numberOfLines={2}>"{item.desc}"</Text>
+                    <Text style={styles.descTxt} numberOfLines={2}>"{descText}"</Text>
 
-                <View style={styles.actionRow}>
-                    <Text style={styles.viewTxt}>View Details →</Text>
-                </View>
-            </Card>
-        </TouchableOpacity>
-    );
+                    <View style={styles.actionRow}>
+                        <Text style={styles.customerName}>📝 {item.customer_name}</Text>
+                        <Text style={styles.viewTxt}>View Details →</Text>
+                    </View>
+                </Card>
+            </TouchableOpacity>
+        );
+    };
+
+    const renderEmpty = () => {
+        if (loading) return <ActivityIndicator size="large" color={colors.gold.primary} style={{ marginTop: spacing.xl * 2 }} />;
+        return (
+            <View style={styles.emptyWrap}>
+                <Text style={styles.emptyIcon}>📭</Text>
+                <Text style={styles.emptyTitle}>No Jobs Right Now</Text>
+                <Text style={styles.emptySub}>
+                    {filter === 'All'
+                        ? 'There are currently no new open service requests in your area. We will notify you when one arrives.'
+                        : `No nearby customers are requesting ${filter} services at the moment.`}
+                </Text>
+            </View>
+        );
+    };
 
     return (
         <View style={styles.screen}>
@@ -88,18 +132,11 @@ export default function AvailableJobsScreen({ navigation }) {
 
             <FlatList
                 data={filtered}
-                keyExtractor={i => i.id}
+                keyExtractor={i => String(i.id)}
                 contentContainerStyle={styles.list}
                 renderItem={renderJob}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold.primary} />
-                }
-                ListEmptyComponent={
-                    <View style={styles.emptyWrap}>
-                        <Text style={styles.emptyText}>No requests in this category right now.</Text>
-                        <Text style={styles.emptySub}>We will notify you when a nearby customer posts a job.</Text>
-                    </View>
-                }
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold.primary} colors={[colors.gold.primary]} />}
+                ListEmptyComponent={renderEmpty}
             />
         </View>
     );
@@ -118,7 +155,7 @@ const styles = StyleSheet.create({
 
     // Filters
     filterWrap: { borderBottomWidth: 1, borderBottomColor: colors.bg.surface, paddingBottom: spacing.sm },
-    filterList: { paddingHorizontal: spacing.lg, gap: spacing.sm },
+    filterList: { paddingHorizontal: spacing.lg, gap: spacing.sm, alignItems: 'center' },
     chip: {
         paddingHorizontal: spacing.md, paddingVertical: 8,
         borderRadius: radius.full, backgroundColor: colors.bg.surface,
@@ -129,13 +166,13 @@ const styles = StyleSheet.create({
     chipTextActive: { color: colors.gold.primary },
 
     // List
-    list: { padding: spacing.lg, gap: spacing.lg },
+    list: { padding: spacing.lg, gap: spacing.lg, flexGrow: 1 },
     jobCard: { gap: spacing.sm },
 
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     catRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
     catIcon: { fontSize: 16 },
-    catName: { color: colors.text.primary, fontSize: 16, fontWeight: '700' },
+    catName: { color: colors.text.primary, fontSize: 16, fontWeight: '700', textTransform: 'capitalize' },
     timeTxt: { color: colors.text.muted, fontSize: 12 },
 
     distRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
@@ -144,10 +181,12 @@ const styles = StyleSheet.create({
 
     descTxt: { color: colors.text.muted, fontSize: 14, fontStyle: 'italic', marginVertical: spacing.xs },
 
-    actionRow: { alignItems: 'flex-end', marginTop: spacing.xs, borderTopWidth: 1, borderTopColor: colors.bg.surface, paddingTop: spacing.sm },
+    actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.xs, borderTopWidth: 1, borderTopColor: colors.bg.surface, paddingTop: spacing.sm },
+    customerName: { color: colors.text.secondary, fontSize: 13, fontWeight: '600' },
     viewTxt: { color: colors.gold.primary, fontSize: 13, fontWeight: '700' },
 
-    emptyWrap: { marginTop: spacing.xl * 2, alignItems: 'center', gap: spacing.sm },
-    emptyText: { color: colors.text.secondary, fontSize: 15, fontWeight: '600' },
-    emptySub: { color: colors.text.muted, fontSize: 13, textAlign: 'center' }
+    emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: spacing.xl * 3 },
+    emptyIcon: { fontSize: 48, marginBottom: spacing.md },
+    emptyTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '700', marginBottom: spacing.xs },
+    emptySub: { color: colors.text.muted, fontSize: 14, textAlign: 'center', paddingHorizontal: spacing.xl, lineHeight: 22 }
 });

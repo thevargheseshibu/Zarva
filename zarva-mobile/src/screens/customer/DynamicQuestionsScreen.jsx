@@ -42,8 +42,36 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
 
-    // TODO: Fetch real config from /api/jobs/config in a full integration
-    // useEffect(() => { ... }, []);
+    useEffect(() => {
+        const loadDynamicConfig = async () => {
+            setLoading(true);
+            try {
+                // Estimate the price based on category
+                const estRes = await apiClient.post('/api/jobs/estimate', { category, hours: 1 });
+                const basePrice = estRes.data?.total || 300;
+
+                // Load real questions
+                const cfgRes = await apiClient.get('/api/jobs/config');
+                const catQuestions = cfgRes.data?.questions?.[category] || [
+                    "What exactly do you need help with?",
+                    "Any specific details?"
+                ];
+
+                const dynamicQuestions = [
+                    { id: 'q1', type: 'text', label: catQuestions[0] || 'Describe the issue briefly', required: true },
+                    { id: 'q2', type: 'text', label: catQuestions[1] || 'Any specific requirements?', required: false, skippable: true },
+                    { id: 'q3', type: 'image', label: 'Upload a photo (optional)', required: false, skippable: true }
+                ];
+
+                setConfig({ base_price: basePrice, questions: dynamicQuestions });
+            } catch (err) {
+                console.error('Failed to load dynamic config', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadDynamicConfig();
+    }, [category]);
 
     const handleAnswer = (questionId, value) => {
         setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -71,12 +99,14 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         const localUri = result.assets[0].uri;
 
         try {
-            // Mocking the S3 upload flow for now. In real flow, get presigned URL and PUT.
-            const presignRes = await apiClient.post('/api/upload/presign', {
-                file_type: `job_photo_${Date.now()}.jpg`,
+            // Hit the real backend upload pre-signer
+            const presignRes = await apiClient.post('/api/uploads/presign', {
+                purpose: 'job_photo',
+                filename: `job_photo_${Date.now()}.jpg`,
                 mime_type: 'image/jpeg',
             });
-            const { upload_url, public_url } = presignRes.data;
+            const { upload_url } = presignRes.data;
+            const public_url = upload_url.split('?')[0];
 
             await FileSystem.uploadAsync(upload_url, localUri, {
                 httpMethod: 'PUT',

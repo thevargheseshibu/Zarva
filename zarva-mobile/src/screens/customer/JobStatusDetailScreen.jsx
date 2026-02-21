@@ -1,39 +1,96 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, BackHandler, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import OTPInput from '../../components/OTPInput';
 import GoldButton from '../../components/GoldButton';
-import { ref, onValue, off } from 'firebase/database';
-import { db } from '../../utils/firebase';
+import { useJobStore } from '../../stores/jobStore';
+import apiClient from '../../services/api/client';
 
 export default function JobStatusDetailScreen({ route, navigation }) {
     const { jobId } = route.params || { jobId: 'mock-123' };
 
-    // DEV MOCK: hardcoded status progression for UI testing
-    const [status, setStatus] = useState('assigned'); // 'searching', 'assigned', 'worker_arrived', 'in_progress', 'pending_completion', 'completed'
-    const [mockWorker, setMockWorker] = useState({
+    const { searchPhase, assignedWorker, clearActiveJob } = useJobStore();
+
+    const status = searchPhase || 'assigned';
+    const mockWorker = assignedWorker || {
         name: 'Rahul R', rating: 4.8, category: 'Plumber', phone: '+91 9876543210',
         photo: 'https://i.pravatar.cc/150?img=11'
-    });
+    };
 
-    // Firebase REAL-TIME UPDATES
+    const [startOtp, setStartOtp] = useState(null);
+    const [verifyingEndOtp, setVerifyingEndOtp] = useState(false);
+    const [workStartedAt, setWorkStartedAt] = useState(null);
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+    // ── Auto-navigate on terminal states (Issue #8) ──────────────────────────
     useEffect(() => {
-        const jobRef = ref(db, `active_jobs/${jobId}`);
-        const listener = onValue(jobRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                if (data.status) {
-                    setStatus(data.status);
-                }
-                if (data.worker) {
-                    setMockWorker(data.worker);
-                }
-            }
-        });
+        if (status === 'completed') {
+            clearActiveJob();
+            navigation.replace('Rating', { jobId });
+        } else if (status === 'cancelled' || status === 'no_worker_found') {
+            clearActiveJob();
+            navigation.replace('CustomerTabs');
+        }
+    }, [status, navigation, jobId, clearActiveJob]);
 
-        return () => off(jobRef, 'value', listener);
-    }, [jobId]);
+    // ── Fetch Details (Issue #25 & #51) ──────────────────────────────────────
+    useEffect(() => {
+        if ((status === 'worker_arrived' && !startOtp) || (status === 'in_progress' && !workStartedAt)) {
+            apiClient.get(`/api/jobs/${jobId}`)
+                .then(res => {
+                    const job = res.data?.job;
+                    if (job) {
+                        if (job.start_otp) setStartOtp(job.start_otp);
+                        if (job.work_started_at) setWorkStartedAt(job.work_started_at);
+                    }
+                })
+                .catch(err => console.error('Failed to fetch job data', err));
+        }
+    }, [status, jobId, startOtp, workStartedAt]);
+
+    // ── Live Timer (Issue #51) ───────────────────────────────────────────────
+    useEffect(() => {
+        let int;
+        if (status === 'in_progress' && workStartedAt) {
+            const startMs = new Date(workStartedAt).getTime();
+            const updateTimer = () => {
+                setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+            };
+            updateTimer();
+            int = setInterval(updateTimer, 1000);
+        }
+        return () => clearInterval(int);
+    }, [status, workStartedAt]);
+
+    const formatTime = (seconds) => {
+        const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+        const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return h === '00' ? `${m}:${s}` : `${h}:${m}:${s}`;
+    };
+
+    // ── Back button guard during active job (Issue #7) ───────────────────────
+    useFocusEffect(
+        useCallback(() => {
+            const activeStatuses = ['in_progress', 'pending_completion', 'worker_arrived'];
+            const onBackPress = () => {
+                if (activeStatuses.includes(status)) {
+                    Alert.alert(
+                        'Job in Progress',
+                        'You cannot go back while a job is active. Please wait for it to complete.',
+                        [{ text: 'OK' }]
+                    );
+                    return true; // block back
+                }
+                return false; // allow back for non-active states
+            };
+            const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => subscription.remove();
+        }, [status])
+    );
 
     // Timeline logic
     const STAGES = ['searching', 'assigned', 'worker_arrived', 'in_progress', 'pending_completion'];
@@ -42,7 +99,6 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const renderTick = (label, index) => {
         const isPast = index < currentIdx;
         const isCurrent = index === currentIdx;
-        const isPending = index > currentIdx;
 
         let dotColor = colors.bg.surface;
         if (isPast) dotColor = colors.success;
@@ -61,7 +117,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     isPast && styles.tickLabelPast,
                     isCurrent && styles.tickLabelCurrent
                 ]}>
-                    {label.replace('_', ' ').toUpperCase()}
+                    {label.replace(/_/g, ' ').toUpperCase()}
                 </Text>
             </View>
         );
@@ -100,18 +156,17 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 )}
 
                 {/* Dynamic Action Area based on Status */}
-
                 {status === 'worker_arrived' && (
                     <Card glow style={styles.actionCard}>
                         <Text style={styles.actionTitle}>Share Start Code</Text>
                         <Text style={styles.actionSub}>Give this 4-digit code to {mockWorker.name} to begin the work timer.</Text>
-                        <View style={styles.codeRow}>
-                            {['4', '1', '9', '2'].map((n, i) => (
-                                <View key={i} style={styles.codeBox}>
-                                    <Text style={styles.codeDigit}>{n}</Text>
-                                </View>
-                            ))}
-                        </View>
+                        {startOtp ? (
+                            <View style={[styles.readOnlyOtpWrap, { marginTop: spacing.md }]}>
+                                <Text style={styles.readOnlyOtpTxt}>{startOtp}</Text>
+                            </View>
+                        ) : (
+                            <Text style={styles.placeholderNote}>⏳ Loading start code from server...</Text>
+                        )}
                     </Card>
                 )}
 
@@ -121,17 +176,20 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                         <Text style={styles.actionSub}>Ask {mockWorker.name} for the End OTP to confirm the work is done and stop the timer.</Text>
                         <View style={{ marginTop: spacing.md }}>
                             <OTPInput
-                                onComplete={(code) => {
-                                    // Normally POST to /api/jobs/:id/verify-end-otp
-                                    navigation.replace('Payment');
+                                disabled={verifyingEndOtp}
+                                onComplete={async (code) => {
+                                    setVerifyingEndOtp(true);
+                                    try {
+                                        await apiClient.post(`/api/jobs/${jobId}/verify-end-otp`, { code });
+                                        navigation.replace('Payment', { jobId });
+                                    } catch (err) {
+                                        Alert.alert('Invalid OTP', err.response?.data?.message || 'Verification failed. Try again.');
+                                    } finally {
+                                        setVerifyingEndOtp(false);
+                                    }
                                 }}
                             />
                         </View>
-                        <GoldButton
-                            title="Confirm Completion"
-                            style={{ marginTop: spacing.lg }}
-                            onPress={() => navigation.replace('Payment')}
-                        />
                     </Card>
                 )}
 
@@ -139,7 +197,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     <View style={styles.inProgressWrap}>
                         <Card glow style={styles.ipCard}>
                             <Text style={styles.ipTitle}>Work in Progress</Text>
-                            <Text style={styles.ipTimer}>00:45:12</Text>
+                            <Text style={styles.ipTimer}>⏱ {workStartedAt ? formatTime(elapsedSeconds) : 'Starting...'}</Text>
                             <Text style={styles.ipSub}>Timer is currently running</Text>
                         </Card>
                         <TouchableOpacity style={styles.reportBtn}>
@@ -162,11 +220,10 @@ const styles = StyleSheet.create({
     },
     backBtn: { padding: spacing.sm },
     backTxt: { color: colors.text.primary, fontSize: 24 },
-    title: { color: colors.text.primary, fontSize: 18, fontWeight: '700', fontFamily: 'Courier', letterSpacing: 1 },
+    title: { color: colors.text.primary, fontSize: 18, fontWeight: '700', letterSpacing: 1 },
 
     content: { padding: spacing.lg, gap: spacing.lg },
 
-    // Timeline
     timelineCard: { padding: spacing.xl },
     tickRow: { flexDirection: 'row', gap: spacing.md, minHeight: 40 },
     tickCol: { alignItems: 'center', width: 20 },
@@ -176,7 +233,6 @@ const styles = StyleSheet.create({
     tickLabelPast: { color: colors.text.primary },
     tickLabelCurrent: { color: colors.gold.primary, fontWeight: '700' },
 
-    // Worker Card
     workerCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
     wPhoto: { width: 50, height: 50, borderRadius: 25 },
     wInfo: { flex: 1 },
@@ -189,24 +245,15 @@ const styles = StyleSheet.create({
     },
     callIcon: { fontSize: 20 },
 
-    // Actions
     actionCard: { padding: spacing.xl, borderColor: colors.gold.primary, borderWidth: 1, alignItems: 'center' },
     actionTitle: { color: colors.gold.primary, fontSize: 20, fontWeight: '800' },
     actionSub: { color: colors.text.secondary, fontSize: 13, textAlign: 'center', marginTop: spacing.sm },
+    placeholderNote: { color: colors.text.muted, fontSize: 13, marginTop: spacing.md, fontStyle: 'italic' },
 
-    codeRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
-    codeBox: {
-        width: 56, height: 64, backgroundColor: colors.bg.surface,
-        borderRadius: radius.md, justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: colors.gold.primary
-    },
-    codeDigit: { color: colors.gold.primary, fontSize: 32, fontFamily: 'Courier', fontWeight: '800' },
-
-    // In progress
     inProgressWrap: { gap: spacing.md },
     ipCard: { padding: spacing.xl, alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderColor: colors.bg.surface },
     ipTitle: { color: colors.text.primary, fontSize: 18, fontWeight: '700' },
-    ipTimer: { color: colors.gold.primary, fontSize: 36, fontFamily: 'Courier', fontWeight: '800' },
+    ipTimer: { color: colors.gold.primary, fontSize: 28, fontWeight: '800' },
     ipSub: { color: colors.text.muted, fontSize: 13 },
     reportBtn: { alignSelf: 'center', padding: spacing.md },
     reportTxt: { color: colors.error, fontWeight: '600' }

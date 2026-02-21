@@ -1,79 +1,145 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import StatusPill from '../../components/StatusPill';
 import GoldButton from '../../components/GoldButton';
+import apiClient from '../../services/api/client';
+import { ref, onValue, off } from 'firebase/database';
+import { db } from '../../utils/firebase';
+import { parseJobDescription } from '../../utils/jobParser';
 
 export default function ActiveJobScreen({ route, navigation }) {
     const { jobId } = route.params || {};
 
-    const [status, setStatus] = useState('assigned'); // Mock states: assigned -> worker_arrived -> in_progress -> pending_completion
-    const [loading, setLoading] = useState(false);
+    const [status, setStatus] = useState('assigned');
+    const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(false);
+
+    // Real job data from server
+    const [job, setJob] = useState(null);
 
     // Sub-view states
     const [startOtp, setStartOtp] = useState(['', '', '', '']);
     const [timerActive, setTimerActive] = useState(false);
     const [timeElapsed, setTimeElapsed] = useState(0);
+    const [endOtp, setEndOtp] = useState('----'); // Fetched from server on completion
+    const [otpExpirySeconds, setOtpExpirySeconds] = useState(null);
 
-    const job = {
-        id: jobId || 'job-123',
-        category: 'Plumber',
-        customer: 'Ajay K',
-        phone: '+919876543210',
-        address: '404 Skyline Apartments, Seaport Airport Rd, Kakkanad',
-        coordinates: '10.0261,76.3225',
-        dist: '2.5',
-        amount: '₹800'
-    };
+    // Firebase Listener to keep status synced (e.g. if customer cancels)
+    useEffect(() => {
+        if (!jobId) return;
+        const jobRef = ref(db, `active_jobs/${jobId}`);
+        const listener = onValue(jobRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.status) setStatus(data.status);
+        });
+        return () => off(jobRef, 'value', listener);
+    }, [jobId]);
 
+    // Timer logic
     useEffect(() => {
         let int;
-        if (timerActive) {
+        if (timerActive || status === 'in_progress') {
             int = setInterval(() => setTimeElapsed(p => p + 1), 1000);
         }
         return () => clearInterval(int);
-    }, [timerActive]);
+    }, [timerActive, status]);
+
+    // OTP Expiry Timer (Issue #23)
+    useEffect(() => {
+        let int;
+        if (status === 'worker_arrived' && job?.start_otp_generated_at) {
+            const expiryTime = new Date(job.start_otp_generated_at).getTime() + 3600000;
+            const updateExpiry = () => {
+                const remaining = Math.max(0, Math.floor((expiryTime - Date.now()) / 1000));
+                setOtpExpirySeconds(remaining);
+            };
+            updateExpiry();
+            int = setInterval(updateExpiry, 1000);
+        }
+        return () => clearInterval(int);
+    }, [status, job?.start_otp_generated_at]);
+
+    const fetchJob = async () => {
+        try {
+            setLoading(true);
+            const res = await apiClient.get(`/api/worker/jobs/${jobId}`);
+            const data = res.data?.job;
+            setJob(data);
+            if (data.status) setStatus(data.status);
+            if (data.status === 'in_progress') setTimerActive(true);
+            if (data.end_otp) setEndOtp(data.end_otp);
+        } catch (err) {
+            console.error('Failed to fetch job', err);
+            Alert.alert('Error', 'Could not load job details.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            if (jobId) fetchJob();
+        }, [jobId])
+    );
 
     const handleCall = () => {
-        Linking.openURL(`tel:${job.phone}`);
+        if (job?.customer_phone) Linking.openURL(`tel:${job.customer_phone}`);
     };
 
     const handleNavigate = () => {
-        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${job.coordinates}`);
+        // Fallback or real coordinates if we add them later to jobs table. We use address for now.
+        const query = encodeURIComponent(job?.address || 'Kochi');
+        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${query}`);
     };
 
-    const handleArrived = () => {
-        setLoading(true);
-        setTimeout(() => {
-            setLoading(false);
+    const handleArrived = async () => {
+        setActionLoading(true);
+        try {
+            await apiClient.post(`/api/worker/jobs/${jobId}/arrived`);
             setStatus('worker_arrived');
-        }, 500);
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Failed to update status.');
+        } finally {
+            setActionLoading(false);
+        }
     };
 
-    const handleVerifyStartOtp = () => {
+    const handleVerifyStartOtp = async () => {
         const code = startOtp.join('');
         if (code.length !== 4) return;
 
-        setLoading(true);
-        setTimeout(() => {
-            setLoading(false);
-            if (code === '1234') { // Mock success
-                setStatus('in_progress');
-                setTimerActive(true);
+        setActionLoading(true);
+        try {
+            await apiClient.post(`/api/worker/jobs/${jobId}/verify-start-otp`, { code });
+            setStatus('in_progress');
+            setTimerActive(true);
+        } catch (err) {
+            if (err.response?.status === 403) {
+                Alert.alert('Dispute Raised', 'Maximum attempts reached. This job has been disputed.');
+                setStatus('disputed');
             } else {
-                Alert.alert('Invalid Code', 'The code provided is incorrect. Please check with the customer.');
+                Alert.alert('Invalid Code', err.response?.data?.message || 'Incorrect start code.');
                 setStartOtp(['', '', '', '']);
             }
-        }, 600);
+        } finally {
+            setActionLoading(false);
+        }
     };
 
-    const handleMarkComplete = () => {
-        setLoading(true);
-        setTimeout(() => {
-            setLoading(false);
+    const handleMarkComplete = async () => {
+        setActionLoading(true);
+        try {
+            const res = await apiClient.post(`/api/worker/jobs/${jobId}/complete`);
             setTimerActive(false);
             setStatus('pending_completion');
-        }, 600);
+            if (res.data?.end_otp) setEndOtp(res.data.end_otp);
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Failed to complete job.');
+        } finally {
+            setActionLoading(false);
+        }
     };
 
     const formatTime = (seconds) => {
@@ -87,7 +153,7 @@ export default function ActiveJobScreen({ route, navigation }) {
             return (
                 <View style={styles.actionBox}>
                     <Text style={styles.actionPrompt}>Head to the customer's location.</Text>
-                    <GoldButton title="I've Arrived" onPress={handleArrived} disabled={loading} />
+                    <GoldButton title="I've Arrived" onPress={handleArrived} disabled={actionLoading} loading={actionLoading} />
                 </View>
             );
         }
@@ -98,6 +164,12 @@ export default function ActiveJobScreen({ route, navigation }) {
                     <Text style={styles.actionPrompt}>Ask Customer for START CODE</Text>
                     <Text style={styles.actionSub}>The customer's app shows a 4-digit code. Enter it to begin.</Text>
 
+                    {otpExpirySeconds !== null && (
+                        <Text style={[styles.actionSub, { color: otpExpirySeconds < 300 ? colors.error : colors.gold.primary, fontWeight: '700' }]}>
+                            Expires in: {formatTime(otpExpirySeconds)}
+                        </Text>
+                    )}
+
                     <View style={styles.otpRow}>
                         {[0, 1, 2, 3].map(i => (
                             <View key={i} style={[styles.otpBox, startOtp[i] && styles.otpBoxActive]}>
@@ -106,16 +178,12 @@ export default function ActiveJobScreen({ route, navigation }) {
                         ))}
                     </View>
 
-                    {/* Developer Mock Numpad for testing quickly */}
-                    <View style={{ flexDirection: 'row', gap: 10, alignSelf: 'center', marginBottom: 20 }}>
-                        <TouchableOpacity onPress={() => setStartOtp(['1', '2', '3', '4'])} style={{ padding: 10, backgroundColor: colors.bg.surface }}>
-                            <Text style={{ color: colors.text.primary }}>MOCK ENTER 1234</Text>
-                        </TouchableOpacity>
-                    </View>
+                    {/* Developer Mock Numpad REMOVED for Production Security */}
 
                     <GoldButton
                         title="Begin Work"
-                        disabled={startOtp.join('').length < 4 || loading}
+                        disabled={startOtp.join('').length < 4 || actionLoading}
+                        loading={actionLoading}
                         onPress={handleVerifyStartOtp}
                     />
                 </View>
@@ -132,9 +200,9 @@ export default function ActiveJobScreen({ route, navigation }) {
                         <Text style={styles.timerLbl}>Elapsed</Text>
                     </View>
 
-                    <GoldButton title="Mark Work Complete" onPress={handleMarkComplete} disabled={loading} />
+                    <GoldButton title="Mark Work Complete" onPress={handleMarkComplete} disabled={actionLoading} loading={actionLoading} />
 
-                    <TouchableOpacity style={styles.disputeBtn}>
+                    <TouchableOpacity style={styles.disputeBtn} onPress={() => Alert.alert('Dispute', 'Not implemented yet.')}>
                         <Text style={styles.disputeTxt}>⚠️ Report Issue / Dispute</Text>
                     </TouchableOpacity>
                 </View>
@@ -148,14 +216,61 @@ export default function ActiveJobScreen({ route, navigation }) {
                     <Text style={styles.actionSub}>Customer must enter this END OTP on their app to release payment.</Text>
 
                     <View style={styles.readOnlyOtpWrap}>
-                        <Text style={styles.readOnlyOtpTxt}>8259</Text>
+                        <Text style={styles.readOnlyOtpTxt}>{endOtp}</Text>
                     </View>
 
                     <Text style={styles.waitingTxt}>⏳ Waiting for customer to confirm...</Text>
                 </View>
             );
         }
+
+        if (status === 'completed') {
+            return (
+                <View style={styles.actionBox}>
+                    <Text style={styles.actionPrompt}>✅ Job Successfully Completed</Text>
+                    <Text style={styles.actionSub}>The customer has confirmed the completion and payment has been processed.</Text>
+                    <GoldButton title="Go to Dashboard" onPress={() => navigation.navigate('WorkerTabs')} />
+                </View>
+            );
+        }
+
+        if (status === 'cancelled') {
+            return (
+                <View style={styles.actionBox}>
+                    <Text style={styles.actionPrompt}>❌ Job Cancelled</Text>
+                    <Text style={styles.actionSub}>This job was cancelled.</Text>
+                    <GoldButton title="Go to Dashboard" onPress={() => navigation.navigate('WorkerTabs')} />
+                </View>
+            );
+        }
+
+        if (status === 'disputed') {
+            return (
+                <View style={styles.actionBox}>
+                    <Text style={styles.actionPrompt}>⚠️ Job Disputed</Text>
+                    <Text style={styles.actionSub}>Too many incorrect OTP attempts or a dispute was raised. Our team will review this shortly.</Text>
+                    <GoldButton title="Go to Dashboard" onPress={() => navigation.navigate('WorkerTabs')} />
+                </View>
+            );
+        }
     };
+
+    if (loading) {
+        return (
+            <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={colors.gold.primary} />
+            </View>
+        );
+    }
+
+    if (!job) {
+        return (
+            <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: colors.text.muted }}>Job details not found.</Text>
+                <GoldButton title="Go Back" onPress={() => navigation.goBack()} />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.screen}>
@@ -168,27 +283,41 @@ export default function ActiveJobScreen({ route, navigation }) {
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
-
                 <View style={styles.topCard}>
                     <View style={styles.topRow}>
                         <Text style={styles.catTxt}>{job.category}</Text>
                         <StatusPill status={status} />
                     </View>
 
-                    <Text style={styles.custName}>{job.customer}</Text>
+                    <Text style={styles.custName}>{job.customer_name || 'Customer'}</Text>
                     <Text style={styles.addressTxt}>📍 {job.address}</Text>
 
-                    <View style={styles.btnRow}>
-                        <TouchableOpacity style={styles.roundBtn} onPress={handleCall}>
-                            <Text style={styles.roundIcon}>📞</Text>
-                            <Text style={styles.roundTxt}>Call</Text>
-                        </TouchableOpacity>
+                    {/* Parsed JSON details */}
+                    {(() => {
+                        const { text: descText, photo: photoUrl } = parseJobDescription(job.description);
+                        return (
+                            <View style={{ marginBottom: spacing.sm }}>
+                                {!!descText && <Text style={{ color: colors.text.secondary, fontStyle: 'italic', marginBottom: spacing.xs }}>"{descText}"</Text>}
+                                {!!photoUrl && <Image source={{ uri: photoUrl }} style={{ width: '100%', height: 180, borderRadius: radius.md, marginTop: spacing.xs, backgroundColor: colors.bg.surface }} />}
+                            </View>
+                        );
+                    })()}
 
-                        <TouchableOpacity style={[styles.roundBtn, styles.navBtn]} onPress={handleNavigate}>
-                            <Text style={styles.roundIcon}>🗺️</Text>
-                            <Text style={styles.roundTxt}>Navigate</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <Text style={styles.amountTxt}>Amount: ₹{job.amount}</Text>
+
+                    {status !== 'completed' && status !== 'cancelled' && (
+                        <View style={styles.btnRow}>
+                            <TouchableOpacity style={styles.roundBtn} onPress={handleCall}>
+                                <Text style={styles.roundIcon}>📞</Text>
+                                <Text style={styles.roundTxt}>Call</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={[styles.roundBtn, styles.navBtn]} onPress={handleNavigate}>
+                                <Text style={styles.roundIcon}>🗺️</Text>
+                                <Text style={styles.roundTxt}>Navigate</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
 
                 {renderActionView()}
@@ -216,6 +345,7 @@ const styles = StyleSheet.create({
 
     custName: { color: colors.text.primary, fontSize: 22, fontWeight: '800', marginTop: spacing.md },
     addressTxt: { color: colors.text.muted, fontSize: 15, lineHeight: 22, marginVertical: spacing.sm },
+    amountTxt: { color: colors.gold.primary, fontSize: 16, fontWeight: '700' },
 
     btnRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
     roundBtn: {

@@ -82,9 +82,9 @@ router.get('/', async (req, res) => {
         const [jobsWithWorkers] = await pool.query(`
             SELECT 
                 j.*,
-                wp.full_name as worker_name,
-                wp.rating as worker_rating,
-                wp.photo_url as worker_photo
+                wp.name as worker_name,
+                wp.average_rating as worker_rating,
+                wp.profile_s3_key as worker_photo
             FROM jobs j
             LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
             WHERE j.customer_id = ?

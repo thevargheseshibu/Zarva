@@ -38,10 +38,9 @@ async function handle(req, res, action) {
         return ok(res, result);
     } catch (err) {
         const status = err.status ?? 500;
-        // VERY IMPORTANT: Ensure we NEVER log raw error message if it hints at payment_details failing validation
-        // The service handles formatting cleanly, but we must be careful with logging objects.
         if (status >= 500) {
-            console.error(`[Worker Onboarding] Failed for U:${userId}:`, err.message);
+            console.error(`[Worker] 500 for U:${userId} — ${err.message}`);
+            console.error(err.stack || err);
         }
         const msg = status < 500 ? err.message : 'Internal Server Error.';
         return fail(res, msg, status, 'WORKER_ERROR');
@@ -142,6 +141,36 @@ router.post('/onboard', (req, res) =>
         await WorkerService.agreeToTerms(userId, agreement_signature, ipAddress, pool);
 
         return { success: true, message: "Onboarding successfully completed" };
+    })
+);
+
+/**
+ * Worker fetches active job details
+ * Includes the END OTP if status is pending_completion, so the worker can show it to the customer.
+ */
+router.get('/jobs/:id', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const [jobs] = await pool.query(
+            `SELECT j.id, j.status, j.category, j.address, j.description, j.total_amount as amount,
+                    j.start_otp_generated_at,
+                    c.name as customer_name, u.phone as customer_phone
+             FROM jobs j
+             LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
+             LEFT JOIN users u ON j.customer_id = u.id
+             WHERE j.id = ? AND j.worker_id = ?`,
+            [jobId, userId]
+        );
+        const job = jobs[0];
+        if (!job) throw Object.assign(new Error('Job not found or not assigned to you'), { status: 404 });
+
+        // If job is in pending_completion, fetch the END OTP from Redis to show to the customer
+        if (job.status === 'pending_completion') {
+            const redisClient = getRedisClient();
+            job.end_otp = await redisClient.get(`zarva:otp:end:${jobId}`);
+        }
+
+        return { job };
     })
 );
 
@@ -264,6 +293,7 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
                     `UPDATE jobs SET status='disputed', start_otp_attempts=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
                     [attempts, jobId]
                 );
+                console.log(`[Firebase Mock] active_jobs/${jobId}/status = 'disputed'`);
                 throw Object.assign(new Error('Too many failed attempts. Job disputed.'), { status: 403 });
             } else {
                 await pool.query(`UPDATE jobs SET start_otp_attempts=? WHERE id=?`, [attempts, jobId]);
@@ -392,8 +422,6 @@ router.post('/jobs/:id/dispute', (req, res) =>
     })
 );
 
-export default router;
-
 // ─── PUT /api/worker/location ────────────────────────────────────────────────
 // Authenticated worker updates their GPS position
 router.put('/location', (req, res) =>
@@ -480,3 +508,89 @@ router.put('/availability', (req, res) =>
         return response;
     })
 );
+
+// ─── GET /api/worker/available-jobs ───────────────────────────────────────────
+// Get nearby open jobs for worker
+router.get('/available-jobs', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const [wp] = await pool.query(
+            'SELECT is_verified, is_online, category, home_lat, home_lng FROM worker_profiles WHERE user_id=?',
+            [userId]
+        );
+        const profile = wp[0];
+        if (!profile) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
+        if (!profile.is_verified) throw Object.assign(new Error('Worker not verified'), { status: 403 });
+
+        if (!profile.home_lat || !profile.home_lng) {
+            throw Object.assign(new Error('Please set your location in Profile to receive nearby jobs.'), { status: 400 });
+        }
+
+        if (!profile.is_online) {
+            return { jobs: [], is_online: false };
+        }
+
+        // Fetch open jobs — explicit columns to avoid JOIN ambiguity
+        // TODO: add geo distance formula
+        const [jobs] = await pool.query(
+            `SELECT j.id, j.category, j.status, j.created_at, j.address,
+                    j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
+                    c.name as customer_name
+             FROM jobs j
+             LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
+             WHERE j.status IN ('open', 'searching','no_worker_found')
+             ORDER BY j.created_at DESC LIMIT 50`
+        );
+
+        const mappedJobs = jobs.map(j => {
+            const desc = j.description || j.address || 'Service Request';
+            const rph = j.rate_per_hour || 0;
+            const est = rph > 0 ? `₹${rph}/hr` : 'Price on completion';
+
+            return {
+                id: j.id,
+                category: j.category,
+                icon: '⚡',
+                dist: '—',
+                est,
+                desc,
+                time: j.created_at,
+                customer_name: j.customer_name || 'Customer'
+            };
+        });
+
+        return { jobs: mappedJobs, is_online: true };
+    })
+);
+
+// ─── GET /api/worker/history ───────────────────────────────────────────
+// Get worker work history
+router.get('/history', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const [jobs] = await pool.query(
+            `SELECT j.id, j.category, j.status, j.created_at, j.address,
+                    (SELECT total FROM job_invoices WHERE job_id = j.id LIMIT 1) as amount
+             FROM jobs j
+             WHERE j.worker_id = ? AND j.status IN ('completed', 'cancelled', 'disputed')
+             ORDER BY j.created_at DESC LIMIT 50`,
+            [userId]
+        );
+
+        const mappedHistory = jobs.map(j => {
+            // j.address is VARCHAR(500) — a plain string, not JSON
+            const addr = j.address || 'Address unavailable';
+
+            return {
+                id: String(j.id),
+                category: j.category,
+                address: addr,
+                amount: j.amount ? '₹' + j.amount : '₹0',
+                date: j.created_at,
+                status: j.status
+            };
+        });
+
+        return { history: mappedHistory };
+    })
+);
+
+export default router;

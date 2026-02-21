@@ -1,32 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
 import JobAlertBottomSheet from '../../components/JobAlertBottomSheet';
 import { useT } from '../../hooks/useT';
+import apiClient from '../../services/api/client';
 
 export default function WorkerHomeScreen({ navigation }) {
     const t = useT();
-    // Mock user state
     const [isOnline, setIsOnline] = useState(false);
-    const worker = { name: 'Rahul R', rating: 4.8, verified: true };
-    const stats = { today: 2, week: 14 };
-    const earningsToday = 1450;
+    const [toggling, setToggling] = useState(false);
+    const [worker, setWorker] = useState({ name: '', rating: 0, verified: false });
+    const [earningsToday, setEarningsToday] = useState(0);
+    const [stats, setStats] = useState({ today: 0, week: 0 });
+    const [activeJob, setActiveJob] = useState(null);
 
-    // Mock Active Job
-    const activeJob = {
-        id: 'job-1234',
-        category: 'Plumber',
-        address: '404 Skyline Apartments, Kakkanad',
-        status: 'assigned',
-        date: 'Today, 10:30 AM'
+    const fetchProfile = async () => {
+        try {
+            const res = await apiClient.get('/api/me');
+            const data = res.data?.user || res.data;
+            if (data) {
+                setWorker({
+                    name: data.worker_profile?.full_name || data.name || 'Worker',
+                    rating: data.worker_profile?.rating || 0,
+                    verified: !!data.worker_profile?.is_verified,
+                });
+                setIsOnline(!!data.worker_profile?.is_online);
+            }
+        } catch (err) {
+            console.error('[WorkerHome] Failed to fetch profile:', err);
+        }
     };
 
-    const toggleOnline = (val) => {
-        setIsOnline(val);
-        // Normally PUT /api/worker/availability
-        Alert.alert('Status Updated', `You are now ${val ? 'Online 🟢' : 'Offline ⚪'}`);
+    useFocusEffect(
+        useCallback(() => {
+            fetchProfile();
+        }, [])
+    );
+
+    const toggleOnline = async (val) => {
+        if (toggling) return;
+        setToggling(true);
+        try {
+            const res = await apiClient.put('/api/worker/availability', { is_online: val });
+            setIsOnline(res.data?.is_online ?? val);
+            if (res.data?.warning) {
+                Alert.alert('Warning', res.data.warning);
+            }
+        } catch (err) {
+            const msg = err?.response?.data?.message || 'Failed to update status. Try again.';
+            Alert.alert('Error', msg);
+        } finally {
+            setToggling(false);
+        }
     };
 
     return (
@@ -37,22 +65,23 @@ export default function WorkerHomeScreen({ navigation }) {
                     <View>
                         <Text style={styles.greeting}>{t('worker_home_greeting', { name: '' })}</Text>
                         <View style={styles.nameRow}>
-                            <Text style={styles.name}>{worker.name}</Text>
+                            <Text style={styles.name}>{worker.name || 'Worker'}</Text>
                             {worker.verified && <Text style={styles.badge}>✅</Text>}
                         </View>
-                        <Text style={styles.rating}>⭐ {worker.rating} Average Rating</Text>
+                        <Text style={styles.rating}>⭐ {worker.rating?.toFixed(1) || '–'} Average Rating</Text>
                     </View>
 
                     {/* Online Toggle */}
                     <View style={styles.toggleBox}>
                         <Text style={[styles.toggleTxt, isOnline && styles.toggleTxtActive]}>
-                            {isOnline ? t('go_online').toUpperCase() : t('go_offline').toUpperCase()}
+                            {isOnline ? 'ONLINE' : 'OFFLINE'}
                         </Text>
                         <Switch
                             value={isOnline}
                             onValueChange={toggleOnline}
+                            disabled={toggling}
                             trackColor={{ false: colors.bg.surface, true: colors.success }}
-                            thumbColor={colors.text.primary}
+                            thumbColor={toggling ? colors.text.muted : colors.text.primary}
                         />
                     </View>
                 </View>
@@ -77,13 +106,19 @@ export default function WorkerHomeScreen({ navigation }) {
                         <Text style={styles.sLabel}>{t('tab_this_week')}</Text>
                     </View>
                     <View style={styles.statBox}>
-                        <Text style={styles.sValue}>{worker.rating}</Text>
+                        <Text style={styles.sValue}>{worker.rating?.toFixed(1) || '–'}</Text>
                         <Text style={styles.sLabel}>{t('stats_rating')}</Text>
                     </View>
                 </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
+                {/* Online Status Banner */}
+                {!isOnline && (
+                    <View style={styles.offlineBanner}>
+                        <Text style={styles.offlineBannerTxt}>💤 You are offline. Toggle online to receive jobs.</Text>
+                    </View>
+                )}
 
                 {/* Active Job Section */}
                 {activeJob && (
@@ -96,7 +131,6 @@ export default function WorkerHomeScreen({ navigation }) {
                             </View>
                             <Text style={styles.ajDate}>{activeJob.date}</Text>
                             <Text style={styles.ajAddress} numberOfLines={2}>📍 {activeJob.address}</Text>
-
                             <TouchableOpacity
                                 style={styles.viewJobBtn}
                                 onPress={() => navigation.navigate('ActiveJob', { jobId: activeJob.id })}
@@ -106,7 +140,6 @@ export default function WorkerHomeScreen({ navigation }) {
                         </Card>
                     </View>
                 )}
-
             </ScrollView>
 
             <JobAlertBottomSheet navigation={navigation} />
@@ -144,8 +177,15 @@ const styles = StyleSheet.create({
     sLabel: { color: colors.text.muted, fontSize: 12, marginTop: 2 },
 
     content: { padding: spacing.lg },
-    sectionTitle: { color: colors.text.primary, fontSize: 18, fontWeight: '700', marginBottom: spacing.md },
 
+    offlineBanner: {
+        backgroundColor: colors.bg.elevated, padding: spacing.md,
+        borderRadius: radius.md, borderWidth: 1, borderColor: colors.bg.surface, marginBottom: spacing.lg
+    },
+    offlineBannerTxt: { color: colors.text.muted, fontSize: 14, textAlign: 'center' },
+
+    sectionTitle: { color: colors.text.primary, fontSize: 18, fontWeight: '700', marginBottom: spacing.md },
+    activeSection: {},
     activeJobCard: { gap: spacing.sm, borderWidth: 1, borderColor: colors.gold.primary + '55' },
     ajHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     ajCategory: { color: colors.text.primary, fontSize: 16, fontWeight: '700' },
