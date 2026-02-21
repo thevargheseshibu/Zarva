@@ -1,21 +1,27 @@
+import { useFocusEffect } from '@react-navigation/native';
+import apiClient from '../../services/api/client';
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import Card from '../../components/Card';
-import GoldButton from '../../components/GoldButton';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 
 const TABS = ['Today', 'This Week', 'This Month'];
 
 export default function EarningsScreen({ navigation }) {
     const [activeTab, setActiveTab] = React.useState('Today');
+    const [overview, setOverview] = React.useState({ Today: 0, 'This Week': 0, 'This Month': 0 });
+    const [transactions, setTransactions] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
 
-    const overview = { Today: 1450, 'This Week': 8400, 'This Month': 32400 };
-
-    const transactions = [
-        { id: '1', title: 'Plumbing Repair', amt: '+₹800', type: 'credit', time: '10:30 AM' },
-        { id: '2', title: 'Platform Fee Advance', amt: '-₹50', type: 'debit', time: '10:30 AM' },
-        { id: '3', title: 'Pipe Fixing', amt: '+₹700', type: 'credit', time: '1:15 PM' },
-    ];
+    useFocusEffect(
+        React.useCallback(() => {
+            apiClient.get('/api/worker/earnings')
+                .then(res => {
+                    setOverview(res.data?.overview || { Today: 0, 'This Week': 0, 'This Month': 0 });
+                    setTransactions(res.data?.transactions || []);
+                })
+                .catch(err => console.error('Failed to pull earnings', err))
+                .finally(() => setLoading(false));
+        }, [])
+    );
 
     const renderTx = ({ item }) => (
         <View style={styles.txRow}>
@@ -69,13 +75,18 @@ export default function EarningsScreen({ navigation }) {
             {/* Transactions List */}
             <View style={styles.txContainer}>
                 <Text style={styles.txHeader}>Transactions</Text>
-                <FlatList
-                    data={transactions}
-                    keyExtractor={i => i.id}
-                    renderItem={renderTx}
-                    contentContainerStyle={styles.txList}
-                    ItemSeparatorComponent={() => <View style={styles.divider} />}
-                />
+                {loading ? (
+                    <ActivityIndicator size="large" color={colors.gold.primary} style={{ marginTop: spacing.xl * 2 }} />
+                ) : (
+                    <FlatList
+                        data={transactions}
+                        keyExtractor={i => i.id}
+                        renderItem={renderTx}
+                        contentContainerStyle={styles.txList}
+                        ItemSeparatorComponent={() => <View style={styles.divider} />}
+                        ListEmptyComponent={<Text style={{ color: colors.text.muted, textAlign: 'center', marginTop: spacing.xl }}>No earnings logged yet.</Text>}
+                    />
+                )}
             </View>
         </View>
     );

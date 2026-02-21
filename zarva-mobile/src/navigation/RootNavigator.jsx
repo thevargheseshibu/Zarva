@@ -15,8 +15,11 @@ import WorkerStack from './WorkerStack';
 import OnboardingNavigator from './OnboardingNavigator';
 import RoleSelection from '../screens/auth/RoleSelection';
 import { useAuthStore } from '../stores/authStore';
-import { NavigationContainer } from '@react-navigation/native';
+import { useJobStore } from '../stores/jobStore';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 
+export const navigationRef = createNavigationContainerRef();
 const Stack = createStackNavigator();
 
 // Dark navigation theme
@@ -57,6 +60,31 @@ export default function RootNavigator() {
         };
     }, []);
 
+    // ── Global Notification Tap Handler (Issue #37) ──────────────────────────
+    useEffect(() => {
+        if (!isHydrated) return;
+
+        const sub = Notifications.addNotificationResponseReceivedListener(response => {
+            const authState = useAuthStore.getState();
+            const jobState = useJobStore.getState();
+
+            if (!navigationRef.isReady()) return;
+
+            const role = authState.user?.active_role;
+            const jobId = jobState.activeJob?.id;
+
+            if (jobId) {
+                if (role === 'customer') {
+                    navigationRef.navigate('JobStatusDetail', { jobId });
+                } else if (role === 'worker') {
+                    navigationRef.navigate('ActiveJob', { jobId });
+                }
+            }
+        });
+
+        return () => sub.remove();
+    }, [isHydrated]);
+
     const renderNavigator = () => {
         if (!isHydrated) return <View style={{ flex: 1, backgroundColor: ZarvaTheme.colors.background }} />;
 
@@ -82,7 +110,7 @@ export default function RootNavigator() {
     };
 
     return (
-        <NavigationContainer theme={ZarvaTheme}>
+        <NavigationContainer ref={navigationRef} theme={ZarvaTheme}>
             {renderNavigator()}
         </NavigationContainer>
     );

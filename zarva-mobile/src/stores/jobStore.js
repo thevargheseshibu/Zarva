@@ -25,11 +25,12 @@ export const useJobStore = create((set, get) => ({
     assignedWorker: null,   // Holds worker profile assigned via Firebase
     canMinimize: false,     // Toggles UI minimize state after 5 sec
     jobHistory: [],
+    waveNumber: 1,          // 1, 2, or 3 from matching engine expansions
 
     setActiveJob: (job) => set({ activeJob: job }),
     setSearchPhase: (phase) => set({ searchPhase: phase }),
     setCanMinimize: (val) => set({ canMinimize: val }),
-    clearActiveJob: () => set({ activeJob: null, searchPhase: null, assignedWorker: null, canMinimize: false }),
+    clearActiveJob: () => set({ activeJob: null, searchPhase: null, assignedWorker: null, canMinimize: false, jobHistory: [], waveNumber: 1 }),
     setJobHistory: (history) => set({ jobHistory: history }),
 
     startListening: (jobId) => {
@@ -45,6 +46,10 @@ export const useJobStore = create((set, get) => ({
 
             if (data.worker) {
                 set({ assignedWorker: data.worker });
+            }
+
+            if (data.wave_number) {
+                set({ waveNumber: data.wave_number });
             }
 
             const prevPhase = get().searchPhase;
@@ -88,10 +93,19 @@ export const useJobStore = create((set, get) => ({
                 }
 
                 if (title) {
-                    await Notifications.scheduleNotificationAsync({
-                        content: { title, body },
-                        trigger: null, // Send immediately
-                    });
+                    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+                    let finalStatus = existingStatus;
+                    if (existingStatus !== 'granted') {
+                        const { status } = await Notifications.requestPermissionsAsync();
+                        finalStatus = status;
+                    }
+
+                    if (finalStatus === 'granted') {
+                        await Notifications.scheduleNotificationAsync({
+                            content: { title, body },
+                            trigger: null, // Send immediately
+                        });
+                    }
                 }
 
                 // If terminal state, auto-clear after 10s is handled by the UI

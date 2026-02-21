@@ -74,7 +74,7 @@ export default function AvailableJobsScreen({ navigation }) {
                     </View>
 
                     <View style={styles.distRow}>
-                        <Text style={styles.distTxt}>📍 {item.dist} km away</Text>
+                        <Text style={styles.distTxt}>📍 {item.dist} km away • Wave {item.wave_number || 1}</Text>
                         <Text style={styles.estTxt}>Est: {item.est}</Text>
                     </View>
 

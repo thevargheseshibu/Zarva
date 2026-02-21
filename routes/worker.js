@@ -238,8 +238,8 @@ router.post('/jobs/:id/arrived', (req, res) =>
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:start:${jobId}`, otp, 'EX', 3600);
 
-        // Mock Firebase Update
-        console.log(`[Firebase Mock] active_jobs/${jobId}/status = 'worker_arrived'`);
+        // Real Firebase Update
+        await updateJobNode(jobId, { status: 'worker_arrived' });
 
         return { arrived: true }; // NEVER return OTP to worker
     })
@@ -280,7 +280,7 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
 
         if (match) {
             await pool.query(`UPDATE jobs SET status='in_progress', work_started_at=NOW() WHERE id=?`, [jobId]);
-            console.log(`[Firebase Mock] active_jobs/${jobId}/status = 'in_progress'`);
+            await updateJobNode(jobId, { status: 'in_progress' });
 
             const redisClient = getRedisClient();
             await redisClient.del(`zarva:otp:start:${jobId}`); // Clean cache natively
@@ -293,7 +293,7 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
                     `UPDATE jobs SET status='disputed', start_otp_attempts=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
                     [attempts, jobId]
                 );
-                console.log(`[Firebase Mock] active_jobs/${jobId}/status = 'disputed'`);
+                await updateJobNode(jobId, { status: 'disputed' });
                 throw Object.assign(new Error('Too many failed attempts. Job disputed.'), { status: 403 });
             } else {
                 await pool.query(`UPDATE jobs SET start_otp_attempts=? WHERE id=?`, [attempts, jobId]);
@@ -329,8 +329,8 @@ router.post('/jobs/:id/complete', (req, res) =>
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800);
 
-        console.log(`[Firebase Mock] active_jobs/${jobId}/status = 'pending_completion'`);
-        console.log(`[Push Notification Mock] -> Customer: "Worker is done - enter completion code"`);
+        await updateJobNode(jobId, { status: 'pending_completion' });
+        // console.log(`[Push Notification Mock] -> Customer: "Worker is done - enter completion code"`);
 
         return { end_otp: otp }; // Worker SEES this in their app to show customer
     })
@@ -374,7 +374,7 @@ router.post('/jobs/:id/cancel', (req, res) =>
             await conn.query(`UPDATE jobs SET status='cancelled', cancelled_by='worker', cancel_reason='Worker requested cancellation' WHERE id=?`, [jobId]);
             await conn.query(`UPDATE worker_profiles SET current_job_id = NULL ${applyPenalty ? ', worker_cancel_penalty = 1' : ''} WHERE user_id=?`, [userId]);
 
-            console.log(`[Firebase Mock] Customer Notification: The worker cancelled the assignment.`);
+            await updateJobNode(jobId, { status: 'cancelled' });
 
             // Trigger full refund sweep for Customer
             const [payments] = await conn.query(`SELECT id, amount FROM payments WHERE job_id=? AND status='captured'`, [jobId]);
@@ -417,7 +417,7 @@ router.post('/jobs/:id/dispute', (req, res) =>
             [reason, jobId]
         );
 
-        console.log(`[Firebase Mock] -> Customer & Worker: "Dispute raised. Our team will review within 48 hours."`);
+        await updateJobNode(jobId, { status: 'disputed' });
         return { disputed: true, message: 'Dispute submitted. Admin will review within 48h.' };
     })
 );
@@ -477,10 +477,26 @@ router.put('/location', (req, res) =>
 // Toggle worker online / offline
 router.put('/availability', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const { is_online } = req.body;
-        if (is_online == null) throw Object.assign(new Error('is_online required'), { status: 400 });
+        const { is_online, is_available } = req.body;
 
-        const goingOnline = Boolean(is_online);
+        let updateQuery = [];
+        let params = [];
+        let firebaseSync = {};
+
+        if (is_online !== undefined) {
+            updateQuery.push('is_online=?');
+            params.push(is_online ? 1 : 0);
+            firebaseSync.is_online = Boolean(is_online);
+        }
+        if (is_available !== undefined) {
+            updateQuery.push('is_available=?');
+            params.push(is_available ? 1 : 0);
+            firebaseSync.is_available = Boolean(is_available);
+        }
+
+        if (updateQuery.length === 0) {
+            throw Object.assign(new Error('is_online or is_available required'), { status: 400 });
+        }
 
         const [wp] = await pool.query(
             'SELECT current_job_id FROM worker_profiles WHERE user_id=?',
@@ -490,18 +506,19 @@ router.put('/availability', (req, res) =>
         if (!profile) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
 
         // Update DB
+        params.push(userId);
         await pool.query(
-            'UPDATE worker_profiles SET is_online=? WHERE user_id=?',
-            [goingOnline ? 1 : 0, userId]
+            `UPDATE worker_profiles SET ${updateQuery.join(', ')} WHERE user_id=?`,
+            params
         );
 
         // Sync Firebase
-        await updateWorkerPresence(userId, { is_online: goingOnline });
+        await updateWorkerPresence(userId, firebaseSync);
 
-        const response = { is_online: goingOnline };
+        const response = { ...firebaseSync };
 
         // Warn — don't clear the active job, just notify
-        if (!goingOnline && profile.current_job_id) {
+        if (is_online === false && profile.current_job_id) {
             response.warning = `You went offline with an active job (${profile.current_job_id}). Please complete or cancel it.`;
         }
 
@@ -534,11 +551,20 @@ router.get('/available-jobs', (req, res) =>
         const [jobs] = await pool.query(
             `SELECT j.id, j.category, j.status, j.created_at, j.address,
                     j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
-                    c.name as customer_name
+                    c.name as customer_name,
+                    ROUND(
+                        6371 * acos(
+                            cos(radians(?)) * cos(radians(c.default_lat)) 
+                            * cos(radians(c.default_lng) - radians(?)) 
+                            + sin(radians(?)) * sin(radians(c.default_lat))
+                        ), 1
+                    ) AS distance_km
              FROM jobs j
              LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
-             WHERE j.status IN ('open', 'searching','no_worker_found')
-             ORDER BY j.created_at DESC LIMIT 50`
+             WHERE j.status IN ('open', 'searching', 'no_worker_found')
+             HAVING distance_km IS NULL OR distance_km <= 50
+             ORDER BY distance_km ASC, j.created_at DESC LIMIT 50`,
+            [profile.home_lat, profile.home_lng, profile.home_lat]
         );
 
         const mappedJobs = jobs.map(j => {
@@ -550,11 +576,12 @@ router.get('/available-jobs', (req, res) =>
                 id: j.id,
                 category: j.category,
                 icon: '⚡',
-                dist: '—',
+                dist: j.distance_km !== null ? j.distance_km : '—',
                 est,
                 desc,
                 time: j.created_at,
-                customer_name: j.customer_name || 'Customer'
+                customer_name: j.customer_name || 'Customer',
+                wave_number: 1 // Default fallback for wave tracker
             };
         });
 
@@ -590,6 +617,48 @@ router.get('/history', (req, res) =>
         });
 
         return { history: mappedHistory };
+    })
+);
+
+// ─── GET /api/worker/earnings ──────────────────────────────────────────────
+// Get worker earnings overview and transaction list
+router.get('/earnings', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const [overviewRows] = await pool.query(
+            `SELECT 
+                SUM(CASE WHEN DATE(ji.created_at) = CURDATE() THEN ji.worker_payout ELSE 0 END) as today,
+                SUM(CASE WHEN YEARWEEK(ji.created_at, 1) = YEARWEEK(CURDATE(), 1) THEN ji.worker_payout ELSE 0 END) as week,
+                SUM(CASE WHEN MONTH(ji.created_at) = MONTH(CURDATE()) AND YEAR(ji.created_at) = YEAR(CURDATE()) THEN ji.worker_payout ELSE 0 END) as month
+             FROM job_invoices ji
+             JOIN jobs j ON j.id = ji.job_id
+             WHERE j.worker_id = ? AND j.status = 'completed'`,
+            [userId]
+        );
+
+        const overview = {
+            Today: parseFloat(overviewRows[0]?.today || 0),
+            'This Week': parseFloat(overviewRows[0]?.week || 0),
+            'This Month': parseFloat(overviewRows[0]?.month || 0)
+        };
+
+        const [txRows] = await pool.query(
+            `SELECT ji.id, j.category as title, ji.worker_payout as amt, ji.created_at as time
+             FROM job_invoices ji
+             JOIN jobs j ON j.id = ji.job_id
+             WHERE j.worker_id = ? AND j.status = 'completed'
+             ORDER BY ji.created_at DESC LIMIT 50`,
+            [userId]
+        );
+
+        const transactions = txRows.map(tx => ({
+            id: String(tx.id),
+            title: tx.title,
+            amt: '+₹' + parseFloat(tx.amt),
+            type: 'credit',
+            time: new Date(tx.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }));
+
+        return { overview, transactions };
     })
 );
 

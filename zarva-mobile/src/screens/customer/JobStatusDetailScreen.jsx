@@ -24,6 +24,9 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const [verifyingEndOtp, setVerifyingEndOtp] = useState(false);
     const [workStartedAt, setWorkStartedAt] = useState(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [scheduledFor, setScheduledFor] = useState(null);
+    const [isEmergency, setIsEmergency] = useState(false);
+    const [autoEscalateAt, setAutoEscalateAt] = useState(null);
 
     // ── Auto-navigate on terminal states (Issue #8) ──────────────────────────
     useEffect(() => {
@@ -36,20 +39,21 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         }
     }, [status, navigation, jobId, clearActiveJob]);
 
-    // ── Fetch Details (Issue #25 & #51) ──────────────────────────────────────
+    // ── Fetch Details (Issue #25, #51, #62) ─────────────────────────────────
     useEffect(() => {
-        if ((status === 'worker_arrived' && !startOtp) || (status === 'in_progress' && !workStartedAt)) {
-            apiClient.get(`/api/jobs/${jobId}`)
-                .then(res => {
-                    const job = res.data?.job;
-                    if (job) {
-                        if (job.start_otp) setStartOtp(job.start_otp);
-                        if (job.work_started_at) setWorkStartedAt(job.work_started_at);
-                    }
-                })
-                .catch(err => console.error('Failed to fetch job data', err));
-        }
-    }, [status, jobId, startOtp, workStartedAt]);
+        apiClient.get(`/api/jobs/${jobId}`)
+            .then(res => {
+                const job = res.data?.job;
+                if (job) {
+                    if (job.start_otp) setStartOtp(job.start_otp);
+                    if (job.work_started_at) setWorkStartedAt(job.work_started_at);
+                    if (job.scheduled_for) setScheduledFor(job.scheduled_for);
+                    if (job.is_emergency) setIsEmergency(true);
+                    if (job.auto_escalate_at) setAutoEscalateAt(job.auto_escalate_at);
+                }
+            })
+            .catch(err => console.error('Failed to fetch job data', err));
+    }, [jobId]);
 
     // ── Live Timer (Issue #51) ───────────────────────────────────────────────
     useEffect(() => {
@@ -130,7 +134,11 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                     <Text style={styles.backTxt}>←</Text>
                 </TouchableOpacity>
-                <Text style={styles.title}>Job #{String(jobId).substring(0, 6).toUpperCase()}</Text>
+                <View style={{ alignItems: 'center' }}>
+                    <Text style={styles.title}>Job #{String(jobId).substring(0, 6).toUpperCase()}</Text>
+                    {isEmergency && <Text style={styles.emergencyBadge}>EMERGENCY</Text>}
+                    {scheduledFor && <Text style={styles.scheduleBadge}>Scheduled: {new Date(scheduledFor).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>}
+                </View>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -193,6 +201,17 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     </Card>
                 )}
 
+                {status === 'disputed' && (
+                    <Card glow style={[styles.actionCard, { borderColor: colors.error }]}>
+                        <Text style={[styles.actionTitle, { color: colors.error }]}>⚠️ Dispute Review</Text>
+                        <Text style={styles.actionSub}>This job is locked pending an admin review.</Text>
+                        {autoEscalateAt && (
+                            <Text style={styles.actionSub}>Auto-escalation will occur at: {new Date(autoEscalateAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>
+                        )}
+                        <Text style={styles.placeholderNote}>Our team will contact you shortly.</Text>
+                    </Card>
+                )}
+
                 {status === 'in_progress' && (
                     <View style={styles.inProgressWrap}>
                         <Card glow style={styles.ipCard}>
@@ -221,6 +240,8 @@ const styles = StyleSheet.create({
     backBtn: { padding: spacing.sm },
     backTxt: { color: colors.text.primary, fontSize: 24 },
     title: { color: colors.text.primary, fontSize: 18, fontWeight: '700', letterSpacing: 1 },
+    emergencyBadge: { backgroundColor: colors.error + '33', color: colors.error, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, fontSize: 10, fontWeight: '800', overflow: 'hidden', marginTop: 4 },
+    scheduleBadge: { backgroundColor: colors.gold.primary + '33', color: colors.gold.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, fontSize: 10, fontWeight: '700', overflow: 'hidden', marginTop: 4 },
 
     content: { padding: spacing.lg, gap: spacing.lg },
 

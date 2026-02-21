@@ -128,6 +128,32 @@ export default function ActiveJobScreen({ route, navigation }) {
         }
     };
 
+    const handleDispute = () => {
+        Alert.alert(
+            'Report Issue',
+            'Are you sure you want to log a dispute for this job? It will be suspended pending admin review.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Proceed',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setActionLoading(true);
+                        try {
+                            await apiClient.post(`/api/worker/jobs/${jobId}/dispute`, { reason: 'Worker-initiated dispute via ActiveJob App' });
+                            setStatus('disputed');
+                            Alert.alert('Dispute Logged', 'Our administrative team will review this shortly.');
+                        } catch (err) {
+                            Alert.alert('Error', err.response?.data?.message || 'Failed to raise dispute.');
+                        } finally {
+                            setActionLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     const handleMarkComplete = async () => {
         setActionLoading(true);
         try {
@@ -202,7 +228,7 @@ export default function ActiveJobScreen({ route, navigation }) {
 
                     <GoldButton title="Mark Work Complete" onPress={handleMarkComplete} disabled={actionLoading} loading={actionLoading} />
 
-                    <TouchableOpacity style={styles.disputeBtn} onPress={() => Alert.alert('Dispute', 'Not implemented yet.')}>
+                    <TouchableOpacity style={styles.disputeBtn} onPress={handleDispute}>
                         <Text style={styles.disputeTxt}>⚠️ Report Issue / Dispute</Text>
                     </TouchableOpacity>
                 </View>
@@ -285,7 +311,10 @@ export default function ActiveJobScreen({ route, navigation }) {
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.topCard}>
                     <View style={styles.topRow}>
-                        <Text style={styles.catTxt}>{job.category}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                            <Text style={styles.catTxt}>{job.category}</Text>
+                            {job.is_emergency ? <Text style={styles.emergencyBadge}>🚨 EMERGENCY</Text> : null}
+                        </View>
                         <StatusPill status={status} />
                     </View>
 
@@ -342,6 +371,7 @@ const styles = StyleSheet.create({
     topCard: { backgroundColor: colors.bg.elevated, padding: spacing.xl, borderRadius: radius.lg, borderTopWidth: 2, borderTopColor: colors.gold.primary },
     topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     catTxt: { color: colors.text.secondary, fontSize: 16, fontWeight: '700', textTransform: 'uppercase' },
+    emergencyBadge: { backgroundColor: colors.error + '22', color: colors.error, fontSize: 11, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
 
     custName: { color: colors.text.primary, fontSize: 22, fontWeight: '800', marginTop: spacing.md },
     addressTxt: { color: colors.text.muted, fontSize: 15, lineHeight: 22, marginVertical: spacing.sm },

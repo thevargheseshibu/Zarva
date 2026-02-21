@@ -85,6 +85,15 @@ export default function MyJobsScreen({ navigation }) {
                             )}
                         </View>
                     )}
+
+                    {item.status === 'cancelled' && (
+                        <View style={styles.cancelledArea}>
+                            <Text style={styles.cancelledTxt}>Cancelled by {item.cancelled_by ? item.cancelled_by.toUpperCase() : 'SYSTEM'}</Text>
+                            {item.cancel_reason ? (
+                                <Text style={styles.cancelReason}>Reason: {item.cancel_reason}</Text>
+                            ) : null}
+                        </View>
+                    )}
                 </Card>
             </TouchableOpacity>
         );
@@ -179,11 +188,15 @@ const styles = StyleSheet.create({
     workerName: { color: colors.text.primary, fontSize: 14, fontWeight: '600' },
     workerRating: { color: colors.gold.primary, fontSize: 12, marginTop: 2 },
 
-    ratingArea: { paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.bg.surface },
-    ratedTxt: { color: colors.gold.muted, fontSize: 13, fontWeight: '600' },
-    ratePrompt: { color: colors.gold.primary, fontSize: 14, fontWeight: '600' },
+    ratingArea: { marginTop: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.bg.primary },
+    ratedTxt: { color: colors.gold.primary, fontWeight: '700', fontSize: 13 },
+    ratePrompt: { color: colors.text.muted, fontSize: 13, fontStyle: 'italic' },
 
-    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: spacing.xl * 3 },
+    cancelledArea: { marginTop: spacing.md, padding: spacing.sm, backgroundColor: colors.error + '11', borderRadius: radius.md, borderWidth: 1, borderColor: colors.error + '33' },
+    cancelledTxt: { color: colors.error, fontSize: 13, fontWeight: '700' },
+    cancelReason: { color: colors.text.secondary, fontSize: 12, marginTop: 4, fontStyle: 'italic' },
+
+    emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: spacing.xl * 3 },
     emptyIcon: { fontSize: 48, marginBottom: spacing.md },
     emptyTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '700', marginBottom: spacing.sm },
     emptySub: { color: colors.text.secondary, fontSize: 14, textAlign: 'center', paddingHorizontal: spacing.xl, lineHeight: 22 },

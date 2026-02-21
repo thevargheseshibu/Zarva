@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Switch } from 'react-native';
 import * as Location from 'expo-location';
 import apiClient from '../../services/api/client';
 import { colors, spacing, radius } from '../../design-system/tokens';
@@ -8,6 +8,7 @@ import LocationInput from '../../components/LocationInput';
 import { useJobStore } from '../../stores/jobStore';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 dayjs.extend(customParseFormat);
 
@@ -17,18 +18,15 @@ export default function LocationScheduleScreen({ route, navigation }) {
     const [customerLocation, setCustomerLocation] = useState({});
 
     const [scheduleType, setScheduleType] = useState('now'); // 'now' or 'later'
-    const [date, setDate] = useState('');
-    const [time, setTime] = useState('');
+    const [scheduledDate, setScheduledDate] = useState(new Date());
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
+    const [isEmergency, setIsEmergency] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const handleConfirm = async () => {
         if (scheduleType === 'later') {
-            const d = dayjs(`${date} ${time}`, ['DD/MM/YYYY h:mm A', 'DD/MM/YYYY hh:mm A', 'D/M/YYYY h:mm A'], true);
-            if (!d.isValid()) {
-                Alert.alert('Invalid Format', 'Please enter a valid Date (DD/MM/YYYY) and Time (e.g. 10:30 AM).');
-                return;
-            }
-            if (d.isBefore(dayjs())) {
+            if (dayjs(scheduledDate).isBefore(dayjs())) {
                 Alert.alert('Invalid Time', 'Scheduled time must be in the future.');
                 return;
             }
@@ -51,7 +49,8 @@ export default function LocationScheduleScreen({ route, navigation }) {
                     state: customerLocation.state,
                     pincode: customerLocation.pincode
                 },
-                scheduled_for: scheduleType === 'now' ? null : `${date} ${time}`
+                scheduled_for: scheduleType === 'now' ? null : dayjs(scheduledDate).format('YYYY-MM-DD HH:mm:ss'),
+                is_emergency: isEmergency ? 1 : 0
             };
             const idempotencyKey = `job-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
             const res = await apiClient.post('/api/jobs', payload, {
@@ -81,7 +80,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
         }
     };
 
-    const isReady = customerLocation?.isValid && (scheduleType === 'now' || (date.length >= 8 && time.length >= 4));
+    const isReady = customerLocation?.isValid;
 
     return (
         <View style={styles.screen}>
@@ -122,28 +121,56 @@ export default function LocationScheduleScreen({ route, navigation }) {
                         <View style={styles.row}>
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.label}>Date</Text>
-                                <TextInput
-                                    style={styles.dateInput}
-                                    placeholder="DD/MM/YYYY"
-                                    placeholderTextColor={colors.text.muted}
-                                    value={date}
-                                    onChangeText={setDate}
-                                />
+                                <TouchableOpacity style={styles.dateInput} onPress={() => setShowDatePicker(true)}>
+                                    <Text style={{ color: colors.text.primary }}>{dayjs(scheduledDate).format('DD/MM/YYYY')}</Text>
+                                </TouchableOpacity>
                             </View>
                             <View style={{ width: spacing.md }} />
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.label}>Time</Text>
-                                <TextInput
-                                    style={styles.dateInput}
-                                    placeholder="10:00 AM"
-                                    placeholderTextColor={colors.text.muted}
-                                    value={time}
-                                    onChangeText={setTime}
-                                />
+                                <TouchableOpacity style={styles.dateInput} onPress={() => setShowTimePicker(true)}>
+                                    <Text style={{ color: colors.text.primary }}>{dayjs(scheduledDate).format('hh:mm A')}</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={scheduledDate}
+                                mode="date"
+                                display="default"
+                                onChange={(event, date) => {
+                                    setShowDatePicker(false);
+                                    if (date) setScheduledDate(date);
+                                }}
+                            />
+                        )}
+                        {showTimePicker && (
+                            <DateTimePicker
+                                value={scheduledDate}
+                                mode="time"
+                                display="default"
+                                onChange={(event, date) => {
+                                    setShowTimePicker(false);
+                                    if (date) setScheduledDate(date);
+                                }}
+                            />
+                        )}
                     </Card>
                 )}
+
+                <Card style={[styles.card, { marginTop: spacing.lg }]}>
+                    <View style={[styles.row, { alignItems: 'center', justifyContent: 'space-between' }]}>
+                        <View style={{ flex: 1, paddingRight: spacing.md }}>
+                            <Text style={styles.sectionTitle}>Emergency Service</Text>
+                            <Text style={{ color: colors.text.muted, fontSize: 13, marginTop: 4 }}>Need this handled immediately? Surcharges may apply.</Text>
+                        </View>
+                        <Switch
+                            value={isEmergency}
+                            onValueChange={setIsEmergency}
+                            trackColor={{ false: colors.bg.surface, true: colors.gold.primary }}
+                        />
+                    </View>
+                </Card>
 
             </ScrollView>
 

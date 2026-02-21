@@ -11,6 +11,7 @@ import apiClient from '../../services/api/client';
 export default function WorkerHomeScreen({ navigation }) {
     const t = useT();
     const [isOnline, setIsOnline] = useState(false);
+    const [isAvailable, setIsAvailable] = useState(false);
     const [toggling, setToggling] = useState(false);
     const [worker, setWorker] = useState({ name: '', rating: 0, verified: false });
     const [earningsToday, setEarningsToday] = useState(0);
@@ -28,6 +29,7 @@ export default function WorkerHomeScreen({ navigation }) {
                     verified: !!data.worker_profile?.is_verified,
                 });
                 setIsOnline(!!data.worker_profile?.is_online);
+                setIsAvailable(!!data.worker_profile?.is_available);
             }
         } catch (err) {
             console.error('[WorkerHome] Failed to fetch profile:', err);
@@ -57,6 +59,19 @@ export default function WorkerHomeScreen({ navigation }) {
         }
     };
 
+    const toggleAvailable = async (val) => {
+        if (toggling) return;
+        setToggling(true);
+        try {
+            const res = await apiClient.put('/api/worker/availability', { is_available: val });
+            setIsAvailable(res.data?.is_available ?? val);
+        } catch (err) {
+            Alert.alert('Error', err?.response?.data?.message || 'Failed to update availability.');
+        } finally {
+            setToggling(false);
+        }
+    };
+
     return (
         <View style={styles.screen}>
             {/* Header Area */}
@@ -71,18 +86,33 @@ export default function WorkerHomeScreen({ navigation }) {
                         <Text style={styles.rating}>⭐ {worker.rating?.toFixed(1) || '–'} Average Rating</Text>
                     </View>
 
-                    {/* Online Toggle */}
-                    <View style={styles.toggleBox}>
-                        <Text style={[styles.toggleTxt, isOnline && styles.toggleTxtActive]}>
-                            {isOnline ? 'ONLINE' : 'OFFLINE'}
-                        </Text>
-                        <Switch
-                            value={isOnline}
-                            onValueChange={toggleOnline}
-                            disabled={toggling}
-                            trackColor={{ false: colors.bg.surface, true: colors.success }}
-                            thumbColor={toggling ? colors.text.muted : colors.text.primary}
-                        />
+                    <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                        {/* Online Toggle */}
+                        <View style={styles.toggleBox}>
+                            <Text style={[styles.toggleTxt, isOnline && styles.toggleTxtActive]}>
+                                {isOnline ? 'NET: ON' : 'NET: OFF'}
+                            </Text>
+                            <Switch
+                                value={isOnline}
+                                onValueChange={toggleOnline}
+                                disabled={toggling}
+                                trackColor={{ false: colors.bg.surface, true: colors.success }}
+                                thumbColor={toggling ? colors.text.muted : colors.text.primary}
+                            />
+                        </View>
+                        {/* Dispatch Available Toggle */}
+                        <View style={styles.toggleBox}>
+                            <Text style={[styles.toggleTxt, isAvailable && styles.toggleTxtActive]}>
+                                {isAvailable ? 'DISPATCH: Y' : 'DISPATCH: N'}
+                            </Text>
+                            <Switch
+                                value={isAvailable}
+                                onValueChange={toggleAvailable}
+                                disabled={toggling}
+                                trackColor={{ false: colors.bg.surface, true: colors.gold.glow }}
+                                thumbColor={toggling ? colors.text.muted : colors.text.primary}
+                            />
+                        </View>
                     </View>
                 </View>
 

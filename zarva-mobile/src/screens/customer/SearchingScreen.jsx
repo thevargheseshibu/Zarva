@@ -10,7 +10,7 @@ export default function SearchingScreen({ route, navigation }) {
     const { category, jobId } = route.params || { category: 'electrician', jobId: 'mock-123' };
     const [countdown, setCountdown] = useState(5);
 
-    const { searchPhase, canMinimize, setCanMinimize, stopListening, clearActiveJob } = useJobStore();
+    const { searchPhase, canMinimize, setCanMinimize, stopListening, clearActiveJob, waveNumber } = useJobStore();
 
     useEffect(() => {
         navigation.setOptions({ gestureEnabled: false });
@@ -93,7 +93,7 @@ export default function SearchingScreen({ route, navigation }) {
             <View style={styles.content}>
                 <RadarAnimation size={120} />
                 <Text style={styles.title}>Finding a nearby {category}...</Text>
-                <Text style={styles.sub}>Searching for available workers</Text>
+                <Text style={styles.sub}>Searching for available workers (Wave {waveNumber}/3)</Text>
             </View>
 
             <View style={styles.bottomArea}>

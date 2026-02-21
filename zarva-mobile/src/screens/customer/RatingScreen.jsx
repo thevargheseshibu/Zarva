@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import apiClient from '../../services/api/client';
@@ -20,13 +20,18 @@ export default function RatingScreen({ route, navigation }) {
     const handleSubmit = async () => {
         setLoading(true);
         try {
-            // await apiClient.post(`/api/reviews`, { jobId, rating, quality, punctual, behavior, comment });
-            console.log('Submitted Review', { rating, metrics: { quality, punctual, behavior } });
+            await apiClient.post(`/api/reviews`, {
+                job_id: jobId,
+                overall_score: rating,
+                category_scores: { quality, punctual, behavior },
+                comment
+            });
+            navigation.popToTop(); // Back to Home in CustomerStack
         } catch (err) {
-            // Ignored for dev
+            console.error('Failed to submit review', err);
+            Alert.alert('Error', err.response?.data?.message || 'Failed to submit review');
         } finally {
             setLoading(false);
-            navigation.popToTop(); // Back to Home in CustomerStack
         }
     };
 

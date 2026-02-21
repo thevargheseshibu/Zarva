@@ -50,6 +50,33 @@ export default function CustomerProfileScreen() {
             <Text style={styles.title}>{t('profile_title')}</Text>
             <Text style={styles.phone}>{user?.phone || t('customer')}</Text>
 
+            <View style={styles.metricsContainer}>
+                <View style={styles.metric}>
+                    <Text style={styles.metricValue}>{user?.profile?.total_jobs || 0}</Text>
+                    <Text style={styles.metricLabel}>{t('total_jobs') || 'Total Jobs'}</Text>
+                </View>
+                <View style={styles.metric}>
+                    <Text style={styles.metricValue}>{user?.profile?.cancelled_jobs || 0}</Text>
+                    <Text style={styles.metricLabel}>{t('cancelled') || 'Cancelled'}</Text>
+                </View>
+                <View style={styles.metric}>
+                    <Text style={styles.metricValue}>{user?.profile?.avg_rating ? Number(user.profile.avg_rating).toFixed(1) : '—'}</Text>
+                    <Text style={styles.metricLabel}>{t('rating') || 'Rating'}</Text>
+                </View>
+            </View>
+
+            {user?.profile?.saved_addresses && user.profile.saved_addresses.length > 0 && (
+                <View style={styles.addressSection}>
+                    <Text style={styles.sectionTitle}>{t('saved_addresses') || 'Saved Addresses'}</Text>
+                    {user.profile.saved_addresses.map((addr, i) => (
+                        <View key={i} style={styles.addressRow}>
+                            <Text style={styles.addressTag}>{addr.tag}</Text>
+                            <Text style={styles.addressText} numberOfLines={2}>{addr.address}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+
             <TouchableOpacity style={styles.langRow} onPress={() => setIsLangModalOpen(true)}>
                 <View>
                     <Text style={styles.langLabel}>{t('language')}</Text>
@@ -112,7 +139,18 @@ export default function CustomerProfileScreen() {
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bg.primary, padding: spacing.xl, justifyContent: 'center', alignItems: 'center' },
     title: { color: colors.text.primary, fontSize: 28, fontWeight: '700', marginBottom: spacing.xs },
-    phone: { color: colors.text.secondary, fontSize: 16, marginBottom: spacing.xl * 2 },
+    phone: { color: colors.text.secondary, fontSize: 16, marginBottom: spacing.xl },
+
+    metricsContainer: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: spacing.xl, backgroundColor: colors.bg.surface, padding: spacing.lg, borderRadius: radius.lg },
+    metric: { alignItems: 'center', flex: 1 },
+    metricValue: { color: colors.gold.primary, fontSize: 24, fontWeight: '700' },
+    metricLabel: { color: colors.text.muted, fontSize: 12, marginTop: 4, textTransform: 'uppercase' },
+
+    addressSection: { width: '100%', marginBottom: spacing.xl, padding: spacing.lg, backgroundColor: colors.bg.surface, borderRadius: radius.lg },
+    sectionTitle: { color: colors.text.primary, fontSize: 16, fontWeight: '600', marginBottom: spacing.md },
+    addressRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.sm },
+    addressTag: { color: colors.gold.primary, fontWeight: '700', fontSize: 13, minWidth: 50 },
+    addressText: { color: colors.text.secondary, fontSize: 13, flex: 1 },
 
     langRow: {
         width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

@@ -9,6 +9,7 @@ import { getPool } from '../config/database.js';
 import { getRedisClient } from '../config/redis.js';
 import configLoader from '../config/loader.js';
 import * as fcmService from './fcmService.js';
+import { updateJobNode } from '../utils/firebase.js';
 
 // Helper: Sleep for wave delays
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -160,6 +161,9 @@ export async function startMatching(jobId) {
     try {
         for (let waveNum = 0; waveNum < waves.length; waveNum++) {
             const wave = waves[waveNum];
+
+            // Alert mobile frontend of expanding search radius for transparency sync
+            await updateJobNode(jobId, { wave_number: waveNum + 1 }).catch(() => { });
 
             // 1. Refresh Job state
             const [jobs] = await pool.query('SELECT status, category, latitude, longitude FROM jobs WHERE id = ?', [jobId]);

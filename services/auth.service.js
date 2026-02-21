@@ -190,9 +190,12 @@ async function getUserProfile(userId, pool) {
         `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference, u.last_login_at, u.created_at,
             cp.name, cp.email, cp.profile_s3_key, cp.city,
             cp.default_lat, cp.default_lng, cp.total_jobs as customer_total_jobs,
+            cp.avg_rating as customer_avg_rating, cp.rating_count as customer_rating_count,
+            cp.cancelled_jobs as customer_cancelled_jobs, cp.saved_addresses,
             wp.name        as worker_name,
             wp.category    as worker_category,
             wp.average_rating, wp.total_jobs as worker_total_jobs,
+            wp.subscription_status, wp.service_pincodes,
             wp.is_verified, wp.is_online, wp.is_available,
             wp.kyc_status, wp.city as worker_city
        FROM users u
@@ -225,6 +228,8 @@ async function getUserProfile(userId, pool) {
             category: row.worker_category,
             average_rating: row.average_rating,
             total_jobs: row.worker_total_jobs,
+            subscription_status: row.subscription_status,
+            service_pincodes: row.service_pincodes,
             is_verified: Boolean(row.is_verified),
             is_online: Boolean(row.is_online),
             is_available: Boolean(row.is_available),
@@ -237,6 +242,10 @@ async function getUserProfile(userId, pool) {
             email: row.email,
             city: row.city,
             total_jobs: row.customer_total_jobs,
+            avg_rating: row.customer_avg_rating,
+            rating_count: row.customer_rating_count,
+            cancelled_jobs: row.customer_cancelled_jobs,
+            saved_addresses: row.saved_addresses || [],
         };
     }
 
