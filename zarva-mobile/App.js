@@ -18,6 +18,16 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { useLanguageStore } from './src/i18n';
 import apiClient from './src/services/api/client';
 import { useJobStore } from './src/stores/jobStore';
+import { useWorkerStore } from './src/stores/workerStore';
+import * as Notifications from 'expo-notifications';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +57,57 @@ export default function App() {
           store.startListening(job.id);
         }
       }).catch(err => { /* Soft ignore on Unauth instances */ });
+
+      // Worker: Re-hydrate Push Token & Install Foreground Message Receivers
+      const registerForPushNotificationsAsync = async () => {
+        try {
+          const { status: existingStatus } = await Notifications.getPermissionsAsync();
+          let finalStatus = existingStatus;
+          if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+          }
+          if (finalStatus !== 'granted') return;
+
+          // Request native OS token (FCM/APNs) to route past Expo explicitly for our Node.js Match Engine
+          const tokenData = await Notifications.getDevicePushTokenAsync();
+          if (tokenData && tokenData.data) {
+            await apiClient.put('/api/me/fcm-token', { fcm_token: tokenData.data });
+          }
+        } catch (err) {
+          console.log('[Push] Failed to init or sync token', err);
+        }
+      };
+
+      registerForPushNotificationsAsync();
+
+      // Background / Foreground active listeners mapping matching payload structure
+      const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+        const data = notification.request.content.data;
+        if (data?.type === 'NEW_JOB' && data?.jobId) {
+          useWorkerStore.getState().setPendingJobAlert({
+            jobId: data.jobId,
+            category: data.category || 'Service',
+            distanceKm: data.distance || null
+          });
+        }
+      });
+
+      const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+        const data = response.notification.request.content.data;
+        if (data?.type === 'NEW_JOB' && data?.jobId) {
+          useWorkerStore.getState().setPendingJobAlert({
+            jobId: data.jobId,
+            category: data.category || 'Service',
+            distanceKm: data.distance || null
+          });
+        }
+      });
+
+      return () => {
+        Notifications.removeNotificationSubscription(notificationListener);
+        Notifications.removeNotificationSubscription(responseListener);
+      };
     }
   }, [isLoaded]);
 

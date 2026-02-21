@@ -95,6 +95,57 @@ router.get('/onboard/status', (req, res) =>
 );
 
 /**
+ * 7. POST /onboard (Unified submission from monolithic mobile frontend)
+ */
+router.post('/onboard', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const { name, dob, gender, location, categories, experience, payment, documents, agreement_signature } = req.body;
+        const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+
+        // Boot role if needed safely
+        try {
+            await WorkerService.startOnboarding(userId, pool);
+        } catch (e) { /* ignore if already worker */ }
+
+        // Mappings
+        await WorkerService.updateProfile(userId, {
+            full_name: name,
+            dob,
+            gender,
+            skills: categories || [],
+            experience_years: experience,
+            service_pincodes: location?.pincode ? [location.pincode] : ['682001']
+        }, pool);
+
+        // Location Injection
+        if (location && location.isValid) {
+            await pool.query(
+                `UPDATE worker_profiles 
+                 SET home_address=?, home_lat=?, home_lng=?, home_pincode=?, city=? 
+                 WHERE user_id=?`,
+                [JSON.stringify(location), location.lat, location.lng, location.pincode, location.city, userId]
+            );
+        }
+
+        if (payment && payment.method) {
+            await WorkerService.updatePayment(userId, { payment_method: payment.method, payment_details: payment.details }, pool);
+        }
+
+        if (documents && documents.aadhaar_front) {
+            await WorkerService.submitDocuments(userId, {
+                aadhar_front_key: documents.aadhaar_front,
+                aadhar_back_key: documents.aadhaar_back,
+                photo_key: documents.selfie
+            }, pool);
+        }
+
+        await WorkerService.agreeToTerms(userId, agreement_signature, ipAddress, pool);
+
+        return { success: true, message: "Onboarding successfully completed" };
+    })
+);
+
+/**
  * ATOMIC Job Acceptance
  * Uses Redis SET NX locks explicitly under the hood. Returns 409 if stolen.
  */

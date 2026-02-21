@@ -102,6 +102,10 @@ CREATE TABLE IF NOT EXISTS worker_profiles (
   profile_s3_key      VARCHAR(512)        NULL,
   category            VARCHAR(64)     NOT NULL COMMENT 'electrician | plumber | …',
   city                VARCHAR(64)     NOT NULL DEFAULT 'Kochi',
+  home_address        JSON                NULL COMMENT 'structured house/street/city info',
+  home_lat            DECIMAL(10,7)       NULL,
+  home_lng            DECIMAL(10,7)       NULL,
+  home_pincode        VARCHAR(10)         NULL,
   current_lat         DECIMAL(10,7)       NULL,
   current_lng         DECIMAL(10,7)       NULL,
   average_rating      DECIMAL(3,2)    NOT NULL DEFAULT 0.00,
@@ -181,6 +185,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   ) NOT NULL DEFAULT 'open',
   -- address & geo
   address                 VARCHAR(500)    NOT NULL,
+  customer_address_detail JSON                NULL COMMENT 'structured breakdown',
   latitude                DECIMAL(10,7)   NOT NULL,
   longitude               DECIMAL(10,7)   NOT NULL,
   city                    VARCHAR(64)     NOT NULL DEFAULT 'Kochi',

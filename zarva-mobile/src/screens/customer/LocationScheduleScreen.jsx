@@ -4,47 +4,18 @@ import * as Location from 'expo-location';
 import apiClient from '../../services/api/client';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
+import LocationInput from '../../components/LocationInput';
 import { useJobStore } from '../../stores/jobStore';
 
 export default function LocationScheduleScreen({ route, navigation }) {
     const { category, label, answers, basePrice } = route.params || {};
 
-    const [locationText, setLocationText] = useState('');
-    const [locationCoords, setLocationCoords] = useState(null);
-    const [locationLoading, setLocationLoading] = useState(false);
+    const [customerLocation, setCustomerLocation] = useState({});
 
     const [scheduleType, setScheduleType] = useState('now'); // 'now' or 'later'
     const [date, setDate] = useState('');
     const [time, setTime] = useState('');
     const [loading, setLoading] = useState(false);
-
-    const handleLocationPress = async () => {
-        try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-                Alert.alert('Permission denied', 'Please allow location access in your phone settings.');
-                return;
-            }
-            setLocationLoading(true);
-            const coords = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            const [place] = await Location.reverseGeocodeAsync({
-                latitude: coords.coords.latitude,
-                longitude: coords.coords.longitude,
-            });
-            const readable = [place.name, place.street, place.district, place.city, place.region]
-                .filter(Boolean)
-                .join(', ');
-            setLocationText(readable);
-            setLocationCoords({
-                lat: coords.coords.latitude,
-                lng: coords.coords.longitude,
-            });
-        } catch (err) {
-            Alert.alert('Could not get location', 'Please type your address manually.');
-        } finally {
-            setLocationLoading(false);
-        }
-    };
 
     const handleConfirm = async () => {
         setLoading(true);
@@ -52,9 +23,18 @@ export default function LocationScheduleScreen({ route, navigation }) {
             const payload = {
                 category,
                 answers,
-                address: locationText,
-                customer_lat: locationCoords.lat,
-                customer_lng: locationCoords.lng,
+                address: customerLocation.full_address,
+                customer_lat: customerLocation.lat,
+                customer_lng: customerLocation.lng,
+                customer_address_detail: {
+                    house: customerLocation.house,
+                    street: customerLocation.street,
+                    landmark: customerLocation.landmark,
+                    district: customerLocation.district,
+                    city: customerLocation.city,
+                    state: customerLocation.state,
+                    pincode: customerLocation.pincode
+                },
                 scheduled_at: scheduleType === 'now' ? null : `${date} ${time}`
             };
             const res = await apiClient.post('/api/jobs', payload);
@@ -76,7 +56,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
         }
     };
 
-    const isReady = locationText.trim().length > 5 && locationCoords !== null && (scheduleType === 'now' || (date && time));
+    const isReady = customerLocation.isValid && (scheduleType === 'now' || (date && time));
 
     return (
         <View style={styles.screen}>
@@ -91,29 +71,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
             <ScrollView contentContainerStyle={styles.content}>
 
                 {/* Location Section */}
-                <Text style={styles.sectionTitle}>Service Location</Text>
-                <Card style={styles.card}>
-                    <Text style={styles.label}>House/Flat No, Apartment, Street</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="e.g. 404, Skyline Apartments, Kakkanad..."
-                        placeholderTextColor={colors.text.muted}
-                        value={locationText}
-                        onChangeText={setLocationText}
-                        multiline
-                    />
-                    <TouchableOpacity
-                        style={styles.gpsBtn}
-                        onPress={handleLocationPress}
-                        disabled={locationLoading}
-                    >
-                        {locationLoading ? (
-                            <ActivityIndicator size="small" color={colors.gold.primary} />
-                        ) : (
-                            <Text style={styles.gpsTxt}>📍 Use Current Location</Text>
-                        )}
-                    </TouchableOpacity>
-                </Card>
+                <LocationInput onChange={setCustomerLocation} />
 
                 {/* Schedule Section */}
                 <Text style={styles.sectionTitle}>When do you need the service?</Text>

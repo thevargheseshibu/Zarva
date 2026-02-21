@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert } f
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
+import JobAlertBottomSheet from '../../components/JobAlertBottomSheet';
 import { useT } from '../../hooks/useT';
 
 export default function WorkerHomeScreen({ navigation }) {
@@ -107,6 +108,8 @@ export default function WorkerHomeScreen({ navigation }) {
                 )}
 
             </ScrollView>
+
+            <JobAlertBottomSheet navigation={navigation} />
         </View>
     );
 }

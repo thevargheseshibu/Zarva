@@ -7,8 +7,10 @@ export const useWorkerStore = create((set) => ({
     workerProfile: null,
     isOnline: false,
     earnings: { today: 0, week: 0, total: 0 },
+    pendingJobAlert: null,
 
     setOnline: (val) => set({ isOnline: val }),
     setWorkerProfile: (profile) => set({ workerProfile: profile }),
     setEarnings: (data) => set({ earnings: data }),
+    setPendingJobAlert: (alert) => set({ pendingJobAlert: alert })
 }));

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { colors, spacing, radius } from '../../../design-system/tokens';
 import GoldButton from '../../../components/GoldButton';
+import LocationInput from '../../../components/LocationInput';
 
 const GENDERS = ['Male', 'Female', 'Other'];
 
@@ -15,8 +16,9 @@ export default function OnboardingBasicInfo({ data, onNext }) {
     const [name, setName] = useState(data.name || '');
     const [dob, setDob] = useState(data.dob || '');
     const [gender, setGender] = useState(data.gender || '');
+    const [workerLocation, setWorkerLocation] = useState({});
 
-    const isValid = name.trim().length >= 2 && dob.length === 10 && gender;
+    const isValid = name.trim().length >= 2 && dob.length === 10 && gender && workerLocation.isValid;
 
     const handleDob = (t) => {
         // Auto-format DD/MM/YYYY
@@ -71,10 +73,15 @@ export default function OnboardingBasicInfo({ data, onNext }) {
                 </View>
             </View>
 
+            <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Home / Base Location</Text>
+                <LocationInput onChange={setWorkerLocation} />
+            </View>
+
             <GoldButton
                 title="Continue"
                 disabled={!isValid}
-                onPress={() => onNext({ name: name.trim(), dob, gender })}
+                onPress={() => onNext({ name: name.trim(), dob, gender, location: workerLocation })}
                 style={{ marginTop: spacing.xl }}
             />
         </ScrollView>
