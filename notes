@@ -28,3 +28,83 @@ Bonus: I also noticed your
 
 powershell
 docker run --name zarva-mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=Vs@123456 -e MYSQL_DATABASE=zarva_dev -d mysql:8.0
+
+
+
+
+
+
+
+
+
+firebase
+--------
+To make the google-services.json config values accessible to Firebase SDKs, you need the Google services Gradle plugin.
+
+
+Kotlin DSL (build.gradle.kts)
+
+Groovy (build.gradle)
+Add the plugin as a dependency to your project-level build.gradle file:
+
+Root-level (project-level) Gradle file (<project>/build.gradle):
+plugins {
+  // ...
+
+  // Add the dependency for the Google services Gradle plugin
+  id 'com.google.gms.google-services' version '4.4.4' apply false
+
+}
+Then, in your module (app-level) build.gradle file, add both the google-services plugin and any Firebase SDKs that you want to use in your app:
+
+Module (app-level) Gradle file (<project>/<app-module>/build.gradle):
+plugins {
+  id 'com.android.application'
+
+  // Add the Google services Gradle plugin
+  id 'com.google.gms.google-services'
+
+  ...
+}
+
+dependencies {
+  // Import the Firebase BoM
+  implementation platform('com.google.firebase:firebase-bom:34.9.0')
+
+
+  // TODO: Add the dependencies for Firebase products you want to use
+  // When using the BoM, don't specify versions in Firebase dependencies
+  // https://firebase.google.com/docs/android/setup#available-libraries
+}
+By using the Firebase Android BoM, your app will always use compatible Firebase library versions. Learn more
+After adding the plugin and the desired SDKs, sync your Android project with Gradle files.
+
+
+https://zarva-dev-741f9-default-rtdb.firebaseio.com/
+
+***
+
+### 📝 React Native Firebase & Expo Notifications Manifest Merger Conflict
+
+**The Problem:**
+When using both `@react-native-firebase/messaging` and `expo-notifications`, the Android build fails during the `processDebugMainManifest` task (Manifest Merger). Both libraries try to set the default notification color in the Android manifest, causing a conflict because Gradle doesn't know which one to prioritize.
+
+**The Solution:**
+You must explicitly tell the Android build system to override the Firebase default with your app's default by adding the `tools:replace` attribute to the `meta-data` tag in `android/app/src/main/AndroidManifest.xml`.
+
+**Steps to Fix:**
+1. Open `android/app/src/main/AndroidManifest.xml`
+2. Locate the `meta-data` tag for `com.google.firebase.messaging.default_notification_color`
+3. Add `tools:replace="android:resource"` to the end of the tag.
+
+**Example Fix:**
+```xml
+<!-- Before -->
+<meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_icon_color"/>
+
+<!-- After (Fixed) -->
+<meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_icon_color" tools:replace="android:resource"/>
+```
+
+> **⚠️ Expo Prebuild Warning:** If you ever delete your `/android` folder and run `npx expo prebuild` again, this manual change will be lost and the build will fail again. To make this permanent, you would need to write a custom Expo Config Plugin to inject `tools:replace` automatically during the prebuild phase.
+***

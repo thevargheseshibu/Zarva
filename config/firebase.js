@@ -7,6 +7,9 @@
  */
 
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 
@@ -21,15 +24,6 @@ let _db = null;
 function getFirebaseApp() {
     if (_app) return _app;
 
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-    if (!projectId || !clientEmail || !privateKey) {
-        console.warn('[Firebase] Env vars missing — running in stub mode (dev only).');
-        return null;
-    }
-
     _admin = require('firebase-admin');
 
     // Expose globally so firebase.service.js can access without re-require
@@ -38,6 +32,34 @@ function getFirebaseApp() {
     if (_admin.apps.length > 0) {
         _app = _admin.apps[0];
         return _app;
+    }
+
+    // Try service account file first
+    try {
+        const rootDir = path.resolve(fileURLToPath(import.meta.url), '../../');
+        const keyPath = path.join(rootDir, 'firebase-service-account.json');
+
+        if (fs.existsSync(keyPath)) {
+            const serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+            _app = _admin.initializeApp({
+                credential: _admin.credential.cert(serviceAccount),
+                databaseURL: process.env.FIREBASE_DATABASE_URL,
+            });
+            console.log('[Firebase] Admin SDK initialised from firebase-service-account.json');
+            return _app;
+        }
+    } catch (e) {
+        console.warn('[Firebase] Failed to load service account key:', e.message);
+    }
+
+    // Fallback to env vars
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (!projectId || !clientEmail || !privateKey) {
+        console.warn('[Firebase] Env vars missing & no JSON key found — running in stub mode (dev only).');
+        return null;
     }
 
     _app = _admin.initializeApp({
@@ -49,7 +71,7 @@ function getFirebaseApp() {
         databaseURL: process.env.FIREBASE_DATABASE_URL,
     });
 
-    console.log('[Firebase] Admin SDK initialised for project:', projectId);
+    console.log('[Firebase] Admin SDK initialised from ENV for project:', projectId);
     return _app;
 }
 

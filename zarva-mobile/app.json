@@ -14,6 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "bundleIdentifier": "com.zarva.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Zarva needs your location to find nearby workers"
       }
@@ -23,6 +25,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0F"
       },
+      "googleServicesFile": "./google-services.json",
       "package": "com.zarva.app",
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -33,7 +36,17 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "@react-native-firebase/messaging",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#C9A84C"
+        }
+      ]
     ]
   }
 }

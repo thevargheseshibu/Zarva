@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "778333107299",
+    "project_id": "zarva-dev-741f9",
+    "storage_bucket": "zarva-dev-741f9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:778333107299:android:2d7c8f1252567f2022f456",
+        "android_client_info": {
+          "package_name": "com.zarva.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCumt8I_jV2SWn8rrOwneH5lmDok5r-ygg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

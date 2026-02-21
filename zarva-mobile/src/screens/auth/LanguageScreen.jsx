@@ -28,12 +28,16 @@ export default function LanguageScreen({ navigation }) {
         );
     }, [searchQuery]);
 
-    const handleContinue = async () => {
+    const handleContinue = () => {
         // Persist language preference in auth store for sync to DB later
         setUser({ language: selected });
-        // Load the language dynamically into Zustand i18n store
-        await loadLanguage(selected);
+
+        // Navigate immediately so the UI transitions smoothly
         navigation.navigate('Phone');
+
+        // Load the language dynamically into Zustand i18n store in the background
+        // without awaiting so it doesn't block the UI transition
+        loadLanguage(selected);
     };
 
     const renderItem = ({ item }) => {
@@ -176,14 +180,14 @@ const styles = StyleSheet.create({
         paddingTop: spacing.md,
         paddingBottom: spacing.xl,
         borderTopWidth: 1,
-        borderTopColor: colors.border.muted,
+        borderTopColor: colors.bg.surface,
     },
     continueBtn: {
         height: 56, backgroundColor: colors.gold.primary,
         borderRadius: radius.lg, justifyContent: 'center', alignItems: 'center',
     },
     continueBtnDisabled: {
-        backgroundColor: colors.border.muted,
+        backgroundColor: colors.bg.surface,
     },
     continueTxt: {
         color: colors.text.inverse, fontSize: 16,

@@ -14,6 +14,8 @@ import CustomerStack from './CustomerStack';
 import WorkerStack from './WorkerStack';
 import OnboardingNavigator from './OnboardingNavigator';
 import RoleSelection from '../screens/auth/RoleSelection';
+import { useAuthStore } from '../stores/authStore';
+import { NavigationContainer } from '@react-navigation/native';
 
 const Stack = createStackNavigator();
 

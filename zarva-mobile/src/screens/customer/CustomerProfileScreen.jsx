@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     langRow: {
         width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         backgroundColor: colors.bg.elevated, padding: spacing.lg, borderRadius: radius.lg,
-        borderWidth: 1, borderColor: colors.border.muted, marginBottom: spacing.xl
+        borderWidth: 1, borderColor: colors.bg.surface, marginBottom: spacing.xl
     },
     langLabel: { color: colors.text.muted, fontSize: 13, marginBottom: 4 },
     langValue: { color: colors.text.primary, fontSize: 18, fontWeight: '600' },
