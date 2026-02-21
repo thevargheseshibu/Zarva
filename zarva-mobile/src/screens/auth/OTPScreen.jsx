@@ -1,6 +1,20 @@
 /**
  * src/screens/auth/OTPScreen.jsx
- * 6-digit OTP: countdown timer, resend, auto-submit, feature flag skip.
+ *
+ * OTP VERIFY FLOW (SMS path):
+ *   The confirmation object in otpStore can be one of three things:
+ *
+ *   1. Real Firebase confirmation  → confirmation.confirm(code) → get Firebase ID token
+ *      → POST /api/auth/otp/verify (server verifies token with Firebase Admin SDK)
+ *
+ *   2. Test number sentinel ({ _isServerTestFlow: true })
+ *      → POST /api/auth/dev-otp/verify with { phone, otp }
+ *      → Server validates the OTP against TEST_PHONE_NUMBERS in .env
+ *      → Returns JWT on success, 401 on wrong OTP
+ *
+ *   3. null (missing) → session expired, tell user to go back
+ *
+ * 🔐 Security: No OTP codes exist on mobile. All validation is server-side.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -10,6 +24,7 @@ import {
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import { useAuthStore } from '../../stores/authStore';
+import { useOtpStore } from '../../stores/otpStore';
 import apiClient from '../../services/api/client';
 import { useT } from '../../hooks/useT';
 
@@ -25,11 +40,10 @@ export default function OTPScreen({ navigation, route }) {
     const login = useAuthStore(s => s.login);
     const t = useT();
 
-    // Countdown timer
     useEffect(() => {
         if (secondsLeft <= 0) return;
-        const t = setTimeout(() => setSecondsLeft(s => s - 1), 1000);
-        return () => clearTimeout(t);
+        const timer = setTimeout(() => setSecondsLeft(s => s - 1), 1000);
+        return () => clearTimeout(timer);
     }, [secondsLeft]);
 
     const handleChange = useCallback((text, index) => {
@@ -37,12 +51,9 @@ export default function OTPScreen({ navigation, route }) {
         const next = [...digits];
         next[index] = digit;
         setDigits(next);
-
         if (digit && index < BOX_COUNT - 1) {
             inputs.current[index + 1]?.focus();
         }
-
-        // Auto-submit when all 6 filled
         const full = next.join('');
         if (full.length === BOX_COUNT) {
             handleVerify(full);
@@ -55,51 +66,120 @@ export default function OTPScreen({ navigation, route }) {
         }
     };
 
+    const navigateAfterLogin = (_user) => {
+        // RootNavigator conditionally renders RoleSelection when active_role is null.
+        // Calling login() with the user data is all that's needed — do NOT navigate manually.
+    };
+
+    const showInvalidOtp = () => {
+        Alert.alert('Wrong OTP', 'The code you entered is incorrect. Please try again.');
+        setDigits(Array(BOX_COUNT).fill(''));
+        inputs.current[0]?.focus();
+    };
+
     const handleVerify = async (codeOverride) => {
         const code = codeOverride || digits.join('');
         if (code.length < BOX_COUNT) return;
         setLoading(true);
 
-        const verifyEndpoint = authMethod === 'whatsapp' ? '/api/whatsapp/verify-otp' : '/api/auth/otp/verify';
-
         try {
-            const res = await apiClient.post(verifyEndpoint, { phone, otp: code });
+            // ── WhatsApp path ──────────────────────────────────────────────────
+            if (authMethod === 'whatsapp') {
+                const res = await apiClient.post('/api/whatsapp/verify-otp', { phone, otp: code });
+                const { token, user } = res.data;
+                login(user, token);
+                navigateAfterLogin(user);
+                return;
+            }
+
+            // ── SMS / Firebase path ────────────────────────────────────────────
+            const confirmation = useOtpStore.getState().confirmationObj;
+
+            if (!confirmation) {
+                Alert.alert('Session Expired', 'Please go back and request a new OTP.');
+                return;
+            }
+
+            // ── Path 1: Server test number flow ──────────────────────────────
+            if (confirmation._isServerTestFlow) {
+                console.log('[OTP] Server test flow — verifying with /api/auth/dev-otp/verify');
+                try {
+                    const res = await apiClient.post('/api/auth/dev-otp/verify', {
+                        phone: confirmation.phone || phone,
+                        otp: code,
+                    });
+                    const { token, user } = res.data;
+                    login(user, token);
+                    navigateAfterLogin(user);
+                } catch (serverErr) {
+                    const serverCode = serverErr?.response?.data?.code;
+                    if (serverCode === 'INVALID_OTP') {
+                        showInvalidOtp();
+                    } else {
+                        Alert.alert('Error', serverErr?.response?.data?.message || 'Verification failed.');
+                    }
+                }
+                return;
+            }
+
+            // ── Path 2: Real Firebase confirmation ───────────────────────────
+            let firebaseIdToken = null;
+            try {
+                const credential = await confirmation.confirm(code);
+                firebaseIdToken = await credential.user.getIdToken();
+            } catch (confirmErr) {
+                const isInvalid = confirmErr.code === 'auth/invalid-verification-code'
+                    || confirmErr.message?.toLowerCase().includes('invalid');
+                if (isInvalid) {
+                    showInvalidOtp();
+                } else {
+                    Alert.alert('Error', confirmErr.message || 'Verification failed.');
+                }
+                return;
+            }
+
+            // Send Firebase ID token to backend for final verification
+            const res = await apiClient.post('/api/auth/verify-otp', {
+                phone,
+                firebase_id_token: firebaseIdToken
+            });
             const { token, user } = res.data;
             login(user, token);
-            if (!user.role && !user.active_role) {
-                navigation.navigate('RoleSelection');
-            }
+            navigateAfterLogin(user);
+
         } catch (err) {
-            // Dev/stub mode: simulate success with actual signed dev backend token
-            if (__DEV__) {
-                try {
-                    // Normalize phone structure to satisfy basic node route middleware
-                    const mockAuthPhone = (phone || '').startsWith('+91') ? phone : `+91${phone || '0000000000'}`;
-                    const devRes = await apiClient.post('/api/auth/dev-login', { phone: mockAuthPhone.replace(/\s+/g, '') });
-                    const { token, user } = devRes.data;
-                    login(user, token);
-                    if (!user.role && !user.active_role) {
-                        navigation.navigate('RoleSelection');
-                    }
-                } catch (devErr) {
-                    console.error("DEV Login error: ", devErr?.response?.data || devErr);
-                    Alert.alert('Error', `Could not reach backend. ${devErr?.response?.data?.message || ''}`);
-                }
-            } else {
-                Alert.alert('Error', t('error_otp_invalid'));
-                setDigits(Array(BOX_COUNT).fill(''));
-                inputs.current[0]?.focus();
-            }
+            console.error('[handleVerify error]', err?.response?.data || err.message);
+            Alert.alert('Error', err?.response?.data?.message || t('error_otp_invalid'));
+            setDigits(Array(BOX_COUNT).fill(''));
+            inputs.current[0]?.focus();
         } finally {
             setLoading(false);
         }
     };
 
     const handleResend = async () => {
+        const confirmation = useOtpStore.getState().confirmationObj;
         try {
-            const sendEndpoint = authMethod === 'whatsapp' ? '/api/whatsapp/send-otp' : '/api/auth/otp/send';
-            await apiClient.post(sendEndpoint, { phone });
-        } catch (_) { }
+            if (authMethod === 'whatsapp') {
+                await apiClient.post('/api/whatsapp/send-otp', { phone });
+            } else if (confirmation?._isServerTestFlow) {
+                // Test number resend — re-call the server send endpoint (no-op really, just resets timer)
+                await apiClient.post('/api/auth/dev-otp/send', { phone });
+                // Keep the same sentinel in the store
+            } else {
+                // Real Firebase resend
+                const { getAuth, signInWithPhoneNumber } = require('@react-native-firebase/auth');
+                const auth = getAuth();
+                if (__DEV__) {
+                    try { auth.settings.appVerificationDisabledForTesting = true; } catch (_) { }
+                }
+                const newConfirmation = await signInWithPhoneNumber(auth, phone);
+                useOtpStore.getState().setConfirmationObj(newConfirmation);
+            }
+        } catch (e) {
+            console.error('[handleResend error]', e);
+            Alert.alert('Resend Failed', 'Could not resend OTP. Please try again.');
+        }
         setSecondsLeft(RESEND_SECONDS);
         setDigits(Array(BOX_COUNT).fill(''));
         inputs.current[0]?.focus();
@@ -118,7 +198,6 @@ export default function OTPScreen({ navigation, route }) {
                 <Text style={styles.title}>{t('enter_6_digit_code')}</Text>
                 <Text style={styles.sub}>{t('sent_to_number')} <Text style={styles.phone}>{maskedPhone}</Text></Text>
 
-                {/* OTP Boxes */}
                 <View style={styles.boxRow}>
                     {digits.map((d, i) => (
                         <TextInput
@@ -126,7 +205,7 @@ export default function OTPScreen({ navigation, route }) {
                             ref={r => (inputs.current[i] = r)}
                             style={[styles.box, d && styles.boxFilled]}
                             value={d}
-                            onChangeText={t => handleChange(t, i)}
+                            onChangeText={text => handleChange(text, i)}
                             onKeyPress={e => handleKeyPress(e, i)}
                             keyboardType="number-pad"
                             maxLength={1}
@@ -136,7 +215,6 @@ export default function OTPScreen({ navigation, route }) {
                     ))}
                 </View>
 
-                {/* Timer / Resend */}
                 <View style={styles.resendRow}>
                     {secondsLeft > 0 ? (
                         <Text style={styles.timerText}>{t('resend_in')} <Text style={styles.timerNum}>{minuteStr}</Text></Text>

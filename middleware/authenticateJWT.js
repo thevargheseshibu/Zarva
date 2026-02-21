@@ -112,6 +112,8 @@ const PUBLIC_PATHS = new Set([
     '/api/auth/verify-otp',
     '/api/auth/refresh-token',
     '/api/auth/dev-login',
+    '/api/auth/dev-otp/send',
+    '/api/auth/dev-otp/verify',
     '/api/whatsapp/send-otp',
     '/api/whatsapp/verify-otp',
 ]);

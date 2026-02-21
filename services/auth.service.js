@@ -40,8 +40,8 @@ function sha256(raw) {
 function signJwt(user) {
     const payload = {
         userId: user.id,
-        roles: [user.role],
-        active_role: user.active_role,
+        roles: user.role ? [user.role] : [],
+        active_role: user.active_role || null,
     };
     return jwt.sign(payload, getSecret(), { expiresIn: JWT_EXPIRY_SECONDS });
 }
@@ -73,18 +73,15 @@ async function findOrCreateUser(phone, pool) {
         return rows[0];
     }
 
-    // 2. Create new user (role defaults to 'customer')
+    // 2. Create new user (role defaults to NULL to force Role Selection screen)
     const [result] = await pool.query(
-        `INSERT INTO users (phone, role) VALUES (?, 'customer')`,
+        `INSERT INTO users (phone, role, active_role) VALUES (?, NULL, NULL)`,
         [phone],
     );
     const userId = result.insertId;
 
-    // 3. Create matching customer_profile
-    await pool.query(
-        `INSERT INTO customer_profiles (user_id) VALUES (?)`,
-        [userId],
-    );
+    // 3. DO NOT create matching customer_profile here.
+    // That happens later in PUT /api/me when the user actually chooses a role.
 
     const [newRows] = await pool.query(
         `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at

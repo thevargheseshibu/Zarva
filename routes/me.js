@@ -101,10 +101,34 @@ router.put('/', async (req, res) => {
             });
         }
 
-        await pool.query(
-            `UPDATE users SET active_role = ?, role = ? WHERE id = ?`,
-            [active_role, active_role, req.user.id]
-        );
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        try {
+            await conn.query(
+                `UPDATE users SET active_role = ?, role = ? WHERE id = ?`,
+                [active_role, active_role, req.user.id]
+            );
+
+            if (active_role === 'customer') {
+                await conn.query(
+                    `INSERT IGNORE INTO customer_profiles (user_id) VALUES (?)`,
+                    [req.user.id]
+                );
+            } else if (active_role === 'worker') {
+                await conn.query(
+                    `INSERT IGNORE INTO worker_profiles (user_id, category) VALUES (?, 'Service')`,
+                    [req.user.id]
+                );
+            }
+
+            await conn.commit();
+        } catch (txnErr) {
+            await conn.rollback();
+            throw txnErr;
+        } finally {
+            conn.release();
+        }
 
         const updatedProfile = await getUserProfile(req.user.id, pool);
 
@@ -117,6 +141,30 @@ router.put('/', async (req, res) => {
     } catch (err) {
         console.error('[me.js] Update Role Error:', err);
         return res.status(500).json({ status: 'error', code: 'UPDATE_FAILED', message: 'Failed to set active_role.' });
+    }
+});
+
+router.put('/fcm-token', async (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ status: 'error', code: 'UNAUTHORIZED', message: 'Authentication required.' });
+    }
+
+    const { fcm_token } = req.body;
+    if (!fcm_token) {
+        return res.status(400).json({ status: 'error', code: 'BAD_REQUEST', message: 'fcm_token is required.' });
+    }
+
+    try {
+        const pool = getPool();
+        await pool.query(
+            `UPDATE users SET fcm_token = ? WHERE id = ?`,
+            [fcm_token, req.user.id]
+        );
+
+        return res.status(200).json({ status: 'ok', message: 'FCM token synced successfully' });
+    } catch (err) {
+        console.error('[me.js] Update FCM Token Error:', err);
+        return res.status(500).json({ status: 'error', code: 'UPDATE_FAILED', message: 'Failed to sync FCM token.' });
     }
 });
 

@@ -29,9 +29,9 @@ export default function PendingApproval() {
 
     useFocusEffect(
         useCallback(() => {
-            const onBackPress = () => true; // Prevent default behavior
-            BackHandler.addEventListener('hardwareBackPress', onBackPress);
-            return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+            const onBackPress = () => true; // Prevent hardware back
+            const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => subscription.remove();
         }, [])
     );
 

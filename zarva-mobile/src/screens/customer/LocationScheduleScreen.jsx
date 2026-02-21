@@ -22,8 +22,8 @@ export default function LocationScheduleScreen({ route, navigation }) {
         try {
             const payload = {
                 category,
-                answers,
-                address: customerLocation.full_address,
+                description: answers && Object.keys(answers).length > 0 ? JSON.stringify(answers) : null,
+                customer_address: customerLocation.full_address,
                 customer_lat: customerLocation.lat,
                 customer_lng: customerLocation.lng,
                 customer_address_detail: {
@@ -35,9 +35,12 @@ export default function LocationScheduleScreen({ route, navigation }) {
                     state: customerLocation.state,
                     pincode: customerLocation.pincode
                 },
-                scheduled_at: scheduleType === 'now' ? null : `${date} ${time}`
+                scheduled_for: scheduleType === 'now' ? null : `${date} ${time}`
             };
-            const res = await apiClient.post('/api/jobs', payload);
+            const idempotencyKey = `job-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            const res = await apiClient.post('/api/jobs', payload, {
+                headers: { 'X-Idempotency-Key': idempotencyKey }
+            });
             const newJobId = res.data?.job?.id || `job-${Date.now()}`;
 
             // Register active job in store to survive screen unmounts

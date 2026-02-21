@@ -19,18 +19,24 @@ const DOCS = [
 async function uploadImage(uri, docKey) {
     try {
         // 1. Get presigned URL from the backend
-        const presignRes = await apiClient.post('/api/upload/presign', {
-            file_type: `worker_${docKey}_${Date.now()}.jpg`,
+        // purpose must be one of the server's VALID_PURPOSES: 'worker_doc', 'job_photo', 'profile_photo'
+        const presignRes = await apiClient.post('/api/uploads/presign', {
+            purpose: 'worker_doc',
+            filename: `${docKey}_${Date.now()}.jpg`,
             mime_type: 'image/jpeg',
         });
-        const { upload_url, public_url } = presignRes.data;
+        const { upload_url, s3_key } = presignRes.data;
 
         // 2. Upload directly to S3 using FileSystem.uploadAsync
         await FileSystem.uploadAsync(upload_url, uri, {
             httpMethod: 'PUT',
             headers: { 'Content-Type': 'image/jpeg' },
         });
-        return public_url;
+
+        // 3. Confirm upload so the server marks the token as used
+        await apiClient.post('/api/uploads/confirm', { s3_key });
+
+        return s3_key; // return s3_key for later submission
     } catch (err) {
         // Dev mock: return local uri on error
         console.error("Upload failed:", err);

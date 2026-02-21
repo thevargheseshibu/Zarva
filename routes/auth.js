@@ -127,8 +127,8 @@ router.post('/verify-otp', normalizePhone, async (req, res) => {
             user: {
                 id: user.id,
                 phone: user.phone,
-                roles: [user.role],
-                active_role: user.role,
+                roles: user.role ? [user.role] : [],
+                active_role: user.active_role || null,
             },
         }, 200);
     } catch (err) {
@@ -172,6 +172,107 @@ router.post('/logout', async (req, res) => {
     } catch (err) {
         console.error('[Auth] logout error:', err.message);
         return fail(res, 'Logout failed.', 500, 'LOGOUT_ERROR');
+    }
+});
+
+// ── DEV TEST PHONE HELPERS ─────────────────────────────────────────────
+function getTestPhoneMap() {
+    let raw = process.env.TEST_PHONE_NUMBERS || '';
+    const map = new Map();
+
+    // Clean up array brackets and quotes if present e.g. "['9746020743:123456']"
+    raw = raw.replace(/[\[\]'"]/g, '');
+
+    raw.split(',').forEach(pair => {
+        const [phone, otp] = pair.trim().split(':');
+        if (phone && otp) map.set(phone.trim(), otp.trim());
+    });
+    return map;
+}
+
+// ── POST /dev-otp/send ─────────────────────────────────────────────────
+// Mobile calls this when Firebase is blocked (emulator/missing-client-identifier).
+// Server checks if the number is a known test number.
+// Returns: { isTestNumber: true } or { isTestNumber: false }
+// No OTP code is ever sent to mobile — client stays blind.
+router.post('/dev-otp/send', normalizePhone, async (req, res) => {
+    if (!IS_DEV) {
+        return fail(res, 'Not available in production.', 403, 'FORBIDDEN');
+    }
+
+    const phone = req.normalizedPhone;
+    if (!phone) {
+        return fail(res, 'Valid Indian phone number required.', 400, 'INVALID_PHONE');
+    }
+
+    const bare = phone.replace('+91', '').replace(/\s/g, '');
+    const testPhones = getTestPhoneMap();
+    const isTestNumber = testPhones.has(bare);
+
+    console.log(`[Auth][DEV] dev-otp/send — phone=${phone} isTestNumber=${isTestNumber}`);
+    return ok(res, { isTestNumber });
+});
+
+// ── POST /dev-otp/verify ───────────────────────────────────────────────
+// Mobile sends the OTP the user typed. Server validates it against the config.
+// Returns JWT on success, 401 on wrong OTP.
+router.post('/dev-otp/verify', normalizePhone, async (req, res) => {
+    if (!IS_DEV) {
+        return fail(res, 'Not available in production.', 403, 'FORBIDDEN');
+    }
+
+    const phone = req.normalizedPhone;
+    const { otp } = req.body ?? {};
+
+    if (!phone) {
+        return fail(res, 'Valid Indian phone number required.', 400, 'INVALID_PHONE');
+    }
+    if (!otp) {
+        return fail(res, 'otp is required.', 400, 'MISSING_OTP');
+    }
+
+    const bare = phone.replace('+91', '').replace(/\s/g, '');
+    const testPhones = getTestPhoneMap();
+
+    if (!testPhones.has(bare)) {
+        return fail(res, 'Not a test phone number.', 400, 'NOT_TEST_NUMBER');
+    }
+
+    const expectedOtp = testPhones.get(bare);
+    if (otp !== expectedOtp) {
+        console.warn(`[Auth][DEV] dev-otp/verify — wrong OTP for ${phone}`);
+        return fail(res, 'Invalid OTP.', 401, 'INVALID_OTP');
+    }
+
+    console.log(`[Auth][DEV] dev-otp/verify — success for ${phone}`);
+
+    try {
+        const pool = getPool();
+        const user = await findOrCreateUser(phone, pool);
+
+        if (user.is_blocked) {
+            return fail(res, 'Account suspended.', 403, 'ACCOUNT_BLOCKED');
+        }
+
+        const meta = {
+            device_info: req.headers['user-agent'] ?? null,
+            ip_address: req.ip ?? null,
+        };
+        const { token, refresh_token } = await issueTokenPair(user, pool, meta);
+
+        return ok(res, {
+            token,
+            refresh_token,
+            user: {
+                id: user.id,
+                phone: user.phone,
+                roles: user.role ? [user.role] : [],
+                active_role: user.active_role || null,
+            },
+        });
+    } catch (err) {
+        console.error('[Auth] dev-otp/verify error:', err.message);
+        return fail(res, 'Authentication failed.', 500, 'AUTH_ERROR');
     }
 });
 

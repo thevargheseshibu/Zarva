@@ -51,20 +51,20 @@ export default function SearchingScreen({ route, navigation }) {
                                 try {
                                     await apiClient.post(`/api/jobs/${jobId}/cancel`);
                                 } catch (e) { console.error('Failed to cancel job in searching', e); }
-                                navigation.replace('CustomerHome');
+                                navigation.replace('CustomerTabs');
                             }
                         }
                     ]
                 );
                 return true;
             };
-            BackHandler.addEventListener('hardwareBackPress', onBackPress);
-            return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+            const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => subscription.remove();
         }, [jobId, navigation, stopListening])
     );
 
     const handleMinimize = () => {
-        navigation.replace('CustomerHome');
+        navigation.replace('CustomerTabs');
     };
 
     return (

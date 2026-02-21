@@ -74,7 +74,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                     <Text style={styles.backTxt}>←</Text>
                 </TouchableOpacity>
-                <Text style={styles.title}>Job #{jobId.substring(0, 6).toUpperCase()}</Text>
+                <Text style={styles.title}>Job #{String(jobId).substring(0, 6).toUpperCase()}</Text>
                 <View style={{ width: 40 }} />
             </View>
 

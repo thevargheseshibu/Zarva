@@ -1,22 +1,50 @@
 /**
  * src/screens/auth/PhoneScreen.jsx
- * Phone entry: +91 chip, 10-digit mono input, GoldButton, terms text.
+ *
+ * OTP SEND FLOW:
+ *   WhatsApp path → backend /api/whatsapp/send-otp
+ *   SMS path:
+ *     1. Try real Firebase signInWithPhoneNumber
+ *     2. If Firebase throws ANY error:
+ *        a. Call POST /api/auth/dev-otp/send on the server
+ *        b. Server returns { isTestNumber: true/false } — no OTP code ever sent to mobile
+ *        c. If isTestNumber → show OTP screen (verification done by server later)
+ *        d. If NOT isTestNumber → show specific error alert, stop
+ *
+ * 🔐 Security: No test phone numbers or OTP codes exist in mobile code.
+ *              Server owns the test credentials via .env.development
  */
 import React, { useState } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity,
-    StyleSheet, KeyboardAvoidingView, Platform,
+    StyleSheet, KeyboardAvoidingView, Platform, Alert
 } from 'react-native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import apiClient from '../../services/api/client';
 import { useAuthStore } from '../../stores/authStore';
+import { useOtpStore } from '../../stores/otpStore';
 import { useT } from '../../hooks/useT';
+
+// --- FIREBASE SETUP ---
+// Initialized once at module-level.
+let _firebaseAuth = null;
+function getFirebaseAuth() {
+    if (!_firebaseAuth) {
+        const fb = require('@react-native-firebase/auth');
+        _firebaseAuth = fb.getAuth();
+        // NOTE: Do NOT set appVerificationDisabledForTesting on real devices.
+        // That flag disables SafetyNet/Play Integrity and causes auth/missing-client-identifier.
+        // Real device auth is handled by the SHA-1 certificate in google-services.json.
+    }
+    return _firebaseAuth;
+}
 
 export default function PhoneScreen({ navigation }) {
     const t = useT();
     const [phone, setPhone] = useState('');
     const [loading, setLoading] = useState(null);
+    const login = useAuthStore(s => s.login);
 
     const formatted = phone.replace(/(\d{3})(\d{1,3})?(\d{1,4})?/, function (_, p1, p2, p3) {
         let res = p1;
@@ -26,39 +54,89 @@ export default function PhoneScreen({ navigation }) {
     });
     const isReady = phone.length === 10;
 
-    const login = useAuthStore(s => s.login);
-
     const handleSend = async (method) => {
         if (!isReady) return;
         setLoading(method);
-        // Determine endpoint based on method
-        const endpoint = method === 'whatsapp' ? '/api/whatsapp/send-otp' : '/api/auth/otp/send';
 
         try {
-            const res = await apiClient.post(endpoint, {
-                phone: `+91${phone}`,
-            });
-
-            if (res.data?.bypassed) {
-                // If OTP is bypassed (dev mode), verify immediately using the corresponding verify endpoint
-                const verifyEndpoint = method === 'whatsapp' ? '/api/whatsapp/verify-otp' : '/api/auth/otp/verify';
-                const verifyRes = await apiClient.post(verifyEndpoint, {
+            if (method === 'whatsapp') {
+                // ── WhatsApp path ──────────────────────────────────────────────────
+                const res = await apiClient.post('/api/whatsapp/send-otp', {
                     phone: `+91${phone}`,
-                    otp: '000000'
                 });
-                const { token, user } = verifyRes.data;
-                login(user, token);
-                return;
+                if (res.data?.bypassed) {
+                    const verifyRes = await apiClient.post('/api/whatsapp/verify-otp', {
+                        phone: `+91${phone}`,
+                        otp: '000000'
+                    });
+                    const { token, user } = verifyRes.data;
+                    login(user, token);
+                    return;
+                }
+                useOtpStore.getState().setConfirmationObj(null);
+
+            } else {
+                // ── SMS / Firebase path ────────────────────────────────────────────
+                let confirmationObj = null;
+
+                try {
+                    const auth = getFirebaseAuth();
+                    const { signInWithPhoneNumber } = require('@react-native-firebase/auth');
+                    console.log('[Firebase] Requesting OTP for', `+91${phone}`);
+                    confirmationObj = await signInWithPhoneNumber(auth, `+91${phone}`);
+                    console.log('[Firebase] OTP sent successfullys', confirmationObj);
+                } catch (firebaseErr) {
+                    console.error('[Firebase OTP Error]', firebaseErr.code);
+
+                    // ── Firebase failed → ask server if this is a test number ──────
+                    // Server checks TEST_PHONE_NUMBERS in .env — no codes on mobile
+                    let isTestNumber = false;
+                    try {
+                        const checkRes = await apiClient.post('/api/auth/dev-otp/send', {
+                            phone: `+91${phone}`
+                        });
+                        isTestNumber = checkRes.data?.isTestNumber === true;
+                    } catch (serverErr) {
+                        console.error('[dev-otp/send] Server check failed:', serverErr.message);
+                    }
+
+                    if (isTestNumber) {
+                        // Server acknowledged it's a test number.
+                        // Set a sentinel marker so OTPScreen routes to server-verify.
+                        console.log('[OTP] Server confirmed test number — proceeding to OTP screen');
+                        confirmationObj = { _isServerTestFlow: true, phone: `+91${phone}` };
+                    } else {
+                        // Real number, real failure — show a user-friendly message
+                        let userMsg = 'Could not send OTP. Please try again.';
+                        if (firebaseErr.code === 'auth/too-many-requests') {
+                            userMsg = 'Too many attempts. Please wait a few minutes and try again.';
+                        } else if (firebaseErr.code === 'auth/invalid-phone-number') {
+                            userMsg = 'Invalid phone number. Please check and try again.';
+                        } else if (firebaseErr.code === 'auth/missing-client-identifier') {
+                            userMsg = 'App verification failed. Please try on a real device or use our test number.';
+                        }
+                        Alert.alert('OTP Error', userMsg);
+                        return;
+                    }
+                }
+
+                useOtpStore.getState().setConfirmationObj(confirmationObj);
             }
-        } catch (_) {
-            // In dev/mock mode without backend, continue anyway
-        } finally {
-            setLoading(null);
-            // Navigate to OTP screen with authMethod parameter
+
+            // ── Navigate to OTP screen ─────────────────────────────────────────
             const st = useAuthStore.getState();
             if (!st.isAuthenticated) {
-                navigation.navigate('OTP', { phone: `+91${phone}`, authMethod: method });
+                navigation.navigate('OTP', {
+                    phone: `+91${phone}`,
+                    authMethod: method,
+                });
             }
+
+        } catch (err) {
+            console.error('[handleSend unexpected error]', err);
+            Alert.alert('Error', 'Something went wrong. Please try again.');
+        } finally {
+            setLoading(null);
         }
     };
 
@@ -67,7 +145,6 @@ export default function PhoneScreen({ navigation }) {
             style={styles.screen}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-            {/* Back */}
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
                 <Text style={styles.backArrow}>←</Text>
             </TouchableOpacity>
@@ -76,7 +153,6 @@ export default function PhoneScreen({ navigation }) {
                 <Text style={styles.title}>{t('phone_entry_title')}</Text>
                 <Text style={styles.sub}>{t('phone_entry_sub')}</Text>
 
-                {/* Input row */}
                 <View style={styles.inputRow}>
                     <View style={styles.countryChip}>
                         <Text style={styles.countryFlag}>🇮🇳</Text>
@@ -89,7 +165,7 @@ export default function PhoneScreen({ navigation }) {
                         keyboardType="phone-pad"
                         placeholder="XXX-XXX-XXXX"
                         placeholderTextColor={colors.text.muted}
-                        maxLength={12} // 10 digits + 2 dashes
+                        maxLength={12}
                         autoFocus
                     />
                 </View>
@@ -158,11 +234,7 @@ const styles = StyleSheet.create({
         marginTop: spacing.sm, borderRadius: radius.md,
         borderWidth: 1, borderColor: colors.bg.surface,
     },
-    smsBtnDisabled: {
-        borderColor: colors.bg.overlay, opacity: 0.6,
-    },
-    smsBtnText: {
-        color: colors.text.primary, fontSize: 15, fontWeight: '600',
-    },
+    smsBtnDisabled: { borderColor: colors.bg.overlay, opacity: 0.6 },
+    smsBtnText: { color: colors.text.primary, fontSize: 15, fontWeight: '600' },
     smsBtnTextDisabled: { color: colors.text.muted },
 });

@@ -12,7 +12,7 @@ export const useLanguageStore = create(
 
             // dynamically import the file based on code
             loadLanguage: async (code) => {
-                set({ isLoaded: false });
+                // Do not set isLoaded to false here as it will unmount the entire App navigator
                 try {
                     let module;
                     switch (code) {
@@ -46,19 +46,6 @@ export const useLanguageStore = create(
                         get().loadLanguage('en');
                     }
                 }
-            },
-
-            // Basic translation lookup and variable interpolation
-            t: (key, vars = {}) => {
-                const { translations } = get();
-                let text = translations[key] || key; // Fallback to raw key if missing
-
-                // Replace any {{var}} in the text
-                for (const [k, v] of Object.entries(vars)) {
-                    text = text.replace(new RegExp(`{{${k}}}`, 'g'), v);
-                }
-
-                return text;
             }
         }),
         {

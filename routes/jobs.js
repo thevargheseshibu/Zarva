@@ -68,6 +68,50 @@ router.post('/estimate', (req, res) => {
 });
 
 /**
+ * GET /api/jobs
+ * List all jobs for the authenticated customer.
+ */
+router.get('/', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+        return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    try {
+        const pool = getPool();
+        const [jobsWithWorkers] = await pool.query(`
+            SELECT 
+                j.*,
+                wp.full_name as worker_name,
+                wp.rating as worker_rating,
+                wp.photo_url as worker_photo
+            FROM jobs j
+            LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
+            WHERE j.customer_id = ?
+            ORDER BY j.created_at DESC
+        `, [userId]);
+
+        const formattedJobs = jobsWithWorkers.map(job => {
+            const { start_otp_hash, end_otp_hash, worker_name, worker_rating, worker_photo, ...safeJob } = job;
+
+            if (job.worker_id) {
+                safeJob.worker = {
+                    name: worker_name || 'Worker',
+                    rating: worker_rating || 5.0,
+                    photo: worker_photo || 'https://ui-avatars.com/api/?name=Worker'
+                };
+            }
+            return safeJob;
+        });
+
+        return ok(res, { jobs: formattedJobs });
+    } catch (err) {
+        console.error('[Jobs] API GET / failed for U:' + userId, err);
+        return fail(res, 'Internal Error fetching jobs', 500);
+    }
+});
+
+/**
  * POST /api/jobs
  * Creates a job requiring an idempotency token `X-Idempotency-Key` and user auth.
  */

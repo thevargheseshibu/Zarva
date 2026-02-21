@@ -27,18 +27,7 @@ export default function OnboardingWelcome() {
     const [data, setData] = useState({});
     const [done, setDone] = useState(false);
 
-    if (done) return <PendingApproval />;
-
-    const CurrentScreen = SCREEN_MAP[step];
-    const progress = (step + 1) / STEPS;
-
     const navigation = useNavigation();
-
-    const goNext = (stepData = {}) => {
-        setData(d => ({ ...d, ...stepData }));
-        if (step >= STEPS - 1) { setDone(true); return; }
-        setStep(s => s + 1);
-    };
 
     const blockBackAndGoHome = useCallback(() => {
         // As per instructions: replace to WorkerNavigator home screen.
@@ -49,10 +38,21 @@ export default function OnboardingWelcome() {
 
     useFocusEffect(
         useCallback(() => {
-            BackHandler.addEventListener('hardwareBackPress', blockBackAndGoHome);
-            return () => BackHandler.removeEventListener('hardwareBackPress', blockBackAndGoHome);
+            const subscription = BackHandler.addEventListener('hardwareBackPress', blockBackAndGoHome);
+            return () => subscription.remove();
         }, [blockBackAndGoHome])
     );
+
+    if (done) return <PendingApproval />;
+
+    const CurrentScreen = SCREEN_MAP[step];
+    const progress = (step + 1) / STEPS;
+
+    const goNext = (stepData = {}) => {
+        setData(d => ({ ...d, ...stepData }));
+        if (step >= STEPS - 1) { setDone(true); return; }
+        setStep(s => s + 1);
+    };
 
     const goBack = () => blockBackAndGoHome();
 

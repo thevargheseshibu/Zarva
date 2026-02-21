@@ -1,79 +1,115 @@
-import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
+import apiClient from '../../services/api/client';
+import dayjs from 'dayjs';
 
 const FILTERS = ['All', 'Active', 'Completed', 'Cancelled'];
 
-const MOCK_JOBS = [
-    {
-        id: 1, category: 'Electrician', desc: 'Fix wiring in bedroom',
-        status: 'searching', date: 'Today, 10:00 AM'
-    },
-    {
-        id: 2, category: 'Plumber', desc: 'Leaky kitchen sink',
-        status: 'assigned', date: 'Yesterday',
-        worker: { name: 'Rahul R', rating: 4.8, photo: 'https://i.pravatar.cc/150?img=11' }
-    },
-    {
-        id: 3, category: 'AC Repair', desc: 'Annual service',
-        status: 'completed', date: 'Feb 15', ratingGiven: 5
-    },
-    {
-        id: 4, category: 'Cleaning', desc: 'Deep clean 2BHK',
-        status: 'cancelled', date: 'Feb 10'
-    }
-];
-
 export default function MyJobsScreen({ navigation }) {
     const [filter, setFilter] = useState('All');
+    const [jobs, setJobs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const filtered = MOCK_JOBS.filter(job => {
+    const fetchJobs = async () => {
+        try {
+            const res = await apiClient.get('/api/jobs');
+            setJobs(res.data?.jobs || []);
+        } catch (err) {
+            console.error('Failed to fetch jobs:', err);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchJobs();
+        }, [])
+    );
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchJobs();
+    };
+
+    const filtered = jobs.filter(job => {
         if (filter === 'All') return true;
-        if (filter === 'Active') return ['searching', 'assigned', 'in_progress', 'worker_arrived'].includes(job.status);
+        if (filter === 'Active') return ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(job.status);
         if (filter === 'Completed') return job.status === 'completed';
         if (filter === 'Cancelled') return job.status === 'cancelled';
         return true;
     });
 
-    const renderJob = ({ item }) => (
-        <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('JobStatusDetail', { jobId: item.id })}
-        >
-            <Card style={styles.card}>
-                <View style={styles.cardHeader}>
-                    <View>
-                        <Text style={styles.category}>{item.category}</Text>
-                        <Text style={styles.desc}>{item.desc}</Text>
-                        <Text style={styles.date}>{item.date}</Text>
-                    </View>
-                    <StatusPill status={item.status} />
-                </View>
+    const renderJob = ({ item }) => {
+        // Parse the dynamic form question data for a description if available
+        let desc = 'Service Request';
+        try {
+            if (item.questions_data) {
+                const qd = typeof item.questions_data === 'string' ? JSON.parse(item.questions_data) : item.questions_data;
+                const topAnswers = Object.values(qd).filter(v => typeof v === 'string' && v.length > 0);
+                if (topAnswers.length > 0) desc = topAnswers.join(', ');
+            }
+        } catch (e) { }
 
-                {item.status === 'assigned' && item.worker && (
-                    <View style={styles.workerMini}>
-                        <Image source={{ uri: item.worker.photo }} style={styles.workerPhoto} />
-                        <View style={styles.workerInfo}>
-                            <Text style={styles.workerName}>{item.worker.name}</Text>
-                            <Text style={styles.workerRating}>⭐ {item.worker.rating}</Text>
+        return (
+            <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('JobStatusDetail', { jobId: item.id })}
+            >
+                <Card style={styles.card}>
+                    <View style={styles.cardHeader}>
+                        <View style={{ flex: 1, paddingRight: spacing.md }}>
+                            <Text style={styles.category}>{item.category || 'Service'}</Text>
+                            <Text style={styles.desc} numberOfLines={1}>{desc}</Text>
+                            <Text style={styles.date}>{dayjs(item.created_at).format('MMM D, h:mm A')}</Text>
                         </View>
+                        <StatusPill status={item.status} />
                     </View>
-                )}
 
-                {item.status === 'completed' && (
-                    <View style={styles.ratingArea}>
-                        {item.ratingGiven ? (
-                            <Text style={styles.ratedTxt}>You rated: ⭐ {item.ratingGiven}</Text>
-                        ) : (
-                            <Text style={styles.ratePrompt}>Tap to Rate Worker →</Text>
-                        )}
-                    </View>
-                )}
-            </Card>
-        </TouchableOpacity>
-    );
+                    {item.worker && (item.status === 'assigned' || item.status === 'worker_en_route' || item.status === 'worker_arrived' || item.status === 'in_progress') && (
+                        <View style={styles.workerMini}>
+                            <Image source={{ uri: item.worker.photo }} style={styles.workerPhoto} />
+                            <View style={styles.workerInfo}>
+                                <Text style={styles.workerName}>{item.worker.name}</Text>
+                                <Text style={styles.workerRating}>⭐ {item.worker.rating}</Text>
+                            </View>
+                        </View>
+                    )}
+
+                    {item.status === 'completed' && (
+                        <View style={styles.ratingArea}>
+                            {item.ratingGiven ? (
+                                <Text style={styles.ratedTxt}>You rated: ⭐ {item.ratingGiven}</Text>
+                            ) : (
+                                <Text style={styles.ratePrompt}>Tap to Details & Rating →</Text>
+                            )}
+                        </View>
+                    )}
+                </Card>
+            </TouchableOpacity>
+        );
+    };
+
+    const renderEmpty = () => {
+        if (loading) return null; // Wait for load
+        return (
+            <View style={styles.emptyContainer}>
+                <Text style={styles.emptyIcon}>📋</Text>
+                <Text style={styles.emptyTitle}>No Jobs Found</Text>
+                <Text style={styles.emptySub}>
+                    {filter === 'All'
+                        ? "You haven't booked any services yet. Head over to the Home tab to get started!"
+                        : `You have no ${filter.toLowerCase()} jobs at the moment.`}
+                </Text>
+            </View>
+        );
+    };
 
     return (
         <View style={styles.screen}>
@@ -104,7 +140,15 @@ export default function MyJobsScreen({ navigation }) {
                 keyExtractor={(i) => String(i.id)}
                 contentContainerStyle={styles.list}
                 renderItem={renderJob}
-                ListEmptyComponent={<Text style={styles.empty}>No jobs found in this category.</Text>}
+                ListEmptyComponent={renderEmpty}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colors.gold.primary}
+                        colors={[colors.gold.primary]}
+                    />
+                }
             />
         </View>
     );
@@ -125,10 +169,10 @@ const styles = StyleSheet.create({
     chipText: { color: colors.text.secondary, fontWeight: '600', fontSize: 13 },
     chipTextActive: { color: colors.gold.primary },
 
-    list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2 },
+    list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2, flexGrow: 1 },
     card: { padding: spacing.lg, gap: spacing.md },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-    category: { color: colors.text.primary, fontSize: 16, fontWeight: '700' },
+    category: { color: colors.text.primary, fontSize: 16, fontWeight: '700', textTransform: 'capitalize' },
     desc: { color: colors.text.secondary, fontSize: 14, marginTop: 2 },
     date: { color: colors.text.muted, fontSize: 12, marginTop: spacing.xs },
 
@@ -145,5 +189,8 @@ const styles = StyleSheet.create({
     ratedTxt: { color: colors.gold.muted, fontSize: 13, fontWeight: '600' },
     ratePrompt: { color: colors.gold.primary, fontSize: 14, fontWeight: '600' },
 
-    empty: { color: colors.text.muted, textAlign: 'center', marginTop: spacing.xl * 2 }
+    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: spacing.xl * 3 },
+    emptyIcon: { fontSize: 48, marginBottom: spacing.md },
+    emptyTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '700', marginBottom: spacing.sm },
+    emptySub: { color: colors.text.secondary, fontSize: 14, textAlign: 'center', paddingHorizontal: spacing.xl, lineHeight: 22 },
 });

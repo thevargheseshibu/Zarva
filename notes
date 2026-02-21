@@ -108,3 +108,19 @@ You must explicitly tell the Android build system to override the Firebase defau
 
 > **⚠️ Expo Prebuild Warning:** If you ever delete your `/android` folder and run `npx expo prebuild` again, this manual change will be lost and the build will fail again. To make this permanent, you would need to write a custom Expo Config Plugin to inject `tools:replace` automatically during the prebuild phase.
 ***
+
+### 📝 TODO: Firebase Phone Auth Play Integrity Setup
+
+**The Problem (`[auth/missing-client-identifier]`):**
+Firebase Phone Auth fails on local emulators/devices because Google Play Integrity (SafetyNet) blocks the SMS request, thinking it's a bot. It requires the app's cryptographic SHA keys to be registered in the Firebase Console to allow the request through.
+
+**Status:** 🔴 NOT DONE
+
+**Steps to Fix:**
+1. Open terminal and run: `cd zarva-mobile/android && ./gradlew signingReport`
+2. Scroll up to the **`Variant: debug`** output.  
+3. Copy the **SHA1** and **SHA-256** keys.
+4. Go to [Firebase Console](https://console.firebase.google.com/) -> Project Settings -> General.
+5. Under your Android app (`com.zarva.app`), click **Add fingerprint**.
+6. Paste both the SHA1 and SHA-256 keys.
+7. Wait 3-5 minutes, hit `R` in Metro, and test SMS again.

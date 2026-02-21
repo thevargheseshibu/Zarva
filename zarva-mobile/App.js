@@ -13,7 +13,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, LogBox } from 'react-native';
+
+LogBox.ignoreLogs([
+  'setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.',
+]);
 import RootNavigator from './src/navigation/RootNavigator';
 import { useLanguageStore } from './src/i18n';
 import apiClient from './src/services/api/client';
