@@ -61,6 +61,11 @@ export default function WorkerHomeScreen({ navigation }) {
                 });
                 setOnline(!!p.is_online);
                 setAvailable(!!p.is_available);
+                setEarningsToday(p.earnings_today || 0);
+                setStats({
+                    today: p.jobs_today || 0,
+                    week: p.jobs_week || 0
+                });
 
                 if (p.current_job_id) {
                     fetchActiveJob(p.current_job_id);

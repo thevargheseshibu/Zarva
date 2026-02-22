@@ -62,7 +62,7 @@ export default function WorkerProfileScreen({ navigation }) {
 
             <View style={styles.metricsBox}>
                 <Text style={styles.metric}>Subscription: <Text style={{ color: colors.gold.primary }}>{user?.profile?.subscription_status || 'Free'}</Text></Text>
-                <Text style={styles.metric}>Jobs Completed: <Text style={{ color: colors.gold.primary }}>{user?.profile?.total_jobs || 0}</Text></Text>
+                <Text style={styles.metric}>Jobs Completed: <Text style={{ color: colors.gold.primary }}>{user?.profile?.total_jobs || user?.profile?.worker_total_jobs || 0}</Text></Text>
                 <Text style={styles.metric}>Rating: <Text style={{ color: colors.gold.primary }}>⭐ {Number(user?.profile?.average_rating || 0).toFixed(1)}</Text></Text>
             </View>
 

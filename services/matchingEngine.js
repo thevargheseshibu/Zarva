@@ -29,7 +29,7 @@ async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
             wp.user_id,
             u.fcm_token,
             wp.name,
-            wp.average_rating as avg_rating,
+            wp.average_rating,
             wp.last_location_lat,
             wp.last_location_lng,
             (

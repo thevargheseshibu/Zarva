@@ -103,7 +103,7 @@ router.post('/', async (req, res) => {
             // Worker rated the customer
             await pool.query(
                 `UPDATE customer_profiles
-                 SET avg_rating = (SELECT AVG(score) FROM reviews WHERE reviewee_id = ?),
+                 SET average_rating = (SELECT AVG(score) FROM reviews WHERE reviewee_id = ?),
                      rating_count = rating_count + 1
                  WHERE user_id = ?`,
                 [reviewee_id, reviewee_id]

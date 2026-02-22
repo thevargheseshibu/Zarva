@@ -60,7 +60,7 @@ export default function CustomerProfileScreen() {
                     <Text style={styles.metricLabel}>{t('cancelled') || 'Cancelled'}</Text>
                 </View>
                 <View style={styles.metric}>
-                    <Text style={styles.metricValue}>{user?.profile?.avg_rating ? Number(user.profile.avg_rating).toFixed(1) : '—'}</Text>
+                    <Text style={styles.metricValue}>{user?.profile?.average_rating ? Number(user.profile.average_rating).toFixed(1) : '—'}</Text>
                     <Text style={styles.metricLabel}>{t('rating') || 'Rating'}</Text>
                 </View>
             </View>

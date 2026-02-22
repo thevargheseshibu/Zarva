@@ -34,6 +34,11 @@
             "What type of vehicle needs driving?",
             "Is it a manual or automatic transmission?",
             "Will this be a round trip or one-way drop?"
+        ],
+        "driver1": [
+            "What type of vehicle needs driving?",
+            "Is it a manual or automatic transmission?",
+            "Will this be a round trip or one-way drop?"
         ]
     }
 }

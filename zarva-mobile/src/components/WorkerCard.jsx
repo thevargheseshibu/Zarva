@@ -12,7 +12,7 @@ export default function WorkerCard({ worker, distance, onPress }) {
     const {
         name = 'Worker',
         category = '',
-        avg_rating = 0,
+        average_rating = 0,
         photo_url = null,
     } = worker || {};
 
@@ -36,7 +36,7 @@ export default function WorkerCard({ worker, distance, onPress }) {
                 <View style={styles.row}>
                     <Text style={styles.star}>★</Text>
                     <Text style={styles.rating}>
-                        {avg_rating ? avg_rating.toFixed(1) : 'New'}
+                        {average_rating ? Number(average_rating).toFixed(1) : 'New'}
                     </Text>
                 </View>
 

@@ -190,18 +190,21 @@ async function getUserProfile(userId, pool) {
         `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference, u.last_login_at, u.created_at,
             cp.name, cp.email, cp.profile_s3_key, cp.city,
             cp.default_lat, cp.default_lng, cp.total_jobs as customer_total_jobs,
-            cp.avg_rating as customer_avg_rating, cp.rating_count as customer_rating_count,
+            cp.average_rating as customer_average_rating, cp.rating_count as customer_rating_count,
             COALESCE(cp.cancelled_jobs, 0) as customer_cancelled_jobs,
             COALESCE(cp.saved_addresses, '[]') as saved_addresses,
             wp.name        as worker_name,
             wp.category    as worker_category,
-            COALESCE(wp.avg_rating, 0) as avg_rating, 
+            COALESCE(wp.average_rating, 0) as average_rating, 
             COALESCE(wp.total_jobs, 0) as worker_total_jobs,
             COALESCE(wp.subscription_status, 'free') as subscription_status,
             COALESCE(wp.service_pincodes, '[]') as service_pincodes,
             wp.is_verified, wp.is_online, wp.is_available,
             wp.kyc_status, wp.city as worker_city, wp.current_job_id,
-            wp.last_location_lat, wp.last_location_lng
+            wp.last_location_lat, wp.last_location_lng,
+            (SELECT COALESCE(SUM(ji.subtotal), 0) FROM job_invoices ji JOIN jobs j ON ji.job_id = j.id WHERE j.worker_id = u.id AND DATE(j.end_otp_verified_at) = CURDATE()) as earnings_today,
+            (SELECT COUNT(*) FROM jobs WHERE worker_id = u.id AND status = 'completed' AND DATE(end_otp_verified_at) = CURDATE()) as jobs_today,
+            (SELECT COUNT(*) FROM jobs WHERE worker_id = u.id AND status = 'completed' AND end_otp_verified_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) as jobs_week
        FROM users u
        LEFT JOIN customer_profiles cp ON cp.user_id = u.id
        LEFT JOIN worker_profiles   wp ON wp.user_id = u.id
@@ -228,9 +231,8 @@ async function getUserProfile(userId, pool) {
 
     if (role === 'worker') {
         base.profile = {
-            name: row.worker_name,
             category: row.worker_category,
-            average_rating: row.avg_rating,
+            average_rating: row.average_rating,
             total_jobs: row.worker_total_jobs,
             subscription_status: row.subscription_status,
             service_pincodes: row.service_pincodes,
@@ -242,6 +244,9 @@ async function getUserProfile(userId, pool) {
             current_job_id: row.current_job_id,
             last_location_lat: row.last_location_lat,
             last_location_lng: row.last_location_lng,
+            earnings_today: row.earnings_today || 0,
+            jobs_today: row.jobs_today || 0,
+            jobs_week: row.jobs_week || 0,
         };
     } else {
         base.profile = {
@@ -249,7 +254,7 @@ async function getUserProfile(userId, pool) {
             email: row.email,
             city: row.city,
             total_jobs: row.customer_total_jobs,
-            avg_rating: row.customer_avg_rating,
+            average_rating: row.customer_average_rating,
             rating_count: row.customer_rating_count,
             cancelled_jobs: row.customer_cancelled_jobs,
             saved_addresses: row.saved_addresses || [],

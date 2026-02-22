@@ -707,9 +707,9 @@ router.get('/earnings', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const [overviewRows] = await pool.query(
             `SELECT 
-                SUM(CASE WHEN DATE(ji.created_at) = CURDATE() THEN ji.worker_payout ELSE 0 END) as today,
-                SUM(CASE WHEN YEARWEEK(ji.created_at, 1) = YEARWEEK(CURDATE(), 1) THEN ji.worker_payout ELSE 0 END) as week,
-                SUM(CASE WHEN MONTH(ji.created_at) = MONTH(CURDATE()) AND YEAR(ji.created_at) = YEAR(CURDATE()) THEN ji.worker_payout ELSE 0 END) as month
+                SUM(CASE WHEN DATE(ji.created_at) = CURDATE() THEN ji.subtotal ELSE 0 END) as today,
+                SUM(CASE WHEN YEARWEEK(ji.created_at, 1) = YEARWEEK(CURDATE(), 1) THEN ji.subtotal ELSE 0 END) as week,
+                SUM(CASE WHEN MONTH(ji.created_at) = MONTH(CURDATE()) AND YEAR(ji.created_at) = YEAR(CURDATE()) THEN ji.subtotal ELSE 0 END) as month
              FROM job_invoices ji
              JOIN jobs j ON j.id = ji.job_id
              WHERE j.worker_id = ? AND j.status = 'completed'`,
@@ -723,7 +723,7 @@ router.get('/earnings', (req, res) =>
         };
 
         const [txRows] = await pool.query(
-            `SELECT ji.id, j.category as title, ji.worker_payout as amt, ji.created_at as time
+            `SELECT ji.id, j.category as title, ji.subtotal as amt, ji.created_at as time
              FROM job_invoices ji
              JOIN jobs j ON j.id = ji.job_id
              WHERE j.worker_id = ? AND j.status = 'completed'

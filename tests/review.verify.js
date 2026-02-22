@@ -5,7 +5,7 @@
  *   ✅ POST returns 201 for valid review
  *   ✅ POST after 24h → 403 'Review window closed'
  *   ✅ Duplicate POST → 409
- *   ✅ avg_rating recalculated from all reviews
+ *   ✅ average_rating recalculated from all reviews
  *   ✅ Word 'fraud' → is_flagged=true
  */
 
@@ -114,8 +114,8 @@ async function run() {
         // ── ✅ 4. avg_rating recalculated from all reviews ───────────────────
         console.log('\n--- ✅ 4. avg_rating recalculated from all reviews ---');
         // Current: 1 review with score 4 → avg should be 4.00
-        const [wp1] = await pool.query('SELECT avg_rating, rating_count FROM worker_profiles WHERE user_id=99992');
-        assert(parseFloat(wp1[0].avg_rating) === 4.00, 'avg_rating = 4.00 after one score-4 review');
+        const [wp1] = await pool.query('SELECT average_rating, rating_count FROM worker_profiles WHERE user_id=99992');
+        assert(parseFloat(wp1[0].average_rating) === 4.00, 'average_rating = 4.00 after one score-4 review');
 
         // Worker now reviews the customer on the same job → customer_profiles updated
         const rW = await postReview(99992, {
@@ -126,8 +126,8 @@ async function run() {
         });
         assert(rW.status === 201, 'Worker review also returns 201');
 
-        const [cp] = await pool.query('SELECT avg_rating, rating_count FROM customer_profiles WHERE user_id=99991');
-        assert(parseFloat(cp[0].avg_rating) === 3.00, 'Customer avg_rating recalculated to 3.00');
+        const [cp] = await pool.query('SELECT average_rating, rating_count FROM customer_profiles WHERE user_id=99991');
+        assert(parseFloat(cp[0].average_rating) === 3.00, 'Customer average_rating recalculated to 3.00');
         assert(cp[0].rating_count === 1, 'Customer rating_count incremented to 1');
 
         // Now verify avg across multiple reviews — insert a second job completed now for a second customer review
@@ -142,8 +142,8 @@ async function run() {
             category_scores: { punctuality: 2, communication: 2, professionalism: 2 }
         });
         assert(rAvg.status === 201, 'Second score-2 review submitted (201)');
-        const [wp2] = await pool.query('SELECT avg_rating, rating_count FROM worker_profiles WHERE user_id=99992');
-        assert(parseFloat(wp2[0].avg_rating) === 3.00, 'avg_rating correctly recalculated to 3.00 from (4+2)/2');
+        const [wp2] = await pool.query('SELECT average_rating, rating_count FROM worker_profiles WHERE user_id=99992');
+        assert(parseFloat(wp2[0].average_rating) === 3.00, 'average_rating correctly recalculated to 3.00 from (4+2)/2');
         assert(wp2[0].rating_count === 2, 'rating_count now 2');
 
         // ── ✅ 5. Word 'fraud' → is_flagged=true ─────────────────────────────
