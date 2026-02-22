@@ -191,13 +191,16 @@ async function getUserProfile(userId, pool) {
             cp.name, cp.email, cp.profile_s3_key, cp.city,
             cp.default_lat, cp.default_lng, cp.total_jobs as customer_total_jobs,
             cp.avg_rating as customer_avg_rating, cp.rating_count as customer_rating_count,
-            cp.cancelled_jobs as customer_cancelled_jobs, cp.saved_addresses,
+            COALESCE(cp.cancelled_jobs, 0) as customer_cancelled_jobs,
+            COALESCE(cp.saved_addresses, '[]') as saved_addresses,
             wp.name        as worker_name,
             wp.category    as worker_category,
-            wp.average_rating, wp.total_jobs as worker_total_jobs,
-            wp.subscription_status, wp.service_pincodes,
+            COALESCE(wp.avg_rating, 0) as avg_rating, 
+            COALESCE(wp.total_jobs, 0) as worker_total_jobs,
+            COALESCE(wp.subscription_status, 'free') as subscription_status,
+            COALESCE(wp.service_pincodes, '[]') as service_pincodes,
             wp.is_verified, wp.is_online, wp.is_available,
-            wp.kyc_status, wp.city as worker_city
+            wp.kyc_status, wp.city as worker_city, wp.current_job_id
        FROM users u
        LEFT JOIN customer_profiles cp ON cp.user_id = u.id
        LEFT JOIN worker_profiles   wp ON wp.user_id = u.id
@@ -226,7 +229,7 @@ async function getUserProfile(userId, pool) {
         base.profile = {
             name: row.worker_name,
             category: row.worker_category,
-            average_rating: row.average_rating,
+            average_rating: row.avg_rating,
             total_jobs: row.worker_total_jobs,
             subscription_status: row.subscription_status,
             service_pincodes: row.service_pincodes,
@@ -235,6 +238,7 @@ async function getUserProfile(userId, pool) {
             is_available: Boolean(row.is_available),
             kyc_status: row.kyc_status,
             city: row.worker_city,
+            current_job_id: row.current_job_id,
         };
     } else {
         base.profile = {

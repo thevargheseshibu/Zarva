@@ -1,49 +1,49 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import {
+    View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator
+} from 'react-native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
+import StatusPill from '../../components/StatusPill';
 import apiClient from '../../services/api/client';
 import { parseJobDescription } from '../../utils/jobParser';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+
+dayjs.extend(relativeTime);
 
 export default function JobDetailPreviewScreen({ route, navigation }) {
     const { job } = route.params || {};
-
-    // Mock full data since AvailableJobs only sends snippet
-    const { text: parsedDesc, photo: parsedPhoto } = parseJobDescription(job?.desc);
-
-    const fullJob = {
-        id: job?.id || 'job-999',
-        category: job?.category || 'Plumber',
-        est: job?.est || '₹800 - ₹1200',
-        dist: job?.dist || '3.4',
-        desc: parsedDesc || 'Pipe broken under the kitchen sink. Water leaking fast and flooding the area.',
-        photo: parsedPhoto || null,
-        area: 'Kakkanad',
-        notes: 'Please bring your own mop if possible.'
-    };
-
     const [loading, setLoading] = useState(false);
+
+    // Parse structured data and photos
+    const { structured: structuredQuestions, photos } = parseJobDescription(job?.desc);
 
     const handleAccept = async () => {
         setLoading(true);
         try {
-            // Normally: await apiClient.post(`/api/worker/jobs/${fullJob.id}/accept`);
-            setTimeout(() => {
-                setLoading(false);
-                Alert.alert('Job Accepted!', 'You are now assigned to this job.', [
-                    { text: 'View Job', onPress: () => navigation.replace('ActiveJob', { jobId: fullJob.id }) }
-                ]);
-            }, 600);
+            await apiClient.post(`/api/worker/jobs/${job.id}/accept`);
+            navigation.replace('ActiveJob', { jobId: job.id });
         } catch (error) {
             setLoading(false);
             if (error.response?.status === 409) {
-                Alert.alert('Too slow!', 'This job was already taken by another worker.');
+                Alert.alert('Too Slow!', 'This job was already taken by another worker.');
                 navigation.goBack();
             } else {
-                Alert.alert('Error', 'Failed to accept job.');
+                Alert.alert('Error', error.response?.data?.message || 'Failed to accept job.');
             }
         }
     };
+
+    if (!job) {
+        return (
+            <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: colors.text.muted }}>Job data missing.</Text>
+            </View>
+        );
+    }
+
+    const isEmergency = job.is_emergency;
 
     return (
         <View style={styles.screen}>
@@ -52,61 +52,196 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                 <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                     <Text style={styles.backTxt}>←</Text>
                 </TouchableOpacity>
-                <Text style={styles.title}>Job Details</Text>
+                <Text style={styles.title}>Job Preview</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
 
-                <View style={styles.topCard}>
-                    <Text style={styles.category}>{fullJob.category}</Text>
-                    <Text style={styles.est}>{fullJob.est}</Text>
-                </View>
-
-                <View style={styles.infoBlock}>
-                    <Text style={styles.label}>Location</Text>
-                    <Text style={styles.valTxt}>📍 {fullJob.area} ({fullJob.dist} km away)</Text>
-                    <Text style={styles.subTxt}>Exact address revealed after acceptance.</Text>
-                </View>
-
-                <View style={styles.infoBlock}>
-                    <Text style={styles.label}>Description</Text>
-                    <Text style={styles.valTxt}>"{fullJob.desc}"</Text>
-                </View>
-
-                {fullJob.notes && (
-                    <View style={styles.infoBlock}>
-                        <Text style={styles.label}>Special Notes</Text>
-                        <Text style={styles.valTxt}>{fullJob.notes}</Text>
+                {/* Hero Card */}
+                <View style={styles.heroCard}>
+                    <View style={styles.heroTopRow}>
+                        <View style={styles.categoryBadge}>
+                            <Text style={styles.categoryIcon}>⚡</Text>
+                            <Text style={styles.categoryTxt}>{job.category || 'Service'}</Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                            {isEmergency && (
+                                <View style={styles.emergencyBadge}>
+                                    <Text style={styles.emergencyTxt}>🚨 EMERGENCY</Text>
+                                </View>
+                            )}
+                            <Text style={styles.timeTxt}>{dayjs(job.time).fromNow()}</Text>
+                        </View>
                     </View>
-                )}
 
-                {fullJob.photo && (
-                    <View style={styles.infoBlock}>
-                        <Text style={styles.label}>Customer Photo</Text>
-                        <Image source={{ uri: fullJob.photo }} style={styles.photo} />
+                    <Text style={styles.estValue}>{job.est || 'Price on completion'}</Text>
+
+                    <View style={styles.distRow}>
+                        <Text style={styles.distTxt}>📍 {job.dist !== '—' ? `${job.dist} km away` : 'Distance unknown'}</Text>
+                        {job.wave_number > 1 && (
+                            <View style={styles.waveBadge}>
+                                <Text style={styles.waveTxt}>Wave {job.wave_number}</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {/* Customer Info */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionLabel}>CUSTOMER</Text>
+                    <View style={styles.customerCard}>
+                        <Text style={styles.customerName}>👤 {job.customer_name || 'Customer'}</Text>
+                        <Text style={styles.customerNote}>Full contact revealed after acceptance</Text>
+                    </View>
+                </View>
+
+                {/* Description / Questions */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionLabel}>JOB DETAILS</Text>
+                    {structuredQuestions.length > 0 ? (
+                        <View style={styles.structuredContainer}>
+                            {structuredQuestions.map((item, idx) => (
+                                <View key={idx} style={styles.qAndA}>
+                                    <Text style={styles.qText}>{item.label}</Text>
+                                    <Text style={styles.aText}>{item.value}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    ) : (
+                        <View style={styles.descCard}>
+                            {job.desc ? (
+                                <Text style={styles.descText}>"{job.desc}"</Text>
+                            ) : (
+                                <Text style={styles.descEmpty}>No details provided.</Text>
+                            )}
+                        </View>
+                    )}
+                </View>
+
+                {/* Address */}
+                {job.address ? (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionLabel}>SERVICE AREA</Text>
+                        <View style={styles.customerCard}>
+                            <Text style={styles.customerName}>📍 General area only</Text>
+                            <Text style={styles.customerNote}>Exact address shared after you accept</Text>
+                        </View>
+                    </View>
+                ) : null}
+
+                {/* Scheduled */}
+                {job.scheduled_at ? (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionLabel}>SCHEDULED FOR</Text>
+                        <View style={[styles.customerCard, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+                            <Text style={{ fontSize: 22 }}>🗓</Text>
+                            <Text style={[styles.customerName, { flex: 1 }]}>
+                                {dayjs(job.scheduled_at).format('ddd, D MMM YYYY')} at {dayjs(job.scheduled_at).format('h:mm A')}
+                            </Text>
+                        </View>
+                    </View>
+                ) : null}
+
+                {/* Photos */}
+                {photos.length > 0 ? (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionLabel}>CUSTOMER PHOTOS ({photos.length})</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoList}>
+                            {photos.map((uri, idx) => (
+                                <Image
+                                    key={idx}
+                                    source={{ uri }}
+                                    style={styles.photo}
+                                    resizeMode="cover"
+                                />
+                            ))}
+                        </ScrollView>
+                    </View>
+                ) : null}
+
+                {/* Pricing Breakdown */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionLabel}>PRICING BREAKDOWN</Text>
+                    <View style={styles.pricingCard}>
+                        <View style={styles.priceRow}>
+                            <Text style={styles.priceLabel}>Rate</Text>
+                            <Text style={styles.priceValue}>₹{job.rate_per_hour || 0}/hr</Text>
+                        </View>
+                        {job.advance_amount > 0 && (
+                            <View style={styles.priceRow}>
+                                <Text style={styles.priceLabel}>Advance</Text>
+                                <Text style={styles.priceValue}>₹{job.advance_amount}</Text>
+                            </View>
+                        )}
+                        {job.travel_charge > 0 && (
+                            <View style={styles.priceRow}>
+                                <Text style={styles.priceLabel}>Travel charge</Text>
+                                <Text style={styles.priceValue}>₹{job.travel_charge}</Text>
+                            </View>
+                        )}
+                        {job.total_amount > 0 && (
+                            <View style={[styles.priceRow, styles.priceRowTotal]}>
+                                <Text style={[styles.priceLabel, { color: colors.gold.primary }]}>Estimated Total</Text>
+                                <Text style={[styles.priceValue, { color: colors.gold.primary, fontWeight: '800' }]}>₹{job.total_amount}</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {/* Info Grid */}
+                <View style={styles.infoGrid}>
+                    <View style={styles.infoCell}>
+                        <Text style={styles.infoLabel}>Posted</Text>
+                        <Text style={styles.infoValue}>{dayjs(job.time).format('D MMM, h:mm A')}</Text>
+                    </View>
+                    <View style={styles.infoCell}>
+                        <Text style={styles.infoLabel}>Distance</Text>
+                        <Text style={styles.infoValue}>{job.dist !== '—' ? `${job.dist} km` : '—'}</Text>
+                    </View>
+                    <View style={styles.infoCell}>
+                        <Text style={styles.infoLabel}>Category</Text>
+                        <Text style={styles.infoValue}>{job.category || '—'}</Text>
+                    </View>
+                    <View style={styles.infoCell}>
+                        <Text style={styles.infoLabel}>Type</Text>
+                        <Text style={styles.infoValue}>{job.scheduled_at ? '📅 Scheduled' : '⚡ Immediate'}</Text>
+                    </View>
+                </View>
+
+                {/* Warning for Wave > 1 */}
+                {job.wave_number > 1 && (
+                    <View style={styles.warningBox}>
+                        <Text style={styles.warningTxt}>
+                            ⚠️ Wave {job.wave_number} — Other workers already notified. Act fast.
+                        </Text>
                     </View>
                 )}
 
             </ScrollView>
 
             {/* Action Bottom Bar */}
-            <View style={styles.actionBlock}>
+            <View style={styles.actionBar}>
                 <TouchableOpacity
                     style={styles.ghostBtn}
                     onPress={() => navigation.goBack()}
                     disabled={loading}
                 >
-                    <Text style={styles.ghostTxt}>❌ Not Interested</Text>
+                    <Text style={styles.ghostTxt}>✕ Pass</Text>
                 </TouchableOpacity>
 
-                <View style={{ flex: 1 }}>
-                    <GoldButton
-                        title={loading ? "Accepting..." : "✅ Accept Job"}
-                        onPress={handleAccept}
-                        disabled={loading}
-                    />
-                </View>
+                <TouchableOpacity
+                    style={[styles.acceptBtn, loading && styles.acceptBtnDisabled]}
+                    onPress={handleAccept}
+                    disabled={loading}
+                    activeOpacity={0.85}
+                >
+                    {loading ? (
+                        <ActivityIndicator color={colors.bg.primary} />
+                    ) : (
+                        <Text style={styles.acceptTxt}>✓ Accept Job</Text>
+                    )}
+                </TouchableOpacity>
             </View>
         </View>
     );
@@ -117,31 +252,109 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingTop: spacing.xl + 20, paddingHorizontal: spacing.sm, paddingBottom: spacing.lg,
-        borderBottomWidth: 1, borderBottomColor: colors.bg.surface
+        borderBottomWidth: 1, borderBottomColor: colors.bg.surface,
     },
     backBtn: { padding: spacing.sm },
     backTxt: { color: colors.text.primary, fontSize: 24 },
     title: { color: colors.text.primary, fontSize: 18, fontWeight: '700' },
 
-    content: { padding: spacing.lg, gap: spacing.xl, paddingBottom: 120 },
+    content: { padding: spacing.lg, gap: spacing.xl, paddingBottom: 130 },
 
-    topCard: { backgroundColor: colors.bg.surface, borderRadius: radius.lg, padding: spacing.xl, alignItems: 'center' },
-    category: { color: colors.text.secondary, fontSize: 16, fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
-    est: { color: colors.gold.primary, fontSize: 36, fontWeight: '800', marginTop: spacing.xs, fontFamily: 'Courier' },
+    // Hero
+    heroCard: {
+        backgroundColor: colors.bg.elevated, borderRadius: radius.xl,
+        padding: spacing.xl, borderWidth: 1, borderColor: colors.gold.muted + '55',
+        gap: spacing.md,
+    },
+    heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    categoryBadge: {
+        flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+        backgroundColor: colors.bg.surface, paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm, borderRadius: radius.full,
+    },
+    categoryIcon: { fontSize: 16 },
+    categoryTxt: { color: colors.text.secondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+    emergencyBadge: {
+        backgroundColor: colors.error + '22', paddingHorizontal: spacing.sm,
+        paddingVertical: 3, borderRadius: radius.sm,
+    },
+    emergencyTxt: { color: colors.error, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+    timeTxt: { color: colors.text.muted, fontSize: 12 },
+    estValue: { color: colors.gold.primary, fontSize: 38, fontWeight: '800', fontFamily: 'Courier' },
+    distRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    distTxt: { color: colors.text.secondary, fontSize: 14, flex: 1 },
+    waveBadge: { backgroundColor: colors.gold.glow, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
+    waveTxt: { color: colors.gold.primary, fontSize: 11, fontWeight: '700' },
 
-    infoBlock: { gap: spacing.xs },
-    label: { color: colors.text.secondary, fontSize: 14, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-    valTxt: { color: colors.text.primary, fontSize: 16, lineHeight: 24 },
-    subTxt: { color: colors.text.muted, fontSize: 13, fontStyle: 'italic', marginTop: 2 },
+    // Section
+    section: { gap: spacing.sm },
+    sectionLabel: { color: colors.text.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
 
-    photo: { width: '100%', height: 200, borderRadius: radius.md, marginTop: spacing.sm, backgroundColor: colors.bg.elevated },
+    // Customer
+    customerCard: { backgroundColor: colors.bg.surface, borderRadius: radius.lg, padding: spacing.md, gap: 4 },
+    customerName: { color: colors.text.primary, fontSize: 16, fontWeight: '700' },
+    customerNote: { color: colors.text.muted, fontSize: 12, fontStyle: 'italic' },
 
-    actionBlock: {
+    // Pricing
+    pricingCard: { backgroundColor: colors.bg.elevated, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm, borderWidth: 1, borderColor: colors.bg.surface },
+    priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    priceRowTotal: { borderTopWidth: 1, borderTopColor: colors.bg.surface, paddingTop: spacing.sm, marginTop: spacing.xs },
+    priceLabel: { color: colors.text.secondary, fontSize: 14 },
+    priceValue: { color: colors.text.primary, fontSize: 14, fontWeight: '700' },
+
+    // Description
+    descCard: {
+        backgroundColor: colors.bg.elevated, borderRadius: radius.lg,
+        padding: spacing.lg, borderLeftWidth: 3, borderLeftColor: colors.gold.muted,
+    },
+    descText: { color: colors.text.primary, fontSize: 15, lineHeight: 24, fontStyle: 'italic' },
+    descEmpty: { color: colors.text.muted, fontSize: 14, fontStyle: 'italic' },
+
+    // Structured Details
+    structuredContainer: {
+        backgroundColor: colors.bg.elevated, borderRadius: radius.lg,
+        padding: spacing.md, gap: spacing.md, borderWidth: 1, borderColor: colors.bg.surface
+    },
+    qAndA: { gap: 4, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.bg.surface + '44' },
+    qText: { color: colors.text.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
+    aText: { color: colors.text.primary, fontSize: 15, fontWeight: '600' },
+
+    // Photo
+    photoList: { gap: spacing.md, paddingRight: spacing.lg },
+    photo: { width: 280, height: 200, borderRadius: radius.lg, backgroundColor: colors.bg.surface },
+
+    // Info Grid
+    infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+    infoCell: {
+        flex: 1, minWidth: '45%', backgroundColor: colors.bg.elevated,
+        padding: spacing.md, borderRadius: radius.md, gap: 4,
+    },
+    infoLabel: { color: colors.text.muted, fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
+    infoValue: { color: colors.text.primary, fontSize: 15, fontWeight: '700' },
+
+    // Warning
+    warningBox: {
+        backgroundColor: colors.warning + '18', borderRadius: radius.md,
+        padding: spacing.md, borderWidth: 1, borderColor: colors.warning + '44',
+    },
+    warningTxt: { color: colors.warning, fontSize: 13, lineHeight: 20 },
+
+    // Action bar
+    actionBar: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
         backgroundColor: colors.bg.elevated, borderTopWidth: 1, borderTopColor: colors.bg.surface,
-        flexDirection: 'row', padding: spacing.lg, paddingBottom: spacing.xl + 10, gap: spacing.md,
-        alignItems: 'center'
+        flexDirection: 'row', padding: spacing.lg, paddingBottom: spacing.xl + 10,
+        gap: spacing.md, alignItems: 'center',
     },
-    ghostBtn: { flex: 1, alignItems: 'center', padding: spacing.md },
+    ghostBtn: {
+        flex: 1, alignItems: 'center', padding: spacing.md,
+        borderRadius: radius.md, borderWidth: 1, borderColor: colors.bg.surface,
+    },
     ghostTxt: { color: colors.text.muted, fontSize: 15, fontWeight: '700' },
+    acceptBtn: {
+        flex: 2, backgroundColor: colors.gold.primary, paddingVertical: spacing.md + 2,
+        borderRadius: radius.md, alignItems: 'center', justifyContent: 'center',
+    },
+    acceptBtnDisabled: { opacity: 0.6 },
+    acceptTxt: { color: colors.bg.primary, fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
 });

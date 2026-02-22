@@ -8,18 +8,21 @@ import GoldButton from './GoldButton';
 
 export default function JobAlertBottomSheet({ navigation }) {
     const bottomSheetRef = useRef(null);
-    const { pendingJobAlert, setPendingJobAlert } = useWorkerStore();
+    const { pendingJobAlert, setPendingJobAlert, isOnline } = useWorkerStore();
     const [loading, setLoading] = useState(false);
     const [timeLeft, setTimeLeft] = useState(25);
 
     useEffect(() => {
-        if (pendingJobAlert) {
+        if (pendingJobAlert && isOnline) {
             bottomSheetRef.current?.expand();
             setTimeLeft(25); // Start 25 second decline countdown
         } else {
             bottomSheetRef.current?.close();
+            if (pendingJobAlert && !isOnline) {
+                setPendingJobAlert(null); // Clear alert if worker goes offline
+            }
         }
-    }, [pendingJobAlert]);
+    }, [pendingJobAlert, isOnline]);
 
     useEffect(() => {
         if (!pendingJobAlert) return;

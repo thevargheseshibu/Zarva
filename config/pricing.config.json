@@ -20,6 +20,11 @@
             "min_hours": 1,
             "currency": "INR"
         },
+        "ac_repair": {
+            "rate_per_hour": 500,
+            "min_hours": 1,
+            "currency": "INR"
+        },
         "painter": {
             "rate_per_hour": 350,
             "min_hours": 4,
@@ -30,9 +35,19 @@
             "min_hours": 2,
             "currency": "INR"
         },
+        "cleaning": {
+            "rate_per_hour": 250,
+            "min_hours": 2,
+            "currency": "INR"
+        },
         "driver": {
             "rate_per_hour": 200,
             "min_hours": 4,
+            "currency": "INR"
+        },
+        "helper": {
+            "rate_per_hour": 200,
+            "min_hours": 2,
             "currency": "INR"
         }
     },

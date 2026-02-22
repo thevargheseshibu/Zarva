@@ -16,15 +16,37 @@ import Animated, {
 import { colors, spacing, radius } from '../../../design-system/tokens';
 import GoldButton from '../../../components/GoldButton';
 import { useAuthStore } from '../../../stores/authStore';
+import apiClient from '../../../services/api/client';
 
 export default function PendingApproval() {
     const scale = useSharedValue(0);
     const opacity = useSharedValue(0);
-    const { logout } = useAuthStore();
+    const { logout, refreshUser } = useAuthStore();
 
     useEffect(() => {
         scale.value = withDelay(300, withSpring(1, { damping: 10, stiffness: 180 }));
         opacity.value = withDelay(200, withTiming(1, { duration: 500, easing: Easing.out(Easing.ease) }));
+    }, []);
+
+    // Issue 41/78: Poll every 30s for admin approval to auto-advance
+    useEffect(() => {
+        const poll = setInterval(async () => {
+            try {
+                const res = await apiClient.get('/api/worker/onboard/status');
+                const status = res.data?.data?.kyc_status;
+                if (status === 'approved') {
+                    clearInterval(poll);
+                    // Refresh user profile to update kyc_status in auth store
+                    // This triggers route re-evaluation in the navigator
+                    const meRes = await apiClient.get('/api/me');
+                    useAuthStore.getState().setUser(meRes.data?.user || meRes.data);
+                }
+            } catch (err) {
+                // Silently fail — user will try again on next interval
+            }
+        }, 30000);
+
+        return () => clearInterval(poll);
     }, []);
 
     useFocusEffect(

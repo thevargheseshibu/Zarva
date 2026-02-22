@@ -60,10 +60,7 @@ export async function updateJobNode(jobId, fields) {
     await ref.update({ ...fields, last_updated: Date.now() });
 }
 
-/**
- * Create a full job node at the start of a job.
- */
-export async function createJobNode(jobId, workerId, customerLat, customerLng) {
+export async function createJobNode(jobId, workerId, customerLat, customerLng, worker = null) {
     const data = {
         status: 'assigned',
         worker_id: workerId,
@@ -78,6 +75,15 @@ export async function createJobNode(jobId, workerId, customerLat, customerLng) {
         timer_started_at: null,
         last_updated: Date.now()
     };
+
+    if (worker) {
+        data.worker = {
+            name: worker.name || 'Worker',
+            rating: worker.rating || 5.0,
+            photo: worker.photo || 'https://ui-avatars.com/api/?name=Worker'
+        };
+    }
+
     const ref = await dbRef(`active_jobs/${jobId}`);
     if (!ref) {
         console.log(`[Firebase Mock] active_jobs/${jobId} created =`, JSON.stringify(data));

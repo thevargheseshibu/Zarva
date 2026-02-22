@@ -1,41 +1,62 @@
 export const parseJobDescription = (rawDesc) => {
-    let textDesc = rawDesc;
-    let photoUrl = null;
+    let structuredQuestions = [];
+    let photos = [];
+    let textFallback = '';
 
-    if (!rawDesc) return { text: '', photo: null };
+    if (!rawDesc) return { text: '', photos: [], structured: [] };
 
-    if (typeof rawDesc === 'string' && rawDesc.startsWith('{')) {
-        try {
-            const parsed = JSON.parse(rawDesc);
-            const textParts = [];
+    try {
+        const parsed = typeof rawDesc === 'string' ? JSON.parse(rawDesc) : rawDesc;
+
+        if (Array.isArray(parsed)) {
+            // New Structured Format: [{question, answer}]
+            parsed.forEach(item => {
+                const val = String(item.answer || '');
+                const questionLower = String(item.question || '').toLowerCase();
+
+                // Detect images by URL prefix or label keywords
+                const isImageUrl = val.startsWith('http') || val.startsWith('file://') || val.startsWith('content://');
+                const isImageQuestion = questionLower.includes('photo') || questionLower.includes('image');
+
+                if (isImageUrl) {
+                    photos.push(val);
+                } else if (val !== 'SKIPPED' && !isImageQuestion) {
+                    structuredQuestions.push({
+                        label: item.question,
+                        value: val
+                    });
+                }
+            });
+        } else if (typeof parsed === 'object' && parsed !== null) {
+            // Legacy/Flattened Format: {q1: val, q2: val}
             for (const key in parsed) {
-                const val = parsed[key];
-                if (typeof val === 'string') {
-                    if (val.startsWith('http://') || val.startsWith('https://')) {
-                        photoUrl = val;
-                    } else if (val !== 'SKIPPED') {
-                        textParts.push(val);
-                    }
+                const val = String(parsed[key] || '');
+                const keyLower = key.toLowerCase();
+
+                const isImageUrl = val.startsWith('http') || val.startsWith('file://') || val.startsWith('content://');
+                const isImageQuestion = keyLower.includes('photo') || keyLower.includes('image') || keyLower.includes('q3');
+
+                if (isImageUrl) {
+                    photos.push(val);
+                } else if (val !== 'SKIPPED' && !isImageQuestion) {
+                    structuredQuestions.push({
+                        label: key.toUpperCase(),
+                        value: val
+                    });
                 }
             }
-            textDesc = textParts.join(' | ');
-        } catch (e) {
-            textDesc = rawDesc; // Fallback if parse fails
+        } else {
+            textFallback = String(rawDesc);
         }
-    } else if (typeof rawDesc === 'object') {
-        const textParts = [];
-        for (const key in rawDesc) {
-            const val = rawDesc[key];
-            if (typeof val === 'string') {
-                if (val.startsWith('http://') || val.startsWith('https://')) {
-                    photoUrl = val;
-                } else if (val !== 'SKIPPED') {
-                    textParts.push(val);
-                }
-            }
-        }
-        textDesc = textParts.join(' | ');
+    } catch (e) {
+        textFallback = String(rawDesc);
     }
 
-    return { text: textDesc, photo: photoUrl };
+    const simpleText = structuredQuestions.map(q => q.value).join(' | ') || textFallback;
+
+    return {
+        text: simpleText,
+        photos: photos,
+        structured: structuredQuestions
+    };
 };

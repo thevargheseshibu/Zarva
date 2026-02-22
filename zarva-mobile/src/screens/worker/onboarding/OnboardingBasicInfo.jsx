@@ -16,9 +16,10 @@ export default function OnboardingBasicInfo({ data, onNext }) {
     const [name, setName] = useState(data.name || '');
     const [dob, setDob] = useState(data.dob || '');
     const [gender, setGender] = useState(data.gender || '');
+    const [experience, setExperience] = useState(data.experience_years ? String(data.experience_years) : '');
     const [workerLocation, setWorkerLocation] = useState({});
 
-    const isValid = name.trim().length >= 2 && dob.length === 10 && gender && workerLocation.isValid;
+    const isValid = name.trim().length >= 2 && dob.length === 10 && gender && workerLocation.isValid && experience.trim().length > 0;
 
     const handleDob = (t) => {
         // Auto-format DD/MM/YYYY
@@ -74,6 +75,19 @@ export default function OnboardingBasicInfo({ data, onNext }) {
             </View>
 
             <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Years of Experience</Text>
+                <TextInput
+                    style={styles.input}
+                    value={experience}
+                    onChangeText={t => setExperience(t.replace(/[^0-9]/g, ''))}
+                    placeholder="e.g. 5"
+                    placeholderTextColor={colors.text.muted}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                />
+            </View>
+
+            <View style={styles.fieldGroup}>
                 <Text style={styles.label}>Home / Base Location</Text>
                 <LocationInput onChange={setWorkerLocation} />
             </View>
@@ -81,7 +95,7 @@ export default function OnboardingBasicInfo({ data, onNext }) {
             <GoldButton
                 title="Continue"
                 disabled={!isValid}
-                onPress={() => onNext({ name: name.trim(), dob, gender, location: workerLocation })}
+                onPress={() => onNext({ name: name.trim(), dob, gender, location: workerLocation, experience_years: parseInt(experience, 10) || 0 })}
                 style={{ marginTop: spacing.xl }}
             />
         </ScrollView>

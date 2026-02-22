@@ -9,7 +9,7 @@ import { getPool } from '../config/database.js';
 import { getRedisClient } from '../config/redis.js';
 import configLoader from '../config/loader.js';
 import * as fcmService from './fcmService.js';
-import { updateJobNode } from '../utils/firebase.js';
+import { updateJobNode } from '../services/firebase.service.js';
 
 // Helper: Sleep for wave delays
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -211,6 +211,8 @@ export async function acceptJob(jobId, workerId) {
     const redisClient = getRedisClient();
     // Atomic SET NX - exactly 5 seconds TTL to protect concurrency without deadlocks
     const locked = await redisClient.set(lockKey, workerId, 'NX', 'EX', 5);
+    console.log(`[MatchingEngine] Accept attempt by worker ${workerId} for job ${jobId}. Lock: ${locked ? 'ACQUIRED' : 'FAILED'}`);
+
     if (!locked) {
         throw Object.assign(new Error('Job already being claimed'), { code: 'RACE_CONDITION', status: 409 });
     }
@@ -221,9 +223,28 @@ export async function acceptJob(jobId, workerId) {
 
         try {
             // FOR UPDATE physical lock on MySQL record
-            const [rows] = await conn.query('SELECT id, status FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+            const [rows] = await conn.query(`
+                SELECT j.id, j.status, wp.is_online 
+                FROM jobs j
+                JOIN worker_profiles wp ON wp.user_id = ?
+                WHERE j.id = ? 
+                FOR UPDATE
+            `, [workerId, jobId]);
 
-            if (!rows.length || rows[0].status !== 'searching') {
+            const jobData = rows[0];
+            const currentStatus = jobData?.status;
+            const isOnline = jobData?.is_online;
+
+            console.log(`[MatchingEngine] Job ${jobId} status: ${currentStatus}, Worker ${workerId} online: ${isOnline}`);
+
+            if (!jobData || isOnline === 0) {
+                await conn.rollback();
+                throw Object.assign(new Error('You are offline (NET: OFF). Please go online to accept jobs.'), { code: 'WORKER_OFFLINE', status: 403 });
+            }
+
+            const ACCEPTABLE_STATUSES = ['open', 'searching', 'no_worker_found'];
+            if (!rows.length || !ACCEPTABLE_STATUSES.includes(currentStatus)) {
+                console.warn(`[MatchingEngine] Job ${jobId} rejected: Status ${currentStatus} not in ${ACCEPTABLE_STATUSES}`);
                 await conn.rollback();
                 throw Object.assign(new Error('Job is no longer available'), { code: 'JOB_UNAVAILABLE', status: 409 });
             }
@@ -246,7 +267,9 @@ export async function acceptJob(jobId, workerId) {
             );
 
             await conn.commit();
+            console.log(`[MatchingEngine] Job ${jobId} successfully assigned to worker ${workerId}`);
         } catch (txnErr) {
+            console.error(`[MatchingEngine] Job ${jobId} assignment failed:`, txnErr);
             await conn.rollback();
             throw txnErr;
         } finally {

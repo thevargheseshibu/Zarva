@@ -7,7 +7,7 @@ import StatusPill from '../../components/StatusPill';
 import apiClient from '../../services/api/client';
 import dayjs from 'dayjs';
 
-const FILTERS = ['All', 'Completed', 'Cancelled', 'Disputed'];
+const FILTERS = ['All', 'Active', 'Completed', 'Cancelled', 'Disputed'];
 
 export default function MyWorkScreen({ navigation }) {
     const [filter, setFilter] = useState('All');
@@ -33,7 +33,11 @@ export default function MyWorkScreen({ navigation }) {
         }, [])
     );
 
-    const filtered = filter === 'All' ? history : history.filter(h => h.status === filter.toLowerCase());
+    const filtered = filter === 'All'
+        ? history
+        : filter === 'Active'
+            ? history.filter(h => ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(h.status))
+            : history.filter(h => h.status === filter.toLowerCase());
 
     const onRefresh = () => {
         setRefreshing(true);

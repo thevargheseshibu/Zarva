@@ -62,7 +62,12 @@ router.post('/send-otp', normalizePhone, otpLimiter, async (req, res) => {
         });
     } catch (err) {
         console.error('[WhatsApp Auth] Send OTP Error:', err);
-        return fail(res, err.message || 'Failed to send WhatsApp OTP.', 500, 'WHATSAPP_ERROR');
+        const status = err.status || 500;
+        const msg = err.message || 'Failed to send WhatsApp OTP.';
+        // If it's a known dispatch error, we use the specific code or a general fallback
+        const code = err.code || 'WHATSAPP_ERROR';
+
+        return fail(res, msg, status, code);
     }
 });
 

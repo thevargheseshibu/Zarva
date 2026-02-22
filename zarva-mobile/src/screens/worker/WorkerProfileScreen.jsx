@@ -44,6 +44,17 @@ export default function WorkerProfileScreen() {
         }
     };
 
+    const handleToggleOnline = async (val) => {
+        setOnline(val); // optimistic update
+        try {
+            await apiClient.put('/api/worker/availability', { is_online: val });
+        } catch (e) {
+            console.error('Failed to sync online status', e);
+            setOnline(!val); // rollback
+            Alert.alert('Error', 'Failed to update online status.');
+        }
+    };
+
     return (
         <ScrollView contentContainerStyle={styles.screen}>
             <Text style={styles.title}>Worker Profile</Text>
@@ -52,6 +63,7 @@ export default function WorkerProfileScreen() {
             <View style={styles.metricsBox}>
                 <Text style={styles.metric}>Subscription: <Text style={{ color: colors.gold.primary }}>{user?.profile?.subscription_status || 'Free'}</Text></Text>
                 <Text style={styles.metric}>Jobs Completed: <Text style={{ color: colors.gold.primary }}>{user?.profile?.total_jobs || 0}</Text></Text>
+                <Text style={styles.metric}>Rating: <Text style={{ color: colors.gold.primary }}>⭐ {Number(user?.profile?.average_rating || 0).toFixed(1)}</Text></Text>
             </View>
 
             <View style={styles.onlineRow}>
@@ -60,7 +72,7 @@ export default function WorkerProfileScreen() {
                 </Text>
                 <Switch
                     value={isOnline}
-                    onValueChange={setOnline}
+                    onValueChange={handleToggleOnline}
                     thumbColor={isOnline ? colors.gold.primary : colors.text.muted}
                     trackColor={{ false: colors.bg.surface, true: colors.gold.glow }}
                 />

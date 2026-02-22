@@ -7,9 +7,12 @@ import RadarAnimation from '../../components/RadarAnimation';
 import GoldButton from '../../components/GoldButton';
 import { useT } from '../../hooks/useT';
 import { useJobStore } from '../../stores/jobStore';
+import apiClient from '../../services/api/client';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function HomeScreen({ navigation }) {
     const t = useT();
+    const [recentJobs, setRecentJobs] = React.useState([]);
 
     const SERVICES = [
         { id: 'electrician', label: t('cat_electrician'), icon: '⚡' },
@@ -23,6 +26,17 @@ export default function HomeScreen({ navigation }) {
     ];
 
     const { activeJob, searchPhase, clearActiveJob } = useJobStore();
+
+    useFocusEffect(
+        React.useCallback(() => {
+            apiClient.get('/api/jobs')
+                .then(res => {
+                    const jobs = res.data?.jobs || [];
+                    setRecentJobs(jobs.slice(0, 3)); // show last 3
+                })
+                .catch(err => console.error('Failed to fetch recent jobs', err));
+        }, [])
+    );
 
     React.useEffect(() => {
         if (['completed', 'cancelled', 'no_worker_found'].includes(searchPhase)) {
@@ -108,17 +122,37 @@ export default function HomeScreen({ navigation }) {
                     </TouchableOpacity>
                 </View>
 
-                {/* Mock Recent Post */}
-                <Card style={styles.recentCard}>
-                    <View style={styles.recentCardTop}>
-                        <View style={styles.recentIconBox}><Text>🔧</Text></View>
-                        <View style={styles.recentInfo}>
-                            <Text style={styles.recentCat}>Plumber • Fix leaky tap</Text>
-                            <Text style={styles.recentDate}>Today, 10:30 AM</Text>
-                        </View>
-                        <StatusPill status="completed" />
-                    </View>
-                </Card>
+                {/* Dynamic Recent Jobs */}
+                {recentJobs.length > 0 ? (
+                    recentJobs.map(job => (
+                        <TouchableOpacity
+                            key={job.id}
+                            activeOpacity={0.8}
+                            onPress={() => navigation.navigate('JobStatusDetail', { jobId: job.id })}
+                        >
+                            <Card style={styles.recentCard}>
+                                <View style={styles.recentCardTop}>
+                                    <View style={styles.recentIconBox}>
+                                        <Text style={{ fontSize: 20 }}>
+                                            {SERVICES.find(s => s.id === job.category)?.icon || '🛠️'}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.recentInfo}>
+                                        <Text style={styles.recentCat}>
+                                            {t(`cat_${job.category}`) || job.category} • {job.id.toString().substring(0, 6).toUpperCase()}
+                                        </Text>
+                                        <Text style={styles.recentDate}>
+                                            {new Date(job.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        </Text>
+                                    </View>
+                                    <StatusPill status={job.status} />
+                                </View>
+                            </Card>
+                        </TouchableOpacity>
+                    ))
+                ) : (
+                    <Text style={styles.emptyNote}>No recent jobs yet.</Text>
+                )}
             </View>
         </ScrollView>
     );
@@ -162,6 +196,7 @@ const styles = StyleSheet.create({
     recentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     recentTitle: { color: colors.text.primary, fontSize: 18, fontWeight: '700' },
     viewAll: { color: colors.gold.primary, fontSize: 14, fontWeight: '600' },
+    emptyNote: { color: colors.text.muted, fontSize: 14, textAlign: 'center', marginTop: spacing.lg, fontStyle: 'italic' },
 
     recentCard: { padding: spacing.md },
     recentCardTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

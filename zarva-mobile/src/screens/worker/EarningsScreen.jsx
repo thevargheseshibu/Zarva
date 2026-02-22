@@ -2,6 +2,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import apiClient from '../../services/api/client';
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { colors, spacing, radius } from '../../design-system/tokens';
+import GoldButton from '../../components/GoldButton';
 
 const TABS = ['Today', 'This Week', 'This Month'];
 

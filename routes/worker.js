@@ -183,12 +183,24 @@ router.post('/jobs/:id/accept', (req, res) =>
         const jobId = req.params.id;
         await MatchingEngine.acceptJob(jobId, userId, pool);
 
+        // Fetch worker profile for Firebase sync (Issue #2, #51)
+        const [workerProfiles] = await pool.query(
+            'SELECT name, average_rating, profile_s3_key FROM worker_profiles WHERE user_id = ?',
+            [userId]
+        );
+        const wp = workerProfiles[0];
+        const workerData = wp ? {
+            name: wp.name,
+            rating: wp.average_rating,
+            photo: wp.profile_s3_key
+        } : null;
+
         // Hook: create Firebase active_jobs node with the full structure
         const [jobs] = await pool.query(
             'SELECT customer_id, latitude, longitude FROM jobs WHERE id=?', [jobId]
         );
         if (jobs[0]) {
-            await createJobNode(jobId, userId, jobs[0].latitude, jobs[0].longitude);
+            await createJobNode(jobId, userId, jobs[0].latitude, jobs[0].longitude, workerData);
         }
 
         return { message: 'Job accepted successfully' };
@@ -222,7 +234,7 @@ router.post('/jobs/:id/arrived', (req, res) =>
         const job = jobs[0];
 
         if (!job || job.worker_id !== userId) throw Object.assign(new Error('Job not associated with you'), { status: 403 });
-        if (job.status !== 'worker_en_route') throw Object.assign(new Error(`Invalid job state: ${job.status}`), { status: 400 });
+        if (job.status !== 'worker_en_route' && job.status !== 'assigned') throw Object.assign(new Error(`Invalid job state: ${job.status}`), { status: 400 });
 
         // 2. Generate Physical Start OTP
         const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
@@ -531,41 +543,53 @@ router.put('/availability', (req, res) =>
 router.get('/available-jobs', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const [wp] = await pool.query(
-            'SELECT is_verified, is_online, category, home_lat, home_lng FROM worker_profiles WHERE user_id=?',
+            'SELECT is_verified, is_online, category, current_lat, current_lng FROM worker_profiles WHERE user_id=?',
             [userId]
         );
         const profile = wp[0];
         if (!profile) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
         if (!profile.is_verified) throw Object.assign(new Error('Worker not verified'), { status: 403 });
 
-        if (!profile.home_lat || !profile.home_lng) {
-            throw Object.assign(new Error('Please set your location in Profile to receive nearby jobs.'), { status: 400 });
-        }
-
         if (!profile.is_online) {
             return { jobs: [], is_online: false };
         }
 
-        // Fetch open jobs — explicit columns to avoid JOIN ambiguity
-        // TODO: add geo distance formula
-        const [jobs] = await pool.query(
-            `SELECT j.id, j.category, j.status, j.created_at, j.address,
-                    j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
-                    c.name as customer_name,
-                    ROUND(
-                        6371 * acos(
-                            cos(radians(?)) * cos(radians(c.default_lat)) 
-                            * cos(radians(c.default_lng) - radians(?)) 
-                            + sin(radians(?)) * sin(radians(c.default_lat))
-                        ), 1
-                    ) AS distance_km
-             FROM jobs j
-             LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
-             WHERE j.status IN ('open', 'searching', 'no_worker_found')
-             HAVING distance_km IS NULL OR distance_km <= 50
-             ORDER BY distance_km ASC, j.created_at DESC LIMIT 50`,
-            [profile.home_lat, profile.home_lng, profile.home_lat]
-        );
+        const hasLocation = profile.current_lat && profile.current_lng;
+
+        let jobs;
+        if (hasLocation) {
+            // Geo-sorted with Haversine
+            [jobs] = await pool.query(
+                `SELECT j.id, j.category, j.status, j.created_at, j.address,
+                        j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
+                        j.travel_charge, j.scheduled_at, j.is_emergency,
+                        c.name as customer_name,
+                        ROUND(
+                            6371 * acos(
+                                cos(radians(?)) * cos(radians(c.default_lat)) 
+                                * cos(radians(c.default_lng) - radians(?)) 
+                                + sin(radians(?)) * sin(radians(c.default_lat))
+                            ), 1
+                        ) AS distance_km
+                 FROM jobs j
+                 LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
+                 WHERE j.status IN ('open', 'searching', 'no_worker_found')
+                 HAVING distance_km IS NULL OR distance_km <= 50
+                 ORDER BY distance_km ASC, j.created_at DESC LIMIT 50`,
+                [profile.current_lat, profile.current_lng, profile.current_lat]
+            );
+        } else {
+            // No location set — return all open jobs by date
+            [jobs] = await pool.query(
+                `SELECT j.id, j.category, j.status, j.created_at, j.address,
+                        j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
+                        c.name as customer_name, NULL as distance_km
+                 FROM jobs j
+                 LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
+                 WHERE j.status IN ('open', 'searching', 'no_worker_found')
+                 ORDER BY j.created_at DESC LIMIT 50`
+            );
+        }
 
         const mappedJobs = jobs.map(j => {
             const desc = j.description || j.address || 'Service Request';
@@ -578,7 +602,14 @@ router.get('/available-jobs', (req, res) =>
                 icon: '⚡',
                 dist: j.distance_km !== null ? j.distance_km : '—',
                 est,
-                desc,
+                desc: j.description || '',     // raw text description only
+                address: j.address || '',
+                scheduled_at: j.scheduled_at || null,
+                advance_amount: j.advance_amount || 0,
+                travel_charge: j.travel_charge || 0,
+                total_amount: j.total_amount || null,
+                rate_per_hour: j.rate_per_hour || 0,
+                is_emergency: Boolean(j.is_emergency),
                 time: j.created_at,
                 customer_name: j.customer_name || 'Customer',
                 wave_number: 1 // Default fallback for wave tracker
@@ -597,7 +628,7 @@ router.get('/history', (req, res) =>
             `SELECT j.id, j.category, j.status, j.created_at, j.address,
                     (SELECT total FROM job_invoices WHERE job_id = j.id LIMIT 1) as amount
              FROM jobs j
-             WHERE j.worker_id = ? AND j.status IN ('completed', 'cancelled', 'disputed')
+             WHERE j.worker_id = ? AND j.status IN ('assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion', 'completed', 'cancelled', 'disputed')
              ORDER BY j.created_at DESC LIMIT 50`,
             [userId]
         );

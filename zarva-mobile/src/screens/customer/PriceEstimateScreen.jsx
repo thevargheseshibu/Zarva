@@ -5,8 +5,8 @@ import GoldButton from '../../components/GoldButton';
 
 export default function PriceEstimateScreen({ route, navigation }) {
     // Read passed params or use mock data for testing
-    const { category, label, answers, basePrice } = route.params || {
-        category: 'plumber', label: 'Plumber', answers: {}, basePrice: 300
+    const { category, label, answers, structuredAnswers, basePrice } = route.params || {
+        category: 'plumber', label: 'Plumber', answers: {}, structuredAnswers: [], basePrice: 300
     };
 
     const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ export default function PriceEstimateScreen({ route, navigation }) {
     const balance = subtotal; // Balance to be paid directly to worker in cash or UPI
 
     const handleFindWorker = () => {
-        navigation.navigate('LocationSchedule', { category, label, answers, basePrice });
+        navigation.navigate('LocationSchedule', { category, label, answers, structuredAnswers, basePrice });
     };
 
     return (

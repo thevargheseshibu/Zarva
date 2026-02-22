@@ -38,6 +38,8 @@ Either party may terminate this agreement with 7 days notice.
 
 By typing your name below, you agree to all terms.`;
 
+const AGREEMENT_VERSION = 'v2026-02'; // Versioned to the Last updated date in AGREEMENT_TEXT
+
 export default function OnboardingAgreement({ data, onNext }) {
     const [signature, setSignature] = useState('');
     const [loading, setLoading] = useState(false);
@@ -51,12 +53,14 @@ export default function OnboardingAgreement({ data, onNext }) {
             await apiClient.post('/api/worker/onboard', {
                 ...data,
                 agreement_signature: signature.trim(),
+                agreement_version: AGREEMENT_VERSION,
                 agreed_at: new Date().toISOString(),
             });
-        } catch (_) { }
-        finally {
-            setLoading(false);
             onNext({ signature });
+        } catch (err) {
+            Alert.alert('Submission Failed', err.response?.data?.message || 'Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 

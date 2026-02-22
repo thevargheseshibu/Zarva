@@ -13,7 +13,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 dayjs.extend(customParseFormat);
 
 export default function LocationScheduleScreen({ route, navigation }) {
-    const { category, label, answers, basePrice } = route.params || {};
+    const { category, label, answers, structuredAnswers, basePrice } = route.params || {};
 
     const [customerLocation, setCustomerLocation] = useState({});
 
@@ -36,7 +36,9 @@ export default function LocationScheduleScreen({ route, navigation }) {
         try {
             const payload = {
                 category,
-                description: answers && Object.keys(answers).length > 0 ? JSON.stringify(answers) : null,
+                description: structuredAnswers && structuredAnswers.length > 0
+                    ? JSON.stringify(structuredAnswers)
+                    : (answers && Object.keys(answers).length > 0 ? JSON.stringify(answers) : null),
                 customer_address: customerLocation.full_address,
                 customer_lat: customerLocation.lat,
                 customer_lng: customerLocation.lng,

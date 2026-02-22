@@ -62,24 +62,32 @@ export async function sendWhatsAppOTP(phone, otpCode) {
         const errorData = err.response?.data?.error;
 
         if (errorData) {
-            console.error(`[WhatsApp] Failed to send OTP to ${phone}:`, {
+            console.error(`[WhatsApp] Meta API Error for ${phone}:`, {
+                status: err.response?.status,
                 code: errorData.code,
                 message: errorData.message,
                 details: errorData.error_data?.details,
+                type: errorData.type,
                 fbtrace_id: errorData.fbtrace_id
             });
 
+            // Specific actionable advice for common errors
             if (errorData.code === 131030) {
-                console.error('[WhatsApp] Fix: Add recipient to test list → Meta Developer Console → WhatsApp → API Setup');
-            } else if (errorData.code === 132001) {
-                console.error('[WhatsApp] Fix: Template not found or not approved. Check name and language code.');
+                console.warn('[WhatsApp] RECIPIENT NOT IN TEST LIST: Add number to Meta Developer Console > WhatsApp > API Setup');
+            } else if (errorData.code === 100) {
+                console.warn('[WhatsApp] INVALID PARAMETER: Check phone number format or template components.');
             } else if (errorData.code === 190) {
-                console.error('[WhatsApp] Fix: Access token expired. Regenerate in Meta Developer Console.');
+                console.warn('[WhatsApp] TOKEN EXPIRED: Regenerate System User Access Token in Meta Business Suite.');
             }
         } else {
-            console.error(`[WhatsApp] Failed to send OTP to ${phone}:`, err.message);
+            console.error(`[WhatsApp] Unexpected Network/Internal Error:`, err.message);
         }
 
-        throw Object.assign(new Error('Failed to send WhatsApp message.'), { status: 502 });
+        // Throw a structured error that the route handler can use to explain the failure
+        const msg = errorData?.message || 'WhatsApp service unavailable.';
+        throw Object.assign(new Error(msg), {
+            status: err.response?.status || 502,
+            code: 'WHATSAPP_DISPATCH_FAILED'
+        });
     }
 }

@@ -83,22 +83,33 @@ router.get('/', async (req, res) => {
             SELECT 
                 j.*,
                 wp.name as worker_name,
-                wp.average_rating as worker_rating,
-                wp.profile_s3_key as worker_photo
+                wp.category as worker_category,
+                wp.avg_rating as worker_rating,
+                wp.profile_s3_key as worker_photo,
+                wp.is_verified as worker_verified
             FROM jobs j
             LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
             WHERE j.customer_id = ?
             ORDER BY j.created_at DESC
         `, [userId]);
 
+        const bucket = process.env.AWS_BUCKET_NAME;
+        const region = process.env.AWS_REGION;
+
         const formattedJobs = jobsWithWorkers.map(job => {
-            const { start_otp_hash, end_otp_hash, worker_name, worker_rating, worker_photo, ...safeJob } = job;
+            const { start_otp_hash, end_otp_hash, worker_name, worker_rating, worker_photo, worker_category, worker_verified, ...safeJob } = job;
 
             if (job.worker_id) {
+                const photoUrl = worker_photo
+                    ? `https://${bucket}.s3.${region}.amazonaws.com/${worker_photo}`
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(worker_name || 'Worker')}&background=random`;
+
                 safeJob.worker = {
                     name: worker_name || 'Worker',
+                    category: worker_category || 'Service',
                     rating: worker_rating || 5.0,
-                    photo: worker_photo || 'https://ui-avatars.com/api/?name=Worker'
+                    photo: photoUrl,
+                    is_verified: !!worker_verified
                 };
             }
             return safeJob;
@@ -153,14 +164,50 @@ router.get('/:id', async (req, res) => {
 
     try {
         const pool = getPool();
-        const [jobs] = await pool.query('SELECT * FROM jobs WHERE id = ?', [req.params.id]);
-        const job = jobs[0];
+        const [jobsWithWorkers] = await pool.query(`
+            SELECT 
+                j.*,
+                wp.name as worker_name,
+                wp.category as worker_category,
+                wp.is_verified as worker_verified,
+                wp.avg_rating as worker_rating,
+                wp.profile_s3_key as worker_photo
+            FROM jobs j
+            LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
+            WHERE j.id = ?
+        `, [req.params.id]);
+
+        const job = jobsWithWorkers[0];
 
         if (!job || job.customer_id !== userId) return fail(res, 'Not found', 404, 'NOT_FOUND');
 
-        // Clean out sensitive hashes dynamically
+        // Clean out sensitive hashes
         delete job.start_otp_hash;
         delete job.end_otp_hash;
+
+        // Map worker object if assigned
+        if (job.worker_id) {
+            const bucket = process.env.AWS_BUCKET_NAME;
+            const region = process.env.AWS_REGION;
+            const photoUrl = job.worker_photo
+                ? `https://${bucket}.s3.${region}.amazonaws.com/${job.worker_photo}`
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(job.worker_name || 'Worker')}&background=random`;
+
+            job.worker = {
+                name: job.worker_name || 'Worker',
+                category: job.worker_category || 'Service',
+                rating: job.worker_rating || 5.0,
+                photo: photoUrl,
+                is_verified: !!job.worker_verified
+            };
+        }
+
+        // Remove flattened fields
+        delete job.worker_name;
+        delete job.worker_rating;
+        delete job.worker_photo;
+        delete job.worker_category;
+        delete job.worker_verified;
 
         // INJECT Redis Start OTP if Status matches
         if (job.status === 'worker_arrived') {

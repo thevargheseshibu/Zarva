@@ -57,9 +57,10 @@ apiClient.interceptors.response.use(
                 'You\'ve made too many requests. Please wait a moment and try again.',
                 [{ text: 'OK' }]
             );
-        } else if (error?.response?.data?.message && status !== 401) {
-            // Propagate specific server rejections to the user UI natively (Issue #46)
-            Alert.alert('Error', error.response.data.message, [{ text: 'OK' }]);
+        }
+        // Only show global alert for unexpected 5xx errors, not 4xx which screens handle locally
+        else if (error?.response?.data?.message && status >= 500) {
+            Alert.alert('Server Error', error.response.data.message, [{ text: 'OK' }]);
         }
 
         return Promise.reject(error);

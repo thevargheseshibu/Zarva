@@ -14,11 +14,8 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
     const { searchPhase, assignedWorker, clearActiveJob } = useJobStore();
 
-    const status = searchPhase || 'assigned';
-    const mockWorker = assignedWorker || {
-        name: 'Rahul R', rating: 4.8, category: 'Plumber', phone: '+91 9876543210',
-        photo: 'https://i.pravatar.cc/150?img=11'
-    };
+    const status = searchPhase || 'searching';
+    const worker = assignedWorker;
 
     const [startOtp, setStartOtp] = useState(null);
     const [verifyingEndOtp, setVerifyingEndOtp] = useState(false);
@@ -50,6 +47,20 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     if (job.scheduled_for) setScheduledFor(job.scheduled_for);
                     if (job.is_emergency) setIsEmergency(true);
                     if (job.auto_escalate_at) setAutoEscalateAt(job.auto_escalate_at);
+
+                    // Populate worker and status in store if present in API but not store
+                    // This handles navigation from MyJobs list where store might be cold
+                    if (job.status) {
+                        useJobStore.setState({ searchPhase: job.status });
+                    }
+                    if (job.worker) {
+                        useJobStore.setState({ assignedWorker: job.worker });
+                    }
+
+                    // Always start listening for real-time updates if job is active
+                    if (!['completed', 'cancelled', 'no_worker_found'].includes(job.status)) {
+                        useJobStore.getState().startListening(jobId);
+                    }
                 }
             })
             .catch(err => console.error('Failed to fetch job data', err));
@@ -97,7 +108,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     );
 
     // Timeline logic
-    const STAGES = ['searching', 'assigned', 'worker_arrived', 'in_progress', 'pending_completion'];
+    const STAGES = ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
     const currentIdx = STAGES.indexOf(status) === -1 ? STAGES.length : STAGES.indexOf(status);
 
     const renderTick = (label, index) => {
@@ -150,12 +161,17 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 </Card>
 
                 {/* Worker Info Card */}
-                {currentIdx >= 1 && status !== 'no_worker_found' && (
+                {currentIdx >= 1 && status !== 'no_worker_found' && worker && (
                     <Card style={styles.workerCard}>
-                        <Image source={{ uri: mockWorker.photo }} style={styles.wPhoto} />
+                        <Image source={{ uri: worker.photo }} style={styles.wPhoto} />
                         <View style={styles.wInfo}>
-                            <Text style={styles.wName}>{mockWorker.name}</Text>
-                            <Text style={styles.wMeta}>⭐ {mockWorker.rating} • {mockWorker.category}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Text style={styles.wName}>{worker.name}</Text>
+                                {worker.is_verified && <Text style={styles.verifiedBadge}>✓</Text>}
+                            </View>
+                            <Text style={styles.wMeta}>
+                                ⭐ {worker.rating} • {worker.category ? worker.category.charAt(0).toUpperCase() + worker.category.slice(1).replace(/_/g, ' ') : 'Worker'}
+                            </Text>
                         </View>
                         <TouchableOpacity style={styles.callBtn}>
                             <Text style={styles.callIcon}>📞</Text>
@@ -167,7 +183,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 {status === 'worker_arrived' && (
                     <Card glow style={styles.actionCard}>
                         <Text style={styles.actionTitle}>Share Start Code</Text>
-                        <Text style={styles.actionSub}>Give this 4-digit code to {mockWorker.name} to begin the work timer.</Text>
+                        <Text style={styles.actionSub}>Give this 4-digit code to {worker?.name || 'the worker'} to begin the work timer.</Text>
                         {startOtp ? (
                             <View style={[styles.readOnlyOtpWrap, { marginTop: spacing.md }]}>
                                 <Text style={styles.readOnlyOtpTxt}>{startOtp}</Text>
@@ -181,14 +197,14 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 {status === 'pending_completion' && (
                     <Card glow style={styles.actionCard}>
                         <Text style={styles.actionTitle}>Verify Completion</Text>
-                        <Text style={styles.actionSub}>Ask {mockWorker.name} for the End OTP to confirm the work is done and stop the timer.</Text>
+                        <Text style={styles.actionSub}>Ask {worker?.name || 'the worker'} for the End OTP to confirm the work is done and stop the timer.</Text>
                         <View style={{ marginTop: spacing.md }}>
                             <OTPInput
                                 disabled={verifyingEndOtp}
                                 onComplete={async (code) => {
                                     setVerifyingEndOtp(true);
                                     try {
-                                        await apiClient.post(`/api/jobs/${jobId}/verify-end-otp`, { code });
+                                        await apiClient.post(`/api/jobs/${jobId}/verify-end-otp`, { otp: code });
                                         navigation.replace('Payment', { jobId });
                                     } catch (err) {
                                         Alert.alert('Invalid OTP', err.response?.data?.message || 'Verification failed. Try again.');
@@ -258,6 +274,18 @@ const styles = StyleSheet.create({
     wPhoto: { width: 50, height: 50, borderRadius: 25 },
     wInfo: { flex: 1 },
     wName: { color: colors.text.primary, fontSize: 18, fontWeight: '700' },
+    verifiedBadge: {
+        backgroundColor: colors.success,
+        color: colors.bg.primary,
+        fontSize: 10,
+        fontWeight: '900',
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        textAlign: 'center',
+        lineHeight: 14,
+        overflow: 'hidden'
+    },
     wMeta: { color: colors.text.secondary, fontSize: 13, marginTop: 2 },
     callBtn: {
         width: 44, height: 44, borderRadius: 22,

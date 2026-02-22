@@ -6,30 +6,47 @@ import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
 import JobAlertBottomSheet from '../../components/JobAlertBottomSheet';
 import { useT } from '../../hooks/useT';
+import { useWorkerStore } from '../../stores/workerStore';
 import apiClient from '../../services/api/client';
 
 export default function WorkerHomeScreen({ navigation }) {
     const t = useT();
-    const [isOnline, setIsOnline] = useState(false);
-    const [isAvailable, setIsAvailable] = useState(false);
+    const { isOnline, setOnline, isAvailable, setAvailable, activeJob, setActiveJob } = useWorkerStore();
     const [toggling, setToggling] = useState(false);
     const [worker, setWorker] = useState({ name: '', rating: 0, verified: false });
     const [earningsToday, setEarningsToday] = useState(0);
     const [stats, setStats] = useState({ today: 0, week: 0 });
-    const [activeJob, setActiveJob] = useState(null);
+
+    const fetchActiveJob = async (jobId) => {
+        try {
+            const res = await apiClient.get(`/api/worker/jobs/${jobId}`);
+            if (res.data?.job) {
+                setActiveJob(res.data.job);
+            }
+        } catch (err) {
+            console.error('[WorkerHome] Failed to fetch active job:', err);
+        }
+    };
 
     const fetchProfile = async () => {
         try {
             const res = await apiClient.get('/api/me');
-            const data = res.data?.user || res.data;
-            if (data) {
+            const user = res.data?.user;
+            if (user && user.profile) {
+                const p = user.profile;
                 setWorker({
-                    name: data.worker_profile?.full_name || data.name || 'Worker',
-                    rating: data.worker_profile?.rating || 0,
-                    verified: !!data.worker_profile?.is_verified,
+                    name: p.name || 'Worker',
+                    rating: Number(p.average_rating || 0),
+                    verified: !!p.is_verified,
                 });
-                setIsOnline(!!data.worker_profile?.is_online);
-                setIsAvailable(!!data.worker_profile?.is_available);
+                setOnline(!!p.is_online);
+                setAvailable(!!p.is_available);
+
+                if (p.current_job_id) {
+                    fetchActiveJob(p.current_job_id);
+                } else {
+                    setActiveJob(null);
+                }
             }
         } catch (err) {
             console.error('[WorkerHome] Failed to fetch profile:', err);
@@ -47,7 +64,7 @@ export default function WorkerHomeScreen({ navigation }) {
         setToggling(true);
         try {
             const res = await apiClient.put('/api/worker/availability', { is_online: val });
-            setIsOnline(res.data?.is_online ?? val);
+            setOnline(res.data?.is_online ?? val);
             if (res.data?.warning) {
                 Alert.alert('Warning', res.data.warning);
             }
@@ -64,13 +81,17 @@ export default function WorkerHomeScreen({ navigation }) {
         setToggling(true);
         try {
             const res = await apiClient.put('/api/worker/availability', { is_available: val });
-            setIsAvailable(res.data?.is_available ?? val);
+            setAvailable(res.data?.is_available ?? val);
         } catch (err) {
             Alert.alert('Error', err?.response?.data?.message || 'Failed to update availability.');
         } finally {
             setToggling(false);
         }
     };
+
+    // Safely format rating for display
+    const rawRating = worker.rating !== undefined && worker.rating !== null ? Number(worker.rating) : 0;
+    const displayRating = (isNaN(rawRating) ? 0 : rawRating).toFixed(1);
 
     return (
         <View style={styles.screen}>
@@ -83,7 +104,7 @@ export default function WorkerHomeScreen({ navigation }) {
                             <Text style={styles.name}>{worker.name || 'Worker'}</Text>
                             {worker.verified && <Text style={styles.badge}>✅</Text>}
                         </View>
-                        <Text style={styles.rating}>⭐ {worker.rating?.toFixed(1) || '–'} Average Rating</Text>
+                        <Text style={styles.rating}>⭐ {displayRating} Average Rating</Text>
                     </View>
 
                     <View style={{ flexDirection: 'row', gap: spacing.md }}>
@@ -136,7 +157,7 @@ export default function WorkerHomeScreen({ navigation }) {
                         <Text style={styles.sLabel}>{t('tab_this_week')}</Text>
                     </View>
                     <View style={styles.statBox}>
-                        <Text style={styles.sValue}>{worker.rating?.toFixed(1) || '–'}</Text>
+                        <Text style={styles.sValue}>{displayRating}</Text>
                         <Text style={styles.sLabel}>{t('stats_rating')}</Text>
                     </View>
                 </View>
@@ -159,8 +180,8 @@ export default function WorkerHomeScreen({ navigation }) {
                                 <Text style={styles.ajCategory}>{activeJob.category}</Text>
                                 <StatusPill status={activeJob.status} />
                             </View>
-                            <Text style={styles.ajDate}>{activeJob.date}</Text>
-                            <Text style={styles.ajAddress} numberOfLines={2}>📍 {activeJob.address}</Text>
+                            <Text style={styles.ajDate}>{activeJob.date || activeJob.created_at ? new Date(activeJob.created_at).toLocaleDateString() : 'Today'}</Text>
+                            <Text style={styles.ajAddress} numberOfLines={2}>📍 {activeJob.address || 'Address not found'}</Text>
                             <TouchableOpacity
                                 style={styles.viewJobBtn}
                                 onPress={() => navigation.navigate('ActiveJob', { jobId: activeJob.id })}

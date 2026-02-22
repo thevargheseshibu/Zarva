@@ -1,43 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import apiClient from '../../services/api/client';
 
-// Mock Config for development testing
-const MOCK_CONFIG = {
-    base_price: 300,
-    questions: [
-        {
-            id: 'q1',
-            type: 'single_select',
-            label: 'What type of plumbing issue?',
-            options: ['Leakage', 'Blockage', 'Installation', 'Other'],
-            required: true
-        },
-        {
-            id: 'q2',
-            type: 'text',
-            label: 'Describe the issue briefly',
-            required: false,
-            skippable: true
-        },
-        {
-            id: 'q3',
-            type: 'image',
-            label: 'Upload a photo (optional)',
-            required: false,
-            skippable: true
-        }
-    ]
+// Category-aware fallback questions — used when server is unreachable
+const CATEGORY_QUESTIONS = {
+    plumber: ['What type of plumbing issue?', 'Where is the problem located?'],
+    electrician: ['What electrical work is needed?', 'Is it urgent / power cut?'],
+    carpenter: ['What furniture or fixture needs work?', 'Approximate size / dimensions?'],
+    ac_repair: ['Which type of AC? (Split / Window / Cassette)', 'What is the exact problem?'],
+    painter: ['How many rooms / area in sq ft?', 'Interior, exterior, or both?'],
+    cleaning: ['Type of cleaning? (Home / Office / Post-renovation)', 'Approximate area in sq ft?'],
+    cleaner: ['Type of cleaning? (Home / Office / Post-renovation)', 'Approximate area in sq ft?'],
+    driver: ['Outstation or local trip?', 'Please share pickup & drop location'],
+    helper: ['What kind of help do you need?', 'How many hours approximately?'],
 };
 
-export default function DynamicQuestionsScreen({ route, navigation }) {
-    const { category, label } = route.params || { category: 'plumber', label: 'Plumber' };
+const DEFAULT_QUESTIONS = ['Describe what you need help with', 'Any specific requirements?'];
 
-    const [config, setConfig] = useState(MOCK_CONFIG);
+function buildFallbackConfig(category, basePrice = 300) {
+    const qs = CATEGORY_QUESTIONS[category] || DEFAULT_QUESTIONS;
+    return {
+        base_price: basePrice,
+        questions: [
+            { id: 'q1', type: 'text', label: qs[0], required: true },
+            { id: 'q2', type: 'text', label: qs[1] || 'Any other details?', required: false, skippable: true },
+            { id: 'q3', type: 'image', label: 'Upload a photo (optional)', required: false, skippable: true },
+        ]
+    };
+}
+
+export default function DynamicQuestionsScreen({ route, navigation }) {
+    const { category, label } = route.params || { category: 'electrician', label: 'Electrician' };
+
+    const [config, setConfig] = useState(() => buildFallbackConfig(category));
     const [answers, setAnswers] = useState({});
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -66,6 +65,8 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                 setConfig({ base_price: basePrice, questions: dynamicQuestions });
             } catch (err) {
                 console.error('Failed to load dynamic config', err);
+                // Use category-aware fallback — never fall back to plumber questions
+                setConfig(buildFallbackConfig(category));
             } finally {
                 setLoading(false);
             }
@@ -99,24 +100,48 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         const localUri = result.assets[0].uri;
 
         try {
-            // Hit the real backend upload pre-signer
+            // 1. Get Pre-signed URL
             const presignRes = await apiClient.post('/api/uploads/presign', {
                 purpose: 'job_photo',
                 filename: `job_photo_${Date.now()}.jpg`,
                 mime_type: 'image/jpeg',
             });
-            const { upload_url } = presignRes.data;
+            const { upload_url, s3_key } = presignRes.data;
+
+            // The URL for the worker to view later is typically a cloudfront or bucket URL
+            // We use the base S3 URL without query params for internal tracking
             const public_url = upload_url.split('?')[0];
 
-            await FileSystem.uploadAsync(upload_url, localUri, {
+            console.log(`[S3] Starting upload to: ${s3_key}`);
+
+            // 2. Perform Binary PUT to S3
+            const uploadResult = await FileSystem.uploadAsync(upload_url, localUri, {
                 httpMethod: 'PUT',
+                uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
                 headers: { 'Content-Type': 'image/jpeg' },
             });
 
+            if (uploadResult.status !== 200) {
+                throw new Error(`S3 Upload failed with status ${uploadResult.status}`);
+            }
+
+            console.log(`[S3] Upload successful. Confirming token...`);
+
+            // 3. Confirm with backend to mark token as used
+            await apiClient.post('/api/uploads/confirm', { s3_key });
+
+            // Store the final S3 URL as the answer
             handleAnswer(questionId, public_url);
+            console.log(`[S3] Photo linked: ${public_url}`);
+
         } catch (err) {
-            // Dev fallback
-            handleAnswer(questionId, localUri);
+            console.error('[S3 Export Error]', err.message);
+            Alert.alert(
+                'Upload Failed',
+                'Could not save your photo to our secure storage. Please check your connection and try again.'
+            );
+            // DO NOT fallback to localUri - it breaks tracking for workers
+            handleAnswer(questionId, null);
         } finally {
             setUploading(false);
         }
@@ -211,7 +236,20 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                 <GoldButton
                     title="Review Details"
                     disabled={isNextDisabled || uploading}
-                    onPress={() => navigation.navigate('PriceEstimate', { category, label, answers, basePrice: config.base_price })}
+                    onPress={() => {
+                        const structuredAnswers = config.questions.map(q => ({
+                            question: q.label,
+                            answer: answers[q.id] || (q.required ? '' : 'SKIPPED')
+                        })).filter(a => a.answer !== '');
+
+                        navigation.navigate('PriceEstimate', {
+                            category,
+                            label,
+                            answers,
+                            structuredAnswers,
+                            basePrice: config.base_price
+                        });
+                    }}
                     style={{ marginTop: spacing.xl }}
                 />
             </ScrollView>

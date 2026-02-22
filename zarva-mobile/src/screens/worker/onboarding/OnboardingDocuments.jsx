@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Alert, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { colors, spacing, radius } from '../../../design-system/tokens';
 import GoldButton from '../../../components/GoldButton';
 import apiClient from '../../../services/api/client';
@@ -14,6 +14,7 @@ const DOCS = [
     { key: 'aadhaar_front', label: 'Aadhaar Front', icon: '🪪' },
     { key: 'aadhaar_back', label: 'Aadhaar Back', icon: '🪪' },
     { key: 'selfie', label: 'Your Photo', icon: '🤳' },
+    { key: 'agreement_signature', label: 'Physical Signature', icon: '📝' },
 ];
 
 async function uploadImage(uri, docKey) {
@@ -38,15 +39,15 @@ async function uploadImage(uri, docKey) {
 
         return s3_key; // return s3_key for later submission
     } catch (err) {
-        // Dev mock: return local uri on error
-        console.error("Upload failed:", err);
-        return uri;
+        console.error("Upload failed natively:", err);
+        throw err;
     }
 }
 
 export default function OnboardingDocuments({ data, onNext }) {
     const [uploads, setUploads] = useState(data.documents || {});
     const [loading, setLoading] = useState({});
+    const [errors, setErrors] = useState({});
 
     const pickImage = async (docKey) => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -68,12 +69,35 @@ export default function OnboardingDocuments({ data, onNext }) {
 
         const uri = result.assets[0].uri;
         setLoading(l => ({ ...l, [docKey]: true }));
-        const url = await uploadImage(uri, docKey);
-        setUploads(u => ({ ...u, [docKey]: url }));
-        setLoading(l => ({ ...l, [docKey]: false }));
+        setErrors(e => ({ ...e, [docKey]: false }));
+
+        try {
+            const url = await uploadImage(uri, docKey);
+            setUploads(u => ({ ...u, [docKey]: url }));
+        } catch (e) {
+            setUploads(u => ({ ...u, [docKey]: uri })); // Store local URI to preview
+            setErrors(e => ({ ...e, [docKey]: true }));
+        } finally {
+            setLoading(l => ({ ...l, [docKey]: false }));
+        }
     };
 
-    const allUploaded = DOCS.every(d => uploads[d.key]);
+    const retryUpload = async (docKey) => {
+        const uri = uploads[docKey];
+        if (!uri) return;
+        setLoading(l => ({ ...l, [docKey]: true }));
+        setErrors(e => ({ ...e, [docKey]: false }));
+        try {
+            const url = await uploadImage(uri, docKey);
+            setUploads(u => ({ ...u, [docKey]: url }));
+        } catch (e) {
+            setErrors(e => ({ ...e, [docKey]: true }));
+        } finally {
+            setLoading(l => ({ ...l, [docKey]: false }));
+        }
+    };
+
+    const allUploaded = DOCS.every(d => uploads[d.key] && !errors[d.key]);
 
     return (
         <ScrollView contentContainerStyle={styles.screen}>
@@ -83,15 +107,17 @@ export default function OnboardingDocuments({ data, onNext }) {
             {DOCS.map(doc => {
                 const uri = uploads[doc.key];
                 const isLoading = loading[doc.key];
+                const isFailed = errors[doc.key];
+
                 return (
                     <TouchableOpacity
                         key={doc.key}
-                        style={[styles.card, uri && styles.cardDone]}
-                        onPress={() => pickImage(doc.key)}
+                        style={[styles.card, uri && !isFailed && styles.cardDone, isFailed && styles.cardFailed]}
+                        onPress={() => isFailed ? retryUpload(doc.key) : pickImage(doc.key)}
                         activeOpacity={0.8}
                     >
                         {uri ? (
-                            <Image source={{ uri }} style={styles.preview} />
+                            <Image source={{ uri: isFailed ? uri : (uri.startsWith('http') ? uri : `https://s3.placeholder/${uri}`) }} style={styles.preview} />
                         ) : (
                             <View style={styles.placeholder}>
                                 <Text style={styles.docIcon}>{doc.icon}</Text>
@@ -100,8 +126,8 @@ export default function OnboardingDocuments({ data, onNext }) {
                         )}
                         <View style={styles.cardInfo}>
                             <Text style={styles.docLabel}>{doc.label}</Text>
-                            <Text style={styles.docSub}>
-                                {isLoading ? 'Uploading...' : uri ? '✓ Uploaded' : 'Tap to upload'}
+                            <Text style={[styles.docSub, isFailed && { color: colors.error }]}>
+                                {isLoading ? 'Uploading...' : isFailed ? 'Upload Failed. Tap to Retry' : uri ? '✓ Uploaded' : 'Tap to upload'}
                             </Text>
                         </View>
                     </TouchableOpacity>
@@ -128,6 +154,7 @@ const styles = StyleSheet.create({
         padding: spacing.md, borderWidth: 1, borderColor: colors.bg.surface,
     },
     cardDone: { borderColor: colors.success + '88' },
+    cardFailed: { borderColor: colors.error + '88' },
     placeholder: {
         width: 64, height: 64, borderRadius: radius.md,
         backgroundColor: colors.bg.surface, justifyContent: 'center',
