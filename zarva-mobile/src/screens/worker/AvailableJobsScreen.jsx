@@ -7,6 +7,8 @@ import apiClient from '../../services/api/client';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { parseJobDescription } from '../../utils/jobParser';
+import * as Location from 'expo-location';
+import { haversineKm, formatDistance } from '../../utils/distance';
 
 dayjs.extend(relativeTime);
 
@@ -21,9 +23,36 @@ export default function AvailableJobsScreen({ navigation }) {
 
     const fetchJobs = async () => {
         try {
+            // Get current location once
+            let currentLoc = null;
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+                const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                currentLoc = { lat: location.coords.latitude, lng: location.coords.longitude };
+            }
+
             const res = await apiClient.get('/api/worker/available-jobs');
             setIsOnline(res.data?.is_online);
-            setJobs(res.data?.jobs || []);
+
+            let rawJobs = res.data?.jobs || [];
+
+            // Calculate distance for all jobs if location is available
+            if (currentLoc) {
+                rawJobs = rawJobs.map(job => {
+                    if (job.latitude && job.longitude) {
+                        return {
+                            ...job,
+                            dist: haversineKm(currentLoc.lat, currentLoc.lng, job.latitude, job.longitude)
+                        };
+                    }
+                    return job;
+                });
+
+                // Sort by distance ascending
+                rawJobs.sort((a, b) => (a.dist || 999) - (b.dist || 999));
+            }
+
+            setJobs(rawJobs);
         } catch (err) {
             console.error('Failed to fetch available jobs:', err);
         } finally {
@@ -74,8 +103,8 @@ export default function AvailableJobsScreen({ navigation }) {
                     </View>
 
                     <View style={styles.distRow}>
-                        <Text style={styles.distTxt}>📍 {item.dist} km away • Wave {item.wave_number || 1}</Text>
-                        <Text style={styles.estTxt}>Est: {item.est}</Text>
+                        <Text style={styles.distTxt}>📍 {formatDistance(item.dist) || '—'} away • Wave {item.wave_number || 1}</Text>
+                        <Text style={styles.estTxt}>Est: ₹{parseFloat(item.total_amount || 0).toFixed(0)}</Text>
                     </View>
 
                     <Text style={styles.descTxt} numberOfLines={2}>"{descText}"</Text>

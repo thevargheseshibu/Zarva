@@ -25,6 +25,35 @@ import { useJobStore } from './src/stores/jobStore';
 import { useWorkerStore } from './src/stores/workerStore';
 import { useAuthStore } from './src/stores/authStore';
 import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
+import * as Location from 'expo-location';
+import { JobAlertService } from './src/services/JobAlertService';
+
+// Define Background Location Task
+const LOCATION_TASK_NAME = 'background-location-task';
+
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+  if (error) {
+    console.error('[Background Location] Error:', error);
+    return;
+  }
+  if (data) {
+    const { locations } = data;
+    const [location] = locations;
+    if (location) {
+      const { latitude, longitude } = location.coords;
+      const isOnline = useWorkerStore.getState().isOnline;
+      const isAuthenticated = useAuthStore.getState().isAuthenticated;
+
+      if (isOnline && isAuthenticated) {
+        await apiClient.put('/api/worker/location', {
+          lat: latitude,
+          lng: longitude
+        }).catch(e => console.warn('BG Location sync failed', e));
+      }
+    }
+  }
+});
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -44,9 +73,8 @@ export default function App() {
   const { language, isLoaded, loadLanguage } = useLanguageStore();
 
   React.useEffect(() => {
-    // When the persisted language code hydrating changes, or on first mount,
-    // load the actual translation file dictionary into the store.
     loadLanguage(language);
+    JobAlertService.init();
   }, [language]);
 
   React.useEffect(() => {
@@ -91,30 +119,16 @@ export default function App() {
 
       registerForPushNotificationsAsync();
 
-      // Background / Foreground active listeners mapping matching payload structure
+      // 5. Native Receivers delegating to JobAlertService
       const notificationListener = {
         current: Notifications.addNotificationReceivedListener(notification => {
-          const data = notification.request.content.data;
-          if (data?.type === 'NEW_JOB' && data?.jobId) {
-            useWorkerStore.getState().setPendingJobAlert({
-              jobId: data.jobId,
-              category: data.category || 'Service',
-              distanceKm: data.distance || null
-            });
-          }
+          JobAlertService.handleIncomingNotification(notification);
         })
       };
 
       const responseListener = {
         current: Notifications.addNotificationResponseReceivedListener(response => {
-          const data = response.notification.request.content.data;
-          if (data?.type === 'NEW_JOB' && data?.jobId) {
-            useWorkerStore.getState().setPendingJobAlert({
-              jobId: data.jobId,
-              category: data.category || 'Service',
-              distanceKm: data.distance || null
-            });
-          }
+          JobAlertService.handleIncomingNotification(response.notification);
         })
       };
 

@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
@@ -8,6 +9,8 @@ import JobAlertBottomSheet from '../../components/JobAlertBottomSheet';
 import { useT } from '../../hooks/useT';
 import { useWorkerStore } from '../../stores/workerStore';
 import apiClient from '../../services/api/client';
+
+const LOCATION_TASK_NAME = 'background-location-task';
 
 export default function WorkerHomeScreen({ navigation }) {
     const t = useT();
@@ -64,7 +67,15 @@ export default function WorkerHomeScreen({ navigation }) {
         setToggling(true);
         try {
             const res = await apiClient.put('/api/worker/availability', { is_online: val });
-            setOnline(res.data?.is_online ?? val);
+            const online = res.data?.is_online ?? val;
+            setOnline(online);
+
+            if (online) {
+                await startBackgroundTracking();
+            } else {
+                await stopBackgroundTracking();
+            }
+
             if (res.data?.warning) {
                 Alert.alert('Warning', res.data.warning);
             }
@@ -73,6 +84,45 @@ export default function WorkerHomeScreen({ navigation }) {
             Alert.alert('Error', msg);
         } finally {
             setToggling(false);
+        }
+    };
+
+    const startBackgroundTracking = async () => {
+        try {
+            const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+            if (fgStatus !== 'granted') return;
+
+            const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+            if (bgStatus !== 'granted') {
+                Alert.alert('Permission Required', 'Background location is needed to find jobs while you are online.');
+                return;
+            }
+
+            await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+                accuracy: Location.Accuracy.Balanced,
+                timeInterval: 60000, // Sync every minute
+                distanceInterval: 100, // or 100 meters
+                foregroundService: {
+                    notificationTitle: "ZARVA Online",
+                    notificationBody: "Actively looking for jobs near you.",
+                    notificationColor: colors.gold.primary
+                }
+            });
+            console.log('[WorkerHome] Background tracking started');
+        } catch (e) {
+            console.error('[WorkerHome] Failed to start bg tracking', e);
+        }
+    };
+
+    const stopBackgroundTracking = async () => {
+        try {
+            const started = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+            if (started) {
+                await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+                console.log('[WorkerHome] Background tracking stopped');
+            }
+        } catch (e) {
+            console.error('[WorkerHome] Failed to stop bg tracking', e);
         }
     };
 

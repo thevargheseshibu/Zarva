@@ -1,21 +1,41 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator } from 'react-native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import apiClient from '../../services/api/client';
 
 export default function RatingScreen({ route, navigation }) {
-    const { jobId } = route.params || { jobId: 'mock-123' };
+    const { jobId } = route.params || {};
 
     const [rating, setRating] = useState(0);
-    const [quality, setQuality] = useState(0);
-    const [punctual, setPunctual] = useState(0);
-    const [behavior, setBehavior] = useState(0);
+    const [punctuality, setPunctuality] = useState(0);
+    const [communication, setCommunication] = useState(0);
+    const [professionalism, setProfessionalism] = useState(0);
     const [comment, setComment] = useState('');
     const [loading, setLoading] = useState(false);
+    const [fetchLoading, setFetchLoading] = useState(true);
 
-    // Mock Worker Data
-    const worker = { name: 'Rahul R', photo: 'https://i.pravatar.cc/150?img=11' };
+    const [job, setJob] = useState(null);
+
+    React.useEffect(() => {
+        const fetchDetails = async () => {
+            if (!jobId) {
+                setFetchLoading(false);
+                return;
+            }
+            try {
+                const res = await apiClient.get(`/api/jobs/${jobId}`);
+                setJob(res.data?.job);
+            } catch (err) {
+                console.error('Failed to fetch job for rating', err);
+            } finally {
+                setFetchLoading(false);
+            }
+        };
+        fetchDetails();
+    }, [jobId]);
+
+    const worker = job?.worker || { name: 'Worker', photo: null, rating: 0 };
 
     const handleSubmit = async () => {
         setLoading(true);
@@ -23,7 +43,11 @@ export default function RatingScreen({ route, navigation }) {
             await apiClient.post(`/api/reviews`, {
                 job_id: jobId,
                 overall_score: rating,
-                category_scores: { quality, punctual, behavior },
+                category_scores: {
+                    punctuality,
+                    communication,
+                    professionalism
+                },
                 comment
             });
             navigation.popToTop(); // Back to Home in CustomerStack
@@ -47,6 +71,16 @@ export default function RatingScreen({ route, navigation }) {
         </View>
     );
 
+    if (fetchLoading) {
+        return (
+            <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={colors.gold.primary} />
+            </View>
+        );
+    }
+
+    const workerPhoto = worker.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(worker.name)}&background=random`;
+
     return (
         <View style={styles.screen}>
             <View style={styles.header}>
@@ -58,9 +92,25 @@ export default function RatingScreen({ route, navigation }) {
             <ScrollView contentContainerStyle={styles.content}>
 
                 <View style={styles.profileBox}>
-                    <Image source={{ uri: worker.photo }} style={styles.photo} />
+                    <Image source={{ uri: workerPhoto }} style={styles.photo} />
                     <Text style={styles.title}>Rate {worker.name}</Text>
-                    <Text style={styles.sub}>How was your experience?</Text>
+                    {parseFloat(worker.rating) > 0 ? (
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('WorkerReputation', {
+                                workerId: worker.user_id || worker.id,
+                                workerName: worker.name
+                            })}
+                            style={styles.reputationBadge}
+                        >
+                            <Text style={styles.reputationTxt}>★ {parseFloat(worker.rating).toFixed(1)}</Text>
+                            <Text style={styles.reputationLbl}>Worker Reputation ›</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={styles.newWorkerBadgeRating}>
+                            <Text style={styles.newWorkerTxtRating}>New Worker</Text>
+                        </View>
+                    )}
+                    <Text style={styles.sub}>How was your experience with this service?</Text>
                 </View>
 
                 {/* Main Rating */}
@@ -72,16 +122,16 @@ export default function RatingScreen({ route, navigation }) {
                 {rating > 0 && (
                     <View style={styles.metricsBox}>
                         <View style={styles.metricRow}>
-                            <Text style={styles.metricLabel}>Work Quality</Text>
-                            <StarRow value={quality} onChange={setQuality} size={28} />
-                        </View>
-                        <View style={styles.metricRow}>
                             <Text style={styles.metricLabel}>Punctuality</Text>
-                            <StarRow value={punctual} onChange={setPunctual} size={28} />
+                            <StarRow value={punctuality} onChange={setPunctuality} size={28} />
                         </View>
                         <View style={styles.metricRow}>
-                            <Text style={styles.metricLabel}>Behavior</Text>
-                            <StarRow value={behavior} onChange={setBehavior} size={28} />
+                            <Text style={styles.metricLabel}>Communication</Text>
+                            <StarRow value={communication} onChange={setCommunication} size={28} />
+                        </View>
+                        <View style={styles.metricRow}>
+                            <Text style={styles.metricLabel}>Professionalism</Text>
+                            <StarRow value={professionalism} onChange={setProfessionalism} size={28} />
                         </View>
 
                         <TextInput
@@ -141,6 +191,32 @@ const styles = StyleSheet.create({
         color: colors.text.primary, padding: spacing.md, fontSize: 15,
         minHeight: 100, textAlignVertical: 'top', marginTop: spacing.md,
         borderWidth: 1, borderColor: colors.bg.surface
+    },
+
+    reputationBadge: {
+        flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+        backgroundColor: colors.gold.primary + '15',
+        paddingHorizontal: spacing.md, paddingVertical: 4,
+        borderRadius: radius.full, borderWidth: 1, borderColor: colors.gold.primary + '33'
+    },
+    reputationTxt: { color: colors.gold.primary, fontWeight: '800', fontSize: 14 },
+    reputationLbl: { color: colors.gold.primary, fontSize: 11, fontWeight: '600', textDecorationLine: 'underline' },
+
+    newWorkerBadgeRating: {
+        backgroundColor: colors.gold.primary + '22',
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: colors.gold.primary + '44',
+        marginVertical: spacing.sm,
+    },
+    newWorkerTxtRating: {
+        color: colors.gold.primary,
+        fontSize: 12,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
 
     footer: { padding: spacing.lg, paddingBottom: spacing.xl * 2, borderTopWidth: 1, borderTopColor: colors.bg.surface }

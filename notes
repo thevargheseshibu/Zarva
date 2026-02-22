@@ -123,4 +123,9 @@ Firebase Phone Auth fails on local emulators/devices because Google Play Integri
 4. Go to [Firebase Console](https://console.firebase.google.com/) -> Project Settings -> General.
 5. Under your Android app (`com.zarva.app`), click **Add fingerprint**.
 6. Paste both the SHA1 and SHA-256 keys.
-7. Wait 3-5 minutes, hit `R` in Metro, and test SMS again.
+7. Wait 3-5 minutes, hit `R` in Metro, and test SMS again..
+
+
+
+
+AIzaSyDP5O9LyDSQTmrMpZI8ztQyVY4yH9cQSaI

@@ -253,7 +253,49 @@ router.post('/jobs/:id/arrived', (req, res) =>
         // Real Firebase Update
         await updateJobNode(jobId, { status: 'worker_arrived' });
 
+        // Phase 12: Trigger Phone Push to Customer (Issue #1, #2)
+        const { notifyCustomerWorkerArrived } = await import('../services/notification.service.js');
+        await notifyCustomerWorkerArrived(jobId, otp);
+
         return { arrived: true }; // NEVER return OTP to worker
+    })
+);
+
+/**
+ * Worker RE-TRIGGERS Start OTP Notification
+ * Guards: worker_arrived
+ */
+router.post('/jobs/:id/resend-start-otp', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+
+        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = ?', [jobId]);
+        const job = jobs[0];
+
+        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (job.status !== 'worker_arrived') throw Object.assign(new Error('Invalid job state'), { status: 400 });
+
+        const redisClient = getRedisClient();
+        let otp = await redisClient.get(`zarva:otp:start:${jobId}`);
+
+        // If OTP missing/expired, regenerate it (Issue: Refresh Support)
+        if (!otp) {
+            console.log(`[Worker] OTP for job ${jobId} expired/missing in Redis. Regenerating...`);
+            otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+            const hash = await bcrypt.hash(otp, 10);
+
+            await pool.query(
+                `UPDATE jobs SET start_otp_hash=?, start_otp_generated_at=NOW() WHERE id=?`,
+                [hash, jobId]
+            );
+            await redisClient.set(`zarva:otp:start:${jobId}`, otp, 'EX', 3600);
+        }
+
+        const { notifyCustomerWorkerArrived } = await import('../services/notification.service.js');
+        await notifyCustomerWorkerArrived(jobId, otp);
+
+        console.log(`[Worker] Start OTP (Resend/Refresh) triggered for job ${jobId}`);
+        return { resent: true, regenerated: !otp };
     })
 );
 
@@ -264,7 +306,8 @@ router.post('/jobs/:id/arrived', (req, res) =>
 router.post('/jobs/:id/verify-start-otp', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
-        const { otp } = req.body;
+        const { otp, code } = req.body;
+        const inputOtp = otp || code; // Support both for mobile compatibility
 
         const [jobs] = await pool.query('SELECT id, status, worker_id, start_otp_hash, start_otp_generated_at, start_otp_attempts FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
         const job = jobs[0];
@@ -285,10 +328,10 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         // Validity Checks
         if (!job.start_otp_hash) throw new Error('OTP was never generated');
         const generatedAt = new Date(job.start_otp_generated_at);
-        if ((Date.now() - generatedAt.getTime()) > 3600000) throw Object.assign(new Error('OTP Expired'), { status: 400 });
+        if ((Date.now() - generatedAt.getTime()) > 3600000) throw Object.assign(new Error('OTP Expired. Please tap "Ask for code" to refresh.'), { status: 400 });
 
         // Evaluate Bcrypt Hash
-        const match = await bcrypt.compare(String(otp), job.start_otp_hash);
+        const match = await bcrypt.compare(String(inputOtp), job.start_otp_hash);
 
         if (match) {
             await pool.query(`UPDATE jobs SET status='in_progress', work_started_at=NOW() WHERE id=?`, [jobId]);
@@ -543,7 +586,7 @@ router.put('/availability', (req, res) =>
 router.get('/available-jobs', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const [wp] = await pool.query(
-            'SELECT is_verified, is_online, category, current_lat, current_lng FROM worker_profiles WHERE user_id=?',
+            'SELECT is_verified, is_online, category, last_location_lat, last_location_lng FROM worker_profiles WHERE user_id=?',
             [userId]
         );
         const profile = wp[0];
@@ -576,7 +619,7 @@ router.get('/available-jobs', (req, res) =>
                  WHERE j.status IN ('open', 'searching', 'no_worker_found')
                  HAVING distance_km IS NULL OR distance_km <= 50
                  ORDER BY distance_km ASC, j.created_at DESC LIMIT 50`,
-                [profile.current_lat, profile.current_lng, profile.current_lat]
+                [profile.last_location_lat, profile.last_location_lng, profile.last_location_lat]
             );
         } else {
             // No location set — return all open jobs by date

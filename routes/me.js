@@ -52,6 +52,16 @@ router.post('/profile', async (req, res) => {
     try {
         const pool = getPool();
 
+        // Update name on global user record and relevant role-profile
+        if (name) {
+            const role = profile.active_role;
+            if (role === 'customer') {
+                await pool.query(`UPDATE customer_profiles SET name = ? WHERE user_id = ?`, [name, req.user.id]);
+            } else if (role === 'worker') {
+                await pool.query(`UPDATE worker_profiles SET name = ? WHERE user_id = ?`, [name, req.user.id]);
+            }
+        }
+
         // Update language preference on global user record
         if (language_preference) {
             await pool.query(
@@ -61,12 +71,12 @@ router.post('/profile', async (req, res) => {
         }
 
         // Fetch refreshed profile to return
-        const profile = await getUserProfile(req.user.id, pool);
+        const refreshed = await getUserProfile(req.user.id, pool);
 
         return res.status(200).json({
             status: 'ok',
             message: 'Profile updated successfully',
-            user: profile,
+            user: refreshed,
         });
     } catch (err) {
         console.error('[me.js] Update Profile Error:', err);

@@ -162,21 +162,40 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
                 {/* Worker Info Card */}
                 {currentIdx >= 1 && status !== 'no_worker_found' && worker && (
-                    <Card style={styles.workerCard}>
-                        <Image source={{ uri: worker.photo }} style={styles.wPhoto} />
-                        <View style={styles.wInfo}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                <Text style={styles.wName}>{worker.name}</Text>
-                                {worker.is_verified && <Text style={styles.verifiedBadge}>✓</Text>}
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => navigation.navigate('WorkerReputation', {
+                            workerId: worker.user_id || worker.id,
+                            workerName: worker.name
+                        })}
+                    >
+                        <Card style={styles.workerCard}>
+                            <Image source={{ uri: worker.photo }} style={styles.wPhoto} />
+                            <View style={styles.wInfo}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <Text style={styles.wName}>{worker.name || 'Professional'}</Text>
+                                    {worker.is_verified && <Text style={styles.verifiedBadge}>✓</Text>}
+                                </View>
+                                <View style={styles.wMetaRow}>
+                                    {parseFloat(worker.rating) > 0 ? (
+                                        <Text style={styles.wMeta}>⭐ {parseFloat(worker.rating).toFixed(1)}</Text>
+                                    ) : (
+                                        <View style={styles.newWorkerBadgeMini}>
+                                            <Text style={styles.newWorkerTxtMini}>New Worker</Text>
+                                        </View>
+                                    )}
+                                    <Text style={styles.wMetaDot}>•</Text>
+                                    <Text style={styles.wMeta}>
+                                        {worker.category ? worker.category.charAt(0).toUpperCase() + worker.category.slice(1).replace(/_/g, ' ') : 'Expert'}
+                                    </Text>
+                                </View>
+                                <Text style={styles.viewReputation}>View Past Reviews ›</Text>
                             </View>
-                            <Text style={styles.wMeta}>
-                                ⭐ {worker.rating} • {worker.category ? worker.category.charAt(0).toUpperCase() + worker.category.slice(1).replace(/_/g, ' ') : 'Worker'}
-                            </Text>
-                        </View>
-                        <TouchableOpacity style={styles.callBtn}>
-                            <Text style={styles.callIcon}>📞</Text>
-                        </TouchableOpacity>
-                    </Card>
+                            <TouchableOpacity style={styles.callBtn}>
+                                <Text style={styles.callIcon}>📞</Text>
+                            </TouchableOpacity>
+                        </Card>
+                    </TouchableOpacity>
                 )}
 
                 {/* Dynamic Action Area based on Status */}
@@ -286,13 +305,48 @@ const styles = StyleSheet.create({
         lineHeight: 14,
         overflow: 'hidden'
     },
-    wMeta: { color: colors.text.secondary, fontSize: 13, marginTop: 2 },
+    wMeta: { color: colors.text.secondary, fontSize: 13 },
+    wMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+    wMetaDot: { color: colors.text.muted, fontSize: 13 },
+    newWorkerBadgeMini: {
+        backgroundColor: colors.gold.primary + '22',
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: colors.gold.primary + '33',
+    },
+    newWorkerTxtMini: {
+        color: colors.gold.primary,
+        fontSize: 9,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    viewReputation: { color: colors.gold.primary, fontSize: 12, fontWeight: '600', marginTop: 4, textDecorationLine: 'underline' },
     callBtn: {
         width: 44, height: 44, borderRadius: 22,
         backgroundColor: colors.bg.surface, justifyContent: 'center', alignItems: 'center',
         borderWidth: 1, borderColor: colors.gold.primary + '44'
     },
     callIcon: { fontSize: 20 },
+
+    readOnlyOtpWrap: {
+        backgroundColor: colors.bg.surface,
+        paddingVertical: spacing.xl,
+        paddingHorizontal: spacing.xxl || spacing.xl,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: colors.gold.primary + '44',
+        width: '100%',
+        alignItems: 'center'
+    },
+    readOnlyOtpTxt: {
+        color: '#FFFFFF', // High contrast white
+        fontSize: 52,     // Increased size
+        fontWeight: '900', // Maximum weight
+        letterSpacing: 10,
+        fontFamily: 'Courier',
+    },
 
     actionCard: { padding: spacing.xl, borderColor: colors.gold.primary, borderWidth: 1, alignItems: 'center' },
     actionTitle: { color: colors.gold.primary, fontSize: 20, fontWeight: '800' },

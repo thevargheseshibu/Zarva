@@ -86,7 +86,9 @@ router.get('/', async (req, res) => {
                 wp.category as worker_category,
                 wp.avg_rating as worker_rating,
                 wp.profile_s3_key as worker_photo,
-                wp.is_verified as worker_verified
+                wp.is_verified as worker_verified,
+                (SELECT COUNT(*) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
+                (SELECT overall_score FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as rating_given
             FROM jobs j
             LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
             WHERE j.customer_id = ?
@@ -98,20 +100,23 @@ router.get('/', async (req, res) => {
 
         const formattedJobs = jobsWithWorkers.map(job => {
             const { start_otp_hash, end_otp_hash, worker_name, worker_rating, worker_photo, worker_category, worker_verified, ...safeJob } = job;
-
             if (job.worker_id) {
+                const w_name = worker_name || 'Worker'; // Base name for the worker
                 const photoUrl = worker_photo
                     ? `https://${bucket}.s3.${region}.amazonaws.com/${worker_photo}`
-                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(worker_name || 'Worker')}&background=random`;
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(w_name)}&background=random`;
 
                 safeJob.worker = {
-                    name: worker_name || 'Worker',
+                    id: job.worker_id,
+                    name: w_name,
                     category: worker_category || 'Service',
-                    rating: worker_rating || 5.0,
+                    rating: worker_rating, // Raw rating, 0 or null is fine
                     photo: photoUrl,
                     is_verified: !!worker_verified
                 };
             }
+            safeJob.is_reviewed = !!job.is_reviewed;
+            safeJob.ratingGiven = job.rating_given;
             return safeJob;
         });
 
@@ -167,11 +172,15 @@ router.get('/:id', async (req, res) => {
         const [jobsWithWorkers] = await pool.query(`
             SELECT 
                 j.*,
+            SELECT 
+                j.*,
                 wp.name as worker_name,
                 wp.category as worker_category,
-                wp.is_verified as worker_verified,
                 wp.avg_rating as worker_rating,
-                wp.profile_s3_key as worker_photo
+                wp.profile_s3_key as worker_photo,
+                wp.is_verified as worker_verified,
+                (SELECT COUNT(*) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
+                (SELECT overall_score FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as rating_given
             FROM jobs j
             LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
             WHERE j.id = ?
@@ -189,18 +198,23 @@ router.get('/:id', async (req, res) => {
         if (job.worker_id) {
             const bucket = process.env.AWS_BUCKET_NAME;
             const region = process.env.AWS_REGION;
+            const w_name = job.worker_name || 'Worker';
             const photoUrl = job.worker_photo
                 ? `https://${bucket}.s3.${region}.amazonaws.com/${job.worker_photo}`
-                : `https://ui-avatars.com/api/?name=${encodeURIComponent(job.worker_name || 'Worker')}&background=random`;
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(w_name)}&background=random`;
 
             job.worker = {
-                name: job.worker_name || 'Worker',
+                id: job.worker_id,
+                name: w_name,
                 category: job.worker_category || 'Service',
-                rating: job.worker_rating || 5.0,
+                rating: job.worker_rating, // raw rating
                 photo: photoUrl,
                 is_verified: !!job.worker_verified
             };
         }
+
+        job.is_reviewed = !!job.is_reviewed;
+        job.ratingGiven = job.rating_given;
 
         // Remove flattened fields
         delete job.worker_name;

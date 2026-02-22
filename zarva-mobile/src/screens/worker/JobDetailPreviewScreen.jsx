@@ -1,27 +1,82 @@
-import React, { useState } from 'react';
-import {
-    View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Alert, ActivityIndicator
-} from 'react-native';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import GoldButton from '../../components/GoldButton';
-import StatusPill from '../../components/StatusPill';
-import apiClient from '../../services/api/client';
-import { parseJobDescription } from '../../utils/jobParser';
+import * as Location from 'expo-location';
+import { haversineKm, formatDistance, calculateTravelCharge } from '../../utils/distance';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { Linking } from 'react-native';
 
 dayjs.extend(relativeTime);
 
 export default function JobDetailPreviewScreen({ route, navigation }) {
-    const { job } = route.params || {};
+    const { job: initialJob } = route.params || {};
+    const [job, setJob] = useState(initialJob);
     const [loading, setLoading] = useState(false);
+    const [locLoading, setLocLoading] = useState(true);
+    const [permissionDenied, setPermissionDenied] = useState(false);
+    const [workerLoc, setWorkerLoc] = useState(null);
 
     // Parse structured data and photos
     const { structured: structuredQuestions, photos } = parseJobDescription(job?.desc);
 
+    React.useEffect(() => {
+        const getDist = async () => {
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') {
+                    setPermissionDenied(true);
+                    setLocLoading(false);
+                    return;
+                }
+
+                const location = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced
+                });
+
+                const currentCoords = {
+                    lat: location.coords.latitude,
+                    lng: location.coords.longitude
+                };
+                setWorkerLoc(currentCoords);
+
+                if (job.latitude && job.longitude) {
+                    const kms = haversineKm(
+                        currentCoords.lat,
+                        currentCoords.lng,
+                        job.latitude,
+                        job.longitude
+                    );
+
+                    const travel = calculateTravelCharge(kms);
+                    const baseRate = parseFloat(job.rate_per_hour || 0);
+                    // Assume minimum 1 hour if unspecified for estimate
+                    const estTotal = baseRate + travel + (parseFloat(job.advance_amount || 0));
+
+                    setJob(prev => ({
+                        ...prev,
+                        dist: kms,
+                        travel_charge: travel,
+                        total_amount: estTotal
+                    }));
+                }
+            } catch (err) {
+                console.error('[JobPreview] Dist calc failed', err);
+            } finally {
+                setLocLoading(false);
+            }
+        };
+        getDist();
+    }, []);
+
     const handleAccept = async () => {
         setLoading(true);
         try {
+            // Updated: share location immediately on acceptance
+            if (workerLoc) {
+                await apiClient.put('/api/worker/location', {
+                    lat: workerLoc.lat,
+                    lng: workerLoc.lng
+                }).catch(e => console.warn('Location sync on accept failed', e));
+            }
+
             await apiClient.post(`/api/worker/jobs/${job.id}/accept`);
             navigation.replace('ActiveJob', { jobId: job.id });
         } catch (error) {
@@ -75,10 +130,25 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                         </View>
                     </View>
 
-                    <Text style={styles.estValue}>{job.est || 'Price on completion'}</Text>
+                    <Text style={styles.estValue}>₹{job.total_amount?.toFixed(0) || 'Price on completion'}</Text>
 
                     <View style={styles.distRow}>
-                        <Text style={styles.distTxt}>📍 {job.dist !== '—' ? `${job.dist} km away` : 'Distance unknown'}</Text>
+                        {locLoading ? (
+                            <View style={styles.shimmerDist} />
+                        ) : permissionDenied ? (
+                            <TouchableOpacity onPress={() => Linking.openSettings()} style={styles.permissionBox}>
+                                <Text style={styles.permissionTxt}>📍 Enable location to see distance</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <Text style={[
+                                styles.distTxt,
+                                job.dist < 0.5 ? styles.distVeryClose : (job.dist > 15 ? styles.distFar : null)
+                            ]}>
+                                📍 {formatDistance(job.dist)} away
+                                {job.dist < 0.5 && <Text style={styles.distNote}> — Very close</Text>}
+                                {job.dist > 15 && <Text style={styles.distNote}> — Long distance</Text>}
+                            </Text>
+                        )}
                         {job.wave_number > 1 && (
                             <View style={styles.waveBadge}>
                                 <Text style={styles.waveTxt}>Wave {job.wave_number}</Text>
@@ -197,11 +267,11 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                     </View>
                     <View style={styles.infoCell}>
                         <Text style={styles.infoLabel}>Distance</Text>
-                        <Text style={styles.infoValue}>{job.dist !== '—' ? `${job.dist} km` : '—'}</Text>
+                        <Text style={styles.infoValue}>{formatDistance(job.dist) || '—'}</Text>
                     </View>
                     <View style={styles.infoCell}>
                         <Text style={styles.infoLabel}>Category</Text>
-                        <Text style={styles.infoValue}>{job.category || '—'}</Text>
+                        <Text style={styles.infoValue}>{job.category ? job.category.charAt(0).toUpperCase() + job.category.slice(1) : '—'}</Text>
                     </View>
                     <View style={styles.infoCell}>
                         <Text style={styles.infoLabel}>Type</Text>
@@ -281,8 +351,14 @@ const styles = StyleSheet.create({
     emergencyTxt: { color: colors.error, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
     timeTxt: { color: colors.text.muted, fontSize: 12 },
     estValue: { color: colors.gold.primary, fontSize: 38, fontWeight: '800', fontFamily: 'Courier' },
-    distRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    distTxt: { color: colors.text.secondary, fontSize: 14, flex: 1 },
+    distRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 24 },
+    distTxt: { color: colors.text.secondary, fontSize: 14, fontWeight: '600' },
+    distVeryClose: { color: '#4ADE80' }, // Green
+    distFar: { color: '#FACC15' }, // Amber
+    distNote: { fontSize: 12, fontWeight: '400' },
+    shimmerDist: { width: 100, height: 16, backgroundColor: colors.bg.surface, borderRadius: radius.xs, opacity: 0.5 },
+    permissionBox: { backgroundColor: colors.bg.surface, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.md },
+    permissionTxt: { color: colors.gold.primary, fontSize: 12, fontWeight: '700' },
     waveBadge: { backgroundColor: colors.gold.glow, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
     waveTxt: { color: colors.gold.primary, fontSize: 11, fontWeight: '700' },
 

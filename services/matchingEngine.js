@@ -14,88 +14,64 @@ import { updateJobNode } from '../services/firebase.service.js';
 // Helper: Sleep for wave delays
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Executes Haversine formula strictly as defined by spec.
- */
 async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
-    const { category, latitude, longitude } = job;
+    const { category, latitude, longitude, id: jobId } = job;
 
-    // Construct dynamic exclusion clause. Avoid syntax error if array is empty
     let excludeClause = '';
-    let queryParams = [latitude, longitude, latitude, radiusKm];
-
     if (excludeIds.length > 0) {
         const placeholders = excludeIds.map(() => '?').join(',');
-        excludeClause = `AND user_id NOT IN (${placeholders})`;
-        queryParams.push(...excludeIds);
+        excludeClause = `AND wp.user_id NOT IN (${placeholders})`;
     }
 
-    queryParams.push(category, limit);
-
-    // EXACT requirement translation for formula:
-    // (6371 * acos(cos(radians(?)) * cos(radians(current_lat)) * cos(radians(current_lng) - radians(?)) + sin(radians(?)) * sin(radians(current_lat))))
-    // Current lat/long columns on worker_profiles are current_lat & current_lng
+    // Refined SQL with Haversine formula and staleness check
     const query = `
-        SELECT 
-            wp.user_id, wp.fcm_token
+        SELECT
+            wp.user_id,
+            u.fcm_token,
+            u.name,
+            wp.average_rating as avg_rating,
+            wp.last_location_lat,
+            wp.last_location_lng,
+            (
+                6371 * ACOS(
+                    COS(RADIANS(?)) * COS(RADIANS(wp.last_location_lat)) *
+                    COS(RADIANS(wp.last_location_lng) - RADIANS(?)) +
+                    SIN(RADIANS(?)) * SIN(RADIANS(wp.last_location_lat))
+                )
+            ) AS distance_km
         FROM worker_profiles wp
-        JOIN users u ON wp.user_id = u.id
-        CROSS JOIN (
-            SELECT 
-                (6371 * acos(
-                    cos(radians(?)) * cos(radians(wp.current_lat)) * 
-                    cos(radians(wp.current_lng) - radians(?)) + 
-                    sin(radians(?)) * sin(radians(wp.current_lat))
-                )) AS distance_km
-        ) d
-        WHERE 
-            wp.is_verified = 1 AND 
-            wp.is_online = 1 AND 
-            wp.is_available = 1 AND 
-            wp.current_job_id IS NULL AND 
-            u.fcm_token IS NOT NULL AND
-            d.distance_km <= ?
-            ${excludeClause} AND
-            wp.category = ?
-        ORDER BY d.distance_km ASC, wp.average_rating DESC
-        LIMIT ?
-    `;
-
-    // Because CROSS JOIN with dynamic calculated alias distance_km causes issues in MySQL strict modes without wrapping, we use direct calculation in SELECT & HAVING.
-    // Rewriting Haversine directly safely for MySQL 8 strict:
-    const safeQuery = `
-        SELECT 
-            wp.user_id, u.fcm_token,
-            (6371 * acos(
-                cos(radians(?)) * cos(radians(wp.current_lat)) * 
-                cos(radians(wp.current_lng) - radians(?)) + 
-                sin(radians(?)) * sin(radians(wp.current_lat))
-            )) AS distance_km
-        FROM worker_profiles wp
-        JOIN users u ON wp.user_id = u.id
-        WHERE 
-            wp.is_verified = 1 AND 
-            wp.is_online = 1 AND 
-            wp.is_available = 1 AND 
-            wp.current_job_id IS NULL AND 
-            u.fcm_token IS NOT NULL AND
-            wp.category = ?
+        JOIN users u ON u.id = wp.user_id
+        WHERE
+            wp.is_verified = 1
+            AND wp.is_online = 1
+            AND wp.is_available = 1
+            AND wp.current_job_id IS NULL
+            AND u.fcm_token IS NOT NULL
+            AND u.is_blocked = 0
+            AND wp.category = ?
+            AND wp.last_location_at > DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+            AND (
+                6371 * ACOS(
+                    COS(RADIANS(?)) * COS(RADIANS(wp.last_location_lat)) *
+                    COS(RADIANS(wp.last_location_lng) - RADIANS(?)) +
+                    SIN(RADIANS(?)) * SIN(RADIANS(wp.last_location_lat))
+                )
+            ) <= ?
             ${excludeClause}
-        HAVING distance_km <= ?
-        ORDER BY distance_km ASC, wp.average_rating DESC
+        ORDER BY distance_km ASC
         LIMIT ?
     `;
 
-    // Realign params for HAVING approach
-    const safeParams = [
-        latitude, longitude, latitude, // Haversine args
-        category, // WHERE arg
-        ...excludeIds, // Exclusion list
-        radiusKm, // HAVING arg
-        limit // LIMIT arg
+    const params = [
+        latitude, longitude, latitude, // SELECT Haversine
+        category,                      // Category
+        latitude, longitude, latitude, // WHERE Haversine
+        radiusKm,                      // Radius
+        ...excludeIds,                 // Exclusions
+        limit                          // Limit
     ];
 
-    const [workers] = await pool.query(safeQuery, safeParams);
+    const [workers] = await pool.query(query, params);
     return workers;
 }
 
@@ -105,12 +81,12 @@ async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
 async function bulkInsertNotifications(jobId, workers, waveNum, pool) {
     if (!workers || workers.length === 0) return;
 
-    const values = workers.map(w => [jobId, w.user_id, 'sent']);
-    const placeholders = values.map(() => '(?, ?, ?)').join(', ');
+    const values = workers.map(w => [jobId, w.user_id, 'sent', w.distance_km || 0]);
+    const placeholders = values.map(() => '(?, ?, ?, ?)').join(', ');
     const flatParams = values.flat();
 
     await pool.query(
-        `INSERT INTO job_worker_notifications (job_id, worker_id, status) VALUES ${placeholders}`,
+        `INSERT INTO job_worker_notifications (job_id, worker_id, status, distance_km) VALUES ${placeholders}`,
         flatParams
     );
     console.log(`[MatchingEngine] Wave ${waveNum} - Dispatching to ${workers.length} workers.`);
@@ -119,8 +95,8 @@ async function bulkInsertNotifications(jobId, workers, waveNum, pool) {
 /**
  * FCM Push trigger
  */
-async function sendJobAlertFCM(jobId, workers) {
-    await fcmService.sendJobAlertToWorkers(jobId, workers);
+async function sendJobAlertFCM(jobId, workers, job, waveNum) {
+    await fcmService.sendJobAlertToWorkers(jobId, workers, job, waveNum);
 }
 
 /**
@@ -180,7 +156,7 @@ export async function startMatching(jobId) {
             // 4. Alert Workers
             if (workers.length > 0) {
                 await bulkInsertNotifications(jobId, workers, waveNum + 1, pool);
-                await sendJobAlertFCM(jobId, workers);
+                await sendJobAlertFCM(jobId, workers, job, waveNum + 1);
             }
 
             // 5. Native Sleep Engine Thread

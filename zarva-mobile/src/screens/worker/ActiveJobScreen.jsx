@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import StatusPill from '../../components/StatusPill';
 import GoldButton from '../../components/GoldButton';
+import OTPInput from '../../components/OTPInput';
 import apiClient from '../../services/api/client';
 import { ref, onValue, off } from 'firebase/database';
 import { db } from '../../utils/firebase';
@@ -191,20 +192,22 @@ export default function ActiveJobScreen({ route, navigation }) {
                     <Text style={styles.actionSub}>The customer's app shows a 4-digit code. Enter it to begin.</Text>
 
                     {otpExpirySeconds !== null && (
-                        <Text style={[styles.actionSub, { color: otpExpirySeconds < 300 ? colors.error : colors.gold.primary, fontWeight: '700' }]}>
+                        <Text style={[styles.actionSub, { color: otpExpirySeconds < 300 ? colors.error : colors.gold.light, fontWeight: '700', marginBottom: spacing.md }]}>
                             Expires in: {formatTime(otpExpirySeconds)}
                         </Text>
                     )}
 
-                    <View style={styles.otpRow}>
-                        {[0, 1, 2, 3].map(i => (
-                            <View key={i} style={[styles.otpBox, startOtp[i] && styles.otpBoxActive]}>
-                                <Text style={styles.otpTxt}>{startOtp[i] || '—'}</Text>
-                            </View>
-                        ))}
+                    <View style={{ marginBottom: spacing.xl }}>
+                        <OTPInput
+                            disabled={actionLoading}
+                            onChange={(code) => {
+                                const chars = code.split('');
+                                // Fill missing chars with empty string to maintain 4-length array
+                                while (chars.length < 4) chars.push('');
+                                setStartOtp(chars);
+                            }}
+                        />
                     </View>
-
-                    {/* Developer Mock Numpad REMOVED for Production Security */}
 
                     <GoldButton
                         title="Begin Work"
@@ -212,6 +215,25 @@ export default function ActiveJobScreen({ route, navigation }) {
                         loading={actionLoading}
                         onPress={handleVerifyStartOtp}
                     />
+
+                    <TouchableOpacity
+                        style={styles.resendBtn}
+                        onPress={async () => {
+                            setActionLoading(true);
+                            try {
+                                await apiClient.post(`/api/worker/jobs/${jobId}/resend-start-otp`);
+                                Alert.alert('Success', 'Notification request sent to customer.');
+                                // Refresh to get new generated_at for timer
+                                await fetchJob();
+                            } catch (err) {
+                                Alert.alert('Error', err.response?.data?.message || 'Failed to resend notification.');
+                            } finally {
+                                setActionLoading(false);
+                            }
+                        }}
+                    >
+                        <Text style={styles.resendTxt}>🔔 Ask customer for code (Resend Notification)</Text>
+                    </TouchableOpacity>
                 </View>
             );
         }
@@ -392,12 +414,8 @@ const styles = StyleSheet.create({
     actionSub: { color: colors.text.muted, fontSize: 13, textAlign: 'center', marginBottom: spacing.lg },
 
     otpRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md, marginBottom: spacing.xl },
-    otpBox: {
-        width: 50, height: 60, borderRadius: radius.sm, backgroundColor: colors.bg.primary,
-        justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.bg.elevated
-    },
-    otpBoxActive: { borderColor: colors.gold.primary },
-    otpTxt: { color: colors.gold.primary, fontSize: 28, fontWeight: '800', fontFamily: 'Courier' },
+    resendBtn: { marginTop: spacing.xl, padding: spacing.md, alignItems: 'center' },
+    resendTxt: { color: colors.gold.light, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
 
     readOnlyOtpWrap: { backgroundColor: colors.bg.primary, padding: spacing.xl, borderRadius: radius.md, alignItems: 'center', marginVertical: spacing.md },
     readOnlyOtpTxt: { color: colors.gold.primary, fontSize: 48, fontWeight: '800', letterSpacing: 8, fontFamily: 'Courier', },

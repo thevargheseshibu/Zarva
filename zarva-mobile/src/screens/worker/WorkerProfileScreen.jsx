@@ -5,7 +5,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useWorkerStore } from '../../stores/workerStore';
 import apiClient from '../../services/api/client';
 
-export default function WorkerProfileScreen() {
+export default function WorkerProfileScreen({ navigation }) {
     const { user, logout } = useAuthStore();
     const { isOnline, setOnline } = useWorkerStore();
 
@@ -106,6 +106,10 @@ export default function WorkerProfileScreen() {
                 </View>
             </View>
 
+            <TouchableOpacity style={styles.settingsBtn} onPress={() => navigation.navigate('AlertPreferences')}>
+                <Text style={styles.settingsTxt}>🔔 Alert Settings</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.logout} onPress={logout}>
                 <Text style={styles.logoutText}>Log Out</Text>
             </TouchableOpacity>
@@ -136,4 +140,6 @@ const styles = StyleSheet.create({
 
     logout: { marginTop: 40, borderWidth: 1, borderColor: colors.error, borderRadius: 12, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
     logoutText: { color: colors.error, fontWeight: '600' },
+    settingsBtn: { marginTop: 24, backgroundColor: colors.bg.surface, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: 12, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: colors.bg.surface },
+    settingsTxt: { color: colors.text.primary, fontSize: 16, fontWeight: '700' }
 });

@@ -66,20 +66,26 @@ export default function MyJobsScreen({ navigation }) {
                         <StatusPill status={item.status} />
                     </View>
 
-                    {item.worker && (item.status === 'assigned' || item.status === 'worker_en_route' || item.status === 'worker_arrived' || item.status === 'in_progress') && (
+                    {item.worker && (['assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(item.status)) && (
                         <View style={styles.workerMini}>
                             <Image source={{ uri: item.worker.photo }} style={styles.workerPhoto} />
                             <View style={styles.workerInfo}>
                                 <Text style={styles.workerName}>{item.worker.name}</Text>
-                                <Text style={styles.workerRating}>⭐ {item.worker.rating}</Text>
+                                {parseFloat(item.worker.rating) > 0 ? (
+                                    <Text style={styles.workerRating}>⭐ {parseFloat(item.worker.rating).toFixed(1)}</Text>
+                                ) : (
+                                    <View style={styles.newWorkerBadge}>
+                                        <Text style={styles.newWorkerTxt}>New Worker</Text>
+                                    </View>
+                                )}
                             </View>
                         </View>
                     )}
 
                     {item.status === 'completed' && (
                         <View style={styles.ratingArea}>
-                            {item.ratingGiven ? (
-                                <Text style={styles.ratedTxt}>You rated: ⭐ {item.ratingGiven}</Text>
+                            {item.is_reviewed ? (
+                                <Text style={styles.ratedTxt}>You rated: ⭐ {item.ratingGiven || '?'}</Text>
                             ) : (
                                 <Text style={styles.ratePrompt}>Tap to Details & Rating →</Text>
                             )}
@@ -191,6 +197,23 @@ const styles = StyleSheet.create({
     ratingArea: { marginTop: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.bg.primary },
     ratedTxt: { color: colors.gold.primary, fontWeight: '700', fontSize: 13 },
     ratePrompt: { color: colors.text.muted, fontSize: 13, fontStyle: 'italic' },
+
+    newWorkerBadge: {
+        backgroundColor: colors.gold.primary + '22',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: radius.sm,
+        borderWidth: 1,
+        borderColor: colors.gold.primary + '44',
+        alignSelf: 'flex-start',
+        marginTop: 2,
+    },
+    newWorkerTxt: {
+        color: colors.gold.primary,
+        fontSize: 10,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
 
     cancelledArea: { marginTop: spacing.md, padding: spacing.sm, backgroundColor: colors.error + '11', borderRadius: radius.md, borderWidth: 1, borderColor: colors.error + '33' },
     cancelledTxt: { color: colors.error, fontSize: 13, fontWeight: '700' },

@@ -44,19 +44,28 @@ export default function MyWorkScreen({ navigation }) {
         fetchHistory();
     };
 
-    const renderItem = ({ item }) => (
-        <Card style={styles.historyCard}>
-            <View style={styles.cardHeader}>
-                <Text style={styles.catTxt}>{item.category || 'Service'}</Text>
-                <Text style={styles.amountTxt}>{item.amount}</Text>
-            </View>
-            <Text style={styles.addressTxt} numberOfLines={1}>📍 {item.address}</Text>
+    const handlePress = (item) => {
+        const activeStatuses = ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
+        if (activeStatuses.includes(item.status)) {
+            navigation.navigate('ActiveJob', { jobId: item.id });
+        }
+    };
 
-            <View style={styles.footerRow}>
-                <Text style={styles.dateTxt}>{dayjs(item.date).format('MMM D, h:mm A')}</Text>
-                <StatusPill status={item.status} />
-            </View>
-        </Card>
+    const renderItem = ({ item }) => (
+        <TouchableOpacity activeOpacity={0.8} onPress={() => handlePress(item)}>
+            <Card style={styles.historyCard}>
+                <View style={styles.cardHeader}>
+                    <Text style={styles.catTxt}>{item.category || 'Service'}</Text>
+                    <Text style={styles.amountTxt}>{item.amount}</Text>
+                </View>
+                <Text style={styles.addressTxt} numberOfLines={1}>📍 {item.address}</Text>
+
+                <View style={styles.footerRow}>
+                    <Text style={styles.dateTxt}>{dayjs(item.date).format('MMM D, h:mm A')}</Text>
+                    <StatusPill status={item.status} />
+                </View>
+            </Card>
+        </TouchableOpacity>
     );
 
     const renderEmpty = () => {

@@ -15,15 +15,17 @@ const STATUS_MAP = {
     completed: { bg: colors.success, label: 'Completed' },
     cancelled: { bg: colors.error, label: 'Cancelled' },
     disputed: { bg: colors.warning, label: 'Disputed' },
+    emergency: { bg: colors.danger, label: 'Emergency' },
 };
 
-export default function StatusPill({ status, style }) {
+export default function StatusPill({ status, label, style }) {
     const config = STATUS_MAP[status] || { bg: colors.text.muted, label: status };
+    const displayLabel = label || config.label;
 
     return (
         <View style={[styles.pill, { backgroundColor: config.bg + '22' }, style]}>
             <View style={[styles.dot, { backgroundColor: config.bg }]} />
-            <Text style={[styles.label, { color: config.bg }]}>{config.label}</Text>
+            <Text style={[styles.label, { color: config.bg }]}>{displayLabel}</Text>
         </View>
     );
 }

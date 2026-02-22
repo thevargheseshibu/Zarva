@@ -13,6 +13,7 @@ import SearchingScreen from '../screens/customer/SearchingScreen';
 import JobStatusDetailScreen from '../screens/customer/JobStatusDetailScreen';
 import PaymentScreen from '../screens/customer/PaymentScreen';
 import RatingScreen from '../screens/customer/RatingScreen';
+import WorkerReputationScreen from '../screens/customer/WorkerReputationScreen';
 
 const Stack = createStackNavigator();
 
@@ -30,6 +31,7 @@ export default function CustomerStack() {
             <Stack.Screen name="JobStatusDetail" component={JobStatusDetailScreen} />
             <Stack.Screen name="Payment" component={PaymentScreen} />
             <Stack.Screen name="Rating" component={RatingScreen} />
+            <Stack.Screen name="WorkerReputation" component={WorkerReputationScreen} />
         </Stack.Navigator>
     );
 }

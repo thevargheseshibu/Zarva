@@ -13,7 +13,7 @@ import { colors, radius, spacing } from '../design-system/tokens';
 
 const BOX_COUNT = 4;
 
-export default function OTPInput({ onComplete, value = '' }) {
+export default function OTPInput({ onComplete, onChange, value = '' }) {
     const inputs = useRef([]);
     const [otp, setOtp] = useState(Array(BOX_COUNT).fill(''));
 
@@ -27,6 +27,7 @@ export default function OTPInput({ onComplete, value = '' }) {
                 next[j] = digits[j];
             }
             setOtp(next);
+            onChange?.(next.join(''));
 
             const nextFocus = Math.min(digits.length, BOX_COUNT - 1);
             inputs.current[nextFocus]?.focus();
@@ -41,6 +42,7 @@ export default function OTPInput({ onComplete, value = '' }) {
         const next = [...otp];
         next[index] = digit;
         setOtp(next);
+        onChange?.(next.join(''));
 
         if (digit && index < BOX_COUNT - 1) {
             inputs.current[index + 1]?.focus();
@@ -70,6 +72,7 @@ export default function OTPInput({ onComplete, value = '' }) {
                     maxLength={1}
                     selectTextOnFocus
                     caretHidden
+                    autoFocus={i === 0}
                 />
             ))}
         </View>

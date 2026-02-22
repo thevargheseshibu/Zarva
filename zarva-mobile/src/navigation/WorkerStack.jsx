@@ -9,6 +9,7 @@ import WorkerNavigator from './WorkerNavigator';
 import JobDetailPreviewScreen from '../screens/worker/JobDetailPreviewScreen';
 import ActiveJobScreen from '../screens/worker/ActiveJobScreen';
 import EarningsScreen from '../screens/worker/EarningsScreen';
+import AlertPreferencesScreen from '../screens/worker/AlertPreferencesScreen';
 
 const Stack = createStackNavigator();
 
@@ -22,6 +23,7 @@ export default function WorkerStack() {
             <Stack.Screen name="JobDetailPreview" component={JobDetailPreviewScreen} />
             <Stack.Screen name="ActiveJob" component={ActiveJobScreen} />
             <Stack.Screen name="EarningsDetail" component={EarningsScreen} />
+            <Stack.Screen name="AlertPreferences" component={AlertPreferencesScreen} options={{ headerShown: true, title: 'Alert Settings' }} />
         </Stack.Navigator>
     );
 }
