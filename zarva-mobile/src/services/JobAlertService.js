@@ -4,7 +4,7 @@
  * Handles push notifications, sound loops, and haptics for Uber-style job alerts.
  */
 import * as Notifications from 'expo-notifications';
-import { createAudioPlayer } from 'expo-audio';
+import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { useWorkerStore } from '../stores/workerStore';
@@ -13,13 +13,30 @@ import { useWorkerStore } from '../stores/workerStore';
 let soundObject = null;
 let hapticInterval = null;
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: false, // We handle custom sound looping ourselves
-        shouldSetBadge: true,
-    }),
-});
+// NOTE: setNotificationHandler is intentionally NOT configured here.
+// App.js globally sets this to avoid duplicate/conflicting handlers.
+
+async function playAlertSound() {
+    await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,   // plays even on silent mode — like Uber
+        staysActiveInBackground: false,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false
+    });
+
+    if (soundObject) {
+        await soundObject.unloadAsync();
+        soundObject = null;
+    }
+
+    const { sound } = await Audio.Sound.createAsync(
+        { uri: 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg' },
+        { isLooping: true, volume: 1.0 }
+    );
+
+    return sound;
+}
 
 export const JobAlertService = {
     async init() {
@@ -31,43 +48,33 @@ export const JobAlertService = {
         }
         if (finalStatus !== 'granted') return false;
 
-        if (Platform.OS === 'android') {
-            await Notifications.setNotificationChannelAsync('job_alerts', {
-                name: 'Job Alerts',
-                importance: Notifications.AndroidImportance.MAX,
-                vibrationPattern: [0, 250, 250, 250],
-                lightColor: '#FF231F7C',
-                sound: 'job_alert.mp3', // Requires file in /res/raw or assets
-            });
-        }
-
+        // Note: Android Notification Channel is managed in App.js now
         return true;
     },
 
     async startAlertLoop() {
         const { alertPreferences } = useWorkerStore.getState();
-        if (alertPreferences.dndMode) return;
+        if (alertPreferences?.dndMode) return;
 
         // 1. Loop Sound
-        if (alertPreferences.soundEnabled) {
+        if (alertPreferences?.soundEnabled !== false) {
             try {
-                if (soundObject) {
-                    soundObject.pause();
-                    soundObject.remove();
-                }
-                soundObject = createAudioPlayer(require('../../assets/sounds/job_alert.mp3'));
-                soundObject.loop = true; // Use simple true loop boolean
-                soundObject.play(); // Native bindings for expo-audio 6.x
+                soundObject = await playAlertSound();
+                await soundObject.playAsync();
             } catch (err) {
-                console.warn('[JobAlert] Sound load failed', err);
+                console.warn('[JobAlert] Sound load failed (Check assets/sounds/job_alert.mp3)', err);
             }
         }
 
         // 2. Loop Haptics
-        if (alertPreferences.vibrationEnabled) {
+        if (alertPreferences?.vibrationEnabled !== false) {
             if (hapticInterval) clearInterval(hapticInterval);
+
+            // Initial sequence
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
             hapticInterval = setInterval(() => {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => { });
             }, 1000);
         }
     },
@@ -75,8 +82,8 @@ export const JobAlertService = {
     async stopAlertLoop() {
         if (soundObject) {
             try {
-                soundObject.pause();
-                soundObject.remove();
+                await soundObject.stopAsync();
+                await soundObject.unloadAsync();
             } catch (e) { }
             soundObject = null;
         }
@@ -92,7 +99,7 @@ export const JobAlertService = {
         if (data?.type === 'NEW_JOB_ALERT') {
             const workerStore = useWorkerStore.getState();
 
-            // Set alert data in store to trigger BottomSheet
+            // Store full raw job data exactly as passed from FCM payload and matching engine API, mapping naming convention cleanly
             workerStore.setPendingJobAlert({
                 id: data.job_id,
                 category: data.category,
@@ -103,7 +110,8 @@ export const JobAlertService = {
                 description: data.description_snippet,
                 isEmergency: data.is_emergency === '1',
                 acceptWindow: parseInt(data.accept_window_seconds) || 30,
-                wave: parseInt(data.wave_number)
+                wave: parseInt(data.wave_number),
+                timestamp: Date.now() // to handle time decay on reboot
             });
 
             // Only trigger the loop via "this.startAlertLoop()" otherwise lexical `this` binds incorrectly depending on event listener scope

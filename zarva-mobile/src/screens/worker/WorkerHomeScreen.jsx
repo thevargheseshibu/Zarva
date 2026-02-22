@@ -5,7 +5,6 @@ import * as Location from 'expo-location';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
-import JobAlertBottomSheet from '../../components/JobAlertBottomSheet';
 import { useT } from '../../hooks/useT';
 import { useWorkerStore } from '../../stores/workerStore';
 import apiClient from '../../services/api/client';
@@ -28,6 +27,24 @@ export default function WorkerHomeScreen({ navigation }) {
             }
         } catch (err) {
             console.error('[WorkerHome] Failed to fetch active job:', err);
+        }
+    };
+
+    const captureAndSyncLocation = async () => {
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') return;
+
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const { latitude, longitude } = loc.coords;
+
+            await apiClient.put('/api/worker/location', {
+                lat: latitude,
+                lng: longitude
+            });
+            console.log('[WorkerHome] Initial/Periodic location synced:', latitude, longitude);
+        } catch (err) {
+            console.error('[WorkerHome] Failed to sync location block:', err);
         }
     };
 
@@ -59,6 +76,16 @@ export default function WorkerHomeScreen({ navigation }) {
     useFocusEffect(
         useCallback(() => {
             fetchProfile();
+
+            // Capture location immediately on open
+            captureAndSyncLocation();
+
+            // Set up a 10-minute recurring check
+            const locationInterval = setInterval(() => {
+                captureAndSyncLocation();
+            }, 10 * 60 * 1000);
+
+            return () => clearInterval(locationInterval);
         }, [])
     );
 
@@ -243,7 +270,6 @@ export default function WorkerHomeScreen({ navigation }) {
                 )}
             </ScrollView>
 
-            <JobAlertBottomSheet navigation={navigation} />
         </View>
     );
 }

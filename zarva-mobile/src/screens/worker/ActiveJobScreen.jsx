@@ -315,7 +315,7 @@ export default function ActiveJobScreen({ route, navigation }) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={{ color: colors.text.muted }}>Job details not found.</Text>
-                <GoldButton title="Go Back" onPress={() => navigation.goBack()} />
+                <GoldButton title="Go to Dashboard" onPress={() => navigation.navigate('WorkerTabs')} />
             </View>
         );
     }
@@ -323,7 +323,13 @@ export default function ActiveJobScreen({ route, navigation }) {
     return (
         <View style={styles.screen}>
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => {
+                    if (navigation.canGoBack()) {
+                        navigation.goBack();
+                    } else {
+                        navigation.replace('WorkerTabs');
+                    }
+                }}>
                     <Text style={styles.backTxt}>←</Text>
                 </TouchableOpacity>
                 <Text style={styles.title}>Active Job</Text>

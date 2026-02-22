@@ -15,7 +15,8 @@ dayjs.extend(relativeTime);
 
 export default function JobDetailPreviewScreen({ route, navigation }) {
     const { job: initialJob } = route.params || {};
-    const [job, setJob] = useState(initialJob);
+    // Pre-populate dist so it's never blank before GPS fires
+    const [job, setJob] = useState({ ...initialJob, dist: initialJob?.dist ?? null });
     const [loading, setLoading] = useState(false);
     const [locLoading, setLocLoading] = useState(true);
     const [permissionDenied, setPermissionDenied] = useState(false);
@@ -48,8 +49,8 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                     const kms = haversineKm(
                         currentCoords.lat,
                         currentCoords.lng,
-                        job.latitude,
-                        job.longitude
+                        parseFloat(job.latitude),
+                        parseFloat(job.longitude)
                     );
 
                     const travel = calculateTravelCharge(kms);
@@ -123,7 +124,13 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
         <View style={styles.screen}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => {
+                    if (navigation.canGoBack()) {
+                        navigation.goBack();
+                    } else {
+                        navigation.replace('WorkerTabs');
+                    }
+                }}>
                     <Text style={styles.backTxt}>←</Text>
                 </TouchableOpacity>
                 <Text style={styles.title}>Job Preview</Text>
@@ -161,11 +168,11 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                         ) : (
                             <Text style={[
                                 styles.distTxt,
-                                job.dist < 0.5 ? styles.distVeryClose : (job.dist > 15 ? styles.distFar : null)
+                                job.dist != null && job.dist < 0.5 ? styles.distVeryClose : (job.dist != null && job.dist > 15 ? styles.distFar : null)
                             ]}>
-                                📍 {formatDistance(job.dist)} away
-                                {job.dist < 0.5 && <Text style={styles.distNote}> — Very close</Text>}
-                                {job.dist > 15 && <Text style={styles.distNote}> — Long distance</Text>}
+                                📍 {job.dist != null ? formatDistance(job.dist) : 'Distance unknown'} away
+                                {job.dist != null && job.dist < 0.5 && <Text style={styles.distNote}> — Very close</Text>}
+                                {job.dist != null && job.dist > 15 && <Text style={styles.distNote}> — Long distance</Text>}
                             </Text>
                         )}
                         {job.wave_number > 1 && (
@@ -286,7 +293,7 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                     </View>
                     <View style={styles.infoCell}>
                         <Text style={styles.infoLabel}>Distance</Text>
-                        <Text style={styles.infoValue}>{formatDistance(job.dist) || '—'}</Text>
+                        <Text style={styles.infoValue}>{job.dist != null ? formatDistance(job.dist) : '—'}</Text>
                     </View>
                     <View style={styles.infoCell}>
                         <Text style={styles.infoLabel}>Category</Text>

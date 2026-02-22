@@ -28,7 +28,7 @@ async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
         SELECT
             wp.user_id,
             u.fcm_token,
-            u.name,
+            wp.name,
             wp.average_rating as avg_rating,
             wp.last_location_lat,
             wp.last_location_lng,
@@ -48,7 +48,7 @@ async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
             AND wp.current_job_id IS NULL
             AND u.fcm_token IS NOT NULL
             AND u.is_blocked = 0
-            AND wp.category = ?
+            AND (wp.category = ? OR JSON_CONTAINS(wp.skills, JSON_QUOTE(?)))
             AND wp.last_location_at > DATE_SUB(NOW(), INTERVAL 30 MINUTE)
             AND (
                 6371 * ACOS(
@@ -64,7 +64,7 @@ async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
 
     const params = [
         latitude, longitude, latitude, // SELECT Haversine
-        category,                      // Category
+        category, category,            // Primary category and JSON skills
         latitude, longitude, latitude, // WHERE Haversine
         radiusKm,                      // Radius
         ...excludeIds,                 // Exclusions
@@ -129,42 +129,71 @@ async function triggerAutoRefund(jobId, pool) {
 export async function startMatching(jobId) {
     const pool = getPool();
     const waves = [
-        { radius_km: 3, count: 5, wait_seconds: 30 },
-        { radius_km: 7, count: 10, wait_seconds: 30 },
-        { radius_km: 15, count: 20, wait_seconds: 60 }
+        { radius_km: 3, count: 5, wait_seconds: 90 },   // 1.5 min — local workers
+        { radius_km: 7, count: 10, wait_seconds: 90 },   // 1.5 min — nearby workers
+        { radius_km: 15, count: 20, wait_seconds: 120 }    // 2 min   — farther workers
     ];
 
     try {
+        console.log(`[MatchingEngine] 🚀 Starting matching flow for Job ${jobId}`);
         for (let waveNum = 0; waveNum < waves.length; waveNum++) {
-            const wave = waves[waveNum];
+            try {
+                const wave = waves[waveNum];
 
-            // Alert mobile frontend of expanding search radius for transparency sync
-            await updateJobNode(jobId, { wave_number: waveNum + 1 }).catch(() => { });
+                // Alert mobile frontend of expanding search radius for transparency sync
+                await updateJobNode(jobId, { wave_number: waveNum + 1 }).catch(() => { });
 
-            // 1. Refresh Job state
-            const [jobs] = await pool.query('SELECT status, category, latitude, longitude FROM jobs WHERE id = ?', [jobId]);
-            const job = jobs[0];
-            if (!job || job.status !== 'searching') return; // Job cancelled or accepted
+                // 1. Refresh Job state
+                const [jobs] = await pool.query('SELECT status, category, latitude, longitude FROM jobs WHERE id = ?', [jobId]);
+                const job = jobs[0];
+                if (!job) {
+                    console.warn(`[MatchingEngine] Job ${jobId} not found. Aborting.`);
+                    return;
+                }
+                if (job.status !== 'searching') {
+                    console.log(`[MatchingEngine] Job ${jobId} status is ${job.status}. Stopping search.`);
+                    return;
+                }
 
-            // 2. Extrapolate Exclusion lists
-            const [notified] = await pool.query('SELECT worker_id FROM job_worker_notifications WHERE job_id = ?', [jobId]);
-            const excludeIds = notified.map(r => r.worker_id);
+                console.log(`[MatchingEngine] Wave ${waveNum + 1} for Job ${jobId} (${job.category}) at ${job.latitude}, ${job.longitude} (Radius: ${wave.radius_km}km)`);
 
-            // 3. Find Proximate Workers
-            const workers = await findEligibleWorkers(job, wave.radius_km, wave.count, excludeIds, pool);
+                // 2. Extrapolate Exclusion lists
+                const [notified] = await pool.query('SELECT worker_id FROM job_worker_notifications WHERE job_id = ?', [jobId]);
+                const excludeIds = notified.map(r => r.worker_id);
 
-            // 4. Alert Workers
-            if (workers.length > 0) {
-                await bulkInsertNotifications(jobId, workers, waveNum + 1, pool);
-                await sendJobAlertFCM(jobId, workers, job, waveNum + 1);
+                // 3. Find Proximate Workers
+                const workers = await findEligibleWorkers(job, wave.radius_km, wave.count, excludeIds, pool);
+
+                // 4. Alert Workers
+                if (workers.length > 0) {
+                    await bulkInsertNotifications(jobId, workers, waveNum + 1, pool);
+                    await sendJobAlertFCM(jobId, workers, job, waveNum + 1);
+                    // Push live status update so Searching screen shows progress
+                    await updateJobNode(jobId, {
+                        wave_number: waveNum + 1,
+                        workers_notified: workers.length,
+                        wave_status: `Wave ${waveNum + 1}: Sent to ${workers.length} worker${workers.length > 1 ? 's' : ''} nearby`
+                    }).catch(() => { });
+                    console.log(`[MatchingEngine] Wave ${waveNum + 1}: Notifications sent to ${workers.length} workers.`);
+                } else {
+                    await updateJobNode(jobId, {
+                        wave_number: waveNum + 1,
+                        workers_notified: 0,
+                        wave_status: `Wave ${waveNum + 1}: Expanding search radius...`
+                    }).catch(() => { });
+                    console.log(`[MatchingEngine] Wave ${waveNum + 1}: No eligible workers found within ${wave.radius_km}km.`);
+                }
+
+                // 5. Native Sleep Engine Thread
+                await sleep(wave.wait_seconds * 1000);
+
+                // 6. Check Post-Sleep Status
+                const [updated] = await pool.query('SELECT status FROM jobs WHERE id = ?', [jobId]);
+                if (updated[0].status === 'assigned') return; // Accepted by worker in meantime
+            } catch (waveErr) {
+                console.error(`[MatchingEngine] Error in Wave ${waveNum + 1} for Job ${jobId}:`, waveErr);
+                // Continue to next wave if possible
             }
-
-            // 5. Native Sleep Engine Thread
-            await sleep(wave.wait_seconds * 1000);
-
-            // 6. Check Post-Sleep Status
-            const [updated] = await pool.query('SELECT status FROM jobs WHERE id = ?', [jobId]);
-            if (updated[0].status === 'assigned') return; // Accepted by worker in meantime
         }
 
         // Exhausted fully

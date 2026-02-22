@@ -52,20 +52,28 @@ export async function sendJobAlertToWorkers(jobId, workers, job, waveNum) {
 
     // We send individual messages because distance_km and earnings are specific to each worker
     const messages = workers.map(worker => {
-        const estEarnings = calculateEstimatedEarnings(job, worker.distance_km);
+        const safeDistance = Number(worker.distance_km) || 0;
+        let estEarnings = 0;
+        try {
+            estEarnings = calculateEstimatedEarnings(job, safeDistance);
+        } catch (e) {
+            console.warn(`[FCM Service] calculateEstimatedEarnings failed for ${job.category}:`, e.message);
+        }
+
+        console.log(`[FCM Service] Building message for worker ${worker.user_id}, token: ${worker.fcm_token?.slice(0, 20)}...`);
 
         return {
             token: worker.fcm_token,
             notification: {
                 title: 'New Job Available!',
-                body: `${getCategoryIcon(job.category)} ${job.category} job ${worker.distance_km.toFixed(1)}km away. Earn est. ₹${estEarnings}`
+                body: `${getCategoryIcon(job.category)} ${job.category} job ${safeDistance.toFixed(1)}km away. Earn est. ₹${estEarnings}`
             },
             data: {
                 type: 'NEW_JOB_ALERT',
                 job_id: String(jobId),
                 category: job.category,
                 category_icon: getCategoryIcon(job.category),
-                distance_km: String(worker.distance_km.toFixed(1)),
+                distance_km: String(safeDistance.toFixed(1)),
                 customer_area: job.address || 'Nearby',
                 description_snippet: (job.description || '').slice(0, 80),
                 estimated_earnings: String(estEarnings),
@@ -77,7 +85,7 @@ export async function sendJobAlertToWorkers(jobId, workers, job, waveNum) {
                 priority: 'high',
                 notification: {
                     channelId: 'job_alerts',
-                    sound: 'job_alert' // references assets/sounds/job_alert.mp3
+                    sound: 'job_alert'
                 }
             },
             apns: {
@@ -99,27 +107,34 @@ export async function sendJobAlertToWorkers(jobId, workers, job, waveNum) {
 
     try {
         const response = await messaging.sendEach(messages);
-        console.log(`[FCM Service] Individual dispatch success: ${response.successCount}, fail: ${response.failureCount}`);
+        console.log(`[FCM Service] Dispatch result — success: ${response.successCount}, fail: ${response.failureCount}`);
 
-        // Pruning stale tokens if needed (simplified for individual send)
-        if (response.failureCount > 0) {
-            const staleTokens = [];
-            response.responses.forEach((resp, idx) => {
-                if (!resp.success) {
-                    const errCode = resp.error?.code;
-                    if (errCode === 'messaging/invalid-registration-token' ||
-                        errCode === 'messaging/registration-token-not-registered') {
-                        staleTokens.push(messages[idx].token);
-                    }
+        const staleTokens = [];
+        response.responses.forEach((resp, idx) => {
+            const worker = workers[idx];
+            if (resp.success) {
+                console.log(`[FCM Service] ✅ Sent OK to worker ${worker.user_id} | messageId: ${resp.messageId}`);
+            } else {
+                const errCode = resp.error?.code || 'UNKNOWN';
+                const errMsg = resp.error?.message || '';
+                console.error(`[FCM Service] ❌ Failed for worker ${worker.user_id} | code: ${errCode} | ${errMsg}`);
+                if (errCode === 'messaging/invalid-registration-token' ||
+                    errCode === 'messaging/registration-token-not-registered') {
+                    staleTokens.push(messages[idx].token);
                 }
-            });
-            if (staleTokens.length > 0) {
-                // We'd need a token-to-user-id map here, or just prune by token if we had that endpoint
-                console.log(`[FCM Service] ${staleTokens.length} tokens marked for pruning.`);
+            }
+        });
+
+        if (staleTokens.length > 0) {
+            console.warn(`[FCM Service] ${staleTokens.length} stale token(s) detected — will prune from DB.`);
+            // Prune via token match
+            const pool = getPool();
+            for (const token of staleTokens) {
+                await pool.query('UPDATE users SET fcm_token = NULL WHERE fcm_token = ?', [token]);
             }
         }
     } catch (err) {
-        console.error(`[FCM Service] Error during individual dispatch:`, err);
+        console.error(`[FCM Service] Fatal error during sendEach dispatch:`, err.message, err.stack);
     }
 }
 

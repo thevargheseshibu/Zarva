@@ -10,6 +10,7 @@ export const useWorkerStore = create(
             isAvailable: false,
             earnings: { today: 0, week: 0, total: 0 },
             pendingJobAlert: null,
+            isAlertVisible: false,
             activeJob: null,
 
             alertPreferences: {
@@ -22,7 +23,14 @@ export const useWorkerStore = create(
             setAvailable: (val) => set({ isAvailable: val }),
             setWorkerProfile: (profile) => set({ workerProfile: profile }),
             setEarnings: (data) => set({ earnings: data }),
-            setPendingJobAlert: (alert) => set({ pendingJobAlert: alert }),
+            setPendingJobAlert: (jobData) => set({
+                pendingJobAlert: jobData,
+                isAlertVisible: jobData !== null
+            }),
+            clearPendingJobAlert: () => set({
+                pendingJobAlert: null,
+                isAlertVisible: false
+            }),
             setActiveJob: (job) => set({ activeJob: job }),
 
             updateAlertPrefs: (prefs) => set((state) => ({

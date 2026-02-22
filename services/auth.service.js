@@ -200,7 +200,8 @@ async function getUserProfile(userId, pool) {
             COALESCE(wp.subscription_status, 'free') as subscription_status,
             COALESCE(wp.service_pincodes, '[]') as service_pincodes,
             wp.is_verified, wp.is_online, wp.is_available,
-            wp.kyc_status, wp.city as worker_city, wp.current_job_id
+            wp.kyc_status, wp.city as worker_city, wp.current_job_id,
+            wp.last_location_lat, wp.last_location_lng
        FROM users u
        LEFT JOIN customer_profiles cp ON cp.user_id = u.id
        LEFT JOIN worker_profiles   wp ON wp.user_id = u.id
@@ -239,6 +240,8 @@ async function getUserProfile(userId, pool) {
             kyc_status: row.kyc_status,
             city: row.worker_city,
             current_job_id: row.current_job_id,
+            last_location_lat: row.last_location_lat,
+            last_location_lng: row.last_location_lng,
         };
     } else {
         base.profile = {

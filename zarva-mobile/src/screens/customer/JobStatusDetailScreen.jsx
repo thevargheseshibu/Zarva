@@ -90,13 +90,16 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     // ── Back button guard during active job (Issue #7) ───────────────────────
     useFocusEffect(
         useCallback(() => {
-            const activeStatuses = ['in_progress', 'pending_completion', 'worker_arrived'];
+            const activeStatuses = ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
             const onBackPress = () => {
                 if (activeStatuses.includes(status)) {
                     Alert.alert(
-                        'Job in Progress',
-                        'You cannot go back while a job is active. Please wait for it to complete.',
-                        [{ text: 'OK' }]
+                        'Active Job',
+                        'You cannot go back to the booking steps while a job is active. Do you want to go to the Home screen?',
+                        [
+                            { text: 'Stay Here', style: 'cancel' },
+                            { text: 'Go Home', onPress: () => navigation.replace('CustomerTabs') }
+                        ]
                     );
                     return true; // block back
                 }
@@ -104,7 +107,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
             };
             const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
             return () => subscription.remove();
-        }, [status])
+        }, [status, navigation])
     );
 
     // Timeline logic
@@ -142,7 +145,14 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         <View style={styles.screen}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => {
+                    const activeStatuses = ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
+                    if (activeStatuses.includes(status)) {
+                        navigation.replace('CustomerTabs');
+                    } else {
+                        navigation.goBack();
+                    }
+                }}>
                     <Text style={styles.backTxt}>←</Text>
                 </TouchableOpacity>
                 <View style={{ alignItems: 'center' }}>

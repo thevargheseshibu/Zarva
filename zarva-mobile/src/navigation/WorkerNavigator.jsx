@@ -11,6 +11,8 @@ import WorkerHomeScreen from '../screens/worker/WorkerHomeScreen';
 import AvailableJobsScreen from '../screens/worker/AvailableJobsScreen';
 import MyWorkScreen from '../screens/worker/MyWorkScreen';
 import WorkerProfileScreen from '../screens/worker/WorkerProfileScreen';
+import JobAlertBottomSheet from '../components/JobAlertBottomSheet';
+import { useNavigation } from '@react-navigation/native';
 
 const Tab = createBottomTabNavigator();
 
@@ -18,40 +20,44 @@ const icon = (label) => ({ color }) =>
     <Text style={{ color, fontSize: 20 }}>{label}</Text>;
 
 export default function WorkerNavigator() {
+    const navigation = useNavigation();
     return (
-        <Tab.Navigator
-            screenOptions={{
-                headerShown: false,
-                tabBarStyle: {
-                    backgroundColor: colors.bg.elevated,
-                    borderTopColor: colors.bg.surface,
-                    height: 62,
-                },
-                tabBarActiveTintColor: colors.gold.primary,
-                tabBarInactiveTintColor: colors.text.muted,
-                tabBarLabelStyle: { fontSize: 11, marginBottom: 6 },
-            }}
-        >
-            <Tab.Screen
-                name="WorkerHome"
-                component={WorkerHomeScreen}
-                options={{ tabBarIcon: icon('🏠'), tabBarLabel: 'Home' }}
-            />
-            <Tab.Screen
-                name="AvailableJobs"
-                component={AvailableJobsScreen}
-                options={{ tabBarIcon: icon('🔍'), tabBarLabel: 'Jobs' }}
-            />
-            <Tab.Screen
-                name="MyWork"
-                component={MyWorkScreen}
-                options={{ tabBarIcon: icon('⚒️'), tabBarLabel: 'History' }}
-            />
-            <Tab.Screen
-                name="WorkerProfile"
-                component={WorkerProfileScreen}
-                options={{ tabBarIcon: icon('👤'), tabBarLabel: 'Profile' }}
-            />
-        </Tab.Navigator>
+        <>
+            <Tab.Navigator
+                screenOptions={{
+                    headerShown: false,
+                    tabBarStyle: {
+                        backgroundColor: colors.bg.elevated,
+                        borderTopColor: colors.bg.surface,
+                        height: 62,
+                    },
+                    tabBarActiveTintColor: colors.gold.primary,
+                    tabBarInactiveTintColor: colors.text.muted,
+                    tabBarLabelStyle: { fontSize: 11, marginBottom: 6 },
+                }}
+            >
+                <Tab.Screen
+                    name="WorkerHome"
+                    component={WorkerHomeScreen}
+                    options={{ tabBarIcon: icon('🏠'), tabBarLabel: 'Home' }}
+                />
+                <Tab.Screen
+                    name="AvailableJobs"
+                    component={AvailableJobsScreen}
+                    options={{ tabBarIcon: icon('🔍'), tabBarLabel: 'Jobs' }}
+                />
+                <Tab.Screen
+                    name="MyWork"
+                    component={MyWorkScreen}
+                    options={{ tabBarIcon: icon('⚒️'), tabBarLabel: 'History' }}
+                />
+                <Tab.Screen
+                    name="WorkerProfile"
+                    component={WorkerProfileScreen}
+                    options={{ tabBarIcon: icon('👤'), tabBarLabel: 'Profile' }}
+                />
+            </Tab.Navigator>
+            <JobAlertBottomSheet navigation={navigation} />
+        </>
     );
 }

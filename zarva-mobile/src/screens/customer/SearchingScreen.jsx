@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, BackHandler, Alert, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, BackHandler, Alert, TouchableOpacity, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing } from '../../design-system/tokens';
 import RadarAnimation from '../../components/RadarAnimation';
@@ -9,8 +9,10 @@ import { useJobStore } from '../../stores/jobStore';
 export default function SearchingScreen({ route, navigation }) {
     const { category, jobId } = route.params || { category: 'electrician', jobId: 'mock-123' };
     const [countdown, setCountdown] = useState(5);
+    const [waveLog, setWaveLog] = useState([]);
+    const flashAnim = useRef(new Animated.Value(0)).current;
 
-    const { searchPhase, canMinimize, setCanMinimize, stopListening, clearActiveJob, waveNumber } = useJobStore();
+    const { searchPhase, canMinimize, setCanMinimize, stopListening, clearActiveJob, waveNumber, waveStatus } = useJobStore();
 
     useEffect(() => {
         navigation.setOptions({ gestureEnabled: false });

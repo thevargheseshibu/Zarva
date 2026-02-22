@@ -13,10 +13,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, LogBox } from 'react-native';
+import { View, ActivityIndicator, LogBox, Platform } from 'react-native';
 
 LogBox.ignoreLogs([
   'setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.',
+  // RN Firebase legacy API deprecation warnings — safe to ignore until we migrate to v22
+  'This method is deprecated (as well as all React Native Firebase namespaced API)',
 ]);
 import RootNavigator from './src/navigation/RootNavigator';
 import { useLanguageStore } from './src/i18n';
@@ -28,6 +30,8 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import { JobAlertService } from './src/services/JobAlertService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging from '@react-native-firebase/messaging';
 
 // Define Background Location Task
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -63,6 +67,28 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Background/killed message handler — MUST be registered at module level (not inside a component)
+// This runs when the app is backgrounded or killed and receives a data-only FCM
+messaging().setBackgroundMessageHandler(async remoteMessage => {
+  console.log('[FCM Background] Message received in background/killed state', remoteMessage.data?.type);
+  if (remoteMessage.data?.type === 'NEW_JOB_ALERT') {
+    const data = remoteMessage.data;
+    await AsyncStorage.setItem('zarva:pending_job_alert', JSON.stringify({
+      id: data.job_id,
+      category: data.category,
+      categoryIcon: data.category_icon,
+      distance: parseFloat(data.distance_km),
+      earnings: parseInt(data.estimated_earnings),
+      area: data.customer_area,
+      description: data.description_snippet,
+      isEmergency: data.is_emergency === '1',
+      acceptWindow: parseInt(data.accept_window_seconds) || 30,
+      wave: parseInt(data.wave_number),
+      timestamp: Date.now()
+    })).catch(console.warn);
+  }
+});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 30_000 },
@@ -71,72 +97,136 @@ const queryClient = new QueryClient({
 
 export default function App() {
   const { language, isLoaded, loadLanguage } = useLanguageStore();
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
 
+  // 1. Load Language
   React.useEffect(() => {
     loadLanguage(language);
     JobAlertService.init();
   }, [language]);
 
+  // 2. Auth-Gated / Post-Load Logic (Rehydration)
   React.useEffect(() => {
-    if (isLoaded) {
-      // Rehydrate minimizable active job queue on app reopen
-      apiClient.get('/api/me/jobs?status=active').then(res => {
-        const job = res.data?.jobs?.[0] || res.data?.data?.[0]; // Support multiple payload styles
-        if (job) {
-          const store = useJobStore.getState();
-          store.setActiveJob({ id: job.id, category: job.category });
-          store.setSearchPhase(job.status || 'searching');
-          store.setCanMinimize(true);
-          store.startListening(job.id);
-        }
-      }).catch(err => { /* Soft ignore on Unauth instances */ });
+    if (!isLoaded) return;
 
-      // Worker: Re-hydrate Push Token & Install Foreground Message Receivers
-      const registerForPushNotificationsAsync = async () => {
+    // Rehydrate minimizable active job queue
+    apiClient.get('/api/me/jobs?status=active').then(res => {
+      const job = res.data?.jobs?.[0] || res.data?.data?.[0];
+      if (job) {
+        const store = useJobStore.getState();
+        store.setActiveJob({ id: job.id, category: job.category });
+        store.setSearchPhase(job.status || 'searching');
+        store.setCanMinimize(true);
+        store.startListening(job.id);
+      }
+    }).catch(() => { });
+
+    // Killed-State / Background Recovery
+    AsyncStorage.getItem('zarva:pending_job_alert').then(data => {
+      if (data) {
         try {
-          const { status: existingStatus } = await Notifications.getPermissionsAsync();
-          let finalStatus = existingStatus;
-          if (existingStatus !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
-            finalStatus = status;
-          }
-          if (finalStatus !== 'granted') return;
+          const parsed = JSON.parse(data);
+          const store = useWorkerStore.getState();
+          store.setPendingJobAlert(parsed);
+          JobAlertService.startAlertLoop().catch(console.warn);
+          AsyncStorage.removeItem('zarva:pending_job_alert');
+        } catch (e) {
+          console.error('[KilledState] Recovery failed', e);
+        }
+      }
+    }).catch(console.warn);
+  }, [isLoaded]);
 
-          // Request native OS token (FCM/APNs) to route past Expo explicitly for our Node.js Match Engine
-          const tokenData = await Notifications.getDevicePushTokenAsync();
-          const isAuthenticated = useAuthStore.getState().isAuthenticated;
+  // 3. FCM Token Sync (Reactive to Auth)
+  React.useEffect(() => {
+    if (!isLoaded || !isAuthenticated) return;
 
-          if (tokenData && tokenData.data && isAuthenticated) {
-            await apiClient.put('/api/me/fcm-token', { fcm_token: tokenData.data });
-          }
-        } catch (err) {
-          // If we still get a 401, ignore it as the user might be logging out
-          if (err?.response?.status !== 401) {
-            console.log('[Push] Failed to init or sync token', err);
+    const syncPushToken = async () => {
+      try {
+        console.log('[FCM] Checking permissions and token...');
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') {
+          const { status: newStatus } = await Notifications.requestPermissionsAsync();
+          if (newStatus !== 'granted') {
+            console.warn('[FCM] Permission not granted');
+            return;
           }
         }
+
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('job_alerts', {
+            name: 'Job Alerts',
+            description: 'Incoming job requests',
+            importance: Notifications.AndroidImportance.MAX,
+            sound: 'job_alert.mp3',
+            vibrationPattern: [0, 500, 200, 500, 200, 500],
+            enableVibrate: true,
+            enableLights: true,
+            lightColor: '#C9A84C',
+          });
+        }
+
+        // Use RN Firebase to get the token for consistency with listeners
+        const token = await messaging().getToken();
+        if (token) {
+          console.log('[FCM] Syncing token with server:', token.slice(0, 10) + '...');
+          await apiClient.put('/api/me/fcm-token', { fcm_token: token });
+        }
+      } catch (err) {
+        if (err?.response?.status !== 401) {
+          console.error('[FCM] Token sync failed:', err);
+        }
+      }
+    };
+
+    syncPushToken();
+  }, [isLoaded, isAuthenticated]);
+
+  // 4. FCM Message Listeners
+  React.useEffect(() => {
+    if (!isLoaded) return;
+
+    const handleNewJob = (remoteMessage) => {
+      console.log('[FCM] 🔔 NEW_JOB_ALERT received:', remoteMessage.data?.job_id);
+      const data = remoteMessage.data;
+      const alertPayload = {
+        id: data.job_id,
+        category: data.category,
+        categoryIcon: data.category_icon,
+        distance: parseFloat(data.distance_km),
+        earnings: parseInt(data.estimated_earnings),
+        area: data.customer_area,
+        description: data.description_snippet,
+        isEmergency: data.is_emergency === '1',
+        acceptWindow: parseInt(data.accept_window_seconds) || 30,
+        wave: parseInt(data.wave_number),
+        timestamp: Date.now()
       };
 
-      registerForPushNotificationsAsync();
+      AsyncStorage.setItem('zarva:pending_job_alert', JSON.stringify(alertPayload)).catch(() => { });
 
-      // 5. Native Receivers delegating to JobAlertService
-      const notificationListener = {
-        current: Notifications.addNotificationReceivedListener(notification => {
-          JobAlertService.handleIncomingNotification(notification);
-        })
-      };
+      const workerStore = useWorkerStore.getState();
+      workerStore.setPendingJobAlert(alertPayload);
+      JobAlertService.startAlertLoop().catch(console.warn);
+    };
 
-      const responseListener = {
-        current: Notifications.addNotificationResponseReceivedListener(response => {
-          JobAlertService.handleIncomingNotification(response.notification);
-        })
-      };
+    const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
+      if (remoteMessage.data?.type === 'NEW_JOB_ALERT') {
+        handleNewJob(remoteMessage);
+      }
+    });
 
-      return () => {
-        if (notificationListener.current) notificationListener.current.remove();
-        if (responseListener.current) responseListener.current.remove();
-      };
-    }
+    const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(remoteMessage => {
+      console.log('[FCM] 🔔 Tray tap detected');
+      if (remoteMessage.data?.type === 'NEW_JOB_ALERT') {
+        handleNewJob(remoteMessage);
+      }
+    });
+
+    return () => {
+      unsubscribeForeground();
+      unsubscribeOpenedApp();
+    };
   }, [isLoaded]);
 
   if (!isLoaded) {

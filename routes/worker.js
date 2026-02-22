@@ -601,7 +601,7 @@ router.get('/available-jobs', (req, res) =>
             return { jobs: [], is_online: false };
         }
 
-        const hasLocation = profile.current_lat && profile.current_lng;
+        const hasLocation = profile.last_location_lat && profile.last_location_lng;
 
         let jobs;
         if (hasLocation) {
@@ -609,13 +609,14 @@ router.get('/available-jobs', (req, res) =>
             [jobs] = await pool.query(
                 `SELECT j.id, j.category, j.status, j.created_at, j.address,
                         j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
-                        j.travel_charge, j.scheduled_at, j.is_emergency,
+                        j.travel_charge, j.scheduled_at,
+                        j.latitude, j.longitude,
                         c.name as customer_name,
                         ROUND(
                             6371 * acos(
-                                cos(radians(?)) * cos(radians(c.default_lat)) 
-                                * cos(radians(c.default_lng) - radians(?)) 
-                                + sin(radians(?)) * sin(radians(c.default_lat))
+                                cos(radians(?)) * cos(radians(j.latitude)) 
+                                * cos(radians(j.longitude) - radians(?)) 
+                                + sin(radians(?)) * sin(radians(j.latitude))
                             ), 1
                         ) AS distance_km
                  FROM jobs j
@@ -630,6 +631,7 @@ router.get('/available-jobs', (req, res) =>
             [jobs] = await pool.query(
                 `SELECT j.id, j.category, j.status, j.created_at, j.address,
                         j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
+                        j.latitude, j.longitude,
                         c.name as customer_name, NULL as distance_km
                  FROM jobs j
                  LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
@@ -647,9 +649,10 @@ router.get('/available-jobs', (req, res) =>
                 id: j.id,
                 category: j.category,
                 icon: '⚡',
-                dist: j.distance_km !== null ? j.distance_km : '—',
+                dist: j.distance_km !== null ? parseFloat(j.distance_km) : null, // Always in KM
+                latitude: j.latitude || null,
+                longitude: j.longitude || null,
                 est,
-                desc: j.description || '',     // raw text description only
                 address: j.address || '',
                 scheduled_at: j.scheduled_at || null,
                 advance_amount: j.advance_amount || 0,

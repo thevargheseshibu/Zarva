@@ -129,3 +129,14 @@ Firebase Phone Auth fails on local emulators/devices because Google Play Integri
 
 
 AIzaSyDP5O9LyDSQTmrMpZI8ztQyVY4yH9cQSaI
+
+https://zarva-dev-741f9-default-rtdb.firebaseio.com/
+
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null"
+  }
+}
+
+Implement this in future firebase security
