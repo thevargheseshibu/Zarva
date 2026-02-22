@@ -25,7 +25,20 @@ export default function RatingScreen({ route, navigation }) {
             }
             try {
                 const res = await apiClient.get(`/api/jobs/${jobId}`);
-                setJob(res.data?.job);
+                const jobData = res.data?.job;
+                setJob(jobData);
+
+                // If already reviewed, populate state with existing data
+                if (jobData?.is_reviewed && jobData.review) {
+                    const rev = jobData.review;
+                    setRating(rev.score || 0);
+                    if (rev.category_scores) {
+                        setPunctuality(rev.category_scores.punctuality || 0);
+                        setCommunication(rev.category_scores.communication || 0);
+                        setProfessionalism(rev.category_scores.professionalism || 0);
+                    }
+                    setComment(rev.comment || '');
+                }
             } catch (err) {
                 console.error('Failed to fetch job for rating', err);
             } finally {
@@ -37,7 +50,13 @@ export default function RatingScreen({ route, navigation }) {
 
     const worker = job?.worker || { name: 'Worker', photo: null, rating: 0 };
 
+    const isReadOnly = !!job?.is_reviewed;
+
     const handleSubmit = async () => {
+        if (isReadOnly) {
+            navigation.popToTop();
+            return;
+        }
         setLoading(true);
         try {
             await apiClient.post(`/api/reviews`, {
@@ -62,7 +81,12 @@ export default function RatingScreen({ route, navigation }) {
     const StarRow = ({ value, onChange, size = 32 }) => (
         <View style={styles.starRow}>
             {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity key={star} onPress={() => onChange(star)} activeOpacity={0.8}>
+                <TouchableOpacity
+                    key={star}
+                    onPress={() => !isReadOnly && onChange(star)}
+                    activeOpacity={isReadOnly ? 1 : 0.8}
+                    disabled={isReadOnly}
+                >
                     <Text style={[styles.star, { fontSize: size, color: star <= value ? colors.gold.primary : colors.bg.surface }]}>
                         ★
                     </Text>
@@ -110,7 +134,13 @@ export default function RatingScreen({ route, navigation }) {
                             <Text style={styles.newWorkerTxtRating}>New Worker</Text>
                         </View>
                     )}
-                    <Text style={styles.sub}>How was your experience with this service?</Text>
+                    {isReadOnly ? (
+                        <View style={styles.readOnlyBadge}>
+                            <Text style={styles.readOnlyTxt}>Feedback Submitted</Text>
+                        </View>
+                    ) : (
+                        <Text style={styles.sub}>How was your experience with this service?</Text>
+                    )}
                 </View>
 
                 {/* Main Rating */}
@@ -135,12 +165,13 @@ export default function RatingScreen({ route, navigation }) {
                         </View>
 
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, isReadOnly && styles.inputDisabled]}
                             placeholder="Add a comment... (optional)"
                             placeholderTextColor={colors.text.muted}
                             value={comment}
                             onChangeText={setComment}
                             multiline
+                            editable={!isReadOnly}
                         />
                     </View>
                 )}
@@ -149,8 +180,8 @@ export default function RatingScreen({ route, navigation }) {
 
             <View style={styles.footer}>
                 <GoldButton
-                    title="Submit Feedback"
-                    disabled={rating === 0}
+                    title={isReadOnly ? "Back to Home" : "Submit Feedback"}
+                    disabled={!isReadOnly && rating === 0}
                     loading={loading}
                     onPress={handleSubmit}
                 />
@@ -218,6 +249,17 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
+
+    readOnlyBadge: {
+        backgroundColor: colors.success + '22',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: colors.success + '44',
+    },
+    readOnlyTxt: { color: colors.success, fontWeight: '700', fontSize: 13 },
+    inputDisabled: { backgroundColor: colors.bg.elevated, borderColor: 'transparent' },
 
     footer: { padding: spacing.lg, paddingBottom: spacing.xl * 2, borderTopWidth: 1, borderTopColor: colors.bg.surface }
 });

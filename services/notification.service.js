@@ -153,9 +153,9 @@ export async function notifyWorkersNewJob(jobId, workerIds) {
 export async function notifyCustomerWorkerFound(jobId) {
     const pool = getPool();
     const [jobs] = await pool.query(
-        `SELECT j.customer_id, wp.name AS worker_name
+        `SELECT j.customer_id, COALESCE(wp.name, 'Worker') AS worker_name
          FROM jobs j
-         JOIN worker_profiles wp ON wp.user_id = j.worker_id
+         LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
          WHERE j.id=?`, [jobId]
     );
     const job = jobs[0];
@@ -172,9 +172,9 @@ export async function notifyCustomerWorkerFound(jobId) {
 export async function notifyCustomerWorkerArrived(jobId, startOtp) {
     const pool = getPool();
     const [jobs] = await pool.query(
-        `SELECT j.customer_id, wp.name AS worker_name
+        `SELECT j.customer_id, COALESCE(wp.name, 'Worker') AS worker_name
          FROM jobs j
-         JOIN worker_profiles wp ON wp.user_id = j.worker_id
+         LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
          WHERE j.id=?`, [jobId]
     );
     const job = jobs[0];

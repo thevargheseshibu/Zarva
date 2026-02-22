@@ -89,12 +89,12 @@ router.post('/', async (req, res) => {
             throw insertErr;
         }
 
-        // 7. Recalculate avg_rating + increment rating_count on reviewee profile
+        // 7. Recalculate average_rating + increment rating_count on reviewee profile
         if (reviewer_role === 'customer') {
             // Customer rated the worker
             await pool.query(
                 `UPDATE worker_profiles
-                 SET avg_rating = (SELECT AVG(score) FROM reviews WHERE reviewee_id = ?),
+                 SET average_rating = (SELECT AVG(score) FROM reviews WHERE reviewee_id = ?),
                      rating_count = rating_count + 1
                  WHERE user_id = ?`,
                 [reviewee_id, reviewee_id]

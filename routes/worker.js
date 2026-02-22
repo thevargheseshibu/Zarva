@@ -183,9 +183,13 @@ router.post('/jobs/:id/accept', (req, res) =>
         const jobId = req.params.id;
         await MatchingEngine.acceptJob(jobId, userId, pool);
 
-        // Fetch worker profile for Firebase sync (Issue #2, #51)
+        // Fetch worker profile with fallback
         const [workerProfiles] = await pool.query(
-            'SELECT name, average_rating, profile_s3_key FROM worker_profiles WHERE user_id = ?',
+            `SELECT COALESCE(name, 'Worker') as name, 
+                    average_rating, 
+                    profile_s3_key 
+             FROM worker_profiles
+             WHERE user_id = ?`,
             [userId]
         );
         const wp = workerProfiles[0];
@@ -485,13 +489,13 @@ router.put('/location', (req, res) =>
         if (lat == null || lng == null) throw Object.assign(new Error('lat and lng required'), { status: 400 });
 
         // Guard: must be verified and online
-        const [wp] = await pool.query(
-            'SELECT is_verified, is_online, current_job_id FROM worker_profiles WHERE user_id=?',
+        const [profiles] = await pool.query(
+            'SELECT kyc_status, is_online, current_job_id FROM worker_profiles WHERE user_id=?',
             [userId]
         );
-        const profile = wp[0];
-        if (!profile) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
-        if (!profile.is_verified) throw Object.assign(new Error('Worker not verified'), { status: 403 });
+        const profile = profiles[0] || {};
+
+        if (profile.kyc_status !== 'approved') throw Object.assign(new Error('Worker not verified'), { status: 403 });
         if (!profile.is_online) throw Object.assign(new Error('Worker must be online to update location'), { status: 403 });
 
         // 1. Update DB
@@ -585,13 +589,13 @@ router.put('/availability', (req, res) =>
 // Get nearby open jobs for worker
 router.get('/available-jobs', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const [wp] = await pool.query(
-            'SELECT is_verified, is_online, category, last_location_lat, last_location_lng FROM worker_profiles WHERE user_id=?',
+        const [profiles] = await pool.query(
+            'SELECT kyc_status, is_online, category, last_location_lat, last_location_lng FROM worker_profiles WHERE user_id=?',
             [userId]
         );
-        const profile = wp[0];
-        if (!profile) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
-        if (!profile.is_verified) throw Object.assign(new Error('Worker not verified'), { status: 403 });
+        const profile = profiles[0] || {};
+
+        if (profile.kyc_status !== 'approved') throw Object.assign(new Error('Worker not verified'), { status: 403 });
 
         if (!profile.is_online) {
             return { jobs: [], is_online: false };

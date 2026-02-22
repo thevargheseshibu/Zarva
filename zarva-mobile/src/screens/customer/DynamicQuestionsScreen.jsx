@@ -100,35 +100,28 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         const localUri = result.assets[0].uri;
 
         try {
-            // 1. Get Pre-signed URL
-            const presignRes = await apiClient.post('/api/uploads/presign', {
-                purpose: 'job_photo',
-                filename: `job_photo_${Date.now()}.jpg`,
-                mime_type: 'image/jpeg',
-            });
-            const { upload_url, s3_key } = presignRes.data;
-
-            // The URL for the worker to view later is typically a cloudfront or bucket URL
-            // We use the base S3 URL without query params for internal tracking
-            const public_url = upload_url.split('?')[0];
-
-            console.log(`[S3] Starting upload to: ${s3_key}`);
-
-            // 2. Perform Binary PUT to S3
-            const uploadResult = await FileSystem.uploadAsync(upload_url, localUri, {
-                httpMethod: 'PUT',
-                uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-                headers: { 'Content-Type': 'image/jpeg' },
+            // 1. Prepare FormData for direct backend upload
+            const formData = new FormData();
+            formData.append('purpose', 'job_photo');
+            formData.append('file', {
+                uri: localUri,
+                name: `job_photo_${Date.now()}.jpg`,
+                type: 'image/jpeg'
             });
 
-            if (uploadResult.status !== 200) {
-                throw new Error(`S3 Upload failed with status ${uploadResult.status}`);
+            console.log(`[S3] Starting upload and compression via backend...`);
+
+            // 2. Upload to Node.js server (which compresses via Sharp and pushes to S3)
+            const uploadRes = await apiClient.post('/api/uploads/image', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (uploadRes.data.status !== 'ok') {
+                throw new Error(`Upload failed on server`);
             }
 
-            console.log(`[S3] Upload successful. Confirming token...`);
-
-            // 3. Confirm with backend to mark token as used
-            await apiClient.post('/api/uploads/confirm', { s3_key });
+            const { s3_key, url } = uploadRes.data;
+            const public_url = url.split('?')[0];
 
             // Store the final S3 URL as the answer
             handleAnswer(questionId, public_url);

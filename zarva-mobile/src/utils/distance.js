@@ -13,9 +13,10 @@ export function haversineKm(lat1, lng1, lat2, lng2) {
 }
 
 export function formatDistance(km) {
-    if (km === null || km === undefined) return '';
-    if (km < 1) return `${Math.round(km * 1000)} m`;
-    return `${km.toFixed(1)} km`;
+    if (km === null || km === undefined || isNaN(km)) return '';
+    const numKm = Number(km);
+    if (numKm < 1) return `${Math.round(numKm * 1000)} m`;
+    return `${numKm.toFixed(1)} km`;
 }
 
 /**

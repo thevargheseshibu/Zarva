@@ -20,6 +20,7 @@ export default function AvailableJobsScreen({ navigation }) {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isOnline, setIsOnline] = useState(true);
+    const [kycError, setKycError] = useState(false);
 
     const fetchJobs = async () => {
         try {
@@ -33,6 +34,7 @@ export default function AvailableJobsScreen({ navigation }) {
 
             const res = await apiClient.get('/api/worker/available-jobs');
             setIsOnline(res.data?.is_online);
+            setKycError(false);
 
             let rawJobs = res.data?.jobs || [];
 
@@ -54,7 +56,12 @@ export default function AvailableJobsScreen({ navigation }) {
 
             setJobs(rawJobs);
         } catch (err) {
-            console.error('Failed to fetch available jobs:', err);
+            if (err.response?.status === 403) {
+                setKycError(true);
+                setJobs([]);
+            } else {
+                console.warn('Failed to fetch available jobs:', err.message);
+            }
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -120,6 +127,19 @@ export default function AvailableJobsScreen({ navigation }) {
 
     const renderEmpty = () => {
         if (loading) return <ActivityIndicator size="large" color={colors.gold.primary} style={{ marginTop: spacing.xl * 2 }} />;
+
+        if (kycError) {
+            return (
+                <View style={styles.emptyWrap}>
+                    <Text style={styles.emptyIcon}>⏳</Text>
+                    <Text style={styles.emptyTitle}>Verification Required</Text>
+                    <Text style={styles.emptySub}>
+                        Your profile is currently under review or incomplete. Once your account is verified by our team, you will start receiving job requests here.
+                    </Text>
+                </View>
+            );
+        }
+
         return (
             <View style={styles.emptyWrap}>
                 <Text style={styles.emptyIcon}>📭</Text>

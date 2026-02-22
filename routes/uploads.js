@@ -6,11 +6,19 @@
  */
 
 import { Router } from 'express';
+import multer from 'multer';
+import sharp from 'sharp';
 import { getPool } from '../config/database.js';
 import {
     generatePresignedUpload,
     confirmUpload,
+    uploadBufferToS3
 } from '../services/upload.service.js';
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
 
 const router = Router();
 
@@ -76,6 +84,57 @@ router.post('/confirm', async (req, res) => {
         const status = err.status ?? 500;
         const msg = status < 500 ? err.message : 'Failed to confirm upload token.';
         return fail(res, msg, status, 'CONFIRM_ERROR');
+    }
+});
+
+/**
+ * POST /api/uploads/image
+ * Accepts a multipart/form-data image, compresses it natively via Sharp,
+ * and pushes it directly to S3 without intermediary presigned links.
+ */
+router.post('/image', upload.single('file'), async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+        return fail(res, 'Authentication required.', 401, 'UNAUTHORIZED');
+    }
+
+    if (!req.file) {
+        return fail(res, 'No file provided in the "file" field.', 400, 'MISSING_FILE');
+    }
+
+    const { purpose } = req.body;
+    if (!purpose) {
+        return fail(res, 'Upload purpose is required.', 400, 'MISSING_PURPOSE');
+    }
+
+    try {
+        console.log(`[Uploads API] Processing and compressing image for U:${userId} -> Purpose: ${purpose}`);
+        const pool = getPool();
+
+        // Use Sharp to resize and compress the uploaded in-memory buffer
+        const compressedBuffer = await sharp(req.file.buffer)
+            .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 80, force: true }) // Convert almost everything to JPEG, preserving size
+            .toBuffer();
+
+        const result = await uploadBufferToS3(
+            userId,
+            purpose,
+            req.file.originalname,
+            'image/jpeg',
+            compressedBuffer,
+            pool
+        );
+
+        console.log(`[Uploads API] Image compressed and uploaded successfully: ${result.s3_key}`);
+
+        // Return both S3 key and full URL (matches presigned + manual confirm flow behavior indirectly)
+        return ok(res, result);
+    } catch (err) {
+        console.error(`[Uploads API] /image API failed for U:${userId}:`, err);
+        const status = err.status ?? 500;
+        const msg = status < 500 ? err.message : 'Failed to compress and upload image.';
+        return fail(res, msg, status, 'UPLOAD_ERROR');
     }
 });
 

@@ -4,7 +4,7 @@
  * Handles push notifications, sound loops, and haptics for Uber-style job alerts.
  */
 import * as Notifications from 'expo-notifications';
-import { Audio } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { useWorkerStore } from '../stores/workerStore';
@@ -51,12 +51,13 @@ export const JobAlertService = {
         // 1. Loop Sound
         if (alertPreferences.soundEnabled) {
             try {
-                if (soundObject) await soundObject.unloadAsync();
-                const { sound } = await Audio.Sound.createAsync(
-                    require('../../assets/sounds/job_alert.mp3'),
-                    { shouldPlay: true, isLooping: true }
-                );
-                soundObject = sound;
+                if (soundObject) {
+                    soundObject.pause();
+                    soundObject.remove();
+                }
+                soundObject = createAudioPlayer(require('../../assets/sounds/job_alert.mp3'));
+                soundObject.loop = true;
+                soundObject.play();
             } catch (err) {
                 console.warn('[JobAlert] Sound load failed (Check assets/sounds/job_alert.mp3)', err);
             }
@@ -73,8 +74,10 @@ export const JobAlertService = {
 
     async stopAlertLoop() {
         if (soundObject) {
-            await soundObject.stopAsync().catch(() => { });
-            await soundObject.unloadAsync().catch(() => { });
+            try {
+                soundObject.pause();
+                soundObject.remove();
+            } catch (e) { }
             soundObject = null;
         }
         if (hapticInterval) {

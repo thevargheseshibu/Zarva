@@ -3,6 +3,13 @@ import { haversineKm, formatDistance, calculateTravelCharge } from '../../utils/
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { Linking } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ScrollView, Image, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { colors, spacing, radius } from '../../design-system/tokens';
+import React, { useState, useCallback } from 'react';
+import { parseJobDescription } from '../../utils/jobParser';
+
+
+
 
 dayjs.extend(relativeTime);
 
@@ -53,6 +60,18 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                     setJob(prev => ({
                         ...prev,
                         dist: kms,
+                        travel_charge: travel,
+                        total_amount: estTotal
+                    }));
+                } else if (initialJob.dist !== undefined) {
+                    // Fallback: If latitude/longitude are hidden (e.g. privacy), use the pre-calculated distance from the server/AvailableJobsScreen
+                    const travel = calculateTravelCharge(initialJob.dist);
+                    const baseRate = parseFloat(job.rate_per_hour || 0);
+                    const estTotal = baseRate + travel + (parseFloat(job.advance_amount || 0));
+
+                    setJob(prev => ({
+                        ...prev,
+                        dist: initialJob.dist,
                         travel_charge: travel,
                         total_amount: estTotal
                     }));
@@ -130,7 +149,7 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                         </View>
                     </View>
 
-                    <Text style={styles.estValue}>₹{job.total_amount?.toFixed(0) || 'Price on completion'}</Text>
+                    <Text style={styles.estValue}>₹{job.total_amount ? parseFloat(job.total_amount).toFixed(0) : 'Price on completion'}</Text>
 
                     <View style={styles.distRow}>
                         {locLoading ? (

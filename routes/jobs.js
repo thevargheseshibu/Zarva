@@ -82,13 +82,13 @@ router.get('/', async (req, res) => {
         const [jobsWithWorkers] = await pool.query(`
             SELECT 
                 j.*,
-                wp.name as worker_name,
+                COALESCE(wp.name, 'Worker') as worker_name,
                 wp.category as worker_category,
-                wp.avg_rating as worker_rating,
+                wp.average_rating as worker_rating,
                 wp.profile_s3_key as worker_photo,
-                wp.is_verified as worker_verified,
+                (wp.kyc_status = 'verified') as worker_verified,
                 (SELECT COUNT(*) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
-                (SELECT overall_score FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as rating_given
+                (SELECT score FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as rating_given
             FROM jobs j
             LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
             WHERE j.customer_id = ?
@@ -172,15 +172,13 @@ router.get('/:id', async (req, res) => {
         const [jobsWithWorkers] = await pool.query(`
             SELECT 
                 j.*,
-            SELECT 
-                j.*,
-                wp.name as worker_name,
+                COALESCE(wp.name, 'Worker') as worker_name,
                 wp.category as worker_category,
-                wp.avg_rating as worker_rating,
+                wp.average_rating as worker_rating,
                 wp.profile_s3_key as worker_photo,
-                wp.is_verified as worker_verified,
+                (wp.kyc_status = 'verified') as worker_verified,
                 (SELECT COUNT(*) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
-                (SELECT overall_score FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as rating_given
+                (SELECT JSON_OBJECT('score', score, 'category_scores', category_scores, 'comment', comment) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as review_details
             FROM jobs j
             LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
             WHERE j.id = ?
@@ -194,7 +192,6 @@ router.get('/:id', async (req, res) => {
         delete job.start_otp_hash;
         delete job.end_otp_hash;
 
-        // Map worker object if assigned
         if (job.worker_id) {
             const bucket = process.env.AWS_BUCKET_NAME;
             const region = process.env.AWS_REGION;
@@ -214,7 +211,17 @@ router.get('/:id', async (req, res) => {
         }
 
         job.is_reviewed = !!job.is_reviewed;
-        job.ratingGiven = job.rating_given;
+        if (job.review_details && typeof job.review_details === 'string') {
+            try {
+                job.review = JSON.parse(job.review_details);
+            } catch (e) {
+                job.review = job.review_details; // fallback
+            }
+        } else {
+            job.review = job.review_details || null;
+        }
+        delete job.review_details;
+        delete job.rating_given;
 
         // Remove flattened fields
         delete job.worker_name;

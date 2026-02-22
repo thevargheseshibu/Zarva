@@ -92,6 +92,47 @@ export async function generatePresignedUpload(userId, purpose, filename, mimeTyp
 }
 
 /**
+ * Upload a binary buffer directly to S3 from the server.
+ * Used for server-side compression before storage.
+ */
+export async function uploadBufferToS3(userId, purpose, filename, mimeType, buffer, pool) {
+    if (!VALID_PURPOSES.has(purpose)) {
+        throw Object.assign(new Error(`Invalid upload purpose: ${purpose}`), { status: 400 });
+    }
+
+    const bucketName = getS3BucketName();
+    if (!bucketName) {
+        throw Object.assign(new Error('AWS S3 bucket name is missing in configuration.'), { status: 500 });
+    }
+
+    const ext = getExtension(mimeType);
+    const s3Key = `${purpose}/${userId}/${randomUUID()}.${ext}`;
+
+    const command = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: s3Key,
+        Body: buffer,
+        ContentType: mimeType,
+        Metadata: {
+            original_filename: filename,
+            uploader_user_id: String(userId),
+        },
+    });
+
+    await getS3Client().send(command);
+
+    // Skip creating token confirmation flow since the server is trusted,
+    // but we can log it explicitly or return the key.
+    console.log(`[Uploads Service] Native buffer uploaded to S3: U:${userId} -> ${s3Key}`);
+
+    return {
+        s3_key: s3Key,
+        url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`
+    };
+}
+
+
+/**
  * Validate that an upload was performed by checking token state.
  * Marks the token as used so it cannot be reused for a different resource.
  *
@@ -101,18 +142,18 @@ export async function generatePresignedUpload(userId, purpose, filename, mimeTyp
  * @returns {Promise<boolean>}
  */
 export async function confirmUpload(userId, s3Key, pool) {
-    console.log(`[Uploads Service] Verifying S3 Token DB entry: U:${userId} S3Key:${s3Key}`);
+    console.log(`[Uploads Service] Verifying S3 Token DB entry: U:${userId} S3Key:${s3Key} `);
     // Check token existence, ownership, unused status, and unexpired
     const [rows] = await pool.query(
         `SELECT id, is_used, expires_at
        FROM s3_upload_tokens
       WHERE user_id = ? AND s3_key = ?
-      LIMIT 1`,
+        LIMIT 1`,
         [userId, s3Key]
     );
 
     if (rows.length === 0) {
-        console.warn(`[Uploads Service] S3 Token NOT FOUND in DB for S3Key:${s3Key}`);
+        console.warn(`[Uploads Service] S3 Token NOT FOUND in DB for S3Key:${s3Key} `);
         throw Object.assign(new Error('Invalid or unknown S3 token.'), { status: 404 });
     }
 
@@ -123,14 +164,14 @@ export async function confirmUpload(userId, s3Key, pool) {
     }
 
     if (new Date(token.expires_at) < new Date()) {
-        console.warn(`[Uploads Service] S3 Token EXPIRED for S3Key:${s3Key}`);
+        console.warn(`[Uploads Service] S3 Token EXPIRED for S3Key:${s3Key} `);
         throw Object.assign(new Error('Upload token expired.'), { status: 400 });
     }
 
     // Update token to used
-    console.log(`[Uploads Service] S3 Token Validated. Updating is_used = 1 in DB for ID:${token.id}`);
+    console.log(`[Uploads Service] S3 Token Validated.Updating is_used = 1 in DB for ID:${token.id} `);
     await pool.query(
-        `UPDATE s3_upload_tokens SET is_used = 1 WHERE id = ?`,
+        `UPDATE s3_upload_tokens SET is_used = 1 WHERE id = ? `,
         [token.id]
     );
 
@@ -157,7 +198,7 @@ export async function generateS3Url(s3Key) {
 
         return await getSignedUrl(getS3Client(), command, { expiresIn: VIEW_EXPIRY_SECONDS });
     } catch (err) {
-        console.error(`[AWS] Failed to generate signed GET URL for ${s3Key}:`, err.message);
+        console.error(`[AWS] Failed to generate signed GET URL for ${s3Key}: `, err.message);
         return null;
     }
 }

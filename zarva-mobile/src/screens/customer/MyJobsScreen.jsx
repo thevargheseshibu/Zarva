@@ -66,11 +66,11 @@ export default function MyJobsScreen({ navigation }) {
                         <StatusPill status={item.status} />
                     </View>
 
-                    {item.worker && (['assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(item.status)) && (
+                    {item.worker && (['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'completed', 'cancelled', 'disputed'].includes(item.status)) && (
                         <View style={styles.workerMini}>
                             <Image source={{ uri: item.worker.photo }} style={styles.workerPhoto} />
                             <View style={styles.workerInfo}>
-                                <Text style={styles.workerName}>{item.worker.name}</Text>
+                                <Text style={styles.workerName}>{item.worker.name || 'Worker'}</Text>
                                 {parseFloat(item.worker.rating) > 0 ? (
                                     <Text style={styles.workerRating}>⭐ {parseFloat(item.worker.rating).toFixed(1)}</Text>
                                 ) : (

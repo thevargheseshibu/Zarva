@@ -70,10 +70,10 @@ export default function LocationInput({ onChange, initialData = {} }) {
                 // Auto-fill manual fields where possible
                 setFields(prev => ({
                     ...prev,
-                    house: place.subregion || place.name || prev.house,
+                    house: place.name && place.name !== place.street ? place.name : prev.house,
                     street: place.street || prev.street,
-                    district: place.district || place.subregion || prev.district,
-                    city: place.city || prev.city,
+                    district: place.district || place.subregion || place.city || prev.district,
+                    city: place.city || place.subregion || prev.city,
                     state: place.region || prev.state,
                     pincode: place.postalCode || prev.pincode
                 }));

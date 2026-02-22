@@ -19,25 +19,24 @@ const DOCS = [
 
 async function uploadImage(uri, docKey) {
     try {
-        // 1. Get presigned URL from the backend
-        // purpose must be one of the server's VALID_PURPOSES: 'worker_doc', 'job_photo', 'profile_photo'
-        const presignRes = await apiClient.post('/api/uploads/presign', {
-            purpose: 'worker_doc',
-            filename: `${docKey}_${Date.now()}.jpg`,
-            mime_type: 'image/jpeg',
-        });
-        const { upload_url, s3_key } = presignRes.data;
-
-        // 2. Upload directly to S3 using FileSystem.uploadAsync
-        await FileSystem.uploadAsync(upload_url, uri, {
-            httpMethod: 'PUT',
-            headers: { 'Content-Type': 'image/jpeg' },
+        const formData = new FormData();
+        formData.append('purpose', 'worker_doc');
+        formData.append('file', {
+            uri,
+            name: `${docKey}_${Date.now()}.jpg`,
+            type: 'image/jpeg'
         });
 
-        // 3. Confirm upload so the server marks the token as used
-        await apiClient.post('/api/uploads/confirm', { s3_key });
+        // Upload and compress via Node JS server
+        const uploadRes = await apiClient.post('/api/uploads/image', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
 
-        return s3_key; // return s3_key for later submission
+        if (uploadRes.data.status !== 'ok') {
+            throw new Error('Upload failed on server');
+        }
+
+        return uploadRes.data.s3_key;
     } catch (err) {
         console.error("Upload failed natively:", err);
         throw err;
