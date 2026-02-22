@@ -56,10 +56,10 @@ export const JobAlertService = {
                     soundObject.remove();
                 }
                 soundObject = createAudioPlayer(require('../../assets/sounds/job_alert.mp3'));
-                soundObject.loop = true;
-                soundObject.play();
+                soundObject.loop = true; // Use simple true loop boolean
+                soundObject.play(); // Native bindings for expo-audio 6.x
             } catch (err) {
-                console.warn('[JobAlert] Sound load failed (Check assets/sounds/job_alert.mp3)', err);
+                console.warn('[JobAlert] Sound load failed', err);
             }
         }
 
@@ -106,7 +106,8 @@ export const JobAlertService = {
                 wave: parseInt(data.wave_number)
             });
 
-            this.startAlertLoop();
+            // Only trigger the loop via "this.startAlertLoop()" otherwise lexical `this` binds incorrectly depending on event listener scope
+            JobAlertService.startAlertLoop().catch(console.warn);
         }
     }
 };

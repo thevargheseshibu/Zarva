@@ -77,7 +77,7 @@ export async function sendJobAlertToWorkers(jobId, workers, job, waveNum) {
                 priority: 'high',
                 notification: {
                     channelId: 'job_alerts',
-                    sound: 'job_alert',
+                    sound: 'job_alert' // references assets/sounds/job_alert.mp3
                 }
             },
             apns: {
