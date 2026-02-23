@@ -8,7 +8,7 @@
 export const DEFAULT_LANGUAGE = 'ml';
 
 export const SUPPORTED_LANGUAGES = [
-    { code: 'en', label: 'English', nativeLabel: 'English', flag: '🇬🇧', region: 'Global' },
+    { code: 'en', label: 'English', nativeLabel: 'English', flag: '🇮🇳', region: 'Global' },
     { code: 'ml', label: 'Malayalam', nativeLabel: 'മലയാളം', flag: '🇮🇳', region: 'Kerala' },
     { code: 'hi', label: 'Hindi', nativeLabel: 'हिन्दी', flag: '🇮🇳', region: 'North India' },
     { code: 'ta', label: 'Tamil', nativeLabel: 'தமிழ்', flag: '🇮🇳', region: 'Tamil Nadu' },

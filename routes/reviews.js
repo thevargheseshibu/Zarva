@@ -138,13 +138,16 @@ router.get('/worker/:user_id', async (req, res) => {
         );
 
         // Mask phone — only show last 4 digits for privacy
-        const reviews = rows.map(r => ({
-            ...r,
-            category_scores: typeof r.category_scores === 'string'
-                ? JSON.parse(r.category_scores) : (r.category_scores || {}),
-            reviewer_identifier: `User ***${String(r.reviewer_phone).slice(-4)}`
-        }));
-        delete reviews.forEach(r => delete r.reviewer_phone);
+        const reviews = rows.map(r => {
+            const out = {
+                ...r,
+                category_scores: typeof r.category_scores === 'string'
+                    ? JSON.parse(r.category_scores) : (r.category_scores || {}),
+                reviewer_identifier: `User ***${String(r.reviewer_phone).slice(-4)}`
+            };
+            delete out.reviewer_phone;
+            return out;
+        });
 
         return ok(res, { reviews });
     } catch (err) {

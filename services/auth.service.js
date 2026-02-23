@@ -259,7 +259,7 @@ async function getUserProfile(userId, pool) {
             average_rating: row.customer_average_rating,
             rating_count: row.customer_rating_count,
             cancelled_jobs: row.customer_cancelled_jobs,
-            saved_addresses: row.saved_addresses || [],
+            saved_addresses: typeof row.saved_addresses === 'string' ? JSON.parse(row.saved_addresses) : (row.saved_addresses || []),
         };
     }
 

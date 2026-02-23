@@ -125,8 +125,8 @@ const PUBLIC_PATHS = new Set([
  */
 async function authenticateJWT(req, res, next) {
     try {
-        // Skip auth for public paths (OTP flow, refresh, dev-login)
-        if (PUBLIC_PATHS.has(req.path)) {
+        // Skip auth for public paths (OTP flow, refresh, dev-login, public worker reviews)
+        if (PUBLIC_PATHS.has(req.path) || (req.originalUrl.startsWith('/api/reviews/worker/') && req.method === 'GET')) {
             return next();
         }
 

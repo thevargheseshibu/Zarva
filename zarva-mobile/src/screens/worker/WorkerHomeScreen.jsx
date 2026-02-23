@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert, FlatList, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { colors, spacing, radius } from '../../design-system/tokens';
@@ -8,16 +8,21 @@ import StatusPill from '../../components/StatusPill';
 import { useT } from '../../hooks/useT';
 import { useWorkerStore } from '../../stores/workerStore';
 import apiClient from '../../services/api/client';
+import MapPickerModal from '../../components/MapPickerModal';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
 export default function WorkerHomeScreen({ navigation }) {
     const t = useT();
-    const { isOnline, setOnline, isAvailable, setAvailable, activeJob, setActiveJob } = useWorkerStore();
+    const { isOnline, setOnline, isAvailable, setAvailable, activeJob, setActiveJob, locationOverride, setLocationOverride } = useWorkerStore();
     const [toggling, setToggling] = useState(false);
-    const [worker, setWorker] = useState({ name: '', rating: 0, verified: false });
+    const [worker, setWorker] = useState({ id: null, name: '', rating: 0, verified: false });
     const [earningsToday, setEarningsToday] = useState(0);
     const [stats, setStats] = useState({ today: 0, week: 0 });
+    const [reviews, setReviews] = useState([]);
+    const [refreshing, setRefreshing] = useState(false);
+    const [isMapVisible, setIsMapVisible] = useState(false);
+    const [location, setLocation] = useState(locationOverride || { address: 'Locating...', lat: null, lng: null });
 
     const fetchActiveJob = async (jobId) => {
         try {
@@ -38,6 +43,17 @@ export default function WorkerHomeScreen({ navigation }) {
             const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const { latitude, longitude } = loc.coords;
 
+            const [addressArr] = await Location.reverseGeocodeAsync({ latitude, longitude });
+            let addressText = 'Unknown Location';
+            if (addressArr) {
+                addressText = [addressArr.name, addressArr.city || addressArr.subregion, addressArr.region].filter(Boolean).join(', ');
+            }
+
+            const newLoc = { address: addressText, lat: latitude, lng: longitude };
+            setLocation(newLoc);
+            // Don't set override here, let GPS handle periodic scans unless user manual overrides
+            // But update location state so UI shows current area
+
             await apiClient.put('/api/worker/location', {
                 lat: latitude,
                 lng: longitude
@@ -48,6 +64,24 @@ export default function WorkerHomeScreen({ navigation }) {
         }
     };
 
+    const handleMapSelect = async (loc) => {
+        const newLoc = { address: loc.address, lat: loc.latitude, lng: loc.longitude };
+        setLocation(newLoc);
+        setLocationOverride(newLoc);
+        setIsMapVisible(false);
+
+        try {
+            await apiClient.put('/api/worker/location', {
+                lat: loc.latitude,
+                lng: loc.longitude
+            });
+            Alert.alert('Location Updated', 'Your active location has been updated for job matching.');
+        } catch (err) {
+            console.error('[WorkerHome] Map update sync failure:', err);
+            Alert.alert('Error', 'Failed to update location on server.');
+        }
+    };
+
     const fetchProfile = async () => {
         try {
             const res = await apiClient.get('/api/me');
@@ -55,7 +89,8 @@ export default function WorkerHomeScreen({ navigation }) {
             if (user && user.profile) {
                 const p = user.profile;
                 setWorker({
-                    name: p.name || 'Worker',
+                    id: user.id,
+                    name: user.name || 'Worker',
                     rating: Number(p.average_rating || 0),
                     verified: !!p.is_verified,
                 });
@@ -72,11 +107,26 @@ export default function WorkerHomeScreen({ navigation }) {
                 } else {
                     setActiveJob(null);
                 }
+
+                // Fetch recent reviews
+                try {
+                    const revRes = await apiClient.get(`/api/reviews/worker/${user.id}`);
+                    setReviews(revRes.data?.data?.reviews || revRes.data?.reviews || []);
+                } catch (rErr) {
+                    console.error('[WorkerHome] Failed to fetch reviews', rErr);
+                }
             }
         } catch (err) {
             console.error('[WorkerHome] Failed to fetch profile:', err);
+        } finally {
+            setRefreshing(false);
         }
     };
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchProfile();
+    }, [fetchProfile]);
 
     useFocusEffect(
         useCallback(() => {
@@ -85,10 +135,10 @@ export default function WorkerHomeScreen({ navigation }) {
             // Capture location immediately on open
             captureAndSyncLocation();
 
-            // Set up a 10-minute recurring check
+            // Set up a 5-minute recurring check
             const locationInterval = setInterval(() => {
                 captureAndSyncLocation();
-            }, 10 * 60 * 1000);
+            }, 5 * 60 * 1000);
 
             return () => clearInterval(locationInterval);
         }, [])
@@ -186,6 +236,10 @@ export default function WorkerHomeScreen({ navigation }) {
                             <Text style={styles.name}>{worker.name || 'Worker'}</Text>
                             {worker.verified && <Text style={styles.badge}>✅</Text>}
                         </View>
+                        <TouchableOpacity style={styles.locationPill} onPress={() => setIsMapVisible(true)}>
+                            <Text style={styles.locationIcon}>📍</Text>
+                            <Text style={styles.locationText} numberOfLines={1}>{location.address}</Text>
+                        </TouchableOpacity>
                         <Text style={styles.rating}>⭐ {displayRating} Average Rating</Text>
                     </View>
 
@@ -245,7 +299,12 @@ export default function WorkerHomeScreen({ navigation }) {
                 </View>
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView
+                contentContainerStyle={styles.content}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold.primary} />
+                }
+            >
                 {/* Online Status Banner */}
                 {!isOnline && (
                     <View style={styles.offlineBanner}>
@@ -273,8 +332,47 @@ export default function WorkerHomeScreen({ navigation }) {
                         </Card>
                     </View>
                 )}
+
+                {/* Recent Reviews Section */}
+                <View style={styles.reviewsSection}>
+                    <View style={styles.reviewSectionHeader}>
+                        <Text style={styles.sectionTitle}>Recent Review</Text>
+                        {reviews.length > 0 && (
+                            <TouchableOpacity
+                                onPress={() => navigation.navigate('WorkerReputation', {
+                                    workerId: worker.id,
+                                    workerName: worker.name
+                                })}
+                            >
+                                <Text style={styles.viewAllBtn}>View All →</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {reviews.length === 0 ? (
+                        <Text style={styles.noReviewsTxt}>No reviews yet. Complete jobs to earn ratings!</Text>
+                    ) : (
+                        <Card glow style={styles.singleReviewCard}>
+                            <View style={styles.reviewHeader}>
+                                <Text style={styles.reviewStars}>
+                                    {Array.from({ length: 5 }).map((_, i) => (i < reviews[0].overall_score ? '⭐' : '☆')).join('')}
+                                </Text>
+                            </View>
+                            <Text style={styles.reviewComment} numberOfLines={4}>
+                                {reviews[0].comment ? `"${reviews[0].comment}"` : 'No written feedback provided.'}
+                            </Text>
+                            <Text style={styles.reviewAuthor}>- {reviews[0].reviewer_identifier}</Text>
+                        </Card>
+                    )}
+                </View>
             </ScrollView>
 
+            <MapPickerModal
+                visible={isMapVisible}
+                onClose={() => setIsMapVisible(false)}
+                initialLocation={location.lat ? { latitude: location.lat, longitude: location.lng } : null}
+                onSelectLocation={handleMapSelect}
+            />
         </View>
     );
 }
@@ -292,6 +390,13 @@ const styles = StyleSheet.create({
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginVertical: 4 },
     name: { color: colors.gold.primary, fontSize: 24, fontWeight: '800' },
     badge: { fontSize: 16 },
+    locationPill: {
+        flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.surface,
+        paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.full,
+        gap: 4, marginVertical: 4, alignSelf: 'flex-start'
+    },
+    locationIcon: { fontSize: 12 },
+    locationText: { color: colors.text.secondary, fontSize: 12, fontWeight: '600', maxWidth: 150 },
     rating: { color: colors.text.muted, fontSize: 13, fontWeight: '600' },
 
     toggleBox: { alignItems: 'center', gap: 4 },
@@ -328,5 +433,15 @@ const styles = StyleSheet.create({
         marginTop: spacing.md, backgroundColor: colors.gold.glow,
         padding: spacing.md, borderRadius: radius.md, alignItems: 'center'
     },
-    viewJobTxt: { color: colors.gold.primary, fontWeight: '700' }
+    viewJobTxt: { color: colors.gold.primary, fontWeight: '700' },
+
+    reviewsSection: { marginTop: spacing.xl },
+    reviewSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+    viewAllBtn: { color: colors.gold.primary, fontWeight: '700', fontSize: 13, textDecorationLine: 'underline' },
+    noReviewsTxt: { color: colors.text.muted, fontSize: 13, fontStyle: 'italic', marginTop: spacing.xs },
+    singleReviewCard: { width: '100%', padding: spacing.lg, borderColor: colors.gold.primary + '33', borderWidth: 1, backgroundColor: colors.bg.surface },
+    reviewHeader: { flexDirection: 'row', justifyContent: 'flex-start', marginBottom: spacing.md },
+    reviewStars: { fontSize: 18, letterSpacing: 3 },
+    reviewComment: { color: colors.text.primary, fontSize: 15, fontStyle: 'italic', lineHeight: 22, marginBottom: spacing.md },
+    reviewAuthor: { color: colors.gold.primary, fontSize: 13, fontWeight: '700', textAlign: 'right' }
 });

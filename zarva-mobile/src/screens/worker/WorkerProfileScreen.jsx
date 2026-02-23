@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Alert, Modal, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Alert, Modal, FlatList, TextInput } from 'react-native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import { useAuthStore } from '../../stores/authStore';
 import { useWorkerStore } from '../../stores/workerStore';
 import apiClient from '../../services/api/client';
+import MapPickerModal from '../../components/MapPickerModal';
 import { useLanguageStore } from '../../i18n';
 import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 import { useT } from '../../hooks/useT';
 
-const RANGES = [10, 20, 50];
-
 export default function WorkerProfileScreen({ navigation }) {
     const { user, logout, setUser } = useAuthStore();
-    const { isOnline, setOnline } = useWorkerStore();
+    const { isOnline, setOnline, locationOverride, setLocationOverride } = useWorkerStore();
 
     const { language, loadLanguage } = useLanguageStore();
     const t = useT();
@@ -25,6 +24,30 @@ export default function WorkerProfileScreen({ navigation }) {
 
     const [availableSkills, setAvailableSkills] = useState({});
     const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false);
+    const [isMapVisible, setIsMapVisible] = useState(false);
+    const [location, setLocation] = useState(locationOverride || { address: 'Locating...', lat: null, lng: null });
+
+    useEffect(() => {
+        (async () => {
+            if (locationOverride) {
+                setLocation(locationOverride);
+                return;
+            }
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+                const loc = await Location.getCurrentPositionAsync({});
+                const [addressArr] = await Location.reverseGeocodeAsync({
+                    latitude: loc.coords.latitude,
+                    longitude: loc.coords.longitude
+                });
+                let addressText = 'Unknown Location';
+                if (addressArr) {
+                    addressText = [addressArr.name, addressArr.city || addressArr.subregion].filter(Boolean).join(', ');
+                }
+                setLocation({ address: addressText, lat: loc.coords.latitude, lng: loc.coords.longitude });
+            }
+        })();
+    }, []);
 
     useEffect(() => {
         apiClient.get('/api/jobs/config').then(res => {
@@ -49,7 +72,10 @@ export default function WorkerProfileScreen({ navigation }) {
     const handleSelectLanguage = async (code) => {
         setIsLangModalOpen(false);
         setSearchQuery('');
+
+        // Wait for dynamic translations to load before updating user ref
         await loadLanguage(code);
+
         if (user) {
             setUser({ ...user, language_preference: code });
             try {
@@ -90,15 +116,20 @@ export default function WorkerProfileScreen({ navigation }) {
         }
     };
 
-    const handleUpdateRange = async (range) => {
-        setServiceRange(range);
+    const handleUpdateRange = async () => {
+        const num = parseInt(serviceRange, 10);
+        if (isNaN(num) || num < 1 || num > 500) {
+            Alert.alert('Invalid Range', 'Please enter a distance between 1 and 500 km.');
+            return;
+        }
 
         try {
-            await apiClient.put('/api/worker/onboard/profile', { service_range: range });
-            setUser({ ...user, profile: { ...user.profile, service_range: range } });
+            await apiClient.put('/api/worker/onboard/profile', { service_range: num });
+            setUser({ ...user, profile: { ...user.profile, service_range: num } });
+            Alert.alert('Success', 'Service radius updated.');
         } catch (e) {
             console.error('Failed to sync range', e);
-            setServiceRange(serviceRange); // rollback
+            Alert.alert('Error', 'Failed to update service radius.');
         }
     };
 
@@ -118,7 +149,7 @@ export default function WorkerProfileScreen({ navigation }) {
 
     return (
         <ScrollView contentContainerStyle={styles.screen}>
-            <Text style={styles.title}>Worker Profile</Text>
+            <Text style={styles.title}>{t('profile_title')}</Text>
             <Text style={styles.phone}>{user?.name || user?.phone || 'Worker'}</Text>
 
             <View style={styles.metricsBox}>
@@ -138,6 +169,14 @@ export default function WorkerProfileScreen({ navigation }) {
                     trackColor={{ false: colors.bg.surface, true: colors.gold.glow }}
                 />
             </View>
+
+            <TouchableOpacity style={styles.onlineRow} onPress={() => setIsMapVisible(true)}>
+                <Text style={styles.onlineLabel}>📍 Active Location</Text>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Text style={{ color: colors.text.secondary, fontSize: 13 }} numberOfLines={1}>{location.address}</Text>
+                </View>
+                <Text style={[styles.chevron, { marginLeft: 10 }]}>›</Text>
+            </TouchableOpacity>
 
             <View style={styles.skillsSection}>
                 <View style={styles.sectionHeader}>
@@ -167,16 +206,24 @@ export default function WorkerProfileScreen({ navigation }) {
                 <Text style={{ color: colors.text.muted, fontSize: 13, marginBottom: spacing.md }}>
                     How far are you willing to travel for jobs?
                 </Text>
-                <View style={styles.radioRow}>
-                    {RANGES.map(r => (
-                        <TouchableOpacity
-                            key={r}
-                            style={[styles.radioChip, serviceRange === r && styles.radioChipActive]}
-                            onPress={() => handleUpdateRange(r)}
-                        >
-                            <Text style={[styles.radioText, serviceRange === r && styles.radioTextActive]}>{r} km</Text>
-                        </TouchableOpacity>
-                    ))}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+                    <View style={styles.radiusInputWrap}>
+                        <TextInput
+                            style={styles.radiusInput}
+                            value={String(serviceRange)}
+                            onChangeText={(text) => setServiceRange(text.replace(/[^0-9]/g, ''))}
+                            keyboardType="number-pad"
+                            maxLength={3}
+                        />
+                        <Text style={styles.radiusSuffix}>km</Text>
+                    </View>
+                    <TouchableOpacity
+                        style={[styles.saveRadiusBtn, Number(serviceRange) === Number(user?.profile?.service_range) && { opacity: 0.5 }]}
+                        onPress={handleUpdateRange}
+                        disabled={Number(serviceRange) === Number(user?.profile?.service_range)}
+                    >
+                        <Text style={styles.saveRadiusTxt}>Save</Text>
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -193,7 +240,7 @@ export default function WorkerProfileScreen({ navigation }) {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.logout} onPress={logout}>
-                <Text style={styles.logoutText}>Log Out</Text>
+                <Text style={styles.logoutText}>{t('logout')}</Text>
             </TouchableOpacity>
 
             {/* Language Selection Modal */}
@@ -235,7 +282,7 @@ export default function WorkerProfileScreen({ navigation }) {
                     <View style={styles.modalHeader}>
                         <Text style={styles.modalTitle}>Available Skills</Text>
                         <TouchableOpacity onPress={() => setIsSkillsModalOpen(false)}>
-                            <Text style={styles.closeBtn}>Close</Text>
+                            <Text style={styles.closeBtn}>{t('done')}</Text>
                         </TouchableOpacity>
                     </View>
                     <FlatList
@@ -260,6 +307,23 @@ export default function WorkerProfileScreen({ navigation }) {
                 </View>
             </Modal>
 
+            <MapPickerModal
+                visible={isMapVisible}
+                onClose={() => setIsMapVisible(false)}
+                initialLocation={location.lat ? { latitude: location.lat, longitude: location.lng } : null}
+                onSelectLocation={async (loc) => {
+                    const newLoc = { address: loc.address, lat: loc.latitude, lng: loc.longitude };
+                    setLocation(newLoc);
+                    setLocationOverride(newLoc);
+                    setIsMapVisible(false);
+                    try {
+                        await apiClient.put('/api/worker/location', { lat: loc.latitude, lng: loc.longitude });
+                        Alert.alert('Location Updated', 'Your base location has been updated.');
+                    } catch (e) {
+                        Alert.alert('Error', 'Failed to update location on server.');
+                    }
+                }}
+            />
         </ScrollView>
     );
 }
@@ -285,15 +349,16 @@ const styles = StyleSheet.create({
     chip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.surface, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.gold.primary + '55' },
     chipTxt: { color: colors.gold.primary, fontWeight: '600', marginRight: 4, fontSize: 14 },
 
-    radioRow: { flexDirection: 'row', gap: spacing.sm },
-    radioChip: {
-        paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-        backgroundColor: colors.bg.elevated, borderRadius: radius.full,
-        borderWidth: 1, borderColor: colors.bg.surface,
+    radiusInputWrap: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.surface,
+        borderRadius: radius.md, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.gold.primary + '55',
     },
-    radioChipActive: { borderColor: colors.gold.primary, backgroundColor: colors.gold.glow },
-    radioText: { color: colors.text.secondary, fontWeight: '500' },
-    radioTextActive: { color: colors.gold.primary },
+    radiusInput: { flex: 1, color: colors.text.primary, fontSize: 18, fontWeight: '700', paddingVertical: 14 },
+    radiusSuffix: { color: colors.text.muted, fontSize: 16, fontWeight: '600' },
+    saveRadiusBtn: {
+        backgroundColor: colors.gold.primary, paddingVertical: 14, paddingHorizontal: 24, borderRadius: radius.md,
+    },
+    saveRadiusTxt: { color: colors.bg.primary, fontSize: 16, fontWeight: '700' },
 
     logout: { marginTop: 40, borderWidth: 1, borderColor: colors.error, borderRadius: 12, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, width: '100%', alignItems: 'center' },
     logoutText: { color: colors.error, fontWeight: '600', fontSize: 16 },

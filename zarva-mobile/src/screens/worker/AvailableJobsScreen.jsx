@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { parseJobDescription } from '../../utils/jobParser';
 import * as Location from 'expo-location';
+import { useWorkerStore } from '../../stores/workerStore';
 import { haversineKm, formatDistance } from '../../utils/distance';
 
 dayjs.extend(relativeTime);
@@ -19,17 +20,22 @@ export default function AvailableJobsScreen({ navigation }) {
     const [refreshing, setRefreshing] = useState(false);
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const { isOnline: storeIsOnline, locationOverride } = useWorkerStore();
     const [isOnline, setIsOnline] = useState(true);
     const [kycError, setKycError] = useState(false);
 
     const fetchJobs = async () => {
         try {
-            // Get current location once
+            // Get current location logically
             let currentLoc = null;
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status === 'granted') {
-                const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-                currentLoc = { lat: location.coords.latitude, lng: location.coords.longitude };
+            if (locationOverride) {
+                currentLoc = { lat: locationOverride.lat, lng: locationOverride.lng };
+            } else {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    currentLoc = { lat: location.coords.latitude, lng: location.coords.longitude };
+                }
             }
 
             const res = await apiClient.get('/api/worker/available-jobs');
@@ -119,7 +125,8 @@ export default function AvailableJobsScreen({ navigation }) {
     }
 
     const renderJob = ({ item }) => {
-        const { text: descText } = parseJobDescription(item.desc);
+        const { text: parsedText } = parseJobDescription(item.description || item.desc);
+        const descText = parsedText || item.description || item.desc || "No details provided";
 
         return (
             <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('JobDetailPreview', { job: item })}>
@@ -180,6 +187,10 @@ export default function AvailableJobsScreen({ navigation }) {
         <View style={styles.screen}>
             <View style={styles.header}>
                 <Text style={styles.title}>Jobs Near You</Text>
+                <View style={styles.jobsPill}>
+                    <Text style={styles.jobsCount}>{jobs.length}</Text>
+                    <Text style={styles.jobsLabel}>Active</Text>
+                </View>
             </View>
 
             <View style={styles.filterWrap}>
@@ -231,8 +242,16 @@ export default function AvailableJobsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bg.primary },
-    header: { paddingTop: spacing.xl + 20, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: spacing.xl + 20, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
     title: { color: colors.text.primary, fontSize: 24, fontWeight: '800' },
+
+    jobsPill: {
+        flexDirection: 'row', alignItems: 'center', backgroundColor: colors.gold.glow,
+        paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.full, gap: 4,
+        borderWidth: 1, borderColor: colors.gold.primary + '30'
+    },
+    jobsCount: { color: colors.gold.primary, fontSize: 16, fontWeight: '800' },
+    jobsLabel: { color: colors.text.primary, fontSize: 12, fontWeight: '600' },
 
     // Offline
     offlineScreen: { flex: 1, backgroundColor: colors.bg.primary, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },

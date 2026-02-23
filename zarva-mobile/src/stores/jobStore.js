@@ -26,12 +26,16 @@ export const useJobStore = create((set, get) => ({
     canMinimize: false,     // Toggles UI minimize state after 5 sec
     jobHistory: [],
     waveNumber: 1,          // 1, 2, or 3 from matching engine expansions
+    lastKnownLocation: null, // { address, lat, lng }
+    locationOverride: null,  // User-picked { address, lat, lng }
 
     setActiveJob: (job) => set({ activeJob: job }),
     setSearchPhase: (phase) => set({ searchPhase: phase }),
     setCanMinimize: (val) => set({ canMinimize: val }),
     clearActiveJob: () => set({ activeJob: null, searchPhase: null, assignedWorker: null, canMinimize: false, jobHistory: [], waveNumber: 1 }),
     setJobHistory: (history) => set({ jobHistory: history }),
+    setLocationOverride: (loc) => set({ locationOverride: loc, lastKnownLocation: loc }),
+    setLastKnownLocation: (loc) => set({ lastKnownLocation: loc }),
 
     startListening: (jobId) => {
         // Stop any existing listener

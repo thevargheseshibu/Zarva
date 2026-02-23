@@ -8,6 +8,8 @@ import OTPInput from '../../components/OTPInput';
 import GoldButton from '../../components/GoldButton';
 import { useJobStore } from '../../stores/jobStore';
 import apiClient from '../../services/api/client';
+import dayjs from 'dayjs';
+import { parseJobDescription } from '../../utils/jobParser';
 
 export default function JobStatusDetailScreen({ route, navigation }) {
     const { jobId } = route.params || { jobId: 'mock-123' };
@@ -22,43 +24,39 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const [workStartedAt, setWorkStartedAt] = useState(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [scheduledFor, setScheduledFor] = useState(null);
-    const [isEmergency, setIsEmergency] = useState(false);
     const [autoEscalateAt, setAutoEscalateAt] = useState(null);
+    const [job, setJob] = useState(null);
 
     // ── Auto-navigate on terminal states (Issue #8) ──────────────────────────
     useEffect(() => {
-        if (status === 'completed') {
+        if (status === 'completed' || status === 'cancelled' || status === 'no_worker_found') {
             clearActiveJob();
-            navigation.replace('Rating', { jobId });
-        } else if (status === 'cancelled' || status === 'no_worker_found') {
-            clearActiveJob();
-            navigation.replace('CustomerTabs');
         }
-    }, [status, navigation, jobId, clearActiveJob]);
+    }, [status, clearActiveJob]);
 
     // ── Fetch Details (Issue #25, #51, #62) ─────────────────────────────────
     useEffect(() => {
         apiClient.get(`/api/jobs/${jobId}`)
             .then(res => {
-                const job = res.data?.job;
-                if (job) {
-                    if (job.start_otp) setStartOtp(job.start_otp);
-                    if (job.work_started_at) setWorkStartedAt(job.work_started_at);
-                    if (job.scheduled_for) setScheduledFor(job.scheduled_for);
-                    if (job.is_emergency) setIsEmergency(true);
-                    if (job.auto_escalate_at) setAutoEscalateAt(job.auto_escalate_at);
+                const jobData = res.data?.job;
+                if (jobData) {
+                    setJob(jobData);
+                    if (jobData.start_otp) setStartOtp(jobData.start_otp);
+                    if (jobData.work_started_at) setWorkStartedAt(jobData.work_started_at);
+                    if (jobData.scheduled_for) setScheduledFor(jobData.scheduled_for);
+                    if (jobData.auto_escalate_at) setAutoEscalateAt(jobData.auto_escalate_at);
 
                     // Populate worker and status in store if present in API but not store
                     // This handles navigation from MyJobs list where store might be cold
-                    if (job.status) {
-                        useJobStore.setState({ searchPhase: job.status });
+                    if (jobData.status) {
+                        useJobStore.setState({ searchPhase: jobData.status });
                     }
-                    if (job.worker) {
-                        useJobStore.setState({ assignedWorker: job.worker });
+                    if (jobData.worker) {
+                        useJobStore.setState({ assignedWorker: jobData.worker });
                     }
 
                     // Always start listening for real-time updates if job is active
-                    if (!['completed', 'cancelled', 'no_worker_found'].includes(job.status)) {
+                    if (!['completed', 'cancelled', 'no_worker_found'].includes(jobData.status)) {
                         useJobStore.getState().startListening(jobId);
                     }
                 }
@@ -157,10 +155,18 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 </TouchableOpacity>
                 <View style={{ alignItems: 'center' }}>
                     <Text style={styles.title}>Job #{String(jobId).substring(0, 6).toUpperCase()}</Text>
-                    {isEmergency && <Text style={styles.emergencyBadge}>EMERGENCY</Text>}
                     {scheduledFor && <Text style={styles.scheduleBadge}>Scheduled: {new Date(scheduledFor).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>}
                 </View>
-                <View style={{ width: 40 }} />
+                <View style={{ width: 60, alignItems: 'center' }}>
+                    {['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(status) && (
+                        <TouchableOpacity
+                            style={styles.editBtnHeader}
+                            onPress={() => navigation.navigate('EditJob', { jobId })}
+                        >
+                            <Text style={styles.editTxtHeader}>Edit</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
@@ -206,6 +212,26 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                             </TouchableOpacity>
                         </Card>
                     </TouchableOpacity>
+                )}
+
+                {/* Post-Job Rating Action (Customer -> Worker) */}
+                {status === 'completed' && worker && (
+                    <Card glow style={styles.actionCard}>
+                        <Text style={styles.actionTitle}>
+                            {job?.is_reviewed ? 'Feedback Submitted' : 'Rate Your Experience'}
+                        </Text>
+                        <Text style={styles.actionSub}>
+                            {job?.is_reviewed
+                                ? 'Thank you for rating this service.'
+                                : `How was your experience with ${worker.name}?`}
+                        </Text>
+                        <View style={{ marginTop: spacing.md, width: '100%' }}>
+                            <GoldButton
+                                title={job?.is_reviewed ? "View My Review" : "Rate Worker"}
+                                onPress={() => navigation.navigate('Rating', { jobId })}
+                            />
+                        </View>
+                    </Card>
                 )}
 
                 {/* Dynamic Action Area based on Status */}
@@ -270,6 +296,58 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     </View>
                 )}
 
+                {status === 'completed' && (
+                    <TouchableOpacity style={styles.reportBtn}>
+                        <Text style={styles.reportTxt}>⚠️ Report Issue</Text>
+                    </TouchableOpacity>
+                )}
+
+                {/* Job Details Section */}
+                {job && (
+                    <View style={styles.detailsContainer}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>JOB SPECIFICATIONS</Text>
+                        </View>
+
+                        {(() => {
+                            const { structured, photos, text } = parseJobDescription(job.description || job.desc);
+                            return (
+                                <>
+                                    {structured.length > 0 ? (
+                                        <Card style={styles.detailsCard}>
+                                            {structured.map((item, idx) => (
+                                                <View key={idx} style={[styles.qAndA, idx === structured.length - 1 && { borderBottomWidth: 0 }]}>
+                                                    <Text style={styles.qText}>{item.label}</Text>
+                                                    <Text style={styles.aText}>{item.value}</Text>
+                                                </View>
+                                            ))}
+                                        </Card>
+                                    ) : (
+                                        <Card style={styles.detailsCard}>
+                                            <Text style={styles.descText}>{text || 'No additional details provided.'}</Text>
+                                        </Card>
+                                    )}
+
+                                    {photos.length > 0 && (
+                                        <View style={{ marginTop: spacing.md }}>
+                                            <Text style={styles.sectionTitleSmall}>PHOTOS ({photos.length})</Text>
+                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoList}>
+                                                {photos.map((uri, idx) => (
+                                                    <Image
+                                                        key={idx}
+                                                        source={{ uri }}
+                                                        style={styles.detailPhoto}
+                                                        resizeMode="cover"
+                                                    />
+                                                ))}
+                                            </ScrollView>
+                                        </View>
+                                    )}
+                                </>
+                            );
+                        })()}
+                    </View>
+                )}
             </ScrollView>
         </View>
     );
@@ -285,8 +363,22 @@ const styles = StyleSheet.create({
     backBtn: { padding: spacing.sm },
     backTxt: { color: colors.text.primary, fontSize: 24 },
     title: { color: colors.text.primary, fontSize: 18, fontWeight: '700', letterSpacing: 1 },
+    editBtnHeader: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.bg.surface, borderWidth: 1, borderColor: colors.gold.primary + '44' },
+    editTxtHeader: { color: colors.gold.primary, fontSize: 12, fontWeight: '700' },
     emergencyBadge: { backgroundColor: colors.error + '33', color: colors.error, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, fontSize: 10, fontWeight: '800', overflow: 'hidden', marginTop: 4 },
     scheduleBadge: { backgroundColor: colors.gold.primary + '33', color: colors.gold.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, fontSize: 10, fontWeight: '700', overflow: 'hidden', marginTop: 4 },
+
+    detailsContainer: { marginTop: spacing.lg, paddingBottom: spacing.xl },
+    sectionHeader: { marginBottom: spacing.sm },
+    sectionTitle: { color: colors.text.muted, fontSize: 12, fontWeight: '700', letterSpacing: 1.2 },
+    sectionTitleSmall: { color: colors.text.muted, fontSize: 11, fontWeight: '600', marginBottom: spacing.xs, paddingHorizontal: 4 },
+    detailsCard: { padding: spacing.md, backgroundColor: colors.bg.surface },
+    qAndA: { paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.bg.primary + '22' },
+    qText: { color: colors.text.muted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 },
+    aText: { color: colors.text.primary, fontSize: 15, fontWeight: '500' },
+    descText: { color: colors.text.secondary, fontSize: 15, fontStyle: 'italic', lineHeight: 22 },
+    photoList: { gap: spacing.sm, marginTop: spacing.xs },
+    detailPhoto: { width: 140, height: 140, borderRadius: radius.md, backgroundColor: colors.bg.surface },
 
     content: { padding: spacing.lg, gap: spacing.lg },
 

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
@@ -9,14 +9,21 @@ import { useT } from '../../hooks/useT';
 import { useJobStore } from '../../stores/jobStore';
 import apiClient from '../../services/api/client';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
+import MapPickerModal from '../../components/MapPickerModal';
 
 export default function HomeScreen({ navigation }) {
     const t = useT();
-    const [recentJobs, setRecentJobs] = React.useState([]);
+    const [recentJobs, setRecentJobs] = useState([]);
 
-    const [services, setServices] = React.useState([]);
-    const [showAllServices, setShowAllServices] = React.useState(false);
-    const [searchQuery, setSearchQuery] = React.useState('');
+    const [services, setServices] = useState([]);
+    const [showAllServices, setShowAllServices] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const { activeJob, searchPhase, clearActiveJob, locationOverride, setLocationOverride, setLastKnownLocation } = useJobStore();
+
+    const [location, setLocation] = useState(locationOverride || { address: 'Fetching location...', lat: null, lng: null });
+    const [isMapVisible, setIsMapVisible] = useState(false);
 
     const isSearching = searchQuery.trim() !== '';
     const displayedServices = isSearching
@@ -33,18 +40,61 @@ export default function HomeScreen({ navigation }) {
             .catch(err => console.error('Failed to fetch jobs configuration', err));
     }, []);
 
-    const { activeJob, searchPhase, clearActiveJob } = useJobStore();
-
     useFocusEffect(
-        React.useCallback(() => {
-            apiClient.get('/api/jobs')
-                .then(res => {
-                    const jobs = res.data?.jobs || [];
-                    setRecentJobs(jobs.slice(0, 3)); // show last 3
-                })
-                .catch(err => console.error('Failed to fetch recent jobs', err));
-        }, [])
+        useCallback(() => {
+            fetchHomescreenData();
+        }, []) // Remove location dependencies to avoid excessive loops if just refreshing
     );
+
+    const fetchHomescreenData = async () => {
+        try {
+            const res = await apiClient.get('/api/jobs');
+            const jobs = res.data?.jobs || [];
+
+            setRecentJobs(jobs.slice(0, 3)); // show last 3 history
+        } catch (err) {
+            console.error('Failed to fetch home screen stats', err);
+        }
+    };
+
+    useEffect(() => {
+        (async () => {
+            // If we already have an override, don't auto-fetch GPS
+            if (locationOverride) {
+                setLocation(locationOverride);
+                return;
+            }
+
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                setLocation({ address: 'Permission Denied', lat: null, lng: null });
+                return;
+            }
+            try {
+                const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                const [addressArr] = await Location.reverseGeocodeAsync({
+                    latitude: loc.coords.latitude,
+                    longitude: loc.coords.longitude
+                });
+
+                let addressText = 'Unknown Location';
+                if (addressArr) {
+                    addressText = [addressArr.name, addressArr.city || addressArr.subregion].filter(Boolean).join(', ');
+                }
+
+                const newLoc = {
+                    address: addressText,
+                    lat: loc.coords.latitude,
+                    lng: loc.coords.longitude
+                };
+                setLocation(newLoc);
+                setLastKnownLocation(newLoc);
+            } catch (error) {
+                console.warn('Location fetch failed', error);
+                setLocation({ address: 'Location Unavailable', lat: null, lng: null });
+            }
+        })();
+    }, [locationOverride]); // Re-run if override is cleared or changed elsewhere
 
     React.useEffect(() => {
         if (['completed', 'cancelled', 'no_worker_found'].includes(searchPhase)) {
@@ -61,12 +111,14 @@ export default function HomeScreen({ navigation }) {
 
     return (
         <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-            {/* Location Pill */}
-            <TouchableOpacity style={styles.locationPill}>
-                <Text style={styles.locationIcon}>📍</Text>
-                <Text style={styles.locationText}>Kochi, Kerala</Text>
-                <Text style={styles.locationArrow}>⌄</Text>
-            </TouchableOpacity>
+            {/* Header Row */}
+            <View style={styles.headerRow}>
+                <TouchableOpacity style={styles.locationPill} onPress={() => setIsMapVisible(true)}>
+                    <Text style={styles.locationIcon}>📍</Text>
+                    <Text style={styles.locationText} numberOfLines={1}>{location.address}</Text>
+                    <Text style={styles.locationArrow}>⌄</Text>
+                </TouchableOpacity>
+            </View>
 
             <Text style={styles.heading}>{t('customer_home_greeting')}</Text>
 
@@ -205,6 +257,22 @@ export default function HomeScreen({ navigation }) {
                     <Text style={styles.emptyNote}>No recent jobs yet.</Text>
                 )}
             </View>
+
+            <MapPickerModal
+                visible={isMapVisible}
+                onClose={() => setIsMapVisible(false)}
+                initialLocation={location.lat ? { latitude: location.lat, longitude: location.lng } : null}
+                onSelectLocation={(loc) => {
+                    const newLoc = {
+                        address: loc.address,
+                        lat: loc.latitude,
+                        lng: loc.longitude
+                    };
+                    setLocation(newLoc);
+                    setLocationOverride(newLoc);
+                    setIsMapVisible(false);
+                }}
+            />
         </ScrollView>
     );
 }
@@ -213,14 +281,15 @@ const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bg.primary },
     content: { padding: spacing.lg, gap: spacing.xl, paddingBottom: spacing.xl * 2 },
 
+    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md },
     locationPill: {
-        flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
+        flex: 1, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
         backgroundColor: colors.bg.surface, paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm, borderRadius: radius.full, gap: 6,
-        marginTop: spacing.md,
+        marginRight: spacing.md
     },
     locationIcon: { fontSize: 16 },
-    locationText: { color: colors.text.primary, fontSize: 14, fontWeight: '600' },
+    locationText: { color: colors.text.primary, fontSize: 14, fontWeight: '600', maxWidth: 150 },
     locationArrow: { color: colors.text.muted, fontSize: 16, marginTop: -4 },
 
     heading: { color: colors.text.primary, fontSize: 24, fontWeight: '700', fontFamily: 'Sohne' },

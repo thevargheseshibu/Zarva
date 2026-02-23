@@ -12,6 +12,7 @@ export const useWorkerStore = create(
             pendingJobAlert: null,
             isAlertVisible: false,
             activeJob: null,
+            locationOverride: null, // { address, lat, lng }
 
             alertPreferences: {
                 soundEnabled: true,
@@ -32,6 +33,7 @@ export const useWorkerStore = create(
                 isAlertVisible: false
             }),
             setActiveJob: (job) => set({ activeJob: job }),
+            setLocationOverride: (loc) => set({ locationOverride: loc }),
 
             updateAlertPrefs: (prefs) => set((state) => ({
                 alertPreferences: { ...state.alertPreferences, ...prefs }
@@ -43,6 +45,7 @@ export const useWorkerStore = create(
             partialize: (state) => ({
                 alertPreferences: state.alertPreferences,
                 isOnline: state.isOnline, // persist online status for session recovery
+                locationOverride: state.locationOverride,
             }),
         }
     )

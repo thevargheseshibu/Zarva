@@ -12,6 +12,7 @@ const FILTERS = ['All', 'Active', 'Completed', 'Cancelled'];
 
 export default function MyJobsScreen({ navigation }) {
     const [filter, setFilter] = useState('All');
+    const [sortNewest, setSortNewest] = useState(true);
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -39,13 +40,19 @@ export default function MyJobsScreen({ navigation }) {
         fetchJobs();
     };
 
-    const filtered = jobs.filter(job => {
-        if (filter === 'All') return true;
-        if (filter === 'Active') return ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(job.status);
-        if (filter === 'Completed') return job.status === 'completed';
-        if (filter === 'Cancelled') return job.status === 'cancelled';
-        return true;
-    });
+    const filtered = jobs
+        .filter(job => {
+            if (filter === 'All') return true;
+            if (filter === 'Active') return ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(job.status);
+            if (filter === 'Completed') return job.status === 'completed';
+            if (filter === 'Cancelled') return job.status === 'cancelled';
+            return true;
+        })
+        .sort((a, b) => {
+            const dateA = new Date(a.created_at).getTime();
+            const dateB = new Date(b.created_at).getTime();
+            return sortNewest ? dateB - dateA : dateA - dateB;
+        });
 
     const handleDeleteJob = (id) => {
         Alert.alert('Delete Job', 'Are you sure you want to delete this job?', [
@@ -83,11 +90,21 @@ export default function MyJobsScreen({ navigation }) {
                         </View>
                         <View style={{ alignItems: 'flex-end', gap: 6 }}>
                             <StatusPill status={item.status} />
-                            {['open', 'searching', 'no_worker_found'].includes(item.status) && (
-                                <TouchableOpacity onPress={() => handleDeleteJob(item.id)} style={styles.deleteBtn}>
-                                    <Text style={styles.deleteTxt}>🗑️ Delete</Text>
-                                </TouchableOpacity>
-                            )}
+                            <View style={{ flexDirection: 'row', gap: 6 }}>
+                                {['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(item.status) && (
+                                    <TouchableOpacity
+                                        onPress={() => navigation.navigate('EditJob', { jobId: item.id })}
+                                        style={styles.editBtn}
+                                    >
+                                        <Text style={styles.editTxt}>✏️ Edit</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {['open', 'searching', 'no_worker_found'].includes(item.status) && (
+                                    <TouchableOpacity onPress={() => handleDeleteJob(item.id)} style={styles.deleteBtn}>
+                                        <Text style={styles.deleteTxt}>🗑️ Delete</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
                         </View>
                     </View>
 
@@ -108,13 +125,19 @@ export default function MyJobsScreen({ navigation }) {
                     )}
 
                     {item.status === 'completed' && (
-                        <View style={styles.ratingArea}>
-                            {item.is_reviewed ? (
-                                <Text style={styles.ratedTxt}>You rated: ⭐ {item.ratingGiven || '?'}</Text>
-                            ) : (
-                                <Text style={styles.ratePrompt}>Tap to Details & Rating →</Text>
-                            )}
-                        </View>
+                        <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => navigation.navigate('Rating', { jobId: item.id })}
+                            style={styles.ratingAreaTouch}
+                        >
+                            <View style={styles.ratingArea}>
+                                {item.is_reviewed ? (
+                                    <Text style={styles.ratedTxt}>You rated: ⭐ {item.ratingGiven || '?'}</Text>
+                                ) : (
+                                    <Text style={styles.ratePrompt}>Tap to Review & Rating →</Text>
+                                )}
+                            </View>
+                        </TouchableOpacity>
                     )}
 
                     {item.status === 'cancelled' && (
@@ -147,7 +170,12 @@ export default function MyJobsScreen({ navigation }) {
 
     return (
         <View style={styles.screen}>
-            <Text style={styles.header}>My Posts</Text>
+            <View style={styles.headerRow}>
+                <Text style={styles.header}>My Posts</Text>
+                <TouchableOpacity onPress={() => setSortNewest(!sortNewest)} style={styles.sortBtn}>
+                    <Text style={styles.sortTxt}>{sortNewest ? '↓ Newest' : '↑ Oldest'}</Text>
+                </TouchableOpacity>
+            </View>
 
             <View style={styles.filterWrap}>
                 <FlatList
@@ -190,7 +218,10 @@ export default function MyJobsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bg.primary },
-    header: { color: colors.text.primary, fontSize: 24, fontWeight: '700', padding: spacing.lg, paddingBottom: spacing.sm },
+    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: spacing.lg, paddingBottom: spacing.sm },
+    header: { color: colors.text.primary, fontSize: 24, fontWeight: '700', padding: spacing.lg, paddingBottom: 0 },
+    sortBtn: { padding: spacing.sm, marginTop: spacing.lg },
+    sortTxt: { color: colors.gold.primary, fontSize: 13, fontWeight: '700' },
 
     filterWrap: { height: 50 },
     filterList: { paddingHorizontal: spacing.lg, gap: spacing.sm, alignItems: 'center' },
@@ -251,4 +282,6 @@ const styles = StyleSheet.create({
 
     deleteBtn: { backgroundColor: colors.bg.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: colors.error },
     deleteTxt: { color: colors.error, fontSize: 11, fontWeight: '600' },
+    editBtn: { backgroundColor: colors.bg.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: colors.gold.primary },
+    editTxt: { color: colors.gold.primary, fontSize: 11, fontWeight: '600' },
 });

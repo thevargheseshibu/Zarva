@@ -21,7 +21,7 @@ function buildFallbackConfig(category, basePrice = 300) {
 }
 
 export default function DynamicQuestionsScreen({ route, navigation }) {
-    const { category, label } = route.params || { category: 'unknown', label: 'Service' };
+    const { category, label, location } = route.params || { category: 'unknown', label: 'Service', location: null };
 
     const [config, setConfig] = useState(() => buildFallbackConfig(category));
     const [answers, setAnswers] = useState({});
@@ -223,9 +223,10 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                             answer: answers[q.id] || (q.required ? '' : 'SKIPPED')
                         })).filter(a => a.answer !== '');
 
-                        navigation.navigate('PriceEstimate', {
+                        navigation.navigate('LocationSchedule', {
                             category,
                             label,
+                            location,
                             answers,
                             structuredAnswers,
                             basePrice: config.base_price,

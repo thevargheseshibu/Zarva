@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import { haversineKm, formatDistance, calculateTravelCharge } from '../../utils/distance';
+import { useWorkerStore } from '../../stores/workerStore';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { Linking } from 'react-native';
@@ -21,9 +22,11 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
     const [locLoading, setLocLoading] = useState(true);
     const [permissionDenied, setPermissionDenied] = useState(false);
     const [workerLoc, setWorkerLoc] = useState(null);
+    const { locationOverride } = useWorkerStore();
 
     // Parse structured data and photos
-    const { structured: structuredQuestions, photos } = parseJobDescription(job?.desc);
+    const { structured: structuredQuestions, photos, text: parsedText } = parseJobDescription(job?.description || job?.desc);
+    const finalDescription = parsedText || job?.description || job?.desc;
 
     React.useEffect(() => {
         const getDist = async () => {
@@ -35,14 +38,19 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                     return;
                 }
 
-                const location = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.Balanced
-                });
+                let currentCoords = null;
+                if (locationOverride) {
+                    currentCoords = { lat: locationOverride.lat, lng: locationOverride.lng };
+                } else {
+                    const location = await Location.getCurrentPositionAsync({
+                        accuracy: Location.Accuracy.Balanced
+                    });
 
-                const currentCoords = {
-                    lat: location.coords.latitude,
-                    lng: location.coords.longitude
-                };
+                    currentCoords = {
+                        lat: location.coords.latitude,
+                        lng: location.coords.longitude
+                    };
+                }
                 setWorkerLoc(currentCoords);
 
                 if (job.latitude && job.longitude) {
@@ -206,8 +214,8 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                         </View>
                     ) : (
                         <View style={styles.descCard}>
-                            {job.desc ? (
-                                <Text style={styles.descText}>"{job.desc}"</Text>
+                            {finalDescription ? (
+                                <Text style={styles.descText}>"{finalDescription}"</Text>
                             ) : (
                                 <Text style={styles.descEmpty}>No details provided.</Text>
                             )}

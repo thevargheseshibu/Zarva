@@ -621,7 +621,7 @@ router.get('/available-jobs', (req, res) =>
                  FROM jobs j
                  LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
                  WHERE j.status IN ('open', 'searching', 'no_worker_found')
-                 HAVING distance_km IS NULL OR distance_km <= 50
+                 HAVING distance_km IS NULL OR distance_km <= 100
                  ORDER BY distance_km ASC, j.created_at DESC LIMIT 50`,
                 [profile.last_location_lat, profile.last_location_lng, profile.last_location_lat]
             );
@@ -661,6 +661,7 @@ router.get('/available-jobs', (req, res) =>
                 is_emergency: Boolean(j.is_emergency),
                 time: j.created_at,
                 customer_name: j.customer_name || 'Customer',
+                description: j.description || '',
                 wave_number: 1 // Default fallback for wave tracker
             };
         });

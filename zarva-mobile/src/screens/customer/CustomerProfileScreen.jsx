@@ -65,7 +65,7 @@ export default function CustomerProfileScreen() {
                 </View>
             </View>
 
-            {user?.profile?.saved_addresses && user.profile.saved_addresses.length > 0 && (
+            {user?.profile?.saved_addresses && Array.isArray(user.profile.saved_addresses) && user.profile.saved_addresses.length > 0 && (
                 <View style={styles.addressSection}>
                     <Text style={styles.sectionTitle}>{t('saved_addresses') || 'Saved Addresses'}</Text>
                     {user.profile.saved_addresses.map((addr, i) => (

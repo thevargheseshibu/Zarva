@@ -341,7 +341,6 @@ export default function ActiveJobScreen({ route, navigation }) {
                     <View style={styles.topRow}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                             <Text style={styles.catTxt}>{job.category}</Text>
-                            {job.is_emergency ? <Text style={styles.emergencyBadge}>🚨 EMERGENCY</Text> : null}
                         </View>
                         <StatusPill status={status} />
                     </View>
@@ -349,13 +348,41 @@ export default function ActiveJobScreen({ route, navigation }) {
                     <Text style={styles.custName}>{job.customer_name || 'Customer'}</Text>
                     <Text style={styles.addressTxt}>📍 {job.address}</Text>
 
-                    {/* Parsed JSON details */}
+                    {/* Parsed JSON details (Improved Version) */}
                     {(() => {
-                        const { text: descText, photo: photoUrl } = parseJobDescription(job.description);
+                        const { structured, photos, text } = parseJobDescription(job.description || job.desc);
                         return (
-                            <View style={{ marginBottom: spacing.sm }}>
-                                {!!descText && <Text style={{ color: colors.text.secondary, fontStyle: 'italic', marginBottom: spacing.xs }}>"{descText}"</Text>}
-                                {!!photoUrl && <Image source={{ uri: photoUrl }} style={{ width: '100%', height: 180, borderRadius: radius.md, marginTop: spacing.xs, backgroundColor: colors.bg.surface }} />}
+                            <View style={styles.detailsSection}>
+                                {structured.length > 0 ? (
+                                    <View style={styles.structuredWrap}>
+                                        {structured.map((item, idx) => (
+                                            <View key={idx} style={styles.qAndA}>
+                                                <Text style={styles.qText}>{item.label}</Text>
+                                                <Text style={styles.aText}>{item.value}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                ) : (
+                                    <Text style={styles.descText}>"{text || 'No additional details provided.'}"</Text>
+                                )}
+
+                                {photos.length > 0 && (
+                                    <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.photoList}
+                                        style={{ marginTop: spacing.md }}
+                                    >
+                                        {photos.map((uri, idx) => (
+                                            <Image
+                                                key={idx}
+                                                source={{ uri }}
+                                                style={styles.detailPhoto}
+                                                resizeMode="cover"
+                                            />
+                                        ))}
+                                    </ScrollView>
+                                )}
                             </View>
                         );
                     })()}
@@ -402,7 +429,17 @@ const styles = StyleSheet.create({
     emergencyBadge: { backgroundColor: colors.error + '22', color: colors.error, fontSize: 11, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
 
     custName: { color: colors.text.primary, fontSize: 22, fontWeight: '800', marginTop: spacing.md },
-    addressTxt: { color: colors.text.muted, fontSize: 15, lineHeight: 22, marginVertical: spacing.sm },
+    addressTxt: { color: colors.text.muted, fontSize: 13, marginTop: 4, marginBottom: spacing.md },
+
+    detailsSection: { marginTop: spacing.xs },
+    structuredWrap: { gap: spacing.sm, backgroundColor: colors.bg.surface, padding: spacing.md, borderRadius: radius.md },
+    qAndA: { gap: 2 },
+    qText: { color: colors.text.muted, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
+    aText: { color: colors.text.primary, fontSize: 14, fontWeight: '600' },
+    descText: { color: colors.text.secondary, fontSize: 14, fontStyle: 'italic', lineHeight: 20 },
+    photoList: { gap: spacing.sm },
+    detailPhoto: { width: 120, height: 120, borderRadius: radius.md, backgroundColor: colors.bg.surface },
+
     amountTxt: { color: colors.gold.primary, fontSize: 16, fontWeight: '700' },
 
     btnRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },

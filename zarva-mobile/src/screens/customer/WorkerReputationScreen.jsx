@@ -18,7 +18,7 @@ export default function WorkerReputationScreen({ route, navigation }) {
             }
             try {
                 const res = await apiClient.get(`/api/reviews/worker/${workerId}`);
-                const data = res.data?.reviews || [];
+                const data = res.data?.data?.reviews || res.data?.reviews || [];
                 setReviews(data);
 
                 if (data.length > 0) {

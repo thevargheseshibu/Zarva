@@ -45,17 +45,19 @@ export const parseJobDescription = (rawDesc) => {
                     });
                 }
             }
-        } else {
             textFallback = String(rawDesc);
         }
     } catch (e) {
         textFallback = String(rawDesc);
     }
 
-    const simpleText = structuredQuestions.map(q => q.value).join(' | ') || textFallback;
+    const simpleText = structuredQuestions
+        .map(q => q.value)
+        .filter(v => v && v.trim() !== '')
+        .join(' | ') || textFallback;
 
     return {
-        text: simpleText,
+        text: simpleText || 'Service Request',
         photos: photos,
         structured: structuredQuestions
     };

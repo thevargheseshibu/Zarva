@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
@@ -11,6 +11,7 @@ const FILTERS = ['All', 'Active', 'Completed', 'Cancelled', 'Disputed'];
 
 export default function MyWorkScreen({ navigation }) {
     const [filter, setFilter] = useState('All');
+    const [sortBy, setSortBy] = useState('Latest');
     const [refreshing, setRefreshing] = useState(false);
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -33,11 +34,25 @@ export default function MyWorkScreen({ navigation }) {
         }, [])
     );
 
-    const filtered = filter === 'All'
-        ? history
-        : filter === 'Active'
-            ? history.filter(h => ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(h.status))
-            : history.filter(h => h.status === filter.toLowerCase());
+    const filtered = useMemo(() => {
+        let result = history.filter(h => {
+            if (filter === 'All') return true;
+            if (filter === 'Active') return ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(h.status);
+            return h.status === filter.toLowerCase();
+        });
+
+        if (sortBy === 'Latest') {
+            result.sort((a, b) => new Date(b.date || b.created_at || b.time || 0) - new Date(a.date || a.created_at || a.time || 0));
+        } else if (sortBy === 'Oldest') {
+            result.sort((a, b) => new Date(a.date || a.created_at || a.time || 0) - new Date(b.date || b.created_at || b.time || 0));
+        } else if (sortBy === 'Price: High to Low') {
+            result.sort((a, b) => (parseFloat(b.total_amount || b.amount) || 0) - (parseFloat(a.total_amount || a.amount) || 0));
+        } else if (sortBy === 'Price: Low to High') {
+            result.sort((a, b) => (parseFloat(a.total_amount || a.amount) || 0) - (parseFloat(b.total_amount || b.amount) || 0));
+        }
+
+        return result;
+    }, [history, filter, sortBy]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -45,10 +60,7 @@ export default function MyWorkScreen({ navigation }) {
     };
 
     const handlePress = (item) => {
-        const activeStatuses = ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
-        if (activeStatuses.includes(item.status)) {
-            navigation.navigate('ActiveJob', { jobId: item.id });
-        }
+        navigation.navigate('ActiveJob', { jobId: item.id });
     };
 
     const renderItem = ({ item }) => (
@@ -109,6 +121,21 @@ export default function MyWorkScreen({ navigation }) {
                 />
             </View>
 
+            <View style={styles.sortWrap}>
+                <Text style={styles.sortLabel}>Sort by:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortList}>
+                    {['Latest', 'Oldest', 'Price: High to Low', 'Price: Low to High'].map(opt => (
+                        <TouchableOpacity
+                            key={opt}
+                            style={[styles.sortChip, sortBy === opt && styles.sortChipActive]}
+                            onPress={() => setSortBy(opt)}
+                        >
+                            <Text style={[styles.sortChipTxt, sortBy === opt && styles.sortChipTxtActive]}>{opt}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+
             <FlatList
                 data={filtered}
                 keyExtractor={i => String(i.id)}
@@ -137,6 +164,14 @@ const styles = StyleSheet.create({
     chipActive: { backgroundColor: colors.gold.glow, borderColor: colors.gold.primary },
     chipText: { color: colors.text.secondary, fontSize: 13, fontWeight: '600' },
     chipTextActive: { color: colors.gold.primary },
+
+    sortWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    sortLabel: { color: colors.text.muted, fontSize: 13, fontWeight: '600' },
+    sortList: { gap: spacing.sm, paddingRight: spacing.xl },
+    sortChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full, borderWidth: 1, borderColor: colors.bg.surface, backgroundColor: colors.bg.elevated },
+    sortChipActive: { borderColor: colors.gold.primary, backgroundColor: colors.gold.glow },
+    sortChipTxt: { color: colors.text.secondary, fontSize: 12, fontWeight: '600' },
+    sortChipTxtActive: { color: colors.gold.primary, fontWeight: '700' },
 
     // List
     list: { padding: spacing.lg, gap: spacing.md, flexGrow: 1 },
