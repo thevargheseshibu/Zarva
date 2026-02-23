@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator } from 'react-native';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import GoldButton from '../../components/GoldButton';
+import * as Haptics from 'expo-haptics';
+import { useT } from '../../hooks/useT';
 import apiClient from '../../services/api/client';
+import FadeInView from '../../components/FadeInView';
+import PremiumButton from '../../components/PremiumButton';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import Card from '../../components/Card';
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
 export default function RatingScreen({ route, navigation }) {
+    const t = useT();
     const { jobId } = route.params || {};
 
     const [rating, setRating] = useState(0);
@@ -14,10 +21,9 @@ export default function RatingScreen({ route, navigation }) {
     const [comment, setComment] = useState('');
     const [loading, setLoading] = useState(false);
     const [fetchLoading, setFetchLoading] = useState(true);
-
     const [job, setJob] = useState(null);
 
-    React.useEffect(() => {
+    useEffect(() => {
         const fetchDetails = async () => {
             if (!jobId) {
                 setFetchLoading(false);
@@ -28,7 +34,6 @@ export default function RatingScreen({ route, navigation }) {
                 const jobData = res.data?.job;
                 setJob(jobData);
 
-                // If already reviewed, populate state with existing data
                 if (jobData?.is_reviewed && jobData.review) {
                     const rev = jobData.review;
                     setRating(rev.score || 0);
@@ -48,8 +53,7 @@ export default function RatingScreen({ route, navigation }) {
         fetchDetails();
     }, [jobId]);
 
-    const worker = job?.worker || { name: 'Worker', photo: null, rating: 0 };
-
+    const worker = job?.worker || { name: 'Professional', photo: null, rating: 0 };
     const isReadOnly = !!job?.is_reviewed;
 
     const handleSubmit = async () => {
@@ -58,6 +62,8 @@ export default function RatingScreen({ route, navigation }) {
             return;
         }
         setLoading(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
         try {
             await apiClient.post(`/api/reviews`, {
                 job_id: jobId,
@@ -69,10 +75,10 @@ export default function RatingScreen({ route, navigation }) {
                 },
                 comment
             });
-            navigation.popToTop(); // Back to Home in CustomerStack
+            navigation.popToTop();
         } catch (err) {
             console.error('Failed to submit review', err);
-            Alert.alert('Error', err.response?.data?.message || 'Failed to submit review');
+            Alert.alert('Error', 'Failed to submit feedback. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -83,12 +89,21 @@ export default function RatingScreen({ route, navigation }) {
             {[1, 2, 3, 4, 5].map((star) => (
                 <TouchableOpacity
                     key={star}
-                    onPress={() => !isReadOnly && onChange(star)}
-                    activeOpacity={isReadOnly ? 1 : 0.8}
+                    onPress={() => {
+                        if (!isReadOnly) {
+                            onChange(star);
+                            Haptics.selectionAsync();
+                        }
+                    }}
+                    activeOpacity={isReadOnly ? 1 : 0.7}
                     disabled={isReadOnly}
                 >
-                    <Text style={[styles.star, { fontSize: size, color: star <= value ? colors.gold.primary : colors.bg.surface }]}>
-                        ★
+                    <Text style={[
+                        styles.star,
+                        { fontSize: size },
+                        star <= value ? { color: colors.accent.primary } : { color: colors.surface }
+                    ]}>
+                        {star <= value ? '★' : '☆'}
                     </Text>
                 </TouchableOpacity>
             ))}
@@ -98,168 +113,162 @@ export default function RatingScreen({ route, navigation }) {
     if (fetchLoading) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={colors.gold.primary} />
+                <ActivityIndicator size="large" color={colors.accent.primary} />
             </View>
         );
     }
 
-    const workerPhoto = worker.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(worker.name)}&background=random`;
+    const workerPhoto = worker.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(worker.name)}&background=101014&color=BD00FF`;
 
     return (
         <View style={styles.screen}>
+            {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.popToTop()} style={styles.skipBtn}>
-                    <Text style={styles.skipTxt}>Skip</Text>
-                </TouchableOpacity>
+                <PressableAnimated onPress={() => navigation.popToTop()} style={styles.headerBtn}>
+                    <Text style={styles.headerBtnTxt}>✕</Text>
+                </PressableAnimated>
+                {!isReadOnly && (
+                    <TouchableOpacity onPress={() => navigation.popToTop()}>
+                        <Text style={styles.skipTxt}>SKIP</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-                <View style={styles.profileBox}>
-                    <Image source={{ uri: workerPhoto }} style={styles.photo} />
-                    <Text style={styles.title}>Rate {worker.name}</Text>
-                    {parseFloat(worker.rating) > 0 ? (
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('WorkerReputation', {
-                                workerId: worker.user_id || worker.id,
-                                workerName: worker.name
-                            })}
-                            style={styles.reputationBadge}
-                        >
-                            <Text style={styles.reputationTxt}>★ {parseFloat(worker.rating).toFixed(1)}</Text>
-                            <Text style={styles.reputationLbl}>Worker Reputation ›</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <View style={styles.newWorkerBadgeRating}>
-                            <Text style={styles.newWorkerTxtRating}>New Worker</Text>
+                <FadeInView delay={50} style={styles.profileBox}>
+                    <View style={styles.photoContainer}>
+                        <Image source={{ uri: workerPhoto }} style={styles.photo} />
+                        <View style={styles.ratingBadge}>
+                            <Text style={styles.ratingBadgeTxt}>⭐ {parseFloat(worker.rating || 0).toFixed(1)}</Text>
                         </View>
-                    )}
-                    {isReadOnly ? (
-                        <View style={styles.readOnlyBadge}>
-                            <Text style={styles.readOnlyTxt}>Feedback Submitted</Text>
-                        </View>
-                    ) : (
-                        <Text style={styles.sub}>How was your experience with this service?</Text>
-                    )}
-                </View>
+                    </View>
+                    <Text style={styles.title}>{isReadOnly ? 'Your Review' : `Rate ${worker.name}`}</Text>
+                    <Text style={styles.sub}>
+                        {isReadOnly ? 'Thank you for your valuable feedback.' : 'How was your experience with the service?'}
+                    </Text>
+                </FadeInView>
 
                 {/* Main Rating */}
-                <View style={[styles.section, { alignItems: 'center', marginBottom: spacing.xl }]}>
-                    <StarRow value={rating} onChange={setRating} size={48} />
-                </View>
+                <FadeInView delay={200} style={styles.mainRatingBox}>
+                    <StarRow value={rating} onChange={setRating} size={56} />
+                    <Text style={styles.ratingLabel}>
+                        {rating === 1 && "Poor"}
+                        {rating === 2 && "Fair"}
+                        {rating === 3 && "Good"}
+                        {rating === 4 && "Very Good"}
+                        {rating === 5 && "Exceptional!"}
+                        {rating === 0 && "Select a Rating"}
+                    </Text>
+                </FadeInView>
 
                 {/* Sub Metrics */}
-                {rating > 0 && (
-                    <View style={styles.metricsBox}>
-                        <View style={styles.metricRow}>
-                            <Text style={styles.metricLabel}>Punctuality</Text>
-                            <StarRow value={punctuality} onChange={setPunctuality} size={28} />
-                        </View>
-                        <View style={styles.metricRow}>
-                            <Text style={styles.metricLabel}>Communication</Text>
-                            <StarRow value={communication} onChange={setCommunication} size={28} />
-                        </View>
-                        <View style={styles.metricRow}>
-                            <Text style={styles.metricLabel}>Professionalism</Text>
-                            <StarRow value={professionalism} onChange={setProfessionalism} size={28} />
-                        </View>
+                {(rating > 0 || isReadOnly) && (
+                    <FadeInView delay={350}>
+                        <Card style={styles.metricsCard}>
+                            <View style={styles.metricRow}>
+                                <Text style={styles.metricLabel}>Punctuality</Text>
+                                <StarRow value={punctuality} onChange={setPunctuality} size={24} />
+                            </View>
+                            <View style={styles.metricRow}>
+                                <Text style={styles.metricLabel}>Communication</Text>
+                                <StarRow value={communication} onChange={setCommunication} size={24} />
+                            </View>
+                            <View style={styles.metricRow}>
+                                <Text style={styles.metricLabel}>Professionalism</Text>
+                                <StarRow value={professionalism} onChange={setProfessionalism} size={24} />
+                            </View>
 
-                        <TextInput
-                            style={[styles.input, isReadOnly && styles.inputDisabled]}
-                            placeholder="Add a comment... (optional)"
-                            placeholderTextColor={colors.text.muted}
-                            value={comment}
-                            onChangeText={setComment}
-                            multiline
-                            editable={!isReadOnly}
-                        />
-                    </View>
+                            <View style={styles.commentWrap}>
+                                <Text style={styles.commentLabel}>COMMENT</Text>
+                                <TextInput
+                                    style={[styles.input, isReadOnly && styles.inputDisabled]}
+                                    placeholder="Add details about your experience..."
+                                    placeholderTextColor={colors.text.muted}
+                                    value={comment}
+                                    onChangeText={setComment}
+                                    multiline
+                                    editable={!isReadOnly}
+                                    selectionColor={colors.accent.primary}
+                                />
+                            </View>
+                        </Card>
+                    </FadeInView>
                 )}
 
-            </ScrollView>
+                <View style={styles.footer}>
+                    <PremiumButton
+                        title={isReadOnly ? "Back to Home" : "Submit Review"}
+                        isDisabled={!isReadOnly && rating === 0}
+                        loading={loading}
+                        onPress={handleSubmit}
+                    />
+                </View>
 
-            <View style={styles.footer}>
-                <GoldButton
-                    title={isReadOnly ? "Back to Home" : "Submit Feedback"}
-                    disabled={!isReadOnly && rating === 0}
-                    loading={loading}
-                    onPress={handleSubmit}
-                />
-            </View>
+            </ScrollView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: colors.background },
     header: {
-        flexDirection: 'row', justifyContent: 'flex-end',
-        paddingTop: spacing.xl + 20, paddingHorizontal: spacing.lg
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: spacing[16]
     },
-    skipBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
-    skipTxt: { color: colors.text.muted, fontSize: 16, fontWeight: '600' },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: colors.text.primary, fontSize: 18 },
+    skipTxt: { color: colors.accent.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 1 },
 
-    content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
+    scrollContent: { padding: spacing[24], paddingBottom: 120 },
 
-    profileBox: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xl },
-    photo: { width: 80, height: 80, borderRadius: 40, borderWidth: 2, borderColor: colors.gold.primary },
-    title: { color: colors.text.primary, fontSize: 24, fontWeight: '700' },
-    sub: { color: colors.text.secondary, fontSize: 15 },
-
-    section: { gap: spacing.md },
-    starRow: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'center' },
-    star: { textShadowColor: '#000', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
-
-    metricsBox: {
-        backgroundColor: colors.bg.surface, borderRadius: radius.lg,
-        padding: spacing.xl, gap: spacing.lg
-    },
-    metricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    metricLabel: { color: colors.text.primary, fontSize: 15, fontWeight: '600' },
-
-    input: {
-        backgroundColor: colors.bg.primary, borderRadius: radius.md,
-        color: colors.text.primary, padding: spacing.md, fontSize: 15,
-        minHeight: 100, textAlignVertical: 'top', marginTop: spacing.md,
-        borderWidth: 1, borderColor: colors.bg.surface
-    },
-
-    reputationBadge: {
-        flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-        backgroundColor: colors.gold.primary + '15',
-        paddingHorizontal: spacing.md, paddingVertical: 4,
-        borderRadius: radius.full, borderWidth: 1, borderColor: colors.gold.primary + '33'
-    },
-    reputationTxt: { color: colors.gold.primary, fontWeight: '800', fontSize: 14 },
-    reputationLbl: { color: colors.gold.primary, fontSize: 11, fontWeight: '600', textDecorationLine: 'underline' },
-
-    newWorkerBadgeRating: {
-        backgroundColor: colors.gold.primary + '22',
+    profileBox: { alignItems: 'center', gap: spacing[16], marginBottom: spacing[40] },
+    photoContainer: { position: 'relative' },
+    photo: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: colors.accent.border },
+    ratingBadge: {
+        position: 'absolute',
+        bottom: -10,
+        alignSelf: 'center',
+        backgroundColor: colors.surface,
         paddingHorizontal: 12,
         paddingVertical: 4,
-        borderRadius: radius.md,
+        borderRadius: radius.full,
         borderWidth: 1,
-        borderColor: colors.gold.primary + '44',
-        marginVertical: spacing.sm,
+        borderColor: colors.accent.border,
+        ...shadows.premium
     },
-    newWorkerTxtRating: {
-        color: colors.gold.primary,
-        fontSize: 12,
-        fontWeight: '900',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-    },
+    ratingBadgeTxt: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold },
 
-    readOnlyBadge: {
-        backgroundColor: colors.success + '22',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: radius.md,
+    title: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero, textAlign: 'center' },
+    sub: { color: colors.text.secondary, fontSize: fontSize.body, textAlign: 'center', paddingHorizontal: spacing[32] },
+
+    mainRatingBox: { alignItems: 'center', gap: spacing[12], marginBottom: spacing[40] },
+    starRow: { flexDirection: 'row', gap: spacing[8], justifyContent: 'center' },
+    star: { textShadowColor: 'rgba(189, 0, 255, 0.3)', textShadowOffset: { width: 0, height: 4 }, textShadowRadius: 10 },
+    ratingLabel: { color: colors.accent.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: 1 },
+
+    metricsCard: { padding: spacing[24], gap: spacing[20] },
+    metricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    metricLabel: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
+
+    commentWrap: { marginTop: spacing[12], gap: 8 },
+    commentLabel: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    input: {
+        backgroundColor: colors.elevated,
+        borderRadius: radius.lg,
+        padding: spacing[16],
+        color: colors.text.primary,
+        fontSize: fontSize.body,
+        minHeight: 120,
+        textAlignVertical: 'top',
         borderWidth: 1,
-        borderColor: colors.success + '44',
+        borderColor: colors.surface
     },
-    readOnlyTxt: { color: colors.success, fontWeight: '700', fontSize: 13 },
-    inputDisabled: { backgroundColor: colors.bg.elevated, borderColor: 'transparent' },
+    inputDisabled: { opacity: 0.7, backgroundColor: colors.surface },
 
-    footer: { padding: spacing.lg, paddingBottom: spacing.xl * 2, borderTopWidth: 1, borderTopColor: colors.bg.surface }
+    footer: { marginTop: spacing[48] }
 });

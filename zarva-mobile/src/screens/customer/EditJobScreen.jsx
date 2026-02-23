@@ -1,21 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import GoldButton from '../../components/GoldButton';
-import apiClient from '../../services/api/client';
-import LocationInput from '../../components/LocationInput';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useT } from '../../hooks/useT';
+import apiClient from '../../services/api/client';
+import { colors, spacing, radius, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+import LocationInput from '../../components/LocationInput';
+import PremiumButton from '../../components/PremiumButton';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import FadeInView from '../../components/FadeInView';
+import Card from '../../components/Card';
 
 export default function EditJobScreen({ route, navigation }) {
+    const t = useT();
     const { jobId } = route.params || {};
 
     const [job, setJob] = useState(null);
     const [config, setConfig] = useState(null);
     const [answers, setAnswers] = useState({});
     const [customerLocation, setCustomerLocation] = useState({});
-    const [isEmergency, setIsEmergency] = useState(false);
     const [scheduledDate, setScheduledDate] = useState(new Date());
     const [scheduleType, setScheduleType] = useState('now');
 
@@ -28,18 +34,15 @@ export default function EditJobScreen({ route, navigation }) {
     useEffect(() => {
         const loadJobAndConfig = async () => {
             try {
-                // 1. Fetch Job Details
                 const jobRes = await apiClient.get(`/api/jobs/${jobId}`);
                 const jobData = jobRes.data?.job;
                 setJob(jobData);
 
-                // Initialize state from job data
                 if (jobData.scheduled_at) {
                     setScheduleType('later');
                     setScheduledDate(new Date(jobData.scheduled_at));
                 }
 
-                // Parse existing description
                 try {
                     const descStr = jobData.description || jobData.desc;
                     const parsedDesc = typeof descStr === 'string' ? JSON.parse(descStr) : descStr;
@@ -47,7 +50,7 @@ export default function EditJobScreen({ route, navigation }) {
                     if (Array.isArray(parsedDesc)) {
                         const initialAnswers = {};
                         parsedDesc.forEach((item, index) => {
-                            if (index < 3) { // Our current dynamic config has 3 slots
+                            if (index < 3) {
                                 initialAnswers[`q${index + 1}`] = item.answer === 'SKIPPED' ? '' : item.answer;
                             }
                         });
@@ -59,7 +62,6 @@ export default function EditJobScreen({ route, navigation }) {
                     console.error('Failed to parse description', e);
                 }
 
-                // 2. Fetch Config for Category
                 const cfgRes = await apiClient.get('/api/jobs/config');
                 const catQuestions = cfgRes.data?.questions?.[jobData.category] || [];
 
@@ -70,8 +72,6 @@ export default function EditJobScreen({ route, navigation }) {
                 ];
                 setConfig({ questions: dynamicQuestions });
 
-                // Initialize answers if they were flat objects
-                // In Zarva, DynamicQuestionsScreen uses q1, q2, q3 as IDs
             } catch (err) {
                 console.error('Failed to load edit data', err);
                 Alert.alert('Error', 'Failed to load job details.');
@@ -85,6 +85,7 @@ export default function EditJobScreen({ route, navigation }) {
 
     const handleAnswer = (questionId, value) => {
         setAnswers(prev => ({ ...prev, [questionId]: value }));
+        Haptics.selectionAsync();
     };
 
     const handleImageUpload = async (questionId) => {
@@ -122,6 +123,7 @@ export default function EditJobScreen({ route, navigation }) {
 
             const public_url = uploadRes.data.url.split('?')[0];
             handleAnswer(questionId, public_url);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err) {
             console.error('Upload error', err);
             Alert.alert('Upload Failed', 'Could not save photo.');
@@ -132,6 +134,7 @@ export default function EditJobScreen({ route, navigation }) {
 
     const handleSave = async () => {
         setSaving(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
             const structuredAnswers = config.questions.map(q => ({
                 question: q.label,
@@ -150,7 +153,8 @@ export default function EditJobScreen({ route, navigation }) {
             }
 
             await apiClient.put(`/api/jobs/${jobId}`, payload);
-            Alert.alert('Success', 'Job updated successfully.');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert('Success', 'Job details updated successfully.');
             navigation.goBack();
         } catch (err) {
             console.error('Save failed', err);
@@ -163,166 +167,227 @@ export default function EditJobScreen({ route, navigation }) {
     if (loading) {
         return (
             <View style={styles.loadingBox}>
-                <ActivityIndicator size="large" color={colors.gold.primary} />
-                <Text style={styles.loadingTxt}>Loading job details...</Text>
+                <ActivityIndicator size="large" color={colors.accent.primary} />
+                <Text style={styles.loadingTxt}>Preparing editor...</Text>
             </View>
         );
     }
 
     return (
         <View style={styles.screen}>
+            {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                    <Text style={styles.backTxt}>←</Text>
-                </TouchableOpacity>
-                <Text style={styles.title}>Edit Job</Text>
-                <View style={{ width: 40 }} />
+                <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                    <Text style={styles.headerBtnTxt}>←</Text>
+                </PressableAnimated>
+                <Text style={styles.headerTitle}>Edit Request</Text>
+                <View style={{ width: 44 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
-                <Text style={styles.sectionTitle}>Details & Questions</Text>
-                {config.questions.map((q, i) => (
-                    <View key={q.id} style={styles.questionBlock}>
-                        <Text style={styles.qLabel}>{i + 1}. {q.label}</Text>
-                        {q.type === 'text' ? (
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Type here..."
-                                placeholderTextColor={colors.text.muted}
-                                value={answers[q.id] || ''}
-                                onChangeText={(txt) => handleAnswer(q.id, txt)}
-                                multiline
-                            />
-                        ) : q.type === 'image' ? (
-                            <TouchableOpacity
-                                style={[styles.uploadBox, answers[q.id] && styles.uploadBoxDone]}
-                                onPress={() => handleImageUpload(q.id)}
-                            >
-                                {answers[q.id] ? (
-                                    <Image source={{ uri: answers[q.id] }} style={styles.previewImage} />
-                                ) : (
-                                    <View style={styles.uploadPlaceholder}>
-                                        <Text style={styles.cameraIcon}>📷</Text>
-                                        <Text style={styles.uploadText}>{uploading ? 'Uploading...' : 'Tap to upload photo'}</Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-                        ) : null}
-                    </View>
-                ))}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-                <Text style={styles.sectionTitle}>Location</Text>
-                <LocationInput
-                    onChange={setCustomerLocation}
-                    initialData={{
-                        street: job.address,
-                        lat: parseFloat(job.latitude),
-                        lng: parseFloat(job.longitude)
-                    }}
-                />
+                <FadeInView delay={50}>
+                    <Text style={styles.introTitle}>Modify details</Text>
+                    <Text style={styles.introSub}>Update your service requirements, location or scheduled time.</Text>
+                </FadeInView>
 
-                <Text style={styles.sectionTitle}>Schedule</Text>
-                <View style={styles.tabRow}>
-                    <TouchableOpacity
-                        style={[styles.tab, scheduleType === 'now' && styles.tabActive]}
-                        onPress={() => setScheduleType('now')}
-                    >
-                        <Text style={[styles.tabTxt, scheduleType === 'now' && styles.tabTxtActive]}>ASAP</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.tab, scheduleType === 'later' && styles.tabActive]}
-                        onPress={() => setScheduleType('later')}
-                    >
-                        <Text style={[styles.tabTxt, scheduleType === 'later' && styles.tabTxtActive]}>Later</Text>
-                    </TouchableOpacity>
+                {/* Questions Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionHeader}>REQUIREMENTS</Text>
+                    {config.questions.map((q, i) => (
+                        <FadeInView key={q.id} delay={100 + i * 100}>
+                            <Card style={styles.questionCard}>
+                                <Text style={styles.qLabel}>{q.label}</Text>
+                                {q.type === 'text' ? (
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Add more details..."
+                                        placeholderTextColor={colors.text.muted}
+                                        value={answers[q.id] || ''}
+                                        onChangeText={(txt) => handleAnswer(q.id, txt)}
+                                        multiline
+                                        selectionColor={colors.accent.primary}
+                                    />
+                                ) : q.type === 'image' ? (
+                                    <PressableAnimated
+                                        style={[styles.uploadBox, answers[q.id] && styles.uploadBoxDone]}
+                                        onPress={() => handleImageUpload(q.id)}
+                                    >
+                                        {answers[q.id] ? (
+                                            <Image source={{ uri: answers[q.id] }} style={styles.previewImage} />
+                                        ) : (
+                                            <View style={styles.uploadPlaceholder}>
+                                                <Text style={styles.uploadIcon}>{uploading ? '⏳' : '📸'}</Text>
+                                                <Text style={styles.uploadText}>{uploading ? 'Uploading...' : 'Update photo'}</Text>
+                                            </View>
+                                        )}
+                                    </PressableAnimated>
+                                ) : null}
+                            </Card>
+                        </FadeInView>
+                    ))}
                 </View>
 
-                {scheduleType === 'later' && (
-                    <View style={styles.dateTimeRow}>
-                        <TouchableOpacity style={styles.dtBox} onPress={() => setShowDatePicker(true)}>
-                            <Text style={styles.dtTxt}>{dayjs(scheduledDate).format('DD/MM/YYYY')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.dtBox} onPress={() => setShowTimePicker(true)}>
-                            <Text style={styles.dtTxt}>{dayjs(scheduledDate).format('hh:mm A')}</Text>
-                        </TouchableOpacity>
+                {/* Location Section */}
+                <FadeInView delay={400} style={styles.section}>
+                    <Text style={styles.sectionHeader}>LOCATION</Text>
+                    <LocationInput
+                        onChange={setCustomerLocation}
+                        initialData={{
+                            street: job.address,
+                            lat: parseFloat(job.latitude),
+                            lng: parseFloat(job.longitude)
+                        }}
+                    />
+                </FadeInView>
+
+                {/* Schedule Section */}
+                <FadeInView delay={500} style={styles.section}>
+                    <Text style={styles.sectionHeader}>SCHEDULE</Text>
+                    <View style={styles.tabRow}>
+                        <PressableAnimated
+                            style={[styles.tab, scheduleType === 'now' && styles.tabActive]}
+                            onPress={() => {
+                                setScheduleType('now');
+                                Haptics.selectionAsync();
+                            }}
+                        >
+                            <Text style={[styles.tabTxt, scheduleType === 'now' && styles.tabTxtActive]}>ASAP</Text>
+                        </PressableAnimated>
+                        <PressableAnimated
+                            style={[styles.tab, scheduleType === 'later' && styles.tabActive]}
+                            onPress={() => {
+                                setScheduleType('later');
+                                Haptics.selectionAsync();
+                            }}
+                        >
+                            <Text style={[styles.tabTxt, scheduleType === 'later' && styles.tabTxtActive]}>Later</Text>
+                        </PressableAnimated>
                     </View>
-                )}
 
-                {showDatePicker && (
-                    <DateTimePicker
-                        value={scheduledDate}
-                        mode="date"
-                        onChange={(e, d) => { setShowDatePicker(false); if (d) setScheduledDate(d); }}
-                    />
-                )}
-                {showTimePicker && (
-                    <DateTimePicker
-                        value={scheduledDate}
-                        mode="time"
-                        onChange={(e, d) => { setShowTimePicker(false); if (d) setScheduledDate(d); }}
-                    />
-                )}
+                    {scheduleType === 'later' && (
+                        <Card style={styles.pickerCard}>
+                            <View style={styles.pickerRow}>
+                                <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowDatePicker(true)}>
+                                    <Text style={styles.pickerLabel}>DATE</Text>
+                                    <Text style={styles.pickerValue}>{dayjs(scheduledDate).format('DD/MM/YYYY')}</Text>
+                                </TouchableOpacity>
+                                <View style={styles.pickerDivider} />
+                                <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTimePicker(true)}>
+                                    <Text style={styles.pickerLabel}>TIME</Text>
+                                    <Text style={styles.pickerValue}>{dayjs(scheduledDate).format('hh:mm A')}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </Card>
+                    )}
+                </FadeInView>
 
-                <GoldButton
-                    title="Save Changes"
-                    loading={saving}
-                    onPress={handleSave}
-                    style={{ marginTop: spacing.xl, marginBottom: spacing.xl * 2 }}
-                />
+                <View style={styles.footer}>
+                    <PremiumButton
+                        title="Update Job Details"
+                        loading={saving}
+                        onPress={handleSave}
+                    />
+                </View>
+
             </ScrollView>
+
+            {showDatePicker && (
+                <DateTimePicker
+                    value={scheduledDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={(e, d) => { setShowDatePicker(false); if (d) setScheduledDate(d); }}
+                />
+            )}
+            {showTimePicker && (
+                <DateTimePicker
+                    value={scheduledDate}
+                    mode="time"
+                    display="spinner"
+                    onChange={(e, d) => { setShowTimePicker(false); if (d) setScheduledDate(d); }}
+                />
+            )}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: colors.background },
+    loadingBox: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', gap: spacing[16] },
+    loadingTxt: { color: colors.text.muted, fontSize: fontSize.caption },
+
     header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingTop: spacing.xl + 20, paddingHorizontal: spacing.sm, paddingBottom: spacing.lg,
-        borderBottomWidth: 1, borderBottomColor: colors.bg.surface
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: spacing[16]
     },
-    backBtn: { padding: spacing.sm },
-    backTxt: { color: colors.text.primary, fontSize: 24 },
-    title: { color: colors.text.primary, fontSize: 20, fontWeight: '700' },
-    content: { padding: spacing.lg, gap: spacing.lg },
-    sectionTitle: { color: colors.text.primary, fontSize: 18, fontWeight: '700', marginTop: spacing.md },
-    loadingBox: { flex: 1, backgroundColor: colors.bg.primary, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
-    loadingTxt: { color: colors.text.secondary, fontSize: 15 },
-    questionBlock: { gap: spacing.sm },
-    qLabel: { color: colors.text.primary, fontSize: 15, fontWeight: '600' },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
+    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+
+    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+
+    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
+    introSub: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, marginBottom: spacing[32], letterSpacing: tracking.body },
+
+    section: { marginTop: spacing[32], gap: spacing[16] },
+    sectionHeader: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2, marginLeft: 4 },
+
+    questionCard: { padding: spacing[20], gap: spacing[12], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
+    qLabel: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
     input: {
-        backgroundColor: colors.bg.surface, borderRadius: radius.md,
-        color: colors.text.primary, padding: spacing.md, fontSize: 15,
-        minHeight: 80, textAlignVertical: 'top'
+        backgroundColor: colors.elevated,
+        borderRadius: radius.md,
+        padding: spacing[16],
+        color: colors.text.primary,
+        fontSize: fontSize.body,
+        minHeight: 100,
+        textAlignVertical: 'top',
+        borderWidth: 1,
+        borderColor: colors.surface
     },
+
     uploadBox: {
-        height: 100, backgroundColor: colors.bg.surface, borderRadius: radius.md,
-        borderWidth: 1, borderColor: colors.bg.surface, borderStyle: 'dashed',
-        justifyContent: 'center', alignItems: 'center', overflow: 'hidden'
+        height: 120,
+        backgroundColor: colors.elevated,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: colors.surface,
+        borderStyle: 'dashed',
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden'
     },
-    uploadBoxDone: { borderStyle: 'solid', borderColor: colors.gold.primary },
-    uploadPlaceholder: { alignItems: 'center', gap: spacing.xs },
-    cameraIcon: { fontSize: 24 },
-    uploadText: { color: colors.text.secondary, fontSize: 12 },
+    uploadBoxDone: { borderStyle: 'solid', borderColor: colors.accent.primary + '44' },
+    uploadPlaceholder: { alignItems: 'center', gap: 4 },
+    uploadIcon: { fontSize: 24 },
+    uploadText: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
     previewImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-    tabRow: { flexDirection: 'row', gap: spacing.sm },
+
+    tabRow: { flexDirection: 'row', gap: spacing[12] },
     tab: {
-        flex: 1, paddingVertical: spacing.md, alignItems: 'center',
-        backgroundColor: colors.bg.surface, borderRadius: radius.lg
+        flex: 1,
+        paddingVertical: spacing[16],
+        backgroundColor: colors.surface,
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: colors.accent.border + '11',
+        alignItems: 'center'
     },
-    tabActive: { backgroundColor: colors.gold.glow, borderWidth: 1, borderColor: colors.gold.primary },
-    tabTxt: { color: colors.text.secondary, fontSize: 15, fontWeight: '600' },
-    tabTxtActive: { color: colors.gold.primary },
-    dateTimeRow: { flexDirection: 'row', gap: spacing.md },
-    dtBox: {
-        flex: 1, backgroundColor: colors.bg.surface, padding: spacing.md,
-        borderRadius: radius.md, alignItems: 'center', borderWidth: 1, borderColor: colors.bg.surface
-    },
-    dtTxt: { color: colors.text.primary, fontSize: 15 },
-    emergencyRow: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.elevated,
-        padding: spacing.lg, borderRadius: radius.lg, marginTop: spacing.md
-    },
-    emergencyTitle: { color: colors.text.primary, fontSize: 16, fontWeight: '700' },
-    emergencySub: { color: colors.text.muted, fontSize: 12, marginTop: 2 }
+    tabActive: { backgroundColor: colors.accent.primary + '11', borderColor: colors.accent.primary },
+    tabTxt: { color: colors.text.muted, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
+    tabTxtActive: { color: colors.accent.primary },
+
+    pickerCard: { padding: 0, overflow: 'hidden', marginTop: spacing[8] },
+    pickerRow: { flexDirection: 'row', alignItems: 'center' },
+    pickerBtn: { flex: 1, padding: spacing[20], alignItems: 'center', gap: 4 },
+    pickerLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    pickerValue: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.semibold },
+    pickerDivider: { width: 1, height: '60%', backgroundColor: colors.accent.border + '22' },
+
+    footer: { marginTop: spacing[48] }
 });

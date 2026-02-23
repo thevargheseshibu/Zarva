@@ -1,17 +1,15 @@
-/**
- * src/screens/worker/onboarding/OnboardingAgreement.jsx
- * Step 5: Scrollable T&C, name confirmation field, submit to backend.
- */
 import React, { useState } from 'react';
-import {
-    View, Text, ScrollView, TextInput, Alert, StyleSheet,
-} from 'react-native';
-import { colors, spacing, radius } from '../../../design-system/tokens';
-import GoldButton from '../../../components/GoldButton';
+import { View, Text, ScrollView, TextInput, Alert, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+import PremiumButton from '../../../components/PremiumButton';
+import FadeInView from '../../../components/FadeInView';
+import Card from '../../../components/Card';
 import { useAuthStore } from '../../../stores/authStore';
 import apiClient from '../../../services/api/client';
 
-const AGREEMENT_TEXT = `ZARVA SERVICE PROVIDER AGREEMENT
+const AGREEMENT_TEXT = `ZARVA PRO SERVICE PROTOCOL
 
 Last updated: February 2026
 
@@ -38,17 +36,18 @@ Either party may terminate this agreement with 7 days notice.
 
 By typing your name below, you agree to all terms.`;
 
-const AGREEMENT_VERSION = 'v2026-02'; // Versioned to the Last updated date in AGREEMENT_TEXT
+const AGREEMENT_VERSION = 'v2026-02';
 
 export default function OnboardingAgreement({ data, onNext }) {
     const [signature, setSignature] = useState('');
     const [loading, setLoading] = useState(false);
-    const { user, token, login } = useAuthStore();
+    const { user } = useAuthStore();
 
     const isValid = signature.trim().length >= 2;
 
     const handleSubmit = async () => {
         setLoading(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         try {
             await apiClient.post('/api/worker/onboard', {
                 ...data,
@@ -56,9 +55,11 @@ export default function OnboardingAgreement({ data, onNext }) {
                 agreement_version: AGREEMENT_VERSION,
                 agreed_at: new Date().toISOString(),
             });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             onNext({ signature });
         } catch (err) {
-            Alert.alert('Submission Failed', err.response?.data?.message || 'Please try again.');
+            Alert.alert('Protocol Error', err.response?.data?.message || 'Failed to submit application. Please verify connection.');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         } finally {
             setLoading(false);
         }
@@ -66,52 +67,76 @@ export default function OnboardingAgreement({ data, onNext }) {
 
     return (
         <View style={styles.screen}>
-            <Text style={styles.title}>Service Agreement</Text>
-            <Text style={styles.sub}>Please read and sign before submitting your application.</Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                <FadeInView delay={50}>
+                    <Text style={styles.headerSub}>STEP 05/05</Text>
+                    <Text style={styles.title}>Professional Protocol</Text>
+                    <Text style={styles.sub}>Review the Zarva Pro service standards and formalize your enrollment.</Text>
+                </FadeInView>
 
-            <ScrollView style={styles.scrollBox} contentContainerStyle={styles.scrollContent}>
-                <Text style={styles.agreementText}>{AGREEMENT_TEXT}</Text>
+                <FadeInView delay={150} style={styles.section}>
+                    <Text style={styles.label}>Service Agreement</Text>
+                    <Card style={styles.agreementCard}>
+                        <ScrollView style={styles.innerScroll} showsVerticalScrollIndicator={true}>
+                            <Text style={styles.agreementBody}>{AGREEMENT_TEXT}</Text>
+                        </ScrollView>
+                    </Card>
+                </FadeInView>
+
+                <FadeInView delay={250} style={styles.section}>
+                    <Text style={styles.label}>Electronic Signature</Text>
+                    <Card style={styles.inputCard}>
+                        <TextInput
+                            style={styles.input}
+                            value={signature}
+                            onChangeText={setSignature}
+                            placeholder={user?.name || 'Full Legal Name'}
+                            placeholderTextColor={colors.text.muted}
+                            autoCapitalize="words"
+                        />
+                    </Card>
+                    <Text style={styles.hintTxt}>By typing your name, you execute this agreement electronically.</Text>
+                </FadeInView>
+
+                <FadeInView delay={350} style={styles.footer}>
+                    <PremiumButton
+                        title="Authorize Enrollment"
+                        disabled={!isValid}
+                        loading={loading}
+                        onPress={handleSubmit}
+                    />
+                </FadeInView>
             </ScrollView>
-
-            <View style={styles.signSection}>
-                <Text style={styles.signLabel}>Type your full name to agree</Text>
-                <TextInput
-                    style={styles.signInput}
-                    value={signature}
-                    onChangeText={setSignature}
-                    placeholder={user?.name || 'Your full name'}
-                    placeholderTextColor={colors.text.muted}
-                    autoCapitalize="words"
-                />
-                <GoldButton
-                    title="Submit Application"
-                    disabled={!isValid}
-                    loading={loading}
-                    onPress={handleSubmit}
-                    style={{ marginTop: spacing.md }}
-                />
-            </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.md },
-    title: { color: colors.text.primary, fontSize: 24, fontWeight: '700' },
-    sub: { color: colors.text.secondary, fontSize: 14 },
-    scrollBox: {
-        flex: 1, backgroundColor: colors.bg.elevated,
-        borderRadius: radius.lg, borderWidth: 1, borderColor: colors.bg.surface,
+    screen: { flex: 1, backgroundColor: colors.background },
+    scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
+    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
+    sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
+
+    section: { gap: 12 },
+    label: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
+
+    agreementCard: {
+        height: 240,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.surface,
+        padding: 4
     },
-    scrollContent: { padding: spacing.md },
-    agreementText: { color: colors.text.muted, fontSize: 12.5, lineHeight: 20 },
-    signSection: { gap: spacing.sm, paddingBottom: spacing.lg },
-    signLabel: { color: colors.text.secondary, fontSize: 13, fontWeight: '600' },
-    signInput: {
-        backgroundColor: colors.bg.elevated, borderRadius: radius.md,
-        paddingHorizontal: spacing.md, paddingVertical: 14,
-        color: colors.text.primary, fontSize: 16,
-        borderWidth: 1.5, borderColor: colors.gold.muted,
-        fontStyle: 'italic',
+    innerScroll: { padding: 16 },
+    agreementBody: { color: colors.text.muted, fontSize: 11, lineHeight: 18, fontWeight: fontWeight.medium },
+
+    inputCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface },
+    input: {
+        paddingHorizontal: 16, paddingVertical: 14,
+        color: colors.text.primary, fontSize: 18, fontWeight: 'bold', fontStyle: 'italic', letterSpacing: 0.5
     },
+    hintTxt: { color: colors.text.muted, fontSize: 10, fontStyle: 'italic', paddingLeft: 4 },
+
+    footer: { marginTop: spacing[16] }
 });

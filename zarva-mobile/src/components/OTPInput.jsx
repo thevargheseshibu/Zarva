@@ -88,8 +88,8 @@ const styles = StyleSheet.create({
     box: {
         width: 56,
         height: 64,
-        backgroundColor: colors.bg.surface,
-        borderRadius: radius.sm,
+        backgroundColor: colors.surface,
+        borderRadius: radius.md,
         borderBottomWidth: 2,
         borderBottomColor: colors.text.muted,
         color: colors.text.primary,
@@ -99,6 +99,6 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     filled: {
-        borderBottomColor: colors.gold.primary,
+        borderBottomColor: colors.accent.primary,
     },
 });

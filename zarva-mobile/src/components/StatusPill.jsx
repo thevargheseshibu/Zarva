@@ -8,24 +8,24 @@ import { colors, radius, spacing } from '../design-system/tokens';
 import { fontSize, fontWeight } from '../design-system/typography';
 
 const STATUS_MAP = {
-    assigned: { bg: colors.info, label: 'Assigned' },
-    worker_en_route: { bg: colors.info, label: 'En Route' },
-    worker_arrived: { bg: colors.warning, label: 'Arrived' },
-    in_progress: { bg: colors.gold.primary, label: 'In Progress' },
-    completed: { bg: colors.success, label: 'Completed' },
-    cancelled: { bg: colors.error, label: 'Cancelled' },
-    disputed: { bg: colors.warning, label: 'Disputed' },
-    emergency: { bg: colors.danger, label: 'Emergency' },
+    assigned: { color: colors.accent.primary, label: 'Assigned' },
+    worker_en_route: { color: colors.accent.primary, label: 'En Route' },
+    worker_arrived: { color: colors.warning, label: 'Arrived' },
+    in_progress: { color: colors.accent.primary, label: 'In Progress' },
+    completed: { color: colors.success, label: 'Completed' },
+    cancelled: { color: colors.danger, label: 'Cancelled' },
+    disputed: { color: colors.warning, label: 'Disputed' },
+    emergency: { color: colors.danger, label: 'Emergency' },
 };
 
 export default function StatusPill({ status, label, style }) {
-    const config = STATUS_MAP[status] || { bg: colors.text.muted, label: status };
+    const config = STATUS_MAP[status] || { color: colors.text.muted, label: status };
     const displayLabel = label || config.label;
 
     return (
-        <View style={[styles.pill, { backgroundColor: config.bg + '22' }, style]}>
-            <View style={[styles.dot, { backgroundColor: config.bg }]} />
-            <Text style={[styles.label, { color: config.bg }]}>{displayLabel}</Text>
+        <View style={[styles.pill, { backgroundColor: colors.bg.surface }, style]}>
+            <View style={[styles.dot, { backgroundColor: config.color }]} />
+            <Text style={[styles.label, { color: config.color }]}>{displayLabel}</Text>
         </View>
     );
 }
@@ -35,20 +35,22 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
+        paddingVertical: 4,
         borderRadius: radius.full,
-        gap: spacing.xs,
+        gap: spacing.xxs,
         alignSelf: 'flex-start',
+        borderWidth: 0.5,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
     dot: {
         width: 6,
         height: 6,
-        borderRadius: radius.full,
+        borderRadius: 3,
     },
     label: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.semibold,
-        letterSpacing: 0.4,
+        fontSize: fontSize.micro,
+        fontWeight: fontWeight.bold,
+        letterSpacing: 0.2,
         textTransform: 'uppercase',
     },
 });

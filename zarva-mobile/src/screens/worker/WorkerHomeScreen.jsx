@@ -1,14 +1,18 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert, FlatList, RefreshControl } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert, RefreshControl, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import Card from '../../components/Card';
-import StatusPill from '../../components/StatusPill';
+import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
-import { useWorkerStore } from '../../stores/workerStore';
 import apiClient from '../../services/api/client';
+import { useWorkerStore } from '../../stores/workerStore';
+import FadeInView from '../../components/FadeInView';
+import Card from '../../components/Card';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import StatusPill from '../../components/StatusPill';
 import MapPickerModal from '../../components/MapPickerModal';
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -16,7 +20,7 @@ export default function WorkerHomeScreen({ navigation }) {
     const t = useT();
     const { isOnline, setOnline, isAvailable, setAvailable, activeJob, setActiveJob, locationOverride, setLocationOverride } = useWorkerStore();
     const [toggling, setToggling] = useState(false);
-    const [worker, setWorker] = useState({ id: null, name: '', rating: 0, verified: false });
+    const [worker, setWorker] = useState({ id: null, name: '', rating: 0, verified: false, photo: null });
     const [earningsToday, setEarningsToday] = useState(0);
     const [stats, setStats] = useState({ today: 0, week: 0 });
     const [reviews, setReviews] = useState([]);
@@ -27,9 +31,7 @@ export default function WorkerHomeScreen({ navigation }) {
     const fetchActiveJob = async (jobId) => {
         try {
             const res = await apiClient.get(`/api/worker/jobs/${jobId}`);
-            if (res.data?.job) {
-                setActiveJob(res.data.job);
-            }
+            if (res.data?.job) setActiveJob(res.data.job);
         } catch (err) {
             console.error('[WorkerHome] Failed to fetch active job:', err);
         }
@@ -39,28 +41,18 @@ export default function WorkerHomeScreen({ navigation }) {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') return;
-
             const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const { latitude, longitude } = loc.coords;
-
             const [addressArr] = await Location.reverseGeocodeAsync({ latitude, longitude });
             let addressText = 'Unknown Location';
-            if (addressArr) {
-                addressText = [addressArr.name, addressArr.city || addressArr.subregion, addressArr.region].filter(Boolean).join(', ');
-            }
-
+            if (addressArr) addressText = [addressArr.name, addressArr.city || addressArr.subregion, addressArr.region].filter(Boolean).join(', ');
             const newLoc = { address: addressText, lat: latitude, lng: longitude };
-            setLocation(newLoc);
-            // Don't set override here, let GPS handle periodic scans unless user manual overrides
-            // But update location state so UI shows current area
-
-            await apiClient.put('/api/worker/location', {
-                lat: latitude,
-                lng: longitude
-            });
-            console.log('[WorkerHome] Initial/Periodic location synced:', latitude, longitude);
+            if (!locationOverride) {
+                setLocation(newLoc);
+                await apiClient.put('/api/worker/location', { lat: latitude, lng: longitude });
+            }
         } catch (err) {
-            console.error('[WorkerHome] Failed to sync location block:', err);
+            console.error('[WorkerHome] Failed to sync location:', err);
         }
     };
 
@@ -69,16 +61,12 @@ export default function WorkerHomeScreen({ navigation }) {
         setLocation(newLoc);
         setLocationOverride(newLoc);
         setIsMapVisible(false);
-
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         try {
-            await apiClient.put('/api/worker/location', {
-                lat: loc.latitude,
-                lng: loc.longitude
-            });
-            Alert.alert('Location Updated', 'Your active location has been updated for job matching.');
+            await apiClient.put('/api/worker/location', { lat: loc.latitude, lng: loc.longitude });
+            Alert.alert('Location Updated', 'Your active location has been updated for better job matching.');
         } catch (err) {
             console.error('[WorkerHome] Map update sync failure:', err);
-            Alert.alert('Error', 'Failed to update location on server.');
         }
     };
 
@@ -90,31 +78,22 @@ export default function WorkerHomeScreen({ navigation }) {
                 const p = user.profile;
                 setWorker({
                     id: user.id,
-                    name: user.name || 'Worker',
+                    name: user.name || 'Professional',
                     rating: Number(p.average_rating || 0),
                     verified: !!p.is_verified,
+                    photo: user.photo
                 });
                 setOnline(!!p.is_online);
                 setAvailable(!!p.is_available);
                 setEarningsToday(p.earnings_today || 0);
-                setStats({
-                    today: p.jobs_today || 0,
-                    week: p.jobs_week || 0
-                });
+                setStats({ today: p.jobs_today || 0, week: p.jobs_week || 0 });
+                if (p.current_job_id) fetchActiveJob(p.current_job_id);
+                else setActiveJob(null);
 
-                if (p.current_job_id) {
-                    fetchActiveJob(p.current_job_id);
-                } else {
-                    setActiveJob(null);
-                }
-
-                // Fetch recent reviews
                 try {
                     const revRes = await apiClient.get(`/api/reviews/worker/${user.id}`);
                     setReviews(revRes.data?.data?.reviews || revRes.data?.reviews || []);
-                } catch (rErr) {
-                    console.error('[WorkerHome] Failed to fetch reviews', rErr);
-                }
+                } catch (rErr) { }
             }
         } catch (err) {
             console.error('[WorkerHome] Failed to fetch profile:', err);
@@ -125,21 +104,15 @@ export default function WorkerHomeScreen({ navigation }) {
 
     const onRefresh = useCallback(() => {
         setRefreshing(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         fetchProfile();
     }, [fetchProfile]);
 
     useFocusEffect(
         useCallback(() => {
             fetchProfile();
-
-            // Capture location immediately on open
             captureAndSyncLocation();
-
-            // Set up a 5-minute recurring check
-            const locationInterval = setInterval(() => {
-                captureAndSyncLocation();
-            }, 5 * 60 * 1000);
-
+            const locationInterval = setInterval(() => captureAndSyncLocation(), 5 * 60 * 1000);
             return () => clearInterval(locationInterval);
         }, [])
     );
@@ -147,23 +120,19 @@ export default function WorkerHomeScreen({ navigation }) {
     const toggleOnline = async (val) => {
         if (toggling) return;
         setToggling(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
             const res = await apiClient.put('/api/worker/availability', { is_online: val });
             const online = res.data?.is_online ?? val;
             setOnline(online);
-
             if (online) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 await startBackgroundTracking();
             } else {
                 await stopBackgroundTracking();
             }
-
-            if (res.data?.warning) {
-                Alert.alert('Warning', res.data.warning);
-            }
         } catch (err) {
-            const msg = err?.response?.data?.message || 'Failed to update status. Try again.';
-            Alert.alert('Error', msg);
+            Alert.alert('Error', err?.response?.data?.message || 'Failed to update status.');
         } finally {
             setToggling(false);
         }
@@ -173,198 +142,167 @@ export default function WorkerHomeScreen({ navigation }) {
         try {
             const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
             if (fgStatus !== 'granted') return;
-
             const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-            if (bgStatus !== 'granted') {
-                Alert.alert('Permission Required', 'Background location is needed to find jobs while you are online.');
-                return;
-            }
-
+            if (bgStatus !== 'granted') return;
             await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
                 accuracy: Location.Accuracy.Balanced,
-                timeInterval: 60000, // Sync every minute
-                distanceInterval: 100, // or 100 meters
+                timeInterval: 60000,
+                distanceInterval: 100,
                 foregroundService: {
                     notificationTitle: "ZARVA Online",
-                    notificationBody: "Actively looking for jobs near you.",
-                    notificationColor: colors.gold.primary
+                    notificationBody: "Actively receiving job requests.",
+                    notificationColor: colors.accent.primary
                 }
             });
-            console.log('[WorkerHome] Background tracking started');
-        } catch (e) {
-            console.error('[WorkerHome] Failed to start bg tracking', e);
-        }
+        } catch (e) { }
     };
 
     const stopBackgroundTracking = async () => {
         try {
             const started = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-            if (started) {
-                await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-                console.log('[WorkerHome] Background tracking stopped');
-            }
-        } catch (e) {
-            console.error('[WorkerHome] Failed to stop bg tracking', e);
-        }
+            if (started) await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+        } catch (e) { }
     };
-
-    const toggleAvailable = async (val) => {
-        if (toggling) return;
-        setToggling(true);
-        try {
-            const res = await apiClient.put('/api/worker/availability', { is_available: val });
-            setAvailable(res.data?.is_available ?? val);
-        } catch (err) {
-            Alert.alert('Error', err?.response?.data?.message || 'Failed to update availability.');
-        } finally {
-            setToggling(false);
-        }
-    };
-
-    // Safely format rating for display
-    const rawRating = worker.rating !== undefined && worker.rating !== null ? Number(worker.rating) : 0;
-    const displayRating = (isNaN(rawRating) ? 0 : rawRating).toFixed(1);
 
     return (
         <View style={styles.screen}>
-            {/* Header Area */}
+            {/* Header / Profile Summary */}
             <View style={styles.header}>
-                <View style={styles.headerRow}>
-                    <View>
-                        <Text style={styles.greeting}>{t('worker_home_greeting', { name: '' })}</Text>
-                        <View style={styles.nameRow}>
-                            <Text style={styles.name}>{worker.name || 'Worker'}</Text>
-                            {worker.verified && <Text style={styles.badge}>✅</Text>}
-                        </View>
-                        <TouchableOpacity style={styles.locationPill} onPress={() => setIsMapVisible(true)}>
-                            <Text style={styles.locationIcon}>📍</Text>
-                            <Text style={styles.locationText} numberOfLines={1}>{location.address}</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.rating}>⭐ {displayRating} Average Rating</Text>
-                    </View>
-
-                    <View style={{ flexDirection: 'row', gap: spacing.md }}>
-                        {/* Online Toggle */}
-                        <View style={styles.toggleBox}>
-                            <Text style={[styles.toggleTxt, isOnline && styles.toggleTxtActive]}>
-                                {isOnline ? 'NET: ON' : 'NET: OFF'}
-                            </Text>
-                            <Switch
-                                value={isOnline}
-                                onValueChange={toggleOnline}
-                                disabled={toggling}
-                                trackColor={{ false: colors.bg.surface, true: colors.success }}
-                                thumbColor={toggling ? colors.text.muted : colors.text.primary}
+                <FadeInView delay={100} style={styles.headerTop}>
+                    <View style={styles.profileRow}>
+                        <View style={styles.photoWrap}>
+                            <Image
+                                source={{ uri: worker.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(worker.name)}&background=101014&color=BD00FF` }}
+                                style={styles.photo}
                             />
+                            {worker.verified && <View style={styles.verifiedDot} />}
                         </View>
-                        {/* Dispatch Available Toggle */}
-                        <View style={styles.toggleBox}>
-                            <Text style={[styles.toggleTxt, isAvailable && styles.toggleTxtActive]}>
-                                {isAvailable ? 'DISPATCH: Y' : 'DISPATCH: N'}
-                            </Text>
-                            <Switch
-                                value={isAvailable}
-                                onValueChange={toggleAvailable}
-                                disabled={toggling}
-                                trackColor={{ false: colors.bg.surface, true: colors.gold.glow }}
-                                thumbColor={toggling ? colors.text.muted : colors.text.primary}
-                            />
+                        <View style={styles.headerText}>
+                            <Text style={styles.greeting}>GOOD DAY,</Text>
+                            <Text style={styles.name}>{worker.name.split(' ')[0]}</Text>
                         </View>
                     </View>
-                </View>
 
-                {/* Earnings Card */}
-                <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('EarningsDetail')}>
-                    <Card glow style={styles.earningsCard}>
-                        <Text style={styles.eLabel}>{t('earnings_today')}</Text>
-                        <Text style={styles.eValue}>₹{earningsToday}</Text>
-                        <Text style={styles.eSub}>Tap to view history →</Text>
-                    </Card>
-                </TouchableOpacity>
+                    <View style={styles.statusBox}>
+                        <Text style={[styles.statusTxt, isOnline && styles.statusTxtActive]}>
+                            {isOnline ? 'ONLINE' : 'OFFLINE'}
+                        </Text>
+                        <Switch
+                            value={isOnline}
+                            onValueChange={toggleOnline}
+                            disabled={toggling}
+                            trackColor={{ false: colors.elevated, true: colors.accent.primary }}
+                            thumbColor="#FFF"
+                        />
+                    </View>
+                </FadeInView>
 
-                {/* Quick Stats */}
-                <View style={styles.statsRow}>
-                    <View style={styles.statBox}>
-                        <Text style={styles.sValue}>{stats.today}</Text>
-                        <Text style={styles.sLabel}>{t('stats_jobs')}</Text>
+                <FadeInView delay={200}>
+                    <PressableAnimated onPress={() => navigation.navigate('EarningsDetail')}>
+                        <Card style={styles.earningsCard}>
+                            <View style={styles.eInfo}>
+                                <Text style={styles.eLabel}>TODAY'S EARNINGS</Text>
+                                <Text style={styles.eValue}>₹{earningsToday}</Text>
+                            </View>
+                            <View style={styles.eAction}>
+                                <Text style={styles.eActionTxt}>PROFIT TRACKER ›</Text>
+                            </View>
+                        </Card>
+                    </PressableAnimated>
+                </FadeInView>
+
+                <FadeInView delay={300} style={styles.statsGrid}>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statVal}>{stats.today}</Text>
+                        <Text style={styles.statLbl}>JOBS TODAY</Text>
                     </View>
-                    <View style={styles.statBox}>
-                        <Text style={styles.sValue}>{stats.week}</Text>
-                        <Text style={styles.sLabel}>{t('tab_this_week')}</Text>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statVal}>{stats.week}</Text>
+                        <Text style={styles.statLbl}>THIS WEEK</Text>
                     </View>
-                    <View style={styles.statBox}>
-                        <Text style={styles.sValue}>{displayRating}</Text>
-                        <Text style={styles.sLabel}>{t('stats_rating')}</Text>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statVal}>⭐ {worker.rating.toFixed(1)}</Text>
+                        <Text style={styles.statLbl}>RATING</Text>
                     </View>
-                </View>
+                </FadeInView>
             </View>
 
             <ScrollView
-                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold.primary} />
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colors.accent.primary}
+                    />
                 }
             >
-                {/* Online Status Banner */}
-                {!isOnline && (
-                    <View style={styles.offlineBanner}>
-                        <Text style={styles.offlineBannerTxt}>💤 You are offline. Toggle online to receive jobs.</Text>
-                    </View>
-                )}
+                {/* Location Bar */}
+                <FadeInView delay={400}>
+                    <PressableAnimated style={styles.locationBar} onPress={() => setIsMapVisible(true)}>
+                        <Text style={styles.locIcon}>📍</Text>
+                        <Text style={styles.locTxt} numberOfLines={1}>{location.address}</Text>
+                        <Text style={styles.locEdit}>EDIT</Text>
+                    </PressableAnimated>
+                </FadeInView>
 
                 {/* Active Job Section */}
                 {activeJob && (
-                    <View style={styles.activeSection}>
-                        <Text style={styles.sectionTitle}>{t('active_job')}</Text>
+                    <FadeInView delay={500} style={styles.section}>
+                        <Text style={styles.sectionHeader}>CURRENT ENGAGEMENT</Text>
                         <Card style={styles.activeJobCard}>
-                            <View style={styles.ajHeader}>
+                            <View style={styles.ajTitleRow}>
                                 <Text style={styles.ajCategory}>{activeJob.category}</Text>
                                 <StatusPill status={activeJob.status} />
                             </View>
-                            <Text style={styles.ajDate}>{activeJob.date || activeJob.created_at ? new Date(activeJob.created_at).toLocaleDateString() : 'Today'}</Text>
-                            <Text style={styles.ajAddress} numberOfLines={2}>📍 {activeJob.address || 'Address not found'}</Text>
-                            <TouchableOpacity
-                                style={styles.viewJobBtn}
+                            <Text style={styles.ajAddress} numberOfLines={1}>Request from {activeJob.customer_address?.split(',')[0]}</Text>
+                            <PressableAnimated
+                                style={styles.ajAction}
                                 onPress={() => navigation.navigate('ActiveJob', { jobId: activeJob.id })}
                             >
-                                <Text style={styles.viewJobTxt}>View Job Details →</Text>
-                            </TouchableOpacity>
+                                <Text style={styles.ajActionTxt}>RESUME OPERATIONS</Text>
+                            </PressableAnimated>
                         </Card>
-                    </View>
+                    </FadeInView>
                 )}
 
-                {/* Recent Reviews Section */}
-                <View style={styles.reviewsSection}>
-                    <View style={styles.reviewSectionHeader}>
-                        <Text style={styles.sectionTitle}>Recent Review</Text>
+                {/* Feed / Feedback Summary */}
+                <FadeInView delay={600} style={styles.section}>
+                    <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionHeader}>RECENT FEEDBACK</Text>
                         {reviews.length > 0 && (
-                            <TouchableOpacity
-                                onPress={() => navigation.navigate('WorkerReputation', {
-                                    workerId: worker.id,
-                                    workerName: worker.name
-                                })}
-                            >
-                                <Text style={styles.viewAllBtn}>View All →</Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('WorkerReputation', { workerId: worker.id, workerName: worker.name })}>
+                                <Text style={styles.viewAll}>SEE ALL</Text>
                             </TouchableOpacity>
                         )}
                     </View>
 
                     {reviews.length === 0 ? (
-                        <Text style={styles.noReviewsTxt}>No reviews yet. Complete jobs to earn ratings!</Text>
+                        <Card style={styles.emptyFeedback}>
+                            <Text style={styles.emptyTxt}>Complete jobs to unlock performance reviews.</Text>
+                        </Card>
                     ) : (
-                        <Card glow style={styles.singleReviewCard}>
-                            <View style={styles.reviewHeader}>
-                                <Text style={styles.reviewStars}>
-                                    {Array.from({ length: 5 }).map((_, i) => (i < reviews[0].overall_score ? '⭐' : '☆')).join('')}
-                                </Text>
+                        <Card style={styles.feedbackCard}>
+                            <View style={styles.fbHeader}>
+                                <Text style={styles.fbStars}>{"★".repeat(reviews[0].overall_score)}</Text>
+                                <Text style={styles.fbUser}>{reviews[0].reviewer_identifier}</Text>
                             </View>
-                            <Text style={styles.reviewComment} numberOfLines={4}>
-                                {reviews[0].comment ? `"${reviews[0].comment}"` : 'No written feedback provided.'}
+                            <Text style={styles.fbComment} numberOfLines={2}>
+                                {reviews[0].comment ? `"${reviews[0].comment}"` : "The professional provided outstanding service."}
                             </Text>
-                            <Text style={styles.reviewAuthor}>- {reviews[0].reviewer_identifier}</Text>
                         </Card>
                     )}
-                </View>
+                </FadeInView>
+
+                {/* Status Indicator */}
+                {!isOnline && (
+                    <FadeInView delay={700} style={styles.offlineBox}>
+                        <Text style={styles.offlineTxt}>Offline • Not receiving new requests</Text>
+                    </FadeInView>
+                )}
             </ScrollView>
 
             <MapPickerModal
@@ -378,70 +316,88 @@ export default function WorkerHomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: colors.background },
     header: {
-        paddingTop: spacing.xl + 20, paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.lg, backgroundColor: colors.bg.elevated,
-        borderBottomWidth: 1, borderBottomColor: colors.bg.surface
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        backgroundColor: colors.surface,
+        paddingBottom: spacing[24],
+        borderBottomLeftRadius: radius.xxl,
+        borderBottomRightRadius: radius.xxl,
+        ...shadows.premium
     },
+    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[24] },
+    profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    photoWrap: { position: 'relative' },
+    photo: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.accent.border },
+    verifiedDot: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#00D1FF', borderWidth: 2, borderColor: colors.surface },
+    headerText: { gap: 2 },
+    greeting: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    name: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold },
 
-    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.xl },
-    greeting: { color: colors.text.secondary, fontSize: 14 },
-    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginVertical: 4 },
-    name: { color: colors.gold.primary, fontSize: 24, fontWeight: '800' },
-    badge: { fontSize: 16 },
-    locationPill: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg.surface,
-        paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.full,
-        gap: 4, marginVertical: 4, alignSelf: 'flex-start'
+    statusBox: { alignItems: 'center', gap: 4 },
+    statusTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    statusTxtActive: { color: colors.accent.primary },
+
+    earningsCard: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: spacing[24],
+        backgroundColor: colors.elevated,
+        borderWidth: 1,
+        borderColor: colors.surface,
+        marginBottom: spacing[20]
     },
-    locationIcon: { fontSize: 12 },
-    locationText: { color: colors.text.secondary, fontSize: 12, fontWeight: '600', maxWidth: 150 },
-    rating: { color: colors.text.muted, fontSize: 13, fontWeight: '600' },
+    eLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    eValue: { color: colors.text.primary, fontSize: 40, fontWeight: '900', marginTop: 4 },
+    eAction: { backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full },
+    eActionTxt: { color: colors.text.primary, fontSize: 8, fontWeight: fontWeight.bold },
 
-    toggleBox: { alignItems: 'center', gap: 4 },
-    toggleTxt: { color: colors.text.muted, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-    toggleTxtActive: { color: colors.success },
+    statsGrid: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    statItem: { flex: 1, alignItems: 'center', gap: 4 },
+    statVal: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    statLbl: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    statDivider: { width: 1, height: 20, backgroundColor: colors.surface },
 
-    earningsCard: { alignItems: 'center', padding: spacing.xl, marginBottom: spacing.lg, borderColor: colors.gold.primary, borderWidth: 1 },
-    eLabel: { color: colors.text.secondary, fontSize: 14, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
-    eValue: { color: colors.gold.primary, fontSize: 48, fontWeight: '800', fontFamily: 'Courier', marginVertical: spacing.sm },
-    eSub: { color: colors.text.muted, fontSize: 13 },
+    scrollContent: { padding: spacing[24], paddingBottom: 120 },
 
-    statsRow: { flexDirection: 'row', gap: spacing.sm },
-    statBox: { flex: 1, backgroundColor: colors.bg.surface, padding: spacing.md, borderRadius: radius.md, alignItems: 'center' },
-    sValue: { color: colors.text.primary, fontSize: 20, fontWeight: '800' },
-    sLabel: { color: colors.text.muted, fontSize: 12, marginTop: 2 },
-
-    content: { padding: spacing.lg },
-
-    offlineBanner: {
-        backgroundColor: colors.bg.elevated, padding: spacing.md,
-        borderRadius: radius.md, borderWidth: 1, borderColor: colors.bg.surface, marginBottom: spacing.lg
+    locationBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.surface,
+        padding: spacing[16],
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: colors.accent.border + '11',
+        gap: 12,
+        marginBottom: spacing[32]
     },
-    offlineBannerTxt: { color: colors.text.muted, fontSize: 14, textAlign: 'center' },
+    locIcon: { fontSize: 14 },
+    locTxt: { flex: 1, color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
+    locEdit: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold },
 
-    sectionTitle: { color: colors.text.primary, fontSize: 18, fontWeight: '700', marginBottom: spacing.md },
-    activeSection: {},
-    activeJobCard: { gap: spacing.sm, borderWidth: 1, borderColor: colors.gold.primary + '55' },
-    ajHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    ajCategory: { color: colors.text.primary, fontSize: 16, fontWeight: '700' },
-    ajDate: { color: colors.text.secondary, fontSize: 13 },
-    ajAddress: { color: colors.text.muted, fontSize: 14, marginTop: spacing.xs, lineHeight: 20 },
+    section: { marginBottom: spacing[32], gap: spacing[16] },
+    sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    sectionHeader: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    viewAll: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold },
 
-    viewJobBtn: {
-        marginTop: spacing.md, backgroundColor: colors.gold.glow,
-        padding: spacing.md, borderRadius: radius.md, alignItems: 'center'
-    },
-    viewJobTxt: { color: colors.gold.primary, fontWeight: '700' },
+    activeJobCard: { padding: spacing[24], gap: spacing[12], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent.border + '22' },
+    ajTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    ajCategory: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    ajAddress: { color: colors.text.secondary, fontSize: fontSize.micro },
+    ajAction: { backgroundColor: colors.accent.primary, paddingVertical: 14, borderRadius: radius.lg, alignItems: 'center', marginTop: 8 },
+    ajActionTxt: { color: colors.background, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
 
-    reviewsSection: { marginTop: spacing.xl },
-    reviewSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-    viewAllBtn: { color: colors.gold.primary, fontWeight: '700', fontSize: 13, textDecorationLine: 'underline' },
-    noReviewsTxt: { color: colors.text.muted, fontSize: 13, fontStyle: 'italic', marginTop: spacing.xs },
-    singleReviewCard: { width: '100%', padding: spacing.lg, borderColor: colors.gold.primary + '33', borderWidth: 1, backgroundColor: colors.bg.surface },
-    reviewHeader: { flexDirection: 'row', justifyContent: 'flex-start', marginBottom: spacing.md },
-    reviewStars: { fontSize: 18, letterSpacing: 3 },
-    reviewComment: { color: colors.text.primary, fontSize: 15, fontStyle: 'italic', lineHeight: 22, marginBottom: spacing.md },
-    reviewAuthor: { color: colors.gold.primary, fontSize: 13, fontWeight: '700', textAlign: 'right' }
+    feedbackCard: { padding: spacing[20], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface, gap: 8 },
+    fbHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    fbStars: { color: colors.accent.primary, fontSize: 12, letterSpacing: 2 },
+    fbUser: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold },
+    fbComment: { color: colors.text.secondary, fontSize: fontSize.caption, fontStyle: 'italic', lineHeight: 20 },
+
+    emptyFeedback: { padding: spacing[24], alignItems: 'center', backgroundColor: colors.surface, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.surface },
+    emptyTxt: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center' },
+
+    offlineBox: { padding: spacing[16], alignItems: 'center', backgroundColor: colors.accent.primary + '08', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.accent.primary + '15' },
+    offlineTxt: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 }
 });

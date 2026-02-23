@@ -1,11 +1,9 @@
-/**
- * src/screens/worker/OnboardingWelcome.jsx  →  renamed: this is now the router
- * Worker Onboarding — routes through 5-screen stack with progress bar.
- */
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { colors, spacing, radius } from '../../design-system/tokens';
+import * as Haptics from 'expo-haptics';
+import { colors, spacing, radius, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 import OnboardingBasicInfo from './onboarding/OnboardingBasicInfo';
 import OnboardingSkills from './onboarding/OnboardingSkills';
 import OnboardingPayment from './onboarding/OnboardingPayment';
@@ -30,8 +28,7 @@ export default function OnboardingWelcome() {
     const navigation = useNavigation();
 
     const blockBackAndGoHome = useCallback(() => {
-        // As per instructions: replace to WorkerNavigator home screen.
-        // Even if onboarding isn't saved piece-meal, the instruction dictates this forced exit path.
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         navigation.replace('WorkerStack', { screen: 'WorkerHome' });
         return true;
     }, [navigation]);
@@ -52,37 +49,80 @@ export default function OnboardingWelcome() {
         setData(d => ({ ...d, ...stepData }));
         if (step >= STEPS - 1) { setDone(true); return; }
         setStep(s => s + 1);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     };
 
-    const goBack = () => blockBackAndGoHome();
+    const goBack = () => {
+        if (step === 0) {
+            blockBackAndGoHome();
+        } else {
+            setStep(s => s - 1);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+    };
 
     return (
-        <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
-            {/* Progress bar */}
-            <View style={styles.progressBar}>
-                {step > 0 && (
-                    <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-                        <Text style={styles.backArrow}>←</Text>
-                    </TouchableOpacity>
-                )}
-                <View style={styles.trackOuter}>
-                    <View style={[styles.trackFill, { width: `${progress * 100}%` }]} />
+        <View style={styles.screen}>
+            {/* Progress Header */}
+            <View style={styles.header}>
+                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+                    <Text style={styles.backArrow}>←</Text>
+                </TouchableOpacity>
+
+                <View style={styles.progressContainer}>
+                    <View style={styles.track}>
+                        <View style={[styles.fill, { width: `${progress * 100}%` }]} />
+                        <View style={[styles.glow, { left: `${progress * 100}%` }]} />
+                    </View>
                 </View>
-                <Text style={styles.stepLabel}>{step + 1}/{STEPS}</Text>
+
+                <View style={styles.stepInfo}>
+                    <Text style={styles.stepCount}>{step + 1}</Text>
+                    <Text style={styles.stepTotal}>/ {STEPS}</Text>
+                </View>
             </View>
+
             <CurrentScreen data={data} onNext={goNext} />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    progressBar: {
-        flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-        paddingHorizontal: spacing.lg, paddingTop: spacing.xl + 16, paddingBottom: spacing.md,
+    screen: { flex: 1, backgroundColor: colors.background },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing[24],
+        paddingTop: 60,
+        paddingBottom: 20,
+        gap: 16
     },
-    backBtn: { padding: 4 },
+    backBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: colors.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: colors.accent.border + '11'
+    },
     backArrow: { color: colors.text.primary, fontSize: 20 },
-    trackOuter: { flex: 1, height: 4, backgroundColor: colors.bg.surface, borderRadius: radius.full, overflow: 'hidden' },
-    trackFill: { height: '100%', backgroundColor: colors.gold.primary, borderRadius: radius.full },
-    stepLabel: { color: colors.text.muted, fontSize: 12 },
+
+    progressContainer: { flex: 1, height: 6, backgroundColor: colors.surface, borderRadius: 3, overflow: 'hidden', position: 'relative' },
+    track: { flex: 1, backgroundColor: colors.surface },
+    fill: { height: '100%', backgroundColor: colors.accent.primary, borderRadius: 3 },
+    glow: {
+        position: 'absolute',
+        top: 0,
+        width: 20,
+        height: '100%',
+        backgroundColor: colors.accent.primary,
+        opacity: 0.5,
+        transform: [{ translateX: -10 }]
+    },
+
+    stepInfo: { flexDirection: 'row', alignItems: 'baseline' },
+    stepCount: { color: colors.text.primary, fontSize: 16, fontWeight: '900' },
+    stepTotal: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, marginLeft: 4 }
 });

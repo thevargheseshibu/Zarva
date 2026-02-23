@@ -1,16 +1,22 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image, RefreshControl, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, RefreshControl, Alert, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import Card from '../../components/Card';
-import StatusPill from '../../components/StatusPill';
-import apiClient from '../../services/api/client';
 import dayjs from 'dayjs';
+import { useT } from '../../hooks/useT';
+import apiClient from '../../services/api/client';
 import { parseJobDescription } from '../../utils/jobParser';
+import FadeInView from '../../components/FadeInView';
+import StatusPill from '../../components/StatusPill';
+import Card from '../../components/Card';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import SkeletonCard from '../../design-system/components/SkeletonCard';
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
 const FILTERS = ['All', 'Active', 'Completed', 'Cancelled'];
 
 export default function MyJobsScreen({ navigation }) {
+    const t = useT();
     const [filter, setFilter] = useState('All');
     const [sortNewest, setSortNewest] = useState(true);
     const [jobs, setJobs] = useState([]);
@@ -22,18 +28,13 @@ export default function MyJobsScreen({ navigation }) {
             const res = await apiClient.get('/api/jobs');
             setJobs(res.data?.jobs || []);
         } catch (err) {
-            console.error('Failed to fetch jobs:', err);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
     };
 
-    useFocusEffect(
-        useCallback(() => {
-            fetchJobs();
-        }, [])
-    );
+    useFocusEffect(useCallback(() => { fetchJobs(); }, []));
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -55,7 +56,7 @@ export default function MyJobsScreen({ navigation }) {
         });
 
     const handleDeleteJob = (id) => {
-        Alert.alert('Delete Job', 'Are you sure you want to delete this job?', [
+        Alert.alert('Delete Request', 'Are you sure you want to remove this service request?', [
             { text: 'Cancel', style: 'cancel' },
             {
                 text: 'Delete',
@@ -65,223 +66,181 @@ export default function MyJobsScreen({ navigation }) {
                         await apiClient.delete(`/api/jobs/${id}`);
                         fetchJobs();
                     } catch (err) {
-                        Alert.alert('Error', err.response?.data?.message || 'Failed to delete job');
+                        Alert.alert('Error', 'Failed to delete job');
                     }
                 }
             }
         ]);
     };
 
-    const renderJob = ({ item }) => {
+    const renderJob = ({ item, index }) => {
         const { text: parsedDesc } = parseJobDescription(item.description);
         const desc = parsedDesc || 'Service Request';
 
         return (
-            <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => navigation.navigate('JobStatusDetail', { jobId: item.id })}
-            >
-                <Card style={styles.card}>
-                    <View style={styles.cardHeader}>
-                        <View style={{ flex: 1, paddingRight: spacing.md }}>
-                            <Text style={styles.category}>{item.category || 'Service'}</Text>
-                            <Text style={styles.desc} numberOfLines={1}>{desc}</Text>
-                            <Text style={styles.date}>{dayjs(item.created_at).format('MMM D, h:mm A')}</Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+            <FadeInView delay={index * 60}>
+                <PressableAnimated onPress={() => navigation.navigate('JobStatusDetail', { jobId: item.id })}>
+                    <Card style={styles.card}>
+                        <View style={styles.cardTop}>
+                            <View style={styles.jobTypeBox}>
+                                <Text style={styles.jobTypeTxt}>{item.category?.charAt(0).toUpperCase()}</Text>
+                            </View>
+                            <View style={styles.jobInfo}>
+                                <Text style={styles.jobTitle}>{t(`cat_${item.category}`) || item.category}</Text>
+                                <Text style={styles.jobDate}>{dayjs(item.created_at).format('MMM D, h:mm A')}</Text>
+                            </View>
                             <StatusPill status={item.status} />
-                            <View style={{ flexDirection: 'row', gap: 6 }}>
-                                {['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(item.status) && (
-                                    <TouchableOpacity
-                                        onPress={() => navigation.navigate('EditJob', { jobId: item.id })}
-                                        style={styles.editBtn}
-                                    >
-                                        <Text style={styles.editTxt}>✏️ Edit</Text>
-                                    </TouchableOpacity>
-                                )}
-                                {['open', 'searching', 'no_worker_found'].includes(item.status) && (
-                                    <TouchableOpacity onPress={() => handleDeleteJob(item.id)} style={styles.deleteBtn}>
-                                        <Text style={styles.deleteTxt}>🗑️ Delete</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
                         </View>
-                    </View>
 
-                    {item.worker && (['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'completed', 'cancelled', 'disputed'].includes(item.status)) && (
-                        <View style={styles.workerMini}>
-                            <Image source={{ uri: item.worker.photo }} style={styles.workerPhoto} />
-                            <View style={styles.workerInfo}>
-                                <Text style={styles.workerName}>{item.worker.name || 'Worker'}</Text>
-                                {parseFloat(item.worker.rating) > 0 ? (
-                                    <Text style={styles.workerRating}>⭐ {parseFloat(item.worker.rating).toFixed(1)}</Text>
-                                ) : (
-                                    <View style={styles.newWorkerBadge}>
-                                        <Text style={styles.newWorkerTxt}>New Worker</Text>
+                        <Text style={styles.jobDesc} numberOfLines={2}>{desc}</Text>
+
+                        <View style={styles.cardFooter}>
+                            {item.worker ? (
+                                <View style={styles.workerBrief}>
+                                    <Image source={{ uri: item.worker.photo }} style={styles.workerAvatar} />
+                                    <View>
+                                        <Text style={styles.workerLabel}>WORKER</Text>
+                                        <Text style={styles.workerName}>{item.worker.name}</Text>
                                     </View>
+                                </View>
+                            ) : (
+                                <Text style={styles.searchingTxt}>Searching for worker...</Text>
+                            )}
+
+                            <View style={styles.actionRow}>
+                                {['open', 'searching', 'no_worker_found'].includes(item.status) && (
+                                    <PressableAnimated onPress={() => handleDeleteJob(item.id)} style={styles.iconBtn}>
+                                        <Text style={styles.iconBtnTxt}>🗑️</Text>
+                                    </PressableAnimated>
+                                )}
+                                {['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(item.status) && (
+                                    <PressableAnimated onPress={() => navigation.navigate('EditJob', { jobId: item.id })} style={styles.iconBtn}>
+                                        <Text style={styles.iconBtnTxt}>✏️</Text>
+                                    </PressableAnimated>
                                 )}
                             </View>
                         </View>
-                    )}
-
-                    {item.status === 'completed' && (
-                        <TouchableOpacity
-                            activeOpacity={0.7}
-                            onPress={() => navigation.navigate('Rating', { jobId: item.id })}
-                            style={styles.ratingAreaTouch}
-                        >
-                            <View style={styles.ratingArea}>
-                                {item.is_reviewed ? (
-                                    <Text style={styles.ratedTxt}>You rated: ⭐ {item.ratingGiven || '?'}</Text>
-                                ) : (
-                                    <Text style={styles.ratePrompt}>Tap to Review & Rating →</Text>
-                                )}
-                            </View>
-                        </TouchableOpacity>
-                    )}
-
-                    {item.status === 'cancelled' && (
-                        <View style={styles.cancelledArea}>
-                            <Text style={styles.cancelledTxt}>Cancelled by {item.cancelled_by ? item.cancelled_by.toUpperCase() : 'SYSTEM'}</Text>
-                            {item.cancel_reason ? (
-                                <Text style={styles.cancelReason}>Reason: {item.cancel_reason}</Text>
-                            ) : null}
-                        </View>
-                    )}
-                </Card>
-            </TouchableOpacity>
-        );
-    };
-
-    const renderEmpty = () => {
-        if (loading) return null; // Wait for load
-        return (
-            <View style={styles.emptyContainer}>
-                <Text style={styles.emptyIcon}>📋</Text>
-                <Text style={styles.emptyTitle}>No Jobs Found</Text>
-                <Text style={styles.emptySub}>
-                    {filter === 'All'
-                        ? "You haven't booked any services yet. Head over to the Home tab to get started!"
-                        : `You have no ${filter.toLowerCase()} jobs at the moment.`}
-                </Text>
-            </View>
+                    </Card>
+                </PressableAnimated>
+            </FadeInView>
         );
     };
 
     return (
         <View style={styles.screen}>
-            <View style={styles.headerRow}>
-                <Text style={styles.header}>My Posts</Text>
-                <TouchableOpacity onPress={() => setSortNewest(!sortNewest)} style={styles.sortBtn}>
-                    <Text style={styles.sortTxt}>{sortNewest ? '↓ Newest' : '↑ Oldest'}</Text>
-                </TouchableOpacity>
+            <View style={styles.header}>
+                <Text style={styles.title}>My Requests</Text>
+                <PressableAnimated onPress={() => setSortNewest(!sortNewest)} style={styles.sortToggle}>
+                    <Text style={styles.sortTxt}>{sortNewest ? 'Newest First' : 'Oldest First'}</Text>
+                </PressableAnimated>
             </View>
 
-            <View style={styles.filterWrap}>
+            <View style={styles.filterBar}>
                 <FlatList
                     horizontal
-                    showsHorizontalScrollIndicator={false}
                     data={FILTERS}
-                    keyExtractor={item => item}
+                    keyExtractor={i => i}
+                    showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.filterList}
                     renderItem={({ item }) => (
-                        <TouchableOpacity
-                            style={[styles.chip, filter === item && styles.chipActive]}
+                        <PressableAnimated
                             onPress={() => setFilter(item)}
+                            style={[styles.filterChip, filter === item && styles.filterChipActive]}
                         >
-                            <Text style={[styles.chipText, filter === item && styles.chipTextActive]}>
-                                {item}
-                            </Text>
-                        </TouchableOpacity>
+                            <Text style={[styles.filterText, filter === item && styles.filterTextActive]}>{item}</Text>
+                        </PressableAnimated>
                     )}
                 />
             </View>
 
-            <FlatList
-                data={filtered}
-                keyExtractor={(i) => String(i.id)}
-                contentContainerStyle={styles.list}
-                renderItem={renderJob}
-                ListEmptyComponent={renderEmpty}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={colors.gold.primary}
-                        colors={[colors.gold.primary]}
-                    />
-                }
-            />
+            {loading ? (
+                <View style={styles.listContent}>
+                    {[1, 2, 3, 4].map(i => (
+                        <SkeletonCard key={i} height={160} style={{ marginBottom: spacing[16] }} />
+                    ))}
+                </View>
+            ) : (
+                <FlatList
+                    data={filtered}
+                    renderItem={renderJob}
+                    keyExtractor={i => String(i.id)}
+                    contentContainerStyle={styles.listContent}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent.primary} />
+                    }
+                    ListEmptyComponent={() => (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyIcon}>📋</Text>
+                            <Text style={styles.emptyTitle}>No requests found</Text>
+                            <Text style={styles.emptySub}>Your service history will appear here.</Text>
+                        </View>
+                    )}
+                />
+            )}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
-    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingRight: spacing.lg, paddingBottom: spacing.sm },
-    header: { color: colors.text.primary, fontSize: 24, fontWeight: '700', padding: spacing.lg, paddingBottom: 0 },
-    sortBtn: { padding: spacing.sm, marginTop: spacing.lg },
-    sortTxt: { color: colors.gold.primary, fontSize: 13, fontWeight: '700' },
+    screen: { flex: 1, backgroundColor: colors.background },
+    header: { paddingTop: 60, paddingHorizontal: spacing[24], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[24] },
+    title: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold, letterSpacing: tracking.title },
+    sortToggle: { backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.lg, ...shadows.premium },
+    sortTxt: { color: colors.accent.primary, fontSize: 12, fontWeight: fontWeight.bold },
 
-    filterWrap: { height: 50 },
-    filterList: { paddingHorizontal: spacing.lg, gap: spacing.sm, alignItems: 'center' },
-    chip: {
-        paddingHorizontal: spacing.md, paddingVertical: 8,
-        borderRadius: radius.full, backgroundColor: colors.bg.surface,
-        borderWidth: 1, borderColor: colors.bg.surface
-    },
-    chipActive: { backgroundColor: colors.gold.glow, borderColor: colors.gold.primary },
-    chipText: { color: colors.text.secondary, fontWeight: '600', fontSize: 13 },
-    chipTextActive: { color: colors.gold.primary },
-
-    list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2, flexGrow: 1 },
-    card: { padding: spacing.lg, gap: spacing.md },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-    category: { color: colors.text.primary, fontSize: 16, fontWeight: '700', textTransform: 'capitalize' },
-    desc: { color: colors.text.secondary, fontSize: 14, marginTop: 2 },
-    date: { color: colors.text.muted, fontSize: 12, marginTop: spacing.xs },
-
-    workerMini: {
-        flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-        paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.bg.surface
-    },
-    workerPhoto: { width: 36, height: 36, borderRadius: 18 },
-    workerInfo: { flex: 1 },
-    workerName: { color: colors.text.primary, fontSize: 14, fontWeight: '600' },
-    workerRating: { color: colors.gold.primary, fontSize: 12, marginTop: 2 },
-
-    ratingArea: { marginTop: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.bg.primary },
-    ratedTxt: { color: colors.gold.primary, fontWeight: '700', fontSize: 13 },
-    ratePrompt: { color: colors.text.muted, fontSize: 13, fontStyle: 'italic' },
-
-    newWorkerBadge: {
-        backgroundColor: colors.gold.primary + '22',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: radius.sm,
+    filterBar: { marginBottom: spacing[16] },
+    filterList: { paddingHorizontal: spacing[24], gap: spacing[8] },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: radius.full,
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: colors.gold.primary + '44',
-        alignSelf: 'flex-start',
-        marginTop: 2,
+        borderColor: 'transparent'
     },
-    newWorkerTxt: {
-        color: colors.gold.primary,
-        fontSize: 10,
-        fontWeight: '800',
-        textTransform: 'uppercase',
+    filterChipActive: { backgroundColor: colors.elevated, borderColor: colors.accent.border },
+    filterText: { color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium, letterSpacing: tracking.caption },
+    filterTextActive: { color: colors.text.primary, fontWeight: fontWeight.bold },
+
+    listContent: { padding: spacing[24], paddingBottom: 100 },
+    card: { padding: spacing[24], gap: spacing[16], marginBottom: spacing[24] },
+    cardTop: { flexDirection: 'row', alignItems: 'center', gap: spacing[16] },
+    jobTypeBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
+    jobTypeTxt: { color: colors.accent.primary, fontSize: 20, fontWeight: fontWeight.bold },
+    jobInfo: { flex: 1 },
+    jobTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    jobDate: { color: colors.text.secondary, fontSize: fontSize.micro, marginTop: 2 },
+
+    jobDesc: { color: colors.text.secondary, fontSize: fontSize.caption, lineHeight: 20, letterSpacing: tracking.caption },
+
+    cardFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: spacing[16],
+        borderTopWidth: 1,
+        borderTopColor: colors.elevated
     },
+    workerBrief: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    workerAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.elevated },
+    workerLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    workerName: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.semibold },
+    searchingTxt: { color: colors.accent.primary, fontSize: 11, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
 
-    cancelledArea: { marginTop: spacing.md, padding: spacing.sm, backgroundColor: colors.error + '11', borderRadius: radius.md, borderWidth: 1, borderColor: colors.error + '33' },
-    cancelledTxt: { color: colors.error, fontSize: 13, fontWeight: '700' },
-    cancelReason: { color: colors.text.secondary, fontSize: 12, marginTop: 4, fontStyle: 'italic' },
+    actionRow: { flexDirection: 'row', gap: spacing[12] },
+    iconBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: colors.elevated,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...shadows.premium
+    },
+    iconBtnTxt: { fontSize: 16 },
 
-    emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: spacing.xl * 3 },
-    emptyIcon: { fontSize: 48, marginBottom: spacing.md },
-    emptyTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '700', marginBottom: spacing.sm },
-    emptySub: { color: colors.text.secondary, fontSize: 14, textAlign: 'center', paddingHorizontal: spacing.xl, lineHeight: 22 },
-
-    deleteBtn: { backgroundColor: colors.bg.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: colors.error },
-    deleteTxt: { color: colors.error, fontSize: 11, fontWeight: '600' },
-    editBtn: { backgroundColor: colors.bg.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: colors.gold.primary },
-    editTxt: { color: colors.gold.primary, fontSize: 11, fontWeight: '600' },
+    emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
+    emptyIcon: { fontSize: 48, marginBottom: spacing[16] },
+    emptyTitle: { color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold, letterSpacing: tracking.title },
+    emptySub: { color: colors.text.secondary, fontSize: 14, marginTop: 4, letterSpacing: tracking.body }
 });

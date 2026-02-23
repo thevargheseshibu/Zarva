@@ -1,44 +1,43 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import StatusPill from '../../components/StatusPill';
-import GoldButton from '../../components/GoldButton';
-import OTPInput from '../../components/OTPInput';
-import apiClient from '../../services/api/client';
+import * as Haptics from 'expo-haptics';
 import { ref, onValue, off } from 'firebase/database';
+import { useT } from '../../hooks/useT';
+import apiClient from '../../services/api/client';
 import { db } from '../../utils/firebase';
-import { parseJobDescription } from '../../utils/jobParser';
+import FadeInView from '../../components/FadeInView';
+import PremiumButton from '../../components/PremiumButton';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import Card from '../../components/Card';
+import StatusPill from '../../components/StatusPill';
+import OTPInput from '../../components/OTPInput';
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
 export default function ActiveJobScreen({ route, navigation }) {
+    const t = useT();
     const { jobId } = route.params || {};
-
     const [status, setStatus] = useState('assigned');
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
-
-    // Real job data from server
     const [job, setJob] = useState(null);
-
-    // Sub-view states
     const [startOtp, setStartOtp] = useState(['', '', '', '']);
     const [timerActive, setTimerActive] = useState(false);
     const [timeElapsed, setTimeElapsed] = useState(0);
-    const [endOtp, setEndOtp] = useState('----'); // Fetched from server on completion
+    const [endOtp, setEndOtp] = useState('----');
     const [otpExpirySeconds, setOtpExpirySeconds] = useState(null);
 
-    // Firebase Listener to keep status synced (e.g. if customer cancels)
     useEffect(() => {
         if (!jobId) return;
         const jobRef = ref(db, `active_jobs/${jobId}`);
         const listener = onValue(jobRef, (snapshot) => {
             const data = snapshot.val();
-            if (data && data.status) setStatus(data.status);
+            if (data?.status) setStatus(data.status);
         });
         return () => off(jobRef, 'value', listener);
     }, [jobId]);
 
-    // Timer logic
     useEffect(() => {
         let int;
         if (timerActive || status === 'in_progress') {
@@ -47,7 +46,6 @@ export default function ActiveJobScreen({ route, navigation }) {
         return () => clearInterval(int);
     }, [timerActive, status]);
 
-    // OTP Expiry Timer (Issue #23)
     useEffect(() => {
         let int;
         if (status === 'worker_arrived' && job?.start_otp_generated_at) {
@@ -72,34 +70,32 @@ export default function ActiveJobScreen({ route, navigation }) {
             if (data.status === 'in_progress') setTimerActive(true);
             if (data.end_otp) setEndOtp(data.end_otp);
         } catch (err) {
-            console.error('Failed to fetch job', err);
             Alert.alert('Error', 'Could not load job details.');
         } finally {
             setLoading(false);
         }
     };
 
-    useFocusEffect(
-        useCallback(() => {
-            if (jobId) fetchJob();
-        }, [jobId])
-    );
+    useFocusEffect(useCallback(() => { if (jobId) fetchJob(); }, [jobId]));
 
     const handleCall = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         if (job?.customer_phone) Linking.openURL(`tel:${job.customer_phone}`);
     };
 
     const handleNavigate = () => {
-        // Fallback or real coordinates if we add them later to jobs table. We use address for now.
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const query = encodeURIComponent(job?.address || 'Kochi');
         Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${query}`);
     };
 
     const handleArrived = async () => {
         setActionLoading(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
             await apiClient.post(`/api/worker/jobs/${jobId}/arrived`);
             setStatus('worker_arrived');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err) {
             Alert.alert('Error', err.response?.data?.message || 'Failed to update status.');
         } finally {
@@ -110,58 +106,30 @@ export default function ActiveJobScreen({ route, navigation }) {
     const handleVerifyStartOtp = async () => {
         const code = startOtp.join('');
         if (code.length !== 4) return;
-
         setActionLoading(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         try {
             await apiClient.post(`/api/worker/jobs/${jobId}/verify-start-otp`, { code });
             setStatus('in_progress');
             setTimerActive(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err) {
-            if (err.response?.status === 403) {
-                Alert.alert('Dispute Raised', 'Maximum attempts reached. This job has been disputed.');
-                setStatus('disputed');
-            } else {
-                Alert.alert('Invalid Code', err.response?.data?.message || 'Incorrect start code.');
-                setStartOtp(['', '', '', '']);
-            }
+            Alert.alert('Invalid Code', err.response?.data?.message || 'Incorrect start code.');
+            setStartOtp(['', '', '', '']);
         } finally {
             setActionLoading(false);
         }
     };
 
-    const handleDispute = () => {
-        Alert.alert(
-            'Report Issue',
-            'Are you sure you want to log a dispute for this job? It will be suspended pending admin review.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Proceed',
-                    style: 'destructive',
-                    onPress: async () => {
-                        setActionLoading(true);
-                        try {
-                            await apiClient.post(`/api/worker/jobs/${jobId}/dispute`, { reason: 'Worker-initiated dispute via ActiveJob App' });
-                            setStatus('disputed');
-                            Alert.alert('Dispute Logged', 'Our administrative team will review this shortly.');
-                        } catch (err) {
-                            Alert.alert('Error', err.response?.data?.message || 'Failed to raise dispute.');
-                        } finally {
-                            setActionLoading(false);
-                        }
-                    }
-                }
-            ]
-        );
-    };
-
     const handleMarkComplete = async () => {
         setActionLoading(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
             const res = await apiClient.post(`/api/worker/jobs/${jobId}/complete`);
             setTimerActive(false);
             setStatus('pending_completion');
             if (res.data?.end_otp) setEndOtp(res.data.end_otp);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err) {
             Alert.alert('Error', err.response?.data?.message || 'Failed to complete job.');
         } finally {
@@ -176,302 +144,270 @@ export default function ActiveJobScreen({ route, navigation }) {
     };
 
     const renderActionView = () => {
-        if (status === 'assigned' || status === 'worker_en_route') {
+        const isAssigned = status === 'assigned' || status === 'worker_en_route';
+        const isArrived = status === 'worker_arrived';
+        const isInProgress = status === 'in_progress';
+        const isPending = status === 'pending_completion';
+
+        if (isAssigned) {
             return (
-                <View style={styles.actionBox}>
-                    <Text style={styles.actionPrompt}>Head to the customer's location.</Text>
-                    <GoldButton title="I've Arrived" onPress={handleArrived} disabled={actionLoading} loading={actionLoading} />
-                </View>
-            );
-        }
-
-        if (status === 'worker_arrived') {
-            return (
-                <View style={styles.actionBox}>
-                    <Text style={styles.actionPrompt}>Ask Customer for START CODE</Text>
-                    <Text style={styles.actionSub}>The customer's app shows a 4-digit code. Enter it to begin.</Text>
-
-                    {otpExpirySeconds !== null && (
-                        <Text style={[styles.actionSub, { color: otpExpirySeconds < 300 ? colors.error : colors.gold.light, fontWeight: '700', marginBottom: spacing.md }]}>
-                            Expires in: {formatTime(otpExpirySeconds)}
-                        </Text>
-                    )}
-
-                    <View style={{ marginBottom: spacing.xl }}>
-                        <OTPInput
-                            disabled={actionLoading}
-                            onChange={(code) => {
-                                const chars = code.split('');
-                                // Fill missing chars with empty string to maintain 4-length array
-                                while (chars.length < 4) chars.push('');
-                                setStartOtp(chars);
-                            }}
+                <FadeInView delay={200} style={styles.actionSection}>
+                    <Card style={styles.actionCard}>
+                        <Text style={styles.actionLabel}>MISSION STATUS</Text>
+                        <Text style={styles.actionTitle}>Navigate to Client</Text>
+                        <Text style={styles.actionSub}>Follow the GPS to the specified location. Confirm arrival to request the Start Code.</Text>
+                        <PremiumButton
+                            title="Confirm Arrival"
+                            onPress={handleArrived}
+                            loading={actionLoading}
                         />
-                    </View>
-
-                    <GoldButton
-                        title="Begin Work"
-                        disabled={startOtp.join('').length < 4 || actionLoading}
-                        loading={actionLoading}
-                        onPress={handleVerifyStartOtp}
-                    />
-
-                    <TouchableOpacity
-                        style={styles.resendBtn}
-                        onPress={async () => {
-                            setActionLoading(true);
-                            try {
-                                await apiClient.post(`/api/worker/jobs/${jobId}/resend-start-otp`);
-                                Alert.alert('Success', 'Notification request sent to customer.');
-                                // Refresh to get new generated_at for timer
-                                await fetchJob();
-                            } catch (err) {
-                                Alert.alert('Error', err.response?.data?.message || 'Failed to resend notification.');
-                            } finally {
-                                setActionLoading(false);
-                            }
-                        }}
-                    >
-                        <Text style={styles.resendTxt}>🔔 Ask customer for code (Resend Notification)</Text>
-                    </TouchableOpacity>
-                </View>
+                    </Card>
+                </FadeInView>
             );
         }
 
-        if (status === 'in_progress') {
+        if (isArrived) {
             return (
-                <View style={styles.actionBox}>
-                    <Text style={styles.actionPrompt}>Work In Progress</Text>
-
-                    <View style={styles.timerCircle}>
-                        <Text style={styles.timerVal}>{formatTime(timeElapsed)}</Text>
-                        <Text style={styles.timerLbl}>Elapsed</Text>
-                    </View>
-
-                    <GoldButton title="Mark Work Complete" onPress={handleMarkComplete} disabled={actionLoading} loading={actionLoading} />
-
-                    <TouchableOpacity style={styles.disputeBtn} onPress={handleDispute}>
-                        <Text style={styles.disputeTxt}>⚠️ Report Issue / Dispute</Text>
-                    </TouchableOpacity>
-                </View>
+                <FadeInView delay={200} style={styles.actionSection}>
+                    <Card style={styles.actionCard}>
+                        <Text style={styles.actionLabel}>AUTHENTICATION</Text>
+                        <Text style={styles.actionTitle}>Enter Start Code</Text>
+                        <Text style={styles.actionSub}>The client has been provided a 4-digit code. Enter it below to begin the billable session.</Text>
+                        <View style={styles.otpWrap}>
+                            <OTPInput
+                                disabled={actionLoading}
+                                onChange={(code) => setStartOtp(code.split('').concat(Array(4).fill('')).slice(0, 4))}
+                            />
+                        </View>
+                        <PremiumButton
+                            title="Start Billable Session"
+                            onPress={handleVerifyStartOtp}
+                            loading={actionLoading}
+                            disabled={startOtp.join('').length < 4}
+                        />
+                        {otpExpirySeconds !== null && (
+                            <Text style={styles.expiryTxt}>CODE EXPIRES IN: {formatTime(otpExpirySeconds)}</Text>
+                        )}
+                    </Card>
+                </FadeInView>
             );
         }
 
-        if (status === 'pending_completion') {
+        if (isInProgress) {
             return (
-                <View style={styles.actionBox}>
-                    <Text style={styles.actionPrompt}>Show this code to customer</Text>
-                    <Text style={styles.actionSub}>Customer must enter this END OTP on their app to release payment.</Text>
-
-                    <View style={styles.readOnlyOtpWrap}>
-                        <Text style={styles.readOnlyOtpTxt}>{endOtp}</Text>
-                    </View>
-
-                    <Text style={styles.waitingTxt}>⏳ Waiting for customer to confirm...</Text>
-                </View>
+                <FadeInView delay={200} style={styles.actionSection}>
+                    <Card style={styles.actionCard}>
+                        <Text style={styles.actionLabel}>ACTIVE SESSION</Text>
+                        <View style={styles.timerBox}>
+                            <Text style={styles.timerValue}>{formatTime(timeElapsed)}</Text>
+                            <View style={styles.liveBadge}>
+                                <View style={styles.liveDot} />
+                                <Text style={styles.liveTxt}>LIVE BILLING</Text>
+                            </View>
+                        </View>
+                        <Text style={styles.actionSub}>Perform requested tasks with excellence. Tap below once the job is physically completed.</Text>
+                        <PremiumButton
+                            title="Terminate & Complete"
+                            onPress={handleMarkComplete}
+                            loading={actionLoading}
+                        />
+                    </Card>
+                </FadeInView>
             );
         }
 
-        if (status === 'completed') {
+        if (isPending) {
             return (
-                <View style={styles.actionBox}>
-                    <Text style={styles.actionPrompt}>✅ Job Successfully Completed</Text>
-                    <Text style={styles.actionSub}>The customer has confirmed the completion and payment has been processed.</Text>
-                    <GoldButton title="Go to Dashboard" onPress={() => navigation.navigate('WorkerTabs')} />
-                </View>
+                <FadeInView delay={200} style={styles.actionSection}>
+                    <Card style={styles.actionCard}>
+                        <Text style={styles.actionLabel}>FINALIZATION</Text>
+                        <Text style={styles.actionTitle}>Share Completion Code</Text>
+                        <Text style={styles.actionSub}>Provide this code to the client. They must enter it on their device to release payment.</Text>
+                        <View style={styles.endOtpBox}>
+                            <Text style={styles.endOtpCode}>{endOtp}</Text>
+                        </View>
+                        <View style={styles.waitingIconBox}>
+                            <ActivityIndicator size="small" color={colors.accent.primary} />
+                            <Text style={styles.waitingTxt}>Awaiting client confirmation...</Text>
+                        </View>
+                    </Card>
+                </FadeInView>
             );
         }
 
-        if (status === 'cancelled') {
-            return (
-                <View style={styles.actionBox}>
-                    <Text style={styles.actionPrompt}>❌ Job Cancelled</Text>
-                    <Text style={styles.actionSub}>This job was cancelled.</Text>
-                    <GoldButton title="Go to Dashboard" onPress={() => navigation.navigate('WorkerTabs')} />
-                </View>
-            );
-        }
-
-        if (status === 'disputed') {
-            return (
-                <View style={styles.actionBox}>
-                    <Text style={styles.actionPrompt}>⚠️ Job Disputed</Text>
-                    <Text style={styles.actionSub}>Too many incorrect OTP attempts or a dispute was raised. Our team will review this shortly.</Text>
-                    <GoldButton title="Go to Dashboard" onPress={() => navigation.navigate('WorkerTabs')} />
-                </View>
-            );
-        }
+        return (
+            <FadeInView delay={200} style={styles.finishedBox}>
+                <Text style={styles.finishStatus}>MISSION COMPLETE</Text>
+                <Text style={styles.finishTitle}>Session Archived</Text>
+                <PremiumButton
+                    variant="ghost"
+                    title="Return to Dashboard"
+                    onPress={() => navigation.navigate('WorkerTabs')}
+                />
+            </FadeInView>
+        );
     };
 
-    if (loading) {
-        return (
-            <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={colors.gold.primary} />
-            </View>
-        );
-    }
-
-    if (!job) {
-        return (
-            <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ color: colors.text.muted }}>Job details not found.</Text>
-                <GoldButton title="Go to Dashboard" onPress={() => navigation.navigate('WorkerTabs')} />
-            </View>
-        );
-    }
+    if (loading) return (
+        <View style={styles.loadingScreen}>
+            <ActivityIndicator size="large" color={colors.accent.primary} />
+            <Text style={styles.loadingTxt}>Synchronizing session...</Text>
+        </View>
+    );
 
     return (
         <View style={styles.screen}>
+            {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => {
-                    if (navigation.canGoBack()) {
-                        navigation.goBack();
-                    } else {
-                        navigation.replace('WorkerTabs');
-                    }
-                }}>
-                    <Text style={styles.backTxt}>←</Text>
-                </TouchableOpacity>
-                <Text style={styles.title}>Active Job</Text>
-                <View style={{ width: 40 }} />
-            </View>
-
-            <ScrollView contentContainerStyle={styles.content}>
-                <View style={styles.topCard}>
-                    <View style={styles.topRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                            <Text style={styles.catTxt}>{job.category}</Text>
-                        </View>
+                <PressableAnimated onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.replace('WorkerTabs')} style={styles.headerBtn}>
+                    <Text style={styles.headerBtnTxt}>←</Text>
+                </PressableAnimated>
+                <View style={styles.headerCenter}>
+                    <Text style={styles.headerTitle}>Live Operations</Text>
+                    <View style={styles.statusPillWrap}>
                         <StatusPill status={status} />
                     </View>
+                </View>
+                <View style={{ width: 44 }} />
+            </View>
 
-                    <Text style={styles.custName}>{job.customer_name || 'Customer'}</Text>
-                    <Text style={styles.addressTxt}>📍 {job.address}</Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-                    {/* Parsed JSON details (Improved Version) */}
-                    {(() => {
-                        const { structured, photos, text } = parseJobDescription(job.description || job.desc);
-                        return (
-                            <View style={styles.detailsSection}>
-                                {structured.length > 0 ? (
-                                    <View style={styles.structuredWrap}>
-                                        {structured.map((item, idx) => (
-                                            <View key={idx} style={styles.qAndA}>
-                                                <Text style={styles.qText}>{item.label}</Text>
-                                                <Text style={styles.aText}>{item.value}</Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                ) : (
-                                    <Text style={styles.descText}>"{text || 'No additional details provided.'}"</Text>
-                                )}
-
-                                {photos.length > 0 && (
-                                    <ScrollView
-                                        horizontal
-                                        showsHorizontalScrollIndicator={false}
-                                        contentContainerStyle={styles.photoList}
-                                        style={{ marginTop: spacing.md }}
-                                    >
-                                        {photos.map((uri, idx) => (
-                                            <Image
-                                                key={idx}
-                                                source={{ uri }}
-                                                style={styles.detailPhoto}
-                                                resizeMode="cover"
-                                            />
-                                        ))}
-                                    </ScrollView>
-                                )}
+                {/* Client Profile Card */}
+                <FadeInView delay={100}>
+                    <Card style={styles.clientCard}>
+                        <View style={styles.clientTop}>
+                            <View style={styles.clientAvatar}>
+                                <Text style={styles.avatarTxt}>{job?.customer_name?.charAt(0) || 'C'}</Text>
                             </View>
-                        );
-                    })()}
+                            <View style={styles.clientInfo}>
+                                <Text style={styles.clientLabel}>CLIENT</Text>
+                                <Text style={styles.clientName}>{job?.customer_name || 'Client'}</Text>
+                                <Text style={styles.categoryTxt}>{job?.category}</Text>
+                            </View>
+                        </View>
 
-                    <Text style={styles.amountTxt}>Amount: ₹{job.amount}</Text>
+                        <View style={styles.jobLocation}>
+                            <View style={styles.locLeft}>
+                                <Text style={styles.locLabel}>SERVICE ADDRESS</Text>
+                                <Text style={styles.locAddress} numberOfLines={2}>{job?.address}</Text>
+                            </View>
+                            <PressableAnimated style={styles.navBtn} onPress={handleNavigate}>
+                                <Text style={styles.navBtnIcon}>🧭</Text>
+                            </PressableAnimated>
+                        </View>
 
-                    {status !== 'completed' && status !== 'cancelled' && (
-                        <View style={styles.btnRow}>
-                            <TouchableOpacity style={styles.roundBtn} onPress={handleCall}>
-                                <Text style={styles.roundIcon}>📞</Text>
-                                <Text style={styles.roundTxt}>Call</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity style={[styles.roundBtn, styles.navBtn]} onPress={handleNavigate}>
-                                <Text style={styles.roundIcon}>🗺️</Text>
-                                <Text style={styles.roundTxt}>Navigate</Text>
+                        <View style={styles.contactActions}>
+                            <TouchableOpacity style={styles.contactBtn} onPress={handleCall}>
+                                <Text style={styles.contactIcon}>📞</Text>
+                                <Text style={styles.contactTxt}>VOICE CALL</Text>
                             </TouchableOpacity>
                         </View>
-                    )}
-                </View>
+                    </Card>
+                </FadeInView>
 
                 {renderActionView()}
-
             </ScrollView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: colors.background },
+    loadingScreen: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', gap: 12 },
+    loadingTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+
     header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingTop: spacing.xl + 20, paddingHorizontal: spacing.sm, paddingBottom: spacing.sm,
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: spacing[16]
     },
-    backBtn: { padding: spacing.sm },
-    backTxt: { color: colors.text.primary, fontSize: 24 },
-    title: { color: colors.text.primary, fontSize: 20, fontWeight: '700' },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
+    headerCenter: { alignItems: 'center', gap: 4 },
+    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    statusPillWrap: { transform: [{ scale: 0.85 }] },
 
-    content: { padding: spacing.lg, gap: spacing.xl },
+    scrollContent: { padding: spacing[24], paddingBottom: 120, gap: spacing[24] },
 
-    topCard: { backgroundColor: colors.bg.elevated, padding: spacing.xl, borderRadius: radius.lg, borderTopWidth: 2, borderTopColor: colors.gold.primary },
-    topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    catTxt: { color: colors.text.secondary, fontSize: 16, fontWeight: '700', textTransform: 'uppercase' },
-    emergencyBadge: { backgroundColor: colors.error + '22', color: colors.error, fontSize: 11, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+    clientCard: { padding: spacing[24], gap: spacing[20], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent.border + '11' },
+    clientTop: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    clientAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent.primary + '11', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.accent.border + '22' },
+    avatarTxt: { color: colors.accent.primary, fontSize: 20, fontWeight: '900' },
+    clientInfo: { gap: 2 },
+    clientLabel: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    clientName: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold },
+    categoryTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
 
-    custName: { color: colors.text.primary, fontSize: 22, fontWeight: '800', marginTop: spacing.md },
-    addressTxt: { color: colors.text.muted, fontSize: 13, marginTop: 4, marginBottom: spacing.md },
-
-    detailsSection: { marginTop: spacing.xs },
-    structuredWrap: { gap: spacing.sm, backgroundColor: colors.bg.surface, padding: spacing.md, borderRadius: radius.md },
-    qAndA: { gap: 2 },
-    qText: { color: colors.text.muted, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
-    aText: { color: colors.text.primary, fontSize: 14, fontWeight: '600' },
-    descText: { color: colors.text.secondary, fontSize: 14, fontStyle: 'italic', lineHeight: 20 },
-    photoList: { gap: spacing.sm },
-    detailPhoto: { width: 120, height: 120, borderRadius: radius.md, backgroundColor: colors.bg.surface },
-
-    amountTxt: { color: colors.gold.primary, fontSize: 16, fontWeight: '700' },
-
-    btnRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
-    roundBtn: {
-        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-        paddingVertical: spacing.md, borderRadius: radius.md, backgroundColor: colors.bg.surface,
-        borderWidth: 1, borderColor: colors.bg.surface
+    jobLocation: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: colors.elevated,
+        padding: spacing[16],
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: colors.surface
     },
-    navBtn: { backgroundColor: colors.gold.glow, borderColor: colors.gold.primary },
-    roundIcon: { fontSize: 16 },
-    roundTxt: { color: colors.text.primary, fontWeight: '600' },
+    locLeft: { flex: 1, gap: 4 },
+    locLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    locAddress: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
+    navBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent.primary + '22', justifyContent: 'center', alignItems: 'center' },
+    navBtnIcon: { fontSize: 16 },
 
-    actionBox: { backgroundColor: colors.bg.surface, borderRadius: radius.lg, padding: spacing.xl },
-    actionPrompt: { color: colors.text.primary, fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: spacing.xs },
-    actionSub: { color: colors.text.muted, fontSize: 13, textAlign: 'center', marginBottom: spacing.lg },
-
-    otpRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md, marginBottom: spacing.xl },
-    resendBtn: { marginTop: spacing.xl, padding: spacing.md, alignItems: 'center' },
-    resendTxt: { color: colors.gold.light, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
-
-    readOnlyOtpWrap: { backgroundColor: colors.bg.primary, padding: spacing.xl, borderRadius: radius.md, alignItems: 'center', marginVertical: spacing.md },
-    readOnlyOtpTxt: { color: colors.gold.primary, fontSize: 48, fontWeight: '800', letterSpacing: 8, fontFamily: 'Courier', },
-    waitingTxt: { color: colors.text.secondary, textAlign: 'center', marginTop: spacing.md, fontStyle: 'italic' },
-
-    timerCircle: {
-        width: 140, height: 140, borderRadius: 70, borderWidth: 4, borderColor: colors.gold.primary,
-        alignSelf: 'center', justifyContent: 'center', alignItems: 'center', marginVertical: spacing.xl,
-        backgroundColor: colors.bg.primary
+    contactActions: { marginTop: 4 },
+    contactBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 12,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: colors.accent.border + '44'
     },
-    timerVal: { color: colors.text.primary, fontSize: 32, fontWeight: '800', fontFamily: 'Courier' },
-    timerLbl: { color: colors.text.muted, fontSize: 14, marginTop: 4, textTransform: 'uppercase', letterSpacing: 1 },
+    contactIcon: { fontSize: 14 },
+    contactTxt: { color: colors.text.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
 
-    disputeBtn: { marginTop: spacing.xl, padding: spacing.md, alignItems: 'center' },
-    disputeTxt: { color: colors.error, fontSize: 14, fontWeight: '600' }
+    actionCard: { padding: spacing[24], alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent.primary + '22' },
+    actionLabel: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2, marginBottom: 8 },
+    actionTitle: { color: colors.text.primary, fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+    actionSub: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center', lineHeight: 20, marginBottom: spacing[24] },
+
+    otpWrap: { width: '100%', marginBottom: spacing[24] },
+    expiryTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, marginTop: 16, letterSpacing: 1 },
+
+    timerBox: { alignItems: 'center', gap: 12, marginBottom: spacing[24] },
+    timerValue: { color: colors.text.primary, fontSize: 56, fontWeight: '900', letterSpacing: 2 },
+    liveBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: colors.accent.primary + '11',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: radius.full
+    },
+    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent.primary },
+    liveTxt: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+
+    endOtpBox: {
+        backgroundColor: colors.elevated,
+        paddingHorizontal: 32,
+        paddingVertical: 20,
+        borderRadius: radius.xl,
+        marginBottom: spacing[24],
+        borderWidth: 1,
+        borderColor: colors.accent.border + '11'
+    },
+    endOtpCode: { color: colors.accent.primary, fontSize: 44, fontWeight: '900', letterSpacing: 8 },
+    waitingIconBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    waitingTxt: { color: colors.text.muted, fontSize: 10, fontStyle: 'italic' },
+
+    finishedBox: { alignItems: 'center', gap: 8, marginTop: 20 },
+    finishStatus: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    finishTitle: { color: colors.text.primary, fontSize: 24, fontWeight: '900', marginBottom: 16 }
 });

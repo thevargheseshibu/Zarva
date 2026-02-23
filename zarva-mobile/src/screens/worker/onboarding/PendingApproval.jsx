@@ -1,9 +1,5 @@
-/**
- * src/screens/worker/onboarding/PendingApproval.jsx
- * Shown after Agreement submission — Reanimated2 checkmark animation, 24hr message.
- */
 import React, { useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, BackHandler, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
     useSharedValue,
@@ -13,10 +9,14 @@ import Animated, {
     withTiming,
     Easing,
 } from 'react-native-reanimated';
-import { colors, spacing, radius } from '../../../design-system/tokens';
-import GoldButton from '../../../components/GoldButton';
+import * as Haptics from 'expo-haptics';
+import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+import PremiumButton from '../../../components/PremiumButton';
 import { useAuthStore } from '../../../stores/authStore';
 import apiClient from '../../../services/api/client';
+import FadeInView from '../../../components/FadeInView';
+import Card from '../../../components/Card';
 
 export default function PendingApproval() {
     const scale = useSharedValue(0);
@@ -26,9 +26,9 @@ export default function PendingApproval() {
     useEffect(() => {
         scale.value = withDelay(300, withSpring(1, { damping: 10, stiffness: 180 }));
         opacity.value = withDelay(200, withTiming(1, { duration: 500, easing: Easing.out(Easing.ease) }));
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }, []);
 
-    // Issue 41/78: Poll every 30s for admin approval to auto-advance
     useEffect(() => {
         const poll = setInterval(async () => {
             try {
@@ -36,14 +36,11 @@ export default function PendingApproval() {
                 const status = res.data?.data?.kyc_status;
                 if (status === 'approved') {
                     clearInterval(poll);
-                    // Refresh user profile to update kyc_status in auth store
-                    // This triggers route re-evaluation in the navigator
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                     const meRes = await apiClient.get('/api/me');
                     useAuthStore.getState().setUser(meRes.data?.user || meRes.data);
                 }
-            } catch (err) {
-                // Silently fail — user will try again on next interval
-            }
+            } catch (err) { }
         }, 30000);
 
         return () => clearInterval(poll);
@@ -51,72 +48,97 @@ export default function PendingApproval() {
 
     useFocusEffect(
         useCallback(() => {
-            const onBackPress = () => true; // Prevent hardware back
+            const onBackPress = () => true;
             const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
             return () => subscription.remove();
         }, [])
     );
 
-    const circleStyle = useAnimatedStyle(() => ({
+    const checkStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
         opacity: opacity.value,
     }));
 
-    const textStyle = useAnimatedStyle(() => ({
-        opacity: opacity.value,
-        transform: [{ translateY: (1 - opacity.value) * 20 }],
-    }));
-
     return (
         <View style={styles.screen}>
-            <Animated.View style={[styles.circle, circleStyle]}>
-                <Text style={styles.checkmark}>✓</Text>
-            </Animated.View>
+            <FadeInView delay={50} style={styles.content}>
+                <Animated.View style={[styles.statusIconBox, checkStyle]}>
+                    <View style={styles.glowCircle} />
+                    <Text style={styles.checkmark}>✓</Text>
+                </Animated.View>
 
-            <Animated.View style={[styles.textGroup, textStyle]}>
-                <Text style={styles.title}>Application Submitted!</Text>
-                <Text style={styles.sub}>
-                    Our team reviews all applications within{'\n'}
-                    <Text style={styles.highlight}>24 hours</Text>.{'\n\n'}
-                    We'll notify you via SMS and the app once you're approved.
-                </Text>
-            </Animated.View>
+                <View style={styles.textStack}>
+                    <Text style={styles.statusLabel}>ENROLLMENT PENDING</Text>
+                    <Text style={styles.title}>Protocol Under Review</Text>
+                    <Text style={styles.sub}>
+                        Our intelligence team is validating your credentials. Access to the Zarva Pro network is typically granted within <Text style={styles.accentText}>24 hours</Text>.
+                    </Text>
+                </View>
 
-            <View style={styles.steps}>
-                {['✅ Profile submitted', '⏳ Under review (24 hrs)', '🔔 Approval notification'].map((s, i) => (
-                    <Text key={i} style={styles.step}>{s}</Text>
-                ))}
-            </View>
+                <View style={styles.timeline}>
+                    {[
+                        { label: 'CREDENTIALS SUBMITTED', status: 'done' },
+                        { label: 'SECURITY VALIDATION', status: 'pending' },
+                        { label: 'NETWORK ACTIVATION', status: 'future' }
+                    ].map((step, i) => (
+                        <View key={i} style={styles.stepRow}>
+                            <View style={[styles.stepDot, step.status === 'done' && styles.dotDone, step.status === 'pending' && styles.dotPending]} />
+                            <Card style={[styles.stepCard, step.status === 'done' && styles.cardDone]}>
+                                <Text style={[styles.stepLabel, step.status === 'future' && styles.labelFuture]}>{step.label}</Text>
+                                {step.status === 'pending' && <ActivityIndicator size="small" color={colors.accent.primary} style={styles.inlineLoader} />}
+                            </Card>
+                        </View>
+                    ))}
+                </View>
 
-            <GoldButton title="Back to Login" onPress={logout} style={{ marginTop: spacing.xl }} />
+                <View style={styles.footer}>
+                    <PremiumButton
+                        title="Return to Terminal"
+                        variant="ghost"
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            logout();
+                        }}
+                    />
+                    <Text style={styles.footerHint}>We will notify you via encrypted channel once active.</Text>
+                </View>
+            </FadeInView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: {
-        flex: 1, backgroundColor: colors.bg.primary,
-        justifyContent: 'center', alignItems: 'center',
-        paddingHorizontal: spacing.xl, gap: spacing.xl,
+    screen: { flex: 1, backgroundColor: colors.background, justifyContent: 'center' },
+    content: { padding: spacing[32], gap: 48, alignItems: 'center' },
+
+    statusIconBox: { width: 120, height: 120, justifyContent: 'center', alignItems: 'center' },
+    glowCircle: {
+        ...StyleSheet.absoluteFillObject,
+        borderRadius: 60,
+        backgroundColor: colors.accent.primary + '11',
+        borderWidth: 2,
+        borderColor: colors.accent.primary + '22'
     },
-    circle: {
-        width: 100, height: 100, borderRadius: 50,
-        backgroundColor: colors.success + '22',
-        borderWidth: 3, borderColor: colors.success,
-        justifyContent: 'center', alignItems: 'center',
-    },
-    checkmark: { color: colors.success, fontSize: 48, fontWeight: '700' },
-    textGroup: { alignItems: 'center', gap: spacing.sm },
-    title: { color: colors.text.primary, fontSize: 26, fontWeight: '800', textAlign: 'center' },
-    sub: {
-        color: colors.text.secondary, fontSize: 15,
-        lineHeight: 24, textAlign: 'center',
-    },
-    highlight: { color: colors.gold.primary, fontWeight: '700' },
-    steps: { gap: spacing.sm, alignSelf: 'stretch' },
-    step: {
-        color: colors.text.secondary, fontSize: 14,
-        backgroundColor: colors.bg.elevated, borderRadius: radius.md,
-        padding: spacing.md,
-    },
+    checkmark: { color: colors.accent.primary, fontSize: 48, fontWeight: '900' },
+
+    textStack: { alignItems: 'center', gap: 12 },
+    statusLabel: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 3 },
+    title: { color: colors.text.primary, fontSize: 28, fontWeight: '900', letterSpacing: tracking.title, textAlign: 'center' },
+    sub: { color: colors.text.muted, fontSize: 13, lineHeight: 22, textAlign: 'center', paddingHorizontal: 20 },
+    accentText: { color: colors.text.primary, fontWeight: fontWeight.bold },
+
+    timeline: { width: '100%', gap: 16 },
+    stepRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.elevated },
+    dotDone: { backgroundColor: colors.accent.primary },
+    dotPending: { backgroundColor: colors.accent.primary, opacity: 0.5 },
+
+    stepCard: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
+    cardDone: { backgroundColor: colors.accent.primary + '08', borderColor: colors.accent.primary + '11' },
+    stepLabel: { color: colors.text.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    labelFuture: { color: colors.text.muted },
+    inlineLoader: { transform: [{ scale: 0.7 }] },
+
+    footer: { width: '100%', alignItems: 'center', gap: 16 },
+    footerHint: { color: colors.text.muted, fontSize: 9, fontStyle: 'italic' }
 });

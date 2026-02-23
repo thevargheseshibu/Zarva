@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import * as Location from 'expo-location';
-import { colors, spacing, radius } from '../design-system/tokens';
+import * as Haptics from 'expo-haptics';
+import { colors, spacing, radius, shadows } from '../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../design-system/typography';
+import PressableAnimated from '../design-system/components/PressableAnimated';
+import Card from './Card';
+import FadeInView from './FadeInView';
 
 export default function LocationInput({ onChange, initialData = {} }) {
     const [loading, setLoading] = useState(false);
@@ -44,6 +49,7 @@ export default function LocationInput({ onChange, initialData = {} }) {
 
     const handleGpsPress = async () => {
         try {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert('Permission denied', 'Please allow location access in your phone settings.');
@@ -67,7 +73,6 @@ export default function LocationInput({ onChange, initialData = {} }) {
                     .filter(Boolean).join(', ');
                 setGpsText(generatedGpsText);
 
-                // Auto-fill manual fields where possible
                 setFields(prev => ({
                     ...prev,
                     house: place.name && place.name !== place.street ? place.name : prev.house,
@@ -77,6 +82,7 @@ export default function LocationInput({ onChange, initialData = {} }) {
                     state: place.region || prev.state,
                     pincode: place.postalCode || prev.pincode
                 }));
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
         } catch (err) {
             Alert.alert('Could not get location', 'Please type your address manually.');
@@ -89,116 +95,162 @@ export default function LocationInput({ onChange, initialData = {} }) {
 
     return (
         <View style={styles.container}>
-            {/* GPS Row Option */}
-            <View style={styles.gpsRow}>
-                <TouchableOpacity style={styles.gpsBtn} onPress={handleGpsPress} disabled={loading}>
+            <FadeInView delay={100}>
+                <PressableAnimated style={styles.gpsBtn} onPress={handleGpsPress} disabled={loading}>
                     {loading ? (
-                        <ActivityIndicator size="small" color={colors.gold.primary} />
+                        <ActivityIndicator size="small" color={colors.accent.primary} />
                     ) : (
-                        <Text style={styles.gpsTxt}>📍 Use my location</Text>
+                        <View style={styles.gpsBtnContent}>
+                            <Text style={styles.gpsIcon}>📍</Text>
+                            <Text style={styles.gpsTxt}>Use Current Location</Text>
+                        </View>
                     )}
-                </TouchableOpacity>
+                </PressableAnimated>
                 {gpsText ? <Text style={styles.gpsReadout}>{gpsText}</Text> : null}
-            </View>
+            </FadeInView>
 
-            {/* Manual Fields Wrapper */}
-            <View style={styles.manualWrapper}>
-                <Text style={styles.manualHeader}>Manual Address Details</Text>
+            <FadeInView delay={200}>
+                <Card style={styles.manualWrapper}>
+                    <Text style={styles.manualHeader}>ADDRESS DETAILS</Text>
 
-                <TextInput
-                    style={styles.input}
-                    placeholder="House / Flat No."
-                    placeholderTextColor={colors.text.muted}
-                    value={fields.house}
-                    onChangeText={(val) => updateField('house', val)}
-                />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Street / Area Name *"
-                    placeholderTextColor={colors.text.muted}
-                    value={fields.street}
-                    onChangeText={(val) => updateField('street', val)}
-                />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Landmark (Optional)"
-                    placeholderTextColor={colors.text.muted}
-                    value={fields.landmark}
-                    onChangeText={(val) => updateField('landmark', val)}
-                />
-
-                <View style={styles.row}>
                     <TextInput
-                        style={[styles.input, styles.half]}
-                        placeholder="District"
+                        style={styles.input}
+                        placeholder="House / Flat No."
                         placeholderTextColor={colors.text.muted}
-                        value={fields.district}
-                        onChangeText={(val) => updateField('district', val)}
+                        value={fields.house}
+                        onChangeText={(val) => updateField('house', val)}
+                        selectionColor={colors.accent.primary}
                     />
                     <TextInput
-                        style={[styles.input, styles.half]}
-                        placeholder="City *"
+                        style={styles.input}
+                        placeholder="Street / Area Name *"
                         placeholderTextColor={colors.text.muted}
-                        value={fields.city}
-                        onChangeText={(val) => updateField('city', val)}
+                        value={fields.street}
+                        onChangeText={(val) => updateField('street', val)}
+                        selectionColor={colors.accent.primary}
                     />
-                </View>
-
-                <View style={styles.row}>
                     <TextInput
-                        style={[styles.input, styles.half]}
-                        placeholder="State *"
+                        style={styles.input}
+                        placeholder="Landmark (Optional)"
                         placeholderTextColor={colors.text.muted}
-                        value={fields.state}
-                        onChangeText={(val) => updateField('state', val)}
+                        value={fields.landmark}
+                        onChangeText={(val) => updateField('landmark', val)}
+                        selectionColor={colors.accent.primary}
                     />
-                    <View style={styles.half}>
+
+                    <View style={styles.row}>
                         <TextInput
-                            style={[styles.input, isPincodeError && styles.inputError]}
-                            placeholder="Pincode *"
+                            style={[styles.input, styles.half]}
+                            placeholder="District"
                             placeholderTextColor={colors.text.muted}
-                            keyboardType="numeric"
-                            maxLength={6}
-                            value={fields.pincode}
-                            onChangeText={(val) => updateField('pincode', val.replace(/[^0-9]/g, ''))}
+                            value={fields.district}
+                            onChangeText={(val) => updateField('district', val)}
+                            selectionColor={colors.accent.primary}
                         />
-                        {isPincodeError && <Text style={styles.errorText}>Exactly 6 digits required</Text>}
+                        <TextInput
+                            style={[styles.input, styles.half]}
+                            placeholder="City *"
+                            placeholderTextColor={colors.text.muted}
+                            value={fields.city}
+                            onChangeText={(val) => updateField('city', val)}
+                            selectionColor={colors.accent.primary}
+                        />
                     </View>
-                </View>
-            </View>
+
+                    <View style={styles.row}>
+                        <TextInput
+                            style={[styles.input, styles.half]}
+                            placeholder="State *"
+                            placeholderTextColor={colors.text.muted}
+                            value={fields.state}
+                            onChangeText={(val) => updateField('state', val)}
+                            selectionColor={colors.accent.primary}
+                        />
+                        <View style={styles.half}>
+                            <TextInput
+                                style={[styles.input, isPincodeError && styles.inputError]}
+                                placeholder="Pincode *"
+                                placeholderTextColor={colors.text.muted}
+                                keyboardType="numeric"
+                                maxLength={6}
+                                value={fields.pincode}
+                                onChangeText={(val) => updateField('pincode', val.replace(/[^0-9]/g, ''))}
+                                selectionColor={colors.accent.primary}
+                            />
+                            {isPincodeError && <Text style={styles.errorText}>Invalid pincode</Text>}
+                        </View>
+                    </View>
+                </Card>
+            </FadeInView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { gap: spacing.lg },
-    gpsRow: { gap: spacing.xs },
-    gpsBtn: {
-        flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
-        borderWidth: 1, borderColor: colors.gold.primary, borderRadius: radius.md,
-        paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.gold.glow
-    },
-    gpsTxt: { color: colors.gold.primary, fontWeight: '700', fontSize: 14 },
-    gpsReadout: { color: colors.text.muted, fontSize: 13, marginTop: 4, paddingHorizontal: 4 },
+    container: { gap: spacing[24] },
 
-    manualWrapper: { gap: spacing.md, backgroundColor: colors.bg.surface, padding: spacing.md, borderRadius: radius.lg },
-    manualHeader: { color: colors.text.secondary, fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
+    gpsBtn: {
+        backgroundColor: colors.surface,
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: colors.accent.border,
+        paddingVertical: spacing[16],
+        paddingHorizontal: spacing[24],
+        ...shadows.premium
+    },
+    gpsBtnContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+    gpsIcon: { fontSize: 18 },
+    gpsTxt: {
+        color: colors.accent.primary,
+        fontSize: fontSize.body,
+        fontWeight: fontWeight.bold,
+        letterSpacing: tracking.body
+    },
+    gpsReadout: {
+        color: colors.text.muted,
+        fontSize: fontSize.micro,
+        marginTop: 8,
+        textAlign: 'center',
+        paddingHorizontal: spacing[16],
+        fontStyle: 'italic'
+    },
+
+    manualWrapper: {
+        padding: spacing[24],
+        gap: spacing[16],
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.accent.border + '22'
+    },
+    manualHeader: {
+        color: colors.accent.primary,
+        fontSize: fontSize.micro,
+        fontWeight: fontWeight.bold,
+        letterSpacing: 1.5,
+        marginBottom: 4
+    },
 
     input: {
-        backgroundColor: colors.bg.primary,
-        borderWidth: 1, borderColor: colors.bg.primary, // #1A1A26
-        borderRadius: radius.md,
-        padding: 14,
+        backgroundColor: colors.elevated,
+        borderRadius: radius.lg,
+        padding: spacing[16],
         color: colors.text.primary,
-        fontSize: 15
+        fontSize: fontSize.body,
+        borderWidth: 1,
+        borderColor: colors.surface,
+        letterSpacing: tracking.body
     },
     inputError: {
-        borderColor: colors.danger,
-        backgroundColor: colors.danger + '11'
+        borderColor: colors.accent.primary + '88',
+        backgroundColor: colors.accent.primary + '11'
     },
     errorText: {
-        color: colors.danger, fontSize: 12, marginTop: 4, paddingLeft: 4
+        color: colors.accent.primary,
+        fontSize: 10,
+        marginTop: 4,
+        paddingLeft: 4,
+        fontWeight: fontWeight.bold
     },
-    row: { flexDirection: 'row', gap: spacing.md },
+    row: { flexDirection: 'row', gap: spacing[16] },
     half: { flex: 1 }
 });

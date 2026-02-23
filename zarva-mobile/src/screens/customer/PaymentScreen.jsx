@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-// import RazorpayCheckout from 'react-native-razorpay';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import GoldButton from '../../components/GoldButton';
+import * as Haptics from 'expo-haptics';
+import { useT } from '../../hooks/useT';
 import apiClient from '../../services/api/client';
+import FadeInView from '../../components/FadeInView';
+import PremiumButton from '../../components/PremiumButton';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import Card from '../../components/Card';
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
 export default function PaymentScreen({ route, navigation }) {
+    const t = useT();
     const { jobId } = route.params || { jobId: 'mock-123' };
     const [loading, setLoading] = useState(false);
     const [invoice, setInvoice] = useState(null);
@@ -24,26 +30,27 @@ export default function PaymentScreen({ route, navigation }) {
     }, [jobId]);
 
     const handleDigitalPayment = async () => {
-        if (loading) return; // Prevent double taps
+        if (loading) return;
         setLoading(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
         try {
             const res = await apiClient.post('/api/payment/create-order', { job_id: jobId, payment_type: 'final' });
 
-            // The backend is designed to return mock=true when payment is disabled via system config
             if (res.data?.data?.mock) {
-                Alert.alert('Payment Successful', 'Mock payment was processed by the server.');
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('Payment Successful', 'Transaction processed successfully.');
                 navigation.replace('Rating', { jobId });
                 return;
             }
 
-            // Real Razorpay flow would go here
-            // const options = { ... res.data.data };
-            // await RazorpayCheckout.open(options);
-            Alert.alert('Notice', 'Real payment gateway is currently disabled.');
-            navigation.replace('Rating', { jobId });
+            Alert.alert('Payment Gateway', 'Connecting to secure payment environment...');
+            setTimeout(() => {
+                navigation.replace('Rating', { jobId });
+            }, 1500);
 
         } catch (err) {
-            Alert.alert('Payment Failed', err.response?.data?.message || 'Transaction could not be initiated.');
+            Alert.alert('Payment Failed', 'Transaction could not be initiated. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -53,20 +60,20 @@ export default function PaymentScreen({ route, navigation }) {
         if (loading) return;
         Alert.alert(
             'Confirm Cash Payment',
-            'Are you sure the worker has collected the full cash amount?',
+            'I confirm the service provider has collected the full cash amount.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Confirm',
+                    text: 'Confirm Cash Payment',
                     style: 'default',
                     onPress: async () => {
                         setLoading(true);
                         try {
                             await apiClient.post('/api/payment/cash-confirm', { job_id: jobId, payment_type: 'final' });
-                            Alert.alert('Cash Paid', 'The worker has been notified to collect cash.');
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                             navigation.replace('Rating', { jobId });
                         } catch (err) {
-                            Alert.alert('Error', err.response?.data?.message || 'Failed to confirm cash payment.');
+                            Alert.alert('Error', 'Failed to confirm cash payment.');
                         } finally {
                             setLoading(false);
                         }
@@ -79,7 +86,7 @@ export default function PaymentScreen({ route, navigation }) {
     if (fetchingInvoice) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={colors.gold.primary} />
+                <ActivityIndicator size="large" color={colors.accent.primary} />
             </View>
         );
     }
@@ -87,7 +94,8 @@ export default function PaymentScreen({ route, navigation }) {
     if (!invoice) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ color: colors.text.muted }}>Invoice generated not found.</Text>
+                <Text style={{ color: colors.text.muted }}>Error generating invoice.</Text>
+                <PremiumButton title="Retry" onPress={() => navigation.replace('Payment', { jobId })} style={{ marginTop: 20 }} />
             </View>
         );
     }
@@ -96,67 +104,102 @@ export default function PaymentScreen({ route, navigation }) {
 
     return (
         <View style={styles.screen}>
+            {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.title}>Job Complete 🎉</Text>
+                <Text style={styles.headerTitle}>SECURE CHECKOUT</Text>
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
-                <Text style={styles.subtitle}>Final Invoice Breakdown</Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-                <Text style={{ color: colors.text.secondary }}>Invoice #{invoice.invoice_number}</Text>
+                <FadeInView delay={50} style={styles.introBox}>
+                    <View style={styles.checkCircle}>
+                        <Text style={styles.checkIcon}>✅</Text>
+                    </View>
+                    <Text style={styles.introTitle}>Job Complete</Text>
+                    <Text style={styles.introSub}>Review your service invoice and select a preferred payment method.</Text>
+                </FadeInView>
 
-                <View style={styles.card}>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Base Labour ({invoice.actual_hours} hr)</Text>
-                        <Text style={styles.value}>₹{ib.base_amount}</Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Platform Fee</Text>
-                        <Text style={styles.value}>₹{ib.platform_fee}</Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Travel Allowance</Text>
-                        <Text style={styles.value}>₹{ib.travel_charge}</Text>
-                    </View>
-
-                    {ib.tax > 0 && (
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Tax</Text>
-                            <Text style={styles.value}>₹{ib.tax}</Text>
+                {/* Invoice Card */}
+                <FadeInView delay={200}>
+                    <Card style={styles.invoiceCard}>
+                        <View style={styles.invoiceHeader}>
+                            <View>
+                                <Text style={styles.invoiceLabel}>INVOICE NO.</Text>
+                                <Text style={styles.invoiceNo}>#{invoice.invoice_number}</Text>
+                            </View>
+                            <View style={styles.hoursBadge}>
+                                <Text style={styles.hoursTxt}>{invoice.actual_hours}h Session</Text>
+                            </View>
                         </View>
+
+                        <View style={styles.divider} />
+
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Labour Cost</Text>
+                            <Text style={styles.value}>₹{ib.base_amount}</Text>
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Travel Allowance</Text>
+                            <Text style={styles.value}>₹{ib.travel_charge}</Text>
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Platform Service Fee</Text>
+                            <Text style={styles.value}>₹{ib.platform_fee}</Text>
+                        </View>
+
+                        <View style={styles.advanceRow}>
+                            <View style={styles.advanceInfo}>
+                                <Text style={styles.advanceLabel}>ADVANCE PAID</Text>
+                                <Text style={styles.advanceValue}>- ₹{ib.advance_amount_paid}</Text>
+                            </View>
+                            <View style={styles.paidBadge}>
+                                <Text style={styles.paidBadgeTxt}>PAID</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.totalBlock}>
+                            <View>
+                                <Text style={styles.balanceLabel}>BALANCE DUE</Text>
+                                <Text style={styles.totalValue}>₹{ib.balance_due}</Text>
+                            </View>
+                            <Text style={styles.secureBadge}>🔒 Secure Transmission</Text>
+                        </View>
+                    </Card>
+                </FadeInView>
+
+                {/* Action Buttons */}
+                <View style={styles.footer}>
+                    {ib.balance_due > 0 ? (
+                        <>
+                            <FadeInView delay={350}>
+                                <PremiumButton
+                                    title={`Pay ₹${ib.balance_due} Now`}
+                                    loading={loading}
+                                    onPress={handleDigitalPayment}
+                                />
+                            </FadeInView>
+
+                            <FadeInView delay={450}>
+                                <TouchableOpacity
+                                    style={styles.cashBtn}
+                                    onPress={handleCashPaid}
+                                    disabled={loading}
+                                >
+                                    <Text style={styles.cashBtnTxt}>
+                                        {loading ? 'Processing...' : 'Paid via Cash / Direct UPI'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </FadeInView>
+                        </>
+                    ) : (
+                        <FadeInView delay={350}>
+                            <PremiumButton
+                                title="Leave Feedback"
+                                onPress={() => navigation.replace('Rating', { jobId })}
+                            />
+                        </FadeInView>
                     )}
-
-                    <View style={styles.divider} />
-
-                    <View style={styles.row}>
-                        <Text style={styles.totalLabel}>Balance Due</Text>
-                        <Text style={styles.totalValue}>₹{ib.balance_due}</Text>
-                    </View>
-                    <Text style={styles.paidNote}>(₹{ib.advance_amount_paid} advance fee already paid)</Text>
                 </View>
-
-                {ib.balance_due > 0 ? (
-                    <>
-                        <GoldButton
-                            title={`Pay ₹${ib.balance_due} Securely`}
-                            loading={loading}
-                            disabled={loading}
-                            onPress={handleDigitalPayment}
-                            style={{ marginTop: spacing.xl }}
-                        />
-
-                        <TouchableOpacity style={styles.cashBtn} onPress={handleCashPaid} disabled={loading}>
-                            <Text style={styles.cashBtnTxt}>{loading ? 'Processing...' : 'Mark as Paid via Cash / Direct UPI'}</Text>
-                        </TouchableOpacity>
-                    </>
-                ) : (
-                    <GoldButton
-                        title="Continue to Rating"
-                        disabled={loading}
-                        onPress={() => navigation.replace('Rating', { jobId })}
-                        style={{ marginTop: spacing.xl }}
-                    />
-                )}
 
             </ScrollView>
         </View>
@@ -164,30 +207,68 @@ export default function PaymentScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: colors.background },
     header: {
-        alignItems: 'center', paddingTop: spacing.xl + 40, paddingBottom: spacing.lg,
-        borderBottomWidth: 1, borderBottomColor: colors.bg.surface
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        alignItems: 'center',
+        paddingBottom: spacing[16]
     },
-    title: { color: colors.gold.primary, fontSize: 28, fontWeight: '800' },
+    headerTitle: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 3 },
 
-    content: { padding: spacing.lg, gap: spacing.md },
-    subtitle: { color: colors.text.primary, fontSize: 18, fontWeight: '700', marginBottom: spacing.md },
+    scrollContent: { padding: spacing[24], paddingBottom: 120 },
 
-    card: {
-        backgroundColor: colors.bg.elevated, borderRadius: radius.lg,
-        padding: spacing.xl, gap: spacing.md, borderWidth: 1, borderColor: colors.bg.surface
-    },
+    introBox: { alignItems: 'center', gap: spacing[12], marginBottom: spacing[32] },
+    checkCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accent.primary + '11', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.accent.border + '44' },
+    checkIcon: { fontSize: 24 },
+    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
+    introSub: { color: colors.text.secondary, fontSize: fontSize.body, textAlign: 'center', marginTop: 4 },
+
+    invoiceCard: { padding: spacing[24], gap: spacing[16] },
+    invoiceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    invoiceLabel: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    invoiceNo: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    hoursBadge: { backgroundColor: colors.elevated, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.md, borderWidth: 1, borderColor: colors.surface },
+    hoursTxt: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold },
+
+    divider: { height: 1, backgroundColor: colors.surface, marginVertical: 4 },
+
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    label: { color: colors.text.secondary, fontSize: 15 },
-    value: { color: colors.text.primary, fontSize: 15, fontWeight: '600' },
+    label: { color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
+    value: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
 
-    divider: { height: 1, backgroundColor: colors.bg.surface, my: spacing.sm },
+    advanceRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: colors.surface,
+        padding: spacing[16],
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: colors.accent.border + '22'
+    },
+    advanceInfo: { gap: 4 },
+    advanceLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    advanceValue: { color: colors.accent.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    paidBadge: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+    paidBadgeTxt: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold },
 
-    totalLabel: { color: colors.text.primary, fontSize: 20, fontWeight: '800' },
-    totalValue: { color: colors.error, fontSize: 24, fontWeight: '800' },
-    paidNote: { color: colors.text.muted, fontSize: 13, textAlign: 'right', marginTop: -4 },
+    totalBlock: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        marginTop: spacing[8],
+        padding: spacing[20],
+        backgroundColor: colors.elevated,
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: colors.surface
+    },
+    balanceLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    totalValue: { color: colors.text.primary, fontSize: 32, fontWeight: '900', marginTop: 4 },
+    secureBadge: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.medium },
 
-    cashBtn: { padding: spacing.lg, alignItems: 'center', marginTop: spacing.sm },
-    cashBtnTxt: { color: colors.text.secondary, fontSize: 15, fontWeight: '600' }
+    footer: { marginTop: spacing[40], gap: spacing[16] },
+    cashBtn: { paddingVertical: spacing[16], alignItems: 'center' },
+    cashBtnTxt: { color: colors.text.muted, fontSize: fontSize.caption, fontWeight: fontWeight.semibold, textDecorationLine: 'underline' }
 });

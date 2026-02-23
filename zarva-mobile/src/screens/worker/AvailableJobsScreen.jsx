@@ -1,32 +1,37 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, FlatList, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import Card from '../../components/Card';
-import apiClient from '../../services/api/client';
+import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { parseJobDescription } from '../../utils/jobParser';
-import * as Location from 'expo-location';
+import { useT } from '../../hooks/useT';
+import apiClient from '../../services/api/client';
 import { useWorkerStore } from '../../stores/workerStore';
+import FadeInView from '../../components/FadeInView';
+import Card from '../../components/Card';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 import { haversineKm, formatDistance } from '../../utils/distance';
+import { parseJobDescription } from '../../utils/jobParser';
 
 dayjs.extend(relativeTime);
 
 export default function AvailableJobsScreen({ navigation }) {
+    const t = useT();
     const [filter, setFilter] = useState('All');
     const [sortBy, setSortBy] = useState('Nearest');
     const [categories, setCategories] = useState(['All']);
     const [refreshing, setRefreshing] = useState(false);
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { isOnline: storeIsOnline, locationOverride } = useWorkerStore();
+    const { locationOverride } = useWorkerStore();
     const [isOnline, setIsOnline] = useState(true);
     const [kycError, setKycError] = useState(false);
 
     const fetchJobs = async () => {
         try {
-            // Get current location logically
             let currentLoc = null;
             if (locationOverride) {
                 currentLoc = { lat: locationOverride.lat, lng: locationOverride.lng };
@@ -43,30 +48,20 @@ export default function AvailableJobsScreen({ navigation }) {
             setKycError(false);
 
             let rawJobs = res.data?.jobs || [];
-
-            // Calculate distance for all jobs if location is available
             if (currentLoc) {
                 rawJobs = rawJobs.map(job => {
                     if (job.latitude && job.longitude) {
-                        return {
-                            ...job,
-                            dist: haversineKm(currentLoc.lat, currentLoc.lng, job.latitude, job.longitude)
-                        };
+                        return { ...job, dist: haversineKm(currentLoc.lat, currentLoc.lng, job.latitude, job.longitude) };
                     }
                     return job;
                 });
-
-                // Sort by distance ascending
                 rawJobs.sort((a, b) => (a.dist || 999) - (b.dist || 999));
             }
-
             setJobs(rawJobs);
         } catch (err) {
             if (err.response?.status === 403) {
                 setKycError(true);
                 setJobs([]);
-            } else {
-                console.warn('Failed to fetch available jobs:', err.message);
             }
         } finally {
             setLoading(false);
@@ -77,8 +72,6 @@ export default function AvailableJobsScreen({ navigation }) {
     useFocusEffect(
         useCallback(() => {
             fetchJobs();
-
-            // Also fetch categories
             apiClient.get('/api/jobs/config')
                 .then(res => {
                     if (res.data?.categories) {
@@ -86,7 +79,7 @@ export default function AvailableJobsScreen({ navigation }) {
                         setCategories(['All', ...dynamicCats]);
                     }
                 })
-                .catch(err => console.error('Failed to fetch categories for filtering', err));
+                .catch(err => console.error('Failed to fetch categories', err));
         }, [])
     );
 
@@ -95,212 +88,249 @@ export default function AvailableJobsScreen({ navigation }) {
             if (filter === 'All') return true;
             return j.category?.toLowerCase() === filter.toLowerCase();
         });
-
-        if (sortBy === 'Nearest') {
-            result.sort((a, b) => (a.dist || 999) - (b.dist || 999));
-        } else if (sortBy === 'Latest') {
-            result.sort((a, b) => new Date(b.time) - new Date(a.time));
-        } else if (sortBy === 'Price: High to Low') {
-            result.sort((a, b) => (parseFloat(b.total_amount) || 0) - (parseFloat(a.total_amount) || 0));
-        } else if (sortBy === 'Price: Low to High') {
-            result.sort((a, b) => (parseFloat(a.total_amount) || 0) - (parseFloat(b.total_amount) || 0));
-        }
-
+        if (sortBy === 'Nearest') result.sort((a, b) => (a.dist || 999) - (b.dist || 999));
+        else if (sortBy === 'Latest') result.sort((a, b) => new Date(b.time) - new Date(a.time));
+        else if (sortBy === 'Reward') result.sort((a, b) => (parseFloat(b.total_amount) || 0) - (parseFloat(a.total_amount) || 0));
         return result;
     }, [jobs, filter, sortBy]);
 
     const onRefresh = () => {
         setRefreshing(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         fetchJobs();
+    };
+
+    const renderJob = ({ item, index }) => {
+        const { text: parsedText } = parseJobDescription(item.description || item.desc);
+        const descText = parsedText || item.description || item.desc || "No details provided";
+
+        return (
+            <FadeInView delay={index * 100}>
+                <PressableAnimated
+                    onPress={() => {
+                        Haptics.selectionAsync();
+                        navigation.navigate('JobDetailPreview', { job: item });
+                    }}
+                >
+                    <Card style={styles.jobCard}>
+                        <View style={styles.cardHeader}>
+                            <View style={styles.catBox}>
+                                <Text style={styles.catTxt}>{item.category || 'Professional Service'}</Text>
+                            </View>
+                            <Text style={styles.timeTxt}>{dayjs(item.time).fromNow()}</Text>
+                        </View>
+
+                        <Text style={styles.descTxt} numberOfLines={2}>"{descText}"</Text>
+
+                        <View style={styles.statsRow}>
+                            <View style={styles.statLine}>
+                                <Text style={styles.statIcon}>📍</Text>
+                                <Text style={styles.statTxt}>{formatDistance(item.dist) || '—'} away</Text>
+                            </View>
+                            <View style={styles.rewardBox}>
+                                <Text style={styles.rewardLabel}>EST. PAYOUT</Text>
+                                <Text style={styles.rewardVal}>₹{parseFloat(item.total_amount || 0).toFixed(0)}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.cardFooter}>
+                            <Text style={styles.clientLabel}>Requested by {item.customer_name?.split(' ')[0]}</Text>
+                            <Text style={styles.viewMore}>ACQUIRE REQUEST ›</Text>
+                        </View>
+                    </Card>
+                </PressableAnimated>
+            </FadeInView>
+        );
     };
 
     if (!isOnline) {
         return (
             <View style={styles.offlineScreen}>
-                <Text style={styles.offlineIcon}>💤</Text>
-                <Text style={styles.offlineTitle}>You are Offline</Text>
-                <Text style={styles.offlineText}>Go online from the Home screen to see active jobs near you.</Text>
+                <FadeInView delay={100} style={styles.offlineContent}>
+                    <Text style={styles.offlineIcon}>🌘</Text>
+                    <Text style={styles.offlineTitle}>Currently Inactive</Text>
+                    <Text style={styles.offlineSub}>Go online from your dashboard to witness and accept incoming job requests.</Text>
+                </FadeInView>
             </View>
         );
     }
 
-    const renderJob = ({ item }) => {
-        const { text: parsedText } = parseJobDescription(item.description || item.desc);
-        const descText = parsedText || item.description || item.desc || "No details provided";
-
-        return (
-            <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('JobDetailPreview', { job: item })}>
-                <Card glow style={styles.jobCard}>
-                    <View style={styles.cardHeader}>
-                        <View style={styles.catRow}>
-                            <Text style={styles.catIcon}>{item.icon}</Text>
-                            <Text style={styles.catName}>{item.category || 'Service'}</Text>
-                        </View>
-                        <Text style={styles.timeTxt}>{dayjs(item.time).fromNow()}</Text>
-                    </View>
-
-                    <View style={styles.distRow}>
-                        <Text style={styles.distTxt}>📍 {formatDistance(item.dist) || '—'} away • Wave {item.wave_number || 1}</Text>
-                        <Text style={styles.estTxt}>Est: ₹{parseFloat(item.total_amount || 0).toFixed(0)}</Text>
-                    </View>
-
-                    <Text style={styles.descTxt} numberOfLines={2}>"{descText}"</Text>
-
-                    <View style={styles.actionRow}>
-                        <Text style={styles.customerName}>📝 {item.customer_name}</Text>
-                        <Text style={styles.viewTxt}>View Details →</Text>
-                    </View>
-                </Card>
-            </TouchableOpacity>
-        );
-    };
-
-    const renderEmpty = () => {
-        if (loading) return <ActivityIndicator size="large" color={colors.gold.primary} style={{ marginTop: spacing.xl * 2 }} />;
-
-        if (kycError) {
-            return (
-                <View style={styles.emptyWrap}>
-                    <Text style={styles.emptyIcon}>⏳</Text>
-                    <Text style={styles.emptyTitle}>Verification Required</Text>
-                    <Text style={styles.emptySub}>
-                        Your profile is currently under review or incomplete. Once your account is verified by our team, you will start receiving job requests here.
-                    </Text>
-                </View>
-            );
-        }
-
-        return (
-            <View style={styles.emptyWrap}>
-                <Text style={styles.emptyIcon}>📭</Text>
-                <Text style={styles.emptyTitle}>No Jobs Right Now</Text>
-                <Text style={styles.emptySub}>
-                    {filter === 'All'
-                        ? 'There are currently no new open service requests in your area. We will notify you when one arrives.'
-                        : `No nearby customers are requesting ${filter} services at the moment.`}
-                </Text>
-            </View>
-        );
-    };
-
     return (
         <View style={styles.screen}>
+            {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.title}>Jobs Near You</Text>
-                <View style={styles.jobsPill}>
-                    <Text style={styles.jobsCount}>{jobs.length}</Text>
-                    <Text style={styles.jobsLabel}>Active</Text>
+                <View>
+                    <Text style={styles.headerSub}>AVAILABLE OPPORTUNITIES</Text>
+                    <Text style={styles.headerTitle}>Marketplace</Text>
+                </View>
+                <View style={styles.countBadge}>
+                    <Text style={styles.countTxt}>{jobs.length}</Text>
                 </View>
             </View>
 
-            <View style={styles.filterWrap}>
+            {/* Filters */}
+            <View style={styles.stickyHeader}>
                 <FlatList
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     data={categories}
                     keyExtractor={item => item}
                     contentContainerStyle={styles.filterList}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity
-                            style={[styles.chip, filter === item && styles.chipActive]}
-                            onPress={() => setFilter(item)}
-                        >
-                            <Text style={[styles.chipText, filter === item && styles.chipTextActive]}>
-                                {item}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
+                    renderItem={({ item }) => {
+                        const active = filter === item;
+                        return (
+                            <TouchableOpacity
+                                style={[styles.filterChip, active && styles.filterChipActive]}
+                                onPress={() => {
+                                    setFilter(item);
+                                    Haptics.selectionAsync();
+                                }}
+                            >
+                                <Text style={[styles.filterTxt, active && styles.filterTxtActive]}>{item.toUpperCase()}</Text>
+                            </TouchableOpacity>
+                        );
+                    }}
                 />
-            </View>
 
-            <View style={styles.sortWrap}>
-                <Text style={styles.sortLabel}>Sort by:</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortList}>
-                    {['Nearest', 'Latest', 'Price: High to Low', 'Price: Low to High'].map(opt => (
-                        <TouchableOpacity
-                            key={opt}
-                            style={[styles.sortChip, sortBy === opt && styles.sortChipActive]}
-                            onPress={() => setSortBy(opt)}
-                        >
-                            <Text style={[styles.sortChipTxt, sortBy === opt && styles.sortChipTxtActive]}>{opt}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
+                <View style={styles.sortBar}>
+                    {['Nearest', 'Latest', 'Reward'].map(opt => {
+                        const active = sortBy === opt;
+                        return (
+                            <TouchableOpacity
+                                key={opt}
+                                style={[styles.sortChip, active && styles.sortChipActive]}
+                                onPress={() => {
+                                    setSortBy(opt);
+                                    Haptics.selectionAsync();
+                                }}
+                            >
+                                <Text style={[styles.sortTxt, active && styles.sortTxtActive]}>{opt}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
             </View>
 
             <FlatList
                 data={sortedAndFilteredJobs}
                 keyExtractor={i => String(i.id)}
-                contentContainerStyle={styles.list}
+                contentContainerStyle={styles.listContent}
                 renderItem={renderJob}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold.primary} colors={[colors.gold.primary]} />}
-                ListEmptyComponent={renderEmpty}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colors.accent.primary}
+                    />
+                }
+                ListEmptyComponent={() => {
+                    if (loading) return (
+                        <View style={styles.emptyContainer}>
+                            <ActivityIndicator size="large" color={colors.accent.primary} />
+                        </View>
+                    );
+                    return (
+                        <FadeInView delay={200} style={styles.emptyContainer}>
+                            <Text style={styles.emptyIcon}>💎</Text>
+                            <Text style={styles.emptyTitle}>All caught up!</Text>
+                            <Text style={styles.emptySub}>No active requests matching your criteria. We'll notify you as soon as a new opportunity arises.</Text>
+                        </FadeInView>
+                    );
+                }}
             />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: spacing.xl + 20, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-    title: { color: colors.text.primary, fontSize: 24, fontWeight: '800' },
-
-    jobsPill: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: colors.gold.glow,
-        paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.full, gap: 4,
-        borderWidth: 1, borderColor: colors.gold.primary + '30'
+    screen: { flex: 1, backgroundColor: colors.background },
+    header: {
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingBottom: spacing[24]
     },
-    jobsCount: { color: colors.gold.primary, fontSize: 16, fontWeight: '800' },
-    jobsLabel: { color: colors.text.primary, fontSize: 12, fontWeight: '600' },
-
-    // Offline
-    offlineScreen: { flex: 1, backgroundColor: colors.bg.primary, justifyContent: 'center', alignItems: 'center', padding: spacing.xl },
-    offlineIcon: { fontSize: 48, marginBottom: spacing.md },
-    offlineTitle: { color: colors.text.primary, fontSize: 22, fontWeight: '700', marginBottom: spacing.sm },
-    offlineText: { color: colors.text.secondary, fontSize: 15, textAlign: 'center' },
-
-    // Filters
-    filterWrap: { borderBottomWidth: 1, borderBottomColor: colors.bg.surface, paddingBottom: spacing.sm },
-    filterList: { paddingHorizontal: spacing.lg, gap: spacing.sm, alignItems: 'center' },
-    chip: {
-        paddingHorizontal: spacing.md, paddingVertical: 8,
-        borderRadius: radius.full, backgroundColor: colors.bg.surface,
-        borderWidth: 1, borderColor: colors.bg.surface
+    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    headerTitle: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero },
+    countBadge: {
+        backgroundColor: colors.accent.primary + '11',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: colors.accent.border + '22'
     },
-    chipActive: { backgroundColor: colors.gold.glow, borderColor: colors.gold.primary },
-    chipText: { color: colors.text.secondary, fontSize: 13, fontWeight: '600' },
-    chipTextActive: { color: colors.gold.primary },
+    countTxt: { color: colors.accent.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
 
-    sortWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    sortLabel: { color: colors.text.muted, fontSize: 13, fontWeight: '600' },
-    sortList: { gap: spacing.sm, paddingRight: spacing.xl },
-    sortChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full, borderWidth: 1, borderColor: colors.bg.surface, backgroundColor: colors.bg.elevated },
-    sortChipActive: { borderColor: colors.gold.primary, backgroundColor: colors.gold.glow },
-    sortChipTxt: { color: colors.text.secondary, fontSize: 12, fontWeight: '600' },
-    sortChipTxtActive: { color: colors.gold.primary, fontWeight: '700' },
+    stickyHeader: { gap: spacing[16], paddingBottom: spacing[12] },
+    filterList: { paddingHorizontal: spacing[24], gap: spacing[12] },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: radius.full,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.surface
+    },
+    filterChipActive: { backgroundColor: colors.accent.primary, borderColor: colors.accent.primary },
+    filterTxt: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    filterTxtActive: { color: colors.background },
 
-    // List
-    list: { padding: spacing.lg, gap: spacing.lg, flexGrow: 1 },
-    jobCard: { gap: spacing.sm },
+    sortBar: {
+        flexDirection: 'row',
+        marginHorizontal: spacing[24],
+        backgroundColor: colors.surface,
+        borderRadius: radius.lg,
+        padding: 4,
+        gap: 4
+    },
+    sortChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.md },
+    sortChipActive: { backgroundColor: colors.elevated },
+    sortTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    sortTxtActive: { color: colors.accent.primary },
 
+    listContent: { padding: spacing[24], paddingBottom: 120, gap: spacing[16], flexGrow: 1 },
+    jobCard: { padding: spacing[24], gap: spacing[16], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    catRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-    catIcon: { fontSize: 16 },
-    catName: { color: colors.text.primary, fontSize: 16, fontWeight: '700', textTransform: 'capitalize' },
-    timeTxt: { color: colors.text.muted, fontSize: 12 },
+    catBox: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.md },
+    catTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, textTransform: 'uppercase' },
+    timeTxt: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.medium },
 
-    distRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-    distTxt: { color: colors.text.secondary, fontSize: 13 },
-    estTxt: { color: colors.gold.primary, fontSize: 14, fontWeight: '800' },
+    descTxt: { color: colors.text.primary, fontSize: fontSize.body, fontStyle: 'italic', opacity: 0.9, lineHeight: 22 },
 
-    descTxt: { color: colors.text.muted, fontSize: 14, fontStyle: 'italic', marginVertical: spacing.xs },
+    statsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 },
+    statLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    statIcon: { fontSize: 14 },
+    statTxt: { color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
 
-    actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.xs, borderTopWidth: 1, borderTopColor: colors.bg.surface, paddingTop: spacing.sm },
-    customerName: { color: colors.text.secondary, fontSize: 13, fontWeight: '600' },
-    viewTxt: { color: colors.gold.primary, fontSize: 13, fontWeight: '700' },
+    rewardBox: { alignItems: 'flex-end', gap: 2 },
+    rewardLabel: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    rewardVal: { color: colors.text.primary, fontSize: 24, fontWeight: '900' },
 
-    emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: spacing.xl * 3 },
-    emptyIcon: { fontSize: 48, marginBottom: spacing.md },
-    emptyTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '700', marginBottom: spacing.xs },
-    emptySub: { color: colors.text.muted, fontSize: 14, textAlign: 'center', paddingHorizontal: spacing.xl, lineHeight: 22 }
+    cardFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: spacing[16],
+        borderTopWidth: 1,
+        borderTopColor: colors.elevated
+    },
+    clientLabel: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.medium },
+    viewMore: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
+
+    offlineScreen: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: spacing[40] },
+    offlineContent: { alignItems: 'center', gap: spacing[16] },
+    offlineIcon: { fontSize: 64, marginBottom: 8 },
+    offlineTitle: { color: colors.text.primary, fontSize: 24, fontWeight: '900', textAlign: 'center' },
+    offlineSub: { color: colors.text.muted, fontSize: fontSize.body, textAlign: 'center', lineHeight: 24 },
+
+    emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100, gap: 12 },
+    emptyIcon: { fontSize: 48, marginBottom: 8 },
+    emptyTitle: { color: colors.text.primary, fontSize: 20, fontWeight: fontWeight.bold },
+    emptySub: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center', paddingHorizontal: spacing[40], lineHeight: 20 }
 });

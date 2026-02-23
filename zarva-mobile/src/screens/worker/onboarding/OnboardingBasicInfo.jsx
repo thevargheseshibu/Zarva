@@ -1,14 +1,12 @@
-/**
- * src/screens/worker/onboarding/OnboardingBasicInfo.jsx
- * Step 1: Name, DOB picker, gender radio buttons.
- */
 import React, { useState } from 'react';
-import {
-    View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-} from 'react-native';
-import { colors, spacing, radius } from '../../../design-system/tokens';
-import GoldButton from '../../../components/GoldButton';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+import PremiumButton from '../../../components/PremiumButton';
 import LocationInput from '../../../components/LocationInput';
+import FadeInView from '../../../components/FadeInView';
+import Card from '../../../components/Card';
 
 const GENDERS = ['Male', 'Female', 'Other'];
 const RANGES = [10, 20, 50];
@@ -21,87 +19,130 @@ export default function OnboardingBasicInfo({ data, onNext }) {
 
     const isValid = gender && workerLocation.isValid && experience.trim().length > 0;
 
+    const handleGenderSelect = (g) => {
+        setGender(g);
+        Haptics.selectionAsync();
+    };
+
+    const handleRangeSelect = (r) => {
+        setServiceRange(r);
+        Haptics.selectionAsync();
+    };
+
     return (
-        <ScrollView contentContainerStyle={styles.screen}>
-            <Text style={styles.title}>Basic Info</Text>
-            <Text style={styles.sub}>Tell us a bit about your professional side.</Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <FadeInView delay={50}>
+                <Text style={styles.headerSub}>STEP 01/05</Text>
+                <Text style={styles.title}>Professional Foundation</Text>
+                <Text style={styles.sub}>Establish your core identity on the Zarva Pro network.</Text>
+            </FadeInView>
 
-            <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Gender</Text>
-                <View style={styles.radioRow}>
-                    {GENDERS.map(g => (
-                        <TouchableOpacity
-                            key={g}
-                            style={[styles.radioChip, gender === g && styles.radioChipActive]}
-                            onPress={() => setGender(g)}
-                        >
-                            <Text style={[styles.radioText, gender === g && styles.radioTextActive]}>{g}</Text>
-                        </TouchableOpacity>
-                    ))}
+            <FadeInView delay={150} style={styles.section}>
+                <Text style={styles.label}>Identity</Text>
+                <View style={styles.radioGrid}>
+                    {GENDERS.map(g => {
+                        const active = gender === g;
+                        return (
+                            <TouchableOpacity
+                                key={g}
+                                style={[styles.radioChip, active && styles.radioChipActive]}
+                                onPress={() => handleGenderSelect(g)}
+                            >
+                                <Text style={[styles.radioText, active && styles.radioTextActive]}>{g.toUpperCase()}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
-            </View>
+            </FadeInView>
 
-            <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Years of Experience</Text>
-                <TextInput
-                    style={styles.input}
-                    value={experience}
-                    onChangeText={t => setExperience(t.replace(/[^0-9]/g, ''))}
-                    placeholder="e.g. 5"
-                    placeholderTextColor={colors.text.muted}
-                    keyboardType="number-pad"
-                    maxLength={2}
+            <FadeInView delay={250} style={styles.section}>
+                <Text style={styles.label}>Expertise (Years)</Text>
+                <Card style={styles.inputCard}>
+                    <TextInput
+                        style={styles.input}
+                        value={experience}
+                        onChangeText={t => setExperience(t.replace(/[^0-9]/g, ''))}
+                        placeholder="e.g. 5"
+                        placeholderTextColor={colors.text.muted}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                    />
+                </Card>
+            </FadeInView>
+
+            <FadeInView delay={350} style={styles.section}>
+                <Text style={styles.label}>Operational Radius (KM)</Text>
+                <View style={styles.radioGrid}>
+                    {RANGES.map(r => {
+                        const active = serviceRange === r;
+                        return (
+                            <TouchableOpacity
+                                key={r}
+                                style={[styles.radioChip, active && styles.radioChipActive]}
+                                onPress={() => handleRangeSelect(r)}
+                            >
+                                <Text style={[styles.radioText, active && styles.radioTextActive]}>{r} KM</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+                <Text style={styles.noteTxt}>This determines the reach of your job discovery.</Text>
+            </FadeInView>
+
+            <FadeInView delay={450} style={styles.section}>
+                <Text style={styles.label}>Mission Base (Location)</Text>
+                <Card style={styles.locCard}>
+                    <LocationInput onChange={setWorkerLocation} />
+                </Card>
+            </FadeInView>
+
+            <FadeInView delay={550} style={styles.footer}>
+                <PremiumButton
+                    title="Initialize Profile"
+                    disabled={!isValid}
+                    onPress={() => {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        onNext({ gender, location: workerLocation, experience_years: parseInt(experience, 10) || 0, service_range: serviceRange });
+                    }}
                 />
-            </View>
-
-            <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Service Range (Radius)</Text>
-                <View style={styles.radioRow}>
-                    {RANGES.map(r => (
-                        <TouchableOpacity
-                            key={r}
-                            style={[styles.radioChip, serviceRange === r && styles.radioChipActive]}
-                            onPress={() => setServiceRange(r)}
-                        >
-                            <Text style={[styles.radioText, serviceRange === r && styles.radioTextActive]}>{r} km</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-            </View>
-
-            <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Home / Base Location</Text>
-                <LocationInput onChange={setWorkerLocation} />
-            </View>
-
-            <GoldButton
-                title="Continue"
-                disabled={!isValid}
-                onPress={() => onNext({ gender, location: workerLocation, experience_years: parseInt(experience, 10) || 0, service_range: serviceRange })}
-                style={{ marginTop: spacing.xl }}
-            />
+            </FadeInView>
         </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl * 2 },
-    title: { color: colors.text.primary, fontSize: 24, fontWeight: '700' },
-    sub: { color: colors.text.secondary, fontSize: 14 },
-    fieldGroup: { gap: spacing.xs },
-    label: { color: colors.text.secondary, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
-    input: {
-        backgroundColor: colors.bg.elevated, borderRadius: radius.md,
-        paddingHorizontal: spacing.md, paddingVertical: 14,
-        color: colors.text.primary, fontSize: 16, borderWidth: 1, borderColor: colors.bg.surface,
-    },
-    radioRow: { flexDirection: 'row', gap: spacing.sm },
+    scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
+    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
+    sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
+
+    section: { gap: 12 },
+    label: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
+
+    radioGrid: { flexDirection: 'row', gap: 10 },
     radioChip: {
-        paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-        backgroundColor: colors.bg.elevated, borderRadius: radius.full,
-        borderWidth: 1, borderColor: colors.bg.surface,
+        flex: 1,
+        paddingVertical: 14,
+        alignItems: 'center',
+        backgroundColor: colors.surface,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: colors.surface
     },
-    radioChipActive: { borderColor: colors.gold.primary, backgroundColor: colors.gold.glow },
-    radioText: { color: colors.text.secondary, fontWeight: '500' },
-    radioTextActive: { color: colors.gold.primary },
+    radioChipActive: { backgroundColor: colors.accent.primary, borderColor: colors.accent.primary },
+    radioText: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    radioTextActive: { color: colors.background },
+
+    inputCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface },
+    input: {
+        paddingHorizontal: 16, paddingVertical: 14,
+        color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold
+    },
+
+    locCard: { padding: 4, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
+    noteTxt: { color: colors.text.muted, fontSize: 10, marginTop: 4, fontStyle: 'italic' },
+
+    footer: { marginTop: spacing[16] },
+
+    appMetadata: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2, textAlign: 'center', marginTop: 24 }
 });

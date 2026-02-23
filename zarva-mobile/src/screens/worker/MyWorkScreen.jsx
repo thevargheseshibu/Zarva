@@ -1,15 +1,21 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import Card from '../../components/Card';
-import StatusPill from '../../components/StatusPill';
-import apiClient from '../../services/api/client';
+import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
+import { useT } from '../../hooks/useT';
+import apiClient from '../../services/api/client';
+import FadeInView from '../../components/FadeInView';
+import Card from '../../components/Card';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import StatusPill from '../../components/StatusPill';
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
 const FILTERS = ['All', 'Active', 'Completed', 'Cancelled', 'Disputed'];
 
 export default function MyWorkScreen({ navigation }) {
+    const t = useT();
     const [filter, setFilter] = useState('All');
     const [sortBy, setSortBy] = useState('Latest');
     const [refreshing, setRefreshing] = useState(false);
@@ -45,149 +51,244 @@ export default function MyWorkScreen({ navigation }) {
             result.sort((a, b) => new Date(b.date || b.created_at || b.time || 0) - new Date(a.date || a.created_at || a.time || 0));
         } else if (sortBy === 'Oldest') {
             result.sort((a, b) => new Date(a.date || a.created_at || a.time || 0) - new Date(b.date || b.created_at || b.time || 0));
-        } else if (sortBy === 'Price: High to Low') {
+        } else if (sortBy === 'Premium') {
             result.sort((a, b) => (parseFloat(b.total_amount || b.amount) || 0) - (parseFloat(a.total_amount || a.amount) || 0));
-        } else if (sortBy === 'Price: Low to High') {
-            result.sort((a, b) => (parseFloat(a.total_amount || a.amount) || 0) - (parseFloat(b.total_amount || b.amount) || 0));
         }
 
         return result;
     }, [history, filter, sortBy]);
 
+    const stats = useMemo(() => {
+        const completed = history.filter(h => h.status === 'completed');
+        const revenue = completed.reduce((acc, curr) => acc + (parseFloat(curr.amount || curr.total_amount) || 0), 0);
+        return {
+            count: completed.length,
+            revenue: revenue.toFixed(0)
+        };
+    }, [history]);
+
     const onRefresh = () => {
         setRefreshing(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         fetchHistory();
     };
 
     const handlePress = (item) => {
+        Haptics.selectionAsync();
         navigation.navigate('ActiveJob', { jobId: item.id });
     };
 
-    const renderItem = ({ item }) => (
-        <TouchableOpacity activeOpacity={0.8} onPress={() => handlePress(item)}>
-            <Card style={styles.historyCard}>
-                <View style={styles.cardHeader}>
-                    <Text style={styles.catTxt}>{item.category || 'Service'}</Text>
-                    <Text style={styles.amountTxt}>{item.amount}</Text>
-                </View>
-                <Text style={styles.addressTxt} numberOfLines={1}>📍 {item.address}</Text>
+    const renderItem = ({ item, index }) => (
+        <FadeInView delay={index * 50}>
+            <PressableAnimated onPress={() => handlePress(item)}>
+                <Card style={styles.historyCard}>
+                    <View style={styles.cardTop}>
+                        <View style={styles.catBox}>
+                            <Text style={styles.catTxt}>{item.category || 'Service'}</Text>
+                        </View>
+                        <Text style={styles.amtTxt}>₹{item.amount || item.total_amount}</Text>
+                    </View>
 
-                <View style={styles.footerRow}>
-                    <Text style={styles.dateTxt}>{dayjs(item.date).format('MMM D, h:mm A')}</Text>
-                    <StatusPill status={item.status} />
-                </View>
-            </Card>
-        </TouchableOpacity>
+                    <View style={styles.cardMid}>
+                        <Text style={styles.addressTxt} numberOfLines={1}>📍 {item.address}</Text>
+                        <Text style={styles.dateTxt}>{dayjs(item.date).format('MMM D, h:mm A')}</Text>
+                    </View>
+
+                    <View style={styles.cardBottom}>
+                        <View style={styles.clientInfo}>
+                            <View style={styles.clientAvatar}>
+                                <Text style={styles.avatarTxt}>{item.customer_name?.charAt(0) || 'C'}</Text>
+                            </View>
+                            <Text style={styles.clientName}>{item.customer_name?.split(' ')[0]}</Text>
+                        </View>
+                        <StatusPill status={item.status} />
+                    </View>
+                </Card>
+            </PressableAnimated>
+        </FadeInView>
     );
-
-    const renderEmpty = () => {
-        if (loading) return <ActivityIndicator size="large" color={colors.gold.primary} style={{ marginTop: spacing.xl * 2 }} />;
-        return (
-            <View style={styles.emptyWrap}>
-                <Text style={styles.emptyIcon}>📉</Text>
-                <Text style={styles.emptyTitle}>No History Found</Text>
-                <Text style={styles.emptySub}>
-                    {filter === 'All'
-                        ? 'You have not completed any jobs yet. Head over to Available Jobs to find work!'
-                        : `You have no ${filter.toLowerCase()} jobs to display.`}
-                </Text>
-            </View>
-        );
-    };
 
     return (
         <View style={styles.screen}>
+            {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.title}>Work History</Text>
+                <View>
+                    <Text style={styles.headerSub}>MISSION TRACKER</Text>
+                    <Text style={styles.headerTitle}>Professional History</Text>
+                </View>
             </View>
 
-            <View style={styles.filterWrap}>
+            {/* Performance Bar */}
+            <FadeInView delay={100} style={styles.statsBar}>
+                <View style={styles.statBox}>
+                    <Text style={styles.statVal}>{stats.count}</Text>
+                    <Text style={styles.statLbl}>COMPLETED</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statBox}>
+                    <Text style={styles.statVal}>₹{stats.revenue}</Text>
+                    <Text style={styles.statLbl}>LIFETIME PAYOUT</Text>
+                </View>
+            </FadeInView>
+
+            <View style={styles.filterSection}>
                 <FlatList
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     data={FILTERS}
                     keyExtractor={item => item}
                     contentContainerStyle={styles.filterList}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity
-                            style={[styles.chip, filter === item && styles.chipActive]}
-                            onPress={() => setFilter(item)}
-                        >
-                            <Text style={[styles.chipText, filter === item && styles.chipTextActive]}>
-                                {item}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
+                    renderItem={({ item }) => {
+                        const active = filter === item;
+                        return (
+                            <TouchableOpacity
+                                style={[styles.filterChip, active && styles.filterChipActive]}
+                                onPress={() => {
+                                    setFilter(item);
+                                    Haptics.selectionAsync();
+                                }}
+                            >
+                                <Text style={[styles.filterTxt, active && styles.filterTxtActive]}>{item.toUpperCase()}</Text>
+                            </TouchableOpacity>
+                        );
+                    }}
                 />
-            </View>
 
-            <View style={styles.sortWrap}>
-                <Text style={styles.sortLabel}>Sort by:</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortList}>
-                    {['Latest', 'Oldest', 'Price: High to Low', 'Price: Low to High'].map(opt => (
-                        <TouchableOpacity
-                            key={opt}
-                            style={[styles.sortChip, sortBy === opt && styles.sortChipActive]}
-                            onPress={() => setSortBy(opt)}
-                        >
-                            <Text style={[styles.sortChipTxt, sortBy === opt && styles.sortChipTxtActive]}>{opt}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
+                <View style={styles.sortSection}>
+                    {['Latest', 'Premium', 'Oldest'].map(opt => {
+                        const active = sortBy === opt;
+                        return (
+                            <TouchableOpacity
+                                key={opt}
+                                style={[styles.sortChip, active && styles.sortChipActive]}
+                                onPress={() => {
+                                    setSortBy(opt);
+                                    Haptics.selectionAsync();
+                                }}
+                            >
+                                <Text style={[styles.sortTxt, active && styles.sortTxtActive]}>{opt}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
             </View>
 
             <FlatList
                 data={filtered}
                 keyExtractor={i => String(i.id)}
-                contentContainerStyle={styles.list}
+                contentContainerStyle={styles.listContent}
                 renderItem={renderItem}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.gold.primary} colors={[colors.gold.primary]} />}
-                ListEmptyComponent={renderEmpty}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colors.accent.primary}
+                    />
+                }
+                ListEmptyComponent={() => {
+                    if (loading) return (
+                        <View style={styles.emptyContainer}>
+                            <ActivityIndicator color={colors.accent.primary} />
+                        </View>
+                    );
+                    return (
+                        <FadeInView delay={200} style={styles.emptyContainer}>
+                            <Text style={styles.emptyIcon}>📂</Text>
+                            <Text style={styles.emptyTitle}>Archive Empty</Text>
+                            <Text style={styles.emptySub}>
+                                {filter === 'All'
+                                    ? 'You have not initiated any missions yet. Success awaits in the marketplace.'
+                                    : `No ${filter.toLowerCase()} entries found in your professional record.`}
+                            </Text>
+                        </FadeInView>
+                    );
+                }}
             />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
-    header: { paddingTop: spacing.xl + 20, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-    title: { color: colors.text.primary, fontSize: 24, fontWeight: '800' },
-
-    // Filters
-    filterWrap: { borderBottomWidth: 1, borderBottomColor: colors.bg.surface, paddingBottom: spacing.sm },
-    filterList: { paddingHorizontal: spacing.lg, gap: spacing.sm, alignItems: 'center' },
-    chip: {
-        paddingHorizontal: spacing.md, paddingVertical: 8,
-        borderRadius: radius.full, backgroundColor: colors.bg.surface,
-        borderWidth: 1, borderColor: colors.bg.surface
+    screen: { flex: 1, backgroundColor: colors.background },
+    header: {
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        paddingBottom: spacing[16]
     },
-    chipActive: { backgroundColor: colors.gold.glow, borderColor: colors.gold.primary },
-    chipText: { color: colors.text.secondary, fontSize: 13, fontWeight: '600' },
-    chipTextActive: { color: colors.gold.primary },
+    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    headerTitle: { color: colors.text.primary, fontSize: 24, fontWeight: '900', letterSpacing: tracking.title },
 
-    sortWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    sortLabel: { color: colors.text.muted, fontSize: 13, fontWeight: '600' },
-    sortList: { gap: spacing.sm, paddingRight: spacing.xl },
-    sortChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full, borderWidth: 1, borderColor: colors.bg.surface, backgroundColor: colors.bg.elevated },
-    sortChipActive: { borderColor: colors.gold.primary, backgroundColor: colors.gold.glow },
-    sortChipTxt: { color: colors.text.secondary, fontSize: 12, fontWeight: '600' },
-    sortChipTxtActive: { color: colors.gold.primary, fontWeight: '700' },
+    statsBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.surface,
+        marginHorizontal: spacing[24],
+        padding: spacing[20],
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: colors.accent.border + '11',
+        marginBottom: spacing[24]
+    },
+    statBox: { flex: 1, alignItems: 'center', gap: 4 },
+    statVal: { color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold },
+    statLbl: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    statDivider: { width: 1, height: 24, backgroundColor: colors.elevated, opacity: 0.5 },
 
-    // List
-    list: { padding: spacing.lg, gap: spacing.md, flexGrow: 1 },
-    historyCard: { padding: spacing.lg, gap: spacing.sm, backgroundColor: colors.bg.elevated },
+    filterSection: { gap: spacing[12], marginBottom: spacing[16] },
+    filterList: { paddingHorizontal: spacing[24], gap: 10 },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: radius.full,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.surface
+    },
+    filterChipActive: { backgroundColor: colors.accent.primary, borderColor: colors.accent.primary },
+    filterTxt: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    filterTxtActive: { color: colors.background },
 
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    catTxt: { color: colors.text.primary, fontSize: 16, fontWeight: '700', textTransform: 'capitalize' },
-    amountTxt: { color: colors.success, fontSize: 16, fontWeight: '800' },
+    sortSection: {
+        flexDirection: 'row',
+        marginHorizontal: spacing[24],
+        backgroundColor: colors.surface,
+        padding: 4,
+        borderRadius: radius.lg,
+        gap: 4
+    },
+    sortChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.md },
+    sortChipActive: { backgroundColor: colors.elevated },
+    sortTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    sortTxtActive: { color: colors.accent.primary },
 
-    addressTxt: { color: colors.text.secondary, fontSize: 14 },
+    listContent: { padding: spacing[24], paddingBottom: 120, gap: spacing[16] },
+    historyCard: { padding: spacing[20], gap: spacing[16], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
 
-    footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.xs },
-    dateTxt: { color: colors.text.muted, fontSize: 12 },
+    cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    catBox: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.md },
+    catTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, textTransform: 'uppercase' },
+    amtTxt: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
 
-    emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: spacing.xl * 3 },
-    emptyIcon: { fontSize: 48, marginBottom: spacing.md },
-    emptyTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '700', marginBottom: spacing.xs },
-    emptySub: { color: colors.text.muted, fontSize: 14, textAlign: 'center', paddingHorizontal: spacing.xl, lineHeight: 22 }
+    cardMid: { gap: 4 },
+    addressTxt: { color: colors.text.secondary, fontSize: 13, fontWeight: fontWeight.medium },
+    dateTxt: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.medium },
+
+    cardBottom: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: colors.elevated
+    },
+    clientInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    clientAvatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
+    avatarTxt: { color: colors.text.muted, fontSize: 10, fontWeight: 'bold' },
+    clientName: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
+
+    emptyContainer: { padding: 40, alignItems: 'center', gap: 12 },
+    emptyIcon: { fontSize: 40, marginBottom: 8 },
+    emptyTitle: { color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold },
+    emptySub: { color: colors.text.muted, fontSize: 13, textAlign: 'center', lineHeight: 20 }
 });

@@ -1,11 +1,12 @@
-/**
- * src/screens/worker/onboarding/OnboardingPayment.jsx
- * Step 3: UPI / Bank tab switch + relevant input fields.
- */
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { colors, spacing, radius } from '../../../design-system/tokens';
-import GoldButton from '../../../components/GoldButton';
+import * as Haptics from 'expo-haptics';
+import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+import PremiumButton from '../../../components/PremiumButton';
+import FadeInView from '../../../components/FadeInView';
+import Card from '../../../components/Card';
+import PressableAnimated from '../../../design-system/components/PressableAnimated';
 
 export default function OnboardingPayment({ data, onNext }) {
     const [method, setMethod] = useState('upi');
@@ -15,10 +16,16 @@ export default function OnboardingPayment({ data, onNext }) {
     const [holderName, setHolderName] = useState(data.holder_name || '');
 
     const isValid = method === 'upi'
-        ? upi.includes('@')
+        ? upi.includes('@') && upi.length > 3
         : accountNo.length >= 8 && ifsc.length === 11 && holderName.length >= 2;
 
+    const handleMethodChange = (m) => {
+        setMethod(m);
+        Haptics.selectionAsync();
+    };
+
     const handleNext = () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         const payload = method === 'upi'
             ? { payment_method: 'upi', upi }
             : { payment_method: 'bank', account_number: accountNo, ifsc, holder_name: holderName };
@@ -26,81 +33,143 @@ export default function OnboardingPayment({ data, onNext }) {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.screen}>
-            <Text style={styles.title}>Payment Setup</Text>
-            <Text style={styles.sub}>How should we pay you for completed jobs?</Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <FadeInView delay={50}>
+                <Text style={styles.headerSub}>STEP 04/05</Text>
+                <Text style={styles.title}>Settlement Link</Text>
+                <Text style={styles.sub}>Establish a secure channel for your professional earnings.</Text>
+            </FadeInView>
 
-            {/* Tab Switch */}
-            <View style={styles.tabs}>
-                {['upi', 'bank'].map(m => (
-                    <TouchableOpacity
-                        key={m}
-                        style={[styles.tab, method === m && styles.tabActive]}
-                        onPress={() => setMethod(m)}
-                    >
-                        <Text style={[styles.tabText, method === m && styles.tabTextActive]}>
-                            {m === 'upi' ? '📱 UPI' : '🏦 Bank Account'}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+            <FadeInView delay={150} style={styles.section}>
+                <Text style={styles.label}>Settlement Mode</Text>
+                <View style={styles.tabContainer}>
+                    {['upi', 'bank'].map(m => {
+                        const active = method === m;
+                        return (
+                            <TouchableOpacity
+                                key={m}
+                                style={[styles.tab, active && styles.tabActive]}
+                                onPress={() => handleMethodChange(m)}
+                            >
+                                <Text style={[styles.tabTxt, active && styles.tabTxtActive]}>
+                                    {m === 'upi' ? 'UPI INTERFACE' : 'BANK TRANSFER'}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </FadeInView>
 
             {method === 'upi' ? (
-                <View style={styles.fieldGroup}>
-                    <Text style={styles.label}>UPI ID</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={upi}
-                        onChangeText={setUpi}
-                        placeholder="yourname@upi"
-                        placeholderTextColor={colors.text.muted}
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                    />
-                </View>
+                <FadeInView delay={250} style={styles.section}>
+                    <Text style={styles.label}>Virtual Payment Address (VPA)</Text>
+                    <Card style={styles.inputCard}>
+                        <TextInput
+                            style={styles.input}
+                            value={upi}
+                            onChangeText={setUpi}
+                            placeholder="username@upi"
+                            placeholderTextColor={colors.text.muted}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                        />
+                    </Card>
+                    <Text style={styles.hintTxt}>Instant settlements via unified payments protocol.</Text>
+                </FadeInView>
             ) : (
-                <>
-                    <View style={styles.fieldGroup}>
-                        <Text style={styles.label}>Account Holder Name</Text>
-                        <TextInput style={styles.input} value={holderName} onChangeText={setHolderName}
-                            placeholder="As on bank records" placeholderTextColor={colors.text.muted} autoCapitalize="words" />
+                <FadeInView delay={250} style={styles.section}>
+                    <Text style={styles.label}>Banking Coordinates</Text>
+                    <View style={styles.bankForm}>
+                        <Card style={styles.inputCard}>
+                            <TextInput
+                                style={styles.input}
+                                value={holderName}
+                                onChangeText={setHolderName}
+                                placeholder="Beneficiary Name"
+                                placeholderTextColor={colors.text.muted}
+                                autoCapitalize="words"
+                            />
+                        </Card>
+                        <Card style={styles.inputCard}>
+                            <TextInput
+                                style={styles.input}
+                                value={accountNo}
+                                onChangeText={setAccountNo}
+                                placeholder="Account Number"
+                                placeholderTextColor={colors.text.muted}
+                                keyboardType="number-pad"
+                            />
+                        </Card>
+                        <Card style={styles.inputCard}>
+                            <TextInput
+                                style={styles.input}
+                                value={ifsc}
+                                onChangeText={t => setIfsc(t.toUpperCase().slice(0, 11))}
+                                placeholder="IFSC Code"
+                                placeholderTextColor={colors.text.muted}
+                                autoCapitalize="characters"
+                            />
+                        </Card>
                     </View>
-                    <View style={styles.fieldGroup}>
-                        <Text style={styles.label}>Account Number</Text>
-                        <TextInput style={styles.input} value={accountNo} onChangeText={setAccountNo}
-                            placeholder="XXXXXXXXXXXXXXXX" placeholderTextColor={colors.text.muted} keyboardType="number-pad" />
-                    </View>
-                    <View style={styles.fieldGroup}>
-                        <Text style={styles.label}>IFSC Code</Text>
-                        <TextInput style={styles.input} value={ifsc}
-                            onChangeText={t => setIfsc(t.toUpperCase().slice(0, 11))}
-                            placeholder="SBIN0001234" placeholderTextColor={colors.text.muted} autoCapitalize="characters" />
-                    </View>
-                </>
+                    <Text style={styles.hintTxt}>Secure NEFT/RTGS settlements for institutional stability.</Text>
+                </FadeInView>
             )}
 
-            <GoldButton title="Continue" disabled={!isValid} onPress={handleNext} style={{ marginTop: spacing.xl }} />
+            <FadeInView delay={450} style={styles.secureBadge}>
+                <Text style={styles.secureTxt}>🔒 END-TO-END ENCRYPTED FINANCIAL LINK</Text>
+            </FadeInView>
+
+            <FadeInView delay={550} style={styles.footer}>
+                <PremiumButton
+                    title="Initialize Settlement"
+                    disabled={!isValid}
+                    onPress={handleNext}
+                />
+            </FadeInView>
         </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2 },
-    title: { color: colors.text.primary, fontSize: 24, fontWeight: '700' },
-    sub: { color: colors.text.secondary, fontSize: 14 },
-    tabs: {
-        flexDirection: 'row', backgroundColor: colors.bg.elevated,
-        borderRadius: radius.lg, padding: 4, gap: 4,
+    scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
+    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
+    sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
+
+    section: { gap: 12 },
+    label: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
+
+    tabContainer: {
+        flexDirection: 'row',
+        backgroundColor: colors.surface,
+        padding: 4,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: colors.surface
     },
-    tab: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.md, alignItems: 'center' },
-    tabActive: { backgroundColor: colors.gold.primary },
-    tabText: { color: colors.text.muted, fontWeight: '600', fontSize: 14 },
-    tabTextActive: { color: colors.text.inverse },
-    fieldGroup: { gap: spacing.xs },
-    label: { color: colors.text.secondary, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
+    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: radius.md },
+    tabActive: { backgroundColor: colors.elevated, ...shadows.premium },
+    tabTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    tabTxtActive: { color: colors.accent.primary },
+
+    inputCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface },
     input: {
-        backgroundColor: colors.bg.elevated, borderRadius: radius.md,
-        paddingHorizontal: spacing.md, paddingVertical: 14,
-        color: colors.text.primary, fontSize: 16, borderWidth: 1, borderColor: colors.bg.surface,
+        paddingHorizontal: 16, paddingVertical: 14,
+        color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.semibold
     },
+
+    bankForm: { gap: 12 },
+    hintTxt: { color: colors.text.muted, fontSize: 10, fontStyle: 'italic', paddingLeft: 4 },
+
+    secureBadge: {
+        alignItems: 'center',
+        paddingVertical: 12,
+        backgroundColor: colors.accent.primary + '08',
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: colors.accent.primary + '11'
+    },
+    secureTxt: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+
+    footer: { marginTop: spacing[16] }
 });

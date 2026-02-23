@@ -1,74 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, BackHandler, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import Card from '../../components/Card';
-import OTPInput from '../../components/OTPInput';
-import GoldButton from '../../components/GoldButton';
+import { WebView } from 'react-native-webview';
+import dayjs from 'dayjs';
+import { useT } from '../../hooks/useT';
 import { useJobStore } from '../../stores/jobStore';
 import apiClient from '../../services/api/client';
-import dayjs from 'dayjs';
 import { parseJobDescription } from '../../utils/jobParser';
+import FadeInView from '../../components/FadeInView';
+import StatusPill from '../../components/StatusPill';
+import OTPInput from '../../components/OTPInput';
+import PremiumButton from '../../components/PremiumButton';
+import Card from '../../components/Card';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+const STAGES = ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
 
 export default function JobStatusDetailScreen({ route, navigation }) {
+    const t = useT();
     const { jobId } = route.params || { jobId: 'mock-123' };
+    const { searchPhase, assignedWorker, clearActiveJob, startListening, stopListening } = useJobStore();
 
-    const { searchPhase, assignedWorker, clearActiveJob } = useJobStore();
+    const [job, setJob] = useState(null);
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [verifyingEndOtp, setVerifyingEndOtp] = useState(false);
 
     const status = searchPhase || 'searching';
-    const worker = assignedWorker;
+    const currentStageIdx = STAGES.indexOf(status) === -1 ? STAGES.length : STAGES.indexOf(status);
 
-    const [startOtp, setStartOtp] = useState(null);
-    const [verifyingEndOtp, setVerifyingEndOtp] = useState(false);
-    const [workStartedAt, setWorkStartedAt] = useState(null);
-    const [elapsedSeconds, setElapsedSeconds] = useState(0);
-    const [scheduledFor, setScheduledFor] = useState(null);
-    const [autoEscalateAt, setAutoEscalateAt] = useState(null);
-    const [job, setJob] = useState(null);
-
-    // ── Auto-navigate on terminal states (Issue #8) ──────────────────────────
     useEffect(() => {
-        if (status === 'completed' || status === 'cancelled' || status === 'no_worker_found') {
-            clearActiveJob();
-        }
-    }, [status, clearActiveJob]);
-
-    // ── Fetch Details (Issue #25, #51, #62) ─────────────────────────────────
-    useEffect(() => {
-        apiClient.get(`/api/jobs/${jobId}`)
-            .then(res => {
-                const jobData = res.data?.job;
-                if (jobData) {
-                    setJob(jobData);
-                    if (jobData.start_otp) setStartOtp(jobData.start_otp);
-                    if (jobData.work_started_at) setWorkStartedAt(jobData.work_started_at);
-                    if (jobData.scheduled_for) setScheduledFor(jobData.scheduled_for);
-                    if (jobData.auto_escalate_at) setAutoEscalateAt(jobData.auto_escalate_at);
-
-                    // Populate worker and status in store if present in API but not store
-                    // This handles navigation from MyJobs list where store might be cold
-                    if (jobData.status) {
-                        useJobStore.setState({ searchPhase: jobData.status });
-                    }
-                    if (jobData.worker) {
-                        useJobStore.setState({ assignedWorker: jobData.worker });
-                    }
-
-                    // Always start listening for real-time updates if job is active
-                    if (!['completed', 'cancelled', 'no_worker_found'].includes(jobData.status)) {
-                        useJobStore.getState().startListening(jobId);
-                    }
-                }
-            })
-            .catch(err => console.error('Failed to fetch job data', err));
+        fetchJobDetails();
+        startListening(jobId);
+        return () => stopListening();
     }, [jobId]);
 
-    // ── Live Timer (Issue #51) ───────────────────────────────────────────────
+    const fetchJobDetails = async () => {
+        try {
+            const res = await apiClient.get(`/api/jobs/${jobId}`);
+            if (res.data?.job) setJob(res.data.job);
+        } catch (err) {
+            console.error('Failed to fetch job details', err);
+        }
+    };
+
+    // Live Timer for In Progress
     useEffect(() => {
         let int;
-        if (status === 'in_progress' && workStartedAt) {
-            const startMs = new Date(workStartedAt).getTime();
+        if (status === 'in_progress' && job?.work_started_at) {
+            const startMs = new Date(job.work_started_at).getTime();
             const updateTimer = () => {
                 setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
             };
@@ -76,7 +57,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
             int = setInterval(updateTimer, 1000);
         }
         return () => clearInterval(int);
-    }, [status, workStartedAt]);
+    }, [status, job]);
 
     const formatTime = (seconds) => {
         const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -85,381 +66,318 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         return h === '00' ? `${m}:${s}` : `${h}:${m}:${s}`;
     };
 
-    // ── Back button guard during active job (Issue #7) ───────────────────────
     useFocusEffect(
         useCallback(() => {
-            const activeStatuses = ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
             const onBackPress = () => {
-                if (activeStatuses.includes(status)) {
-                    Alert.alert(
-                        'Active Job',
-                        'You cannot go back to the booking steps while a job is active. Do you want to go to the Home screen?',
-                        [
-                            { text: 'Stay Here', style: 'cancel' },
-                            { text: 'Go Home', onPress: () => navigation.replace('CustomerTabs') }
-                        ]
-                    );
-                    return true; // block back
+                if (currentStageIdx < STAGES.length && !['completed', 'cancelled'].includes(status)) {
+                    Alert.alert('Active Request', 'This request is currently active. Go to Home instead?', [
+                        { text: 'Stay', style: 'cancel' },
+                        { text: 'Go Home', onPress: () => navigation.replace('CustomerTabs') }
+                    ]);
+                    return true;
                 }
-                return false; // allow back for non-active states
+                return false;
             };
-            const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-            return () => subscription.remove();
-        }, [status, navigation])
+            const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => sub.remove();
+        }, [status, currentStageIdx])
     );
 
-    // Timeline logic
-    const STAGES = ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
-    const currentIdx = STAGES.indexOf(status) === -1 ? STAGES.length : STAGES.indexOf(status);
+    const generateMapHTML = (workerLat, workerLng, jobLat, jobLng) => `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+            <style>
+                body { padding: 0; margin: 0; background: #0A0A0B; }
+                #map { height: 100vh; width: 100vw; }
+                .leaflet-bar { border: none !important; }
+                .leaflet-control-attribution { display: none; }
+            </style>
+        </head>
+        <body>
+            <div id="map"></div>
+            <script>
+                var map = L.map('map', { zoomControl: false }).setView([${jobLat}, ${jobLng}], 14);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png', {
+                    attribution: ''
+                }).addTo(map);
 
-    const renderTick = (label, index) => {
-        const isPast = index < currentIdx;
-        const isCurrent = index === currentIdx;
+                var jobIcon = L.divIcon({
+                    className: 'job-icon',
+                    html: '<div style="background: #BD00FF; width: 12px; height: 12px; border-radius: 6px; border: 2px solid white; box-shadow: 0 0 10px #BD00FF;"></div>',
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6]
+                });
+                
+                L.marker([${jobLat}, ${jobLng}], { icon: jobIcon }).addTo(map);
 
-        let dotColor = colors.bg.surface;
-        if (isPast) dotColor = colors.success;
-        if (isCurrent) dotColor = colors.gold.primary;
-
-        return (
-            <View key={label} style={styles.tickRow}>
-                <View style={styles.tickCol}>
-                    <View style={[styles.dot, { backgroundColor: dotColor }]} />
-                    {index < STAGES.length - 1 && (
-                        <View style={[styles.line, { backgroundColor: isPast ? colors.success : colors.bg.surface }]} />
-                    )}
-                </View>
-                <Text style={[
-                    styles.tickLabel,
-                    isPast && styles.tickLabelPast,
-                    isCurrent && styles.tickLabelCurrent
-                ]}>
-                    {label.replace(/_/g, ' ').toUpperCase()}
-                </Text>
-            </View>
-        );
-    };
+                if (${!!workerLat} && ${!!workerLng}) {
+                    var workerIcon = L.divIcon({
+                        className: 'worker-icon',
+                        html: '<div style="background: #00E0FF; width: 16px; height: 16px; border-radius: 8px; border: 2px solid white; box-shadow: 0 0 15px #00E0FF;"></div>',
+                        iconSize: [16, 16],
+                        iconAnchor: [8, 8]
+                    });
+                    L.marker([${workerLat}, ${workerLng}], { icon: workerIcon }).addTo(map);
+                    
+                    var bounds = L.latLngBounds([${workerLat}, ${workerLng}], [${jobLat}, ${jobLng}]);
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
+            </script>
+        </body>
+        </html>
+    `;
 
     return (
         <View style={styles.screen}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => {
-                    const activeStatuses = ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
-                    if (activeStatuses.includes(status)) {
-                        navigation.replace('CustomerTabs');
-                    } else {
-                        navigation.goBack();
-                    }
-                }}>
-                    <Text style={styles.backTxt}>←</Text>
-                </TouchableOpacity>
-                <View style={{ alignItems: 'center' }}>
-                    <Text style={styles.title}>Job #{String(jobId).substring(0, 6).toUpperCase()}</Text>
-                    {scheduledFor && <Text style={styles.scheduleBadge}>Scheduled: {new Date(scheduledFor).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>}
-                </View>
-                <View style={{ width: 60, alignItems: 'center' }}>
-                    {['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(status) && (
-                        <TouchableOpacity
-                            style={styles.editBtnHeader}
-                            onPress={() => navigation.navigate('EditJob', { jobId })}
-                        >
-                            <Text style={styles.editTxtHeader}>Edit</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
+                <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                    <Text style={styles.headerBtnTxt}>←</Text>
+                </PressableAnimated>
+                <Text style={styles.headerTitle}>Status</Text>
+                <View style={{ width: 44 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                {/* Map Section */}
+                {['assigned', 'worker_en_route', 'worker_arrived'].includes(status) && (
+                    <View style={styles.mapContainer}>
+                        <WebView
+                            source={{ html: generateMapHTML(assignedWorker?.lat, assignedWorker?.lng, job?.lat, job?.lng) }}
+                            style={styles.map}
+                            scrollEnabled={false}
+                        />
+                        <View style={styles.mapOverlay}>
+                            <StatusPill status={status} />
+                        </View>
+                    </View>
+                )}
 
-                {/* Timeline */}
-                <Card style={styles.timelineCard}>
-                    {STAGES.map((s, i) => renderTick(s, i))}
+                {/* Main Status Card */}
+                <Card style={[styles.mainCard, status === 'completed' && styles.completedCard]}>
+                    <View style={styles.statusRow}>
+                        <View style={styles.statusInfo}>
+                            <Text style={styles.statusLabel}>CURRENT STATUS</Text>
+                            <Text style={styles.statusTitle}>
+                                {status === 'searching' && "Finding your professional..."}
+                                {status === 'assigned' && "Professional matched!"}
+                                {status === 'worker_en_route' && "En route to your location"}
+                                {status === 'worker_arrived' && "At your doorstep"}
+                                {status === 'in_progress' && "Service in progress"}
+                                {status === 'pending_completion' && "Reviewing completion"}
+                                {status === 'completed' && "Service complete"}
+                            </Text>
+                        </View>
+                        {status === 'in_progress' && (
+                            <View style={styles.timerCircle}>
+                                <Text style={styles.timerTxt}>{formatTime(elapsedSeconds)}</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Stage Indicators */}
+                    <View style={styles.stagesRow}>
+                        {STAGES.map((s, i) => (
+                            <View key={s} style={styles.stageCol}>
+                                <View style={[
+                                    styles.stageDot,
+                                    i <= currentStageIdx && styles.stageDotActive,
+                                    i === currentStageIdx && styles.stageDotCurrent
+                                ]} />
+                                {i < STAGES.length - 1 && (
+                                    <View style={[
+                                        styles.stageLine,
+                                        i < currentStageIdx && styles.stageLineActive
+                                    ]} />
+                                )}
+                            </View>
+                        ))}
+                    </View>
                 </Card>
 
-                {/* Worker Info Card */}
-                {currentIdx >= 1 && status !== 'no_worker_found' && worker && (
-                    <TouchableOpacity
-                        activeOpacity={0.9}
-                        onPress={() => navigation.navigate('WorkerReputation', {
-                            workerId: worker.user_id || worker.id,
-                            workerName: worker.name
-                        })}
-                    >
-                        <Card style={styles.workerCard}>
-                            <Image source={{ uri: worker.photo }} style={styles.wPhoto} />
-                            <View style={styles.wInfo}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                    <Text style={styles.wName}>{worker.name || 'Professional'}</Text>
-                                    {worker.is_verified && <Text style={styles.verifiedBadge}>✓</Text>}
-                                </View>
-                                <View style={styles.wMetaRow}>
-                                    {parseFloat(worker.rating) > 0 ? (
-                                        <Text style={styles.wMeta}>⭐ {parseFloat(worker.rating).toFixed(1)}</Text>
-                                    ) : (
-                                        <View style={styles.newWorkerBadgeMini}>
-                                            <Text style={styles.newWorkerTxtMini}>New Worker</Text>
-                                        </View>
-                                    )}
-                                    <Text style={styles.wMetaDot}>•</Text>
-                                    <Text style={styles.wMeta}>
-                                        {worker.category ? worker.category.charAt(0).toUpperCase() + worker.category.slice(1).replace(/_/g, ' ') : 'Expert'}
-                                    </Text>
-                                </View>
-                                <Text style={styles.viewReputation}>View Past Reviews ›</Text>
-                            </View>
-                            <TouchableOpacity style={styles.callBtn}>
-                                <Text style={styles.callIcon}>📞</Text>
-                            </TouchableOpacity>
-                        </Card>
-                    </TouchableOpacity>
-                )}
-
-                {/* Post-Job Rating Action (Customer -> Worker) */}
-                {status === 'completed' && worker && (
-                    <Card glow style={styles.actionCard}>
-                        <Text style={styles.actionTitle}>
-                            {job?.is_reviewed ? 'Feedback Submitted' : 'Rate Your Experience'}
-                        </Text>
-                        <Text style={styles.actionSub}>
-                            {job?.is_reviewed
-                                ? 'Thank you for rating this service.'
-                                : `How was your experience with ${worker.name}?`}
-                        </Text>
-                        <View style={{ marginTop: spacing.md, width: '100%' }}>
-                            <GoldButton
-                                title={job?.is_reviewed ? "View My Review" : "Rate Worker"}
-                                onPress={() => navigation.navigate('Rating', { jobId })}
-                            />
-                        </View>
-                    </Card>
-                )}
-
-                {/* Dynamic Action Area based on Status */}
+                {/* Action Area */}
                 {status === 'worker_arrived' && (
-                    <Card glow style={styles.actionCard}>
-                        <Text style={styles.actionTitle}>Share Start Code</Text>
-                        <Text style={styles.actionSub}>Give this 4-digit code to {worker?.name || 'the worker'} to begin the work timer.</Text>
-                        {startOtp ? (
-                            <View style={[styles.readOnlyOtpWrap, { marginTop: spacing.md }]}>
-                                <Text style={styles.readOnlyOtpTxt}>{startOtp}</Text>
+                    <FadeInView delay={200}>
+                        <Card glow style={styles.actionCard}>
+                            <Text style={styles.actionTitle}>Share Start Code</Text>
+                            <Text style={styles.actionSub}>Provide this code to the professional to begin the service.</Text>
+                            <View style={styles.otpDisplay}>
+                                <Text style={styles.otpTxt}>{job?.start_otp || '----'}</Text>
                             </View>
-                        ) : (
-                            <Text style={styles.placeholderNote}>⏳ Loading start code from server...</Text>
-                        )}
-                    </Card>
+                        </Card>
+                    </FadeInView>
                 )}
 
                 {status === 'pending_completion' && (
-                    <Card glow style={styles.actionCard}>
-                        <Text style={styles.actionTitle}>Verify Completion</Text>
-                        <Text style={styles.actionSub}>Ask {worker?.name || 'the worker'} for the End OTP to confirm the work is done and stop the timer.</Text>
-                        <View style={{ marginTop: spacing.md }}>
-                            <OTPInput
-                                disabled={verifyingEndOtp}
-                                onComplete={async (code) => {
-                                    setVerifyingEndOtp(true);
-                                    try {
-                                        await apiClient.post(`/api/jobs/${jobId}/verify-end-otp`, { otp: code });
-                                        navigation.replace('Payment', { jobId });
-                                    } catch (err) {
-                                        Alert.alert('Invalid OTP', err.response?.data?.message || 'Verification failed. Try again.');
-                                    } finally {
-                                        setVerifyingEndOtp(false);
-                                    }
-                                }}
-                            />
-                        </View>
-                    </Card>
-                )}
-
-                {status === 'disputed' && (
-                    <Card glow style={[styles.actionCard, { borderColor: colors.error }]}>
-                        <Text style={[styles.actionTitle, { color: colors.error }]}>⚠️ Dispute Review</Text>
-                        <Text style={styles.actionSub}>This job is locked pending an admin review.</Text>
-                        {autoEscalateAt && (
-                            <Text style={styles.actionSub}>Auto-escalation will occur at: {new Date(autoEscalateAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>
-                        )}
-                        <Text style={styles.placeholderNote}>Our team will contact you shortly.</Text>
-                    </Card>
-                )}
-
-                {status === 'in_progress' && (
-                    <View style={styles.inProgressWrap}>
-                        <Card glow style={styles.ipCard}>
-                            <Text style={styles.ipTitle}>Work in Progress</Text>
-                            <Text style={styles.ipTimer}>⏱ {workStartedAt ? formatTime(elapsedSeconds) : 'Starting...'}</Text>
-                            <Text style={styles.ipSub}>Timer is currently running</Text>
+                    <FadeInView delay={200}>
+                        <Card glow style={styles.actionCard}>
+                            <Text style={styles.actionTitle}>Verify Completion</Text>
+                            <Text style={styles.actionSub}>Enter the code provided by the professional to finalize.</Text>
+                            <View style={styles.otpInputWrap}>
+                                <OTPInput
+                                    disabled={verifyingEndOtp}
+                                    onComplete={async (code) => {
+                                        setVerifyingEndOtp(true);
+                                        try {
+                                            await apiClient.post(`/api/jobs/${jobId}/verify-end-otp`, { otp: code });
+                                            navigation.replace('Payment', { jobId });
+                                        } catch (err) {
+                                            Alert.alert('Error', 'Invalid code. Please try again.');
+                                        } finally {
+                                            setVerifyingEndOtp(false);
+                                        }
+                                    }}
+                                />
+                            </View>
                         </Card>
-                        <TouchableOpacity style={styles.reportBtn}>
-                            <Text style={styles.reportTxt}>⚠️ Report Issue</Text>
-                        </TouchableOpacity>
-                    </View>
+                    </FadeInView>
                 )}
 
-                {status === 'completed' && (
-                    <TouchableOpacity style={styles.reportBtn}>
-                        <Text style={styles.reportTxt}>⚠️ Report Issue</Text>
-                    </TouchableOpacity>
+                {/* Worker Details */}
+                {assignedWorker && (
+                    <FadeInView delay={300}>
+                        <PressableAnimated
+                            onPress={() => navigation.navigate('WorkerReputation', { workerId: assignedWorker.id })}
+                            style={styles.workerRow}
+                        >
+                            <Image source={{ uri: assignedWorker.photo }} style={styles.workerPhoto} />
+                            <View style={styles.workerInfo}>
+                                <Text style={styles.workerName}>{assignedWorker.name}</Text>
+                                <View style={styles.workerMeta}>
+                                    <Text style={styles.workerRating}>⭐ {assignedWorker.rating || 'New'}</Text>
+                                    <View style={styles.metaDivider} />
+                                    <Text style={styles.workerJobs}>{assignedWorker.completed_jobs || 0} jobs</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity style={styles.callIconBtn}>
+                                <Text style={styles.callIcon}>📞</Text>
+                            </TouchableOpacity>
+                        </PressableAnimated>
+                    </FadeInView>
                 )}
 
-                {/* Job Details Section */}
+                {/* Job Info Section */}
                 {job && (
-                    <View style={styles.detailsContainer}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>JOB SPECIFICATIONS</Text>
-                        </View>
-
-                        {(() => {
-                            const { structured, photos, text } = parseJobDescription(job.description || job.desc);
-                            return (
-                                <>
-                                    {structured.length > 0 ? (
-                                        <Card style={styles.detailsCard}>
-                                            {structured.map((item, idx) => (
-                                                <View key={idx} style={[styles.qAndA, idx === structured.length - 1 && { borderBottomWidth: 0 }]}>
-                                                    <Text style={styles.qText}>{item.label}</Text>
-                                                    <Text style={styles.aText}>{item.value}</Text>
-                                                </View>
-                                            ))}
-                                        </Card>
-                                    ) : (
-                                        <Card style={styles.detailsCard}>
-                                            <Text style={styles.descText}>{text || 'No additional details provided.'}</Text>
-                                        </Card>
-                                    )}
-
-                                    {photos.length > 0 && (
-                                        <View style={{ marginTop: spacing.md }}>
-                                            <Text style={styles.sectionTitleSmall}>PHOTOS ({photos.length})</Text>
-                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoList}>
-                                                {photos.map((uri, idx) => (
-                                                    <Image
-                                                        key={idx}
-                                                        source={{ uri }}
-                                                        style={styles.detailPhoto}
-                                                        resizeMode="cover"
-                                                    />
-                                                ))}
-                                            </ScrollView>
-                                        </View>
-                                    )}
-                                </>
-                            );
-                        })()}
-                    </View>
+                    <FadeInView delay={400} style={styles.detailsSection}>
+                        <Text style={styles.sectionHeader}>REQUEST DETAILS</Text>
+                        <Card style={styles.detailsCard}>
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>SERVICE</Text>
+                                <Text style={styles.detailValue}>{t(`cat_${job.category}`) || job.category}</Text>
+                            </View>
+                            <View style={styles.detailRow}>
+                                <Text style={styles.detailLabel}>LOCATION</Text>
+                                <Text style={styles.detailValue} numberOfLines={2}>{job.address}</Text>
+                            </View>
+                            {job.scheduled_for && (
+                                <View style={styles.detailRow}>
+                                    <Text style={styles.detailLabel}>SCHEDULED</Text>
+                                    <Text style={styles.detailValue}>{dayjs(job.scheduled_for).format('MMM D, h:mm A')}</Text>
+                                </View>
+                            )}
+                        </Card>
+                    </FadeInView>
                 )}
+
+                {/* Footer Actions */}
+                <View style={styles.footerActions}>
+                    {['searching', 'assigned', 'worker_en_route'].includes(status) && (
+                        <PremiumButton
+                            variant="secondary"
+                            title="Cancel Request"
+                            onPress={() => {
+                                Alert.alert('Cancel Request', 'Are you sure?', [
+                                    { text: 'No', style: 'cancel' },
+                                    {
+                                        text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
+                                            try {
+                                                await apiClient.post(`/api/jobs/${jobId}/cancel`);
+                                                navigation.replace('CustomerTabs');
+                                            } catch (e) { }
+                                        }
+                                    }
+                                ]);
+                            }}
+                        />
+                    )}
+                    {status === 'completed' && (
+                        <PremiumButton
+                            title="Leave a Review"
+                            onPress={() => navigation.navigate('Rating', { jobId })}
+                        />
+                    )}
+                </View>
             </ScrollView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: colors.background },
     header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingTop: spacing.xl + 20, paddingHorizontal: spacing.sm, paddingBottom: spacing.lg,
-        borderBottomWidth: 1, borderBottomColor: colors.bg.surface
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: spacing[16]
     },
-    backBtn: { padding: spacing.sm },
-    backTxt: { color: colors.text.primary, fontSize: 24 },
-    title: { color: colors.text.primary, fontSize: 18, fontWeight: '700', letterSpacing: 1 },
-    editBtnHeader: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.bg.surface, borderWidth: 1, borderColor: colors.gold.primary + '44' },
-    editTxtHeader: { color: colors.gold.primary, fontSize: 12, fontWeight: '700' },
-    emergencyBadge: { backgroundColor: colors.error + '33', color: colors.error, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, fontSize: 10, fontWeight: '800', overflow: 'hidden', marginTop: 4 },
-    scheduleBadge: { backgroundColor: colors.gold.primary + '33', color: colors.gold.primary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, fontSize: 10, fontWeight: '700', overflow: 'hidden', marginTop: 4 },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
+    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
 
-    detailsContainer: { marginTop: spacing.lg, paddingBottom: spacing.xl },
-    sectionHeader: { marginBottom: spacing.sm },
-    sectionTitle: { color: colors.text.muted, fontSize: 12, fontWeight: '700', letterSpacing: 1.2 },
-    sectionTitleSmall: { color: colors.text.muted, fontSize: 11, fontWeight: '600', marginBottom: spacing.xs, paddingHorizontal: 4 },
-    detailsCard: { padding: spacing.md, backgroundColor: colors.bg.surface },
-    qAndA: { paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.bg.primary + '22' },
-    qText: { color: colors.text.muted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 },
-    aText: { color: colors.text.primary, fontSize: 15, fontWeight: '500' },
-    descText: { color: colors.text.secondary, fontSize: 15, fontStyle: 'italic', lineHeight: 22 },
-    photoList: { gap: spacing.sm, marginTop: spacing.xs },
-    detailPhoto: { width: 140, height: 140, borderRadius: radius.md, backgroundColor: colors.bg.surface },
+    scrollContent: { paddingBottom: 100 },
 
-    content: { padding: spacing.lg, gap: spacing.lg },
+    mapContainer: { height: 260, position: 'relative', overflow: 'hidden' },
+    map: { flex: 1 },
+    mapOverlay: { position: 'absolute', top: 20, right: 20 },
 
-    timelineCard: { padding: spacing.xl },
-    tickRow: { flexDirection: 'row', gap: spacing.md, minHeight: 40 },
-    tickCol: { alignItems: 'center', width: 20 },
-    dot: { width: 12, height: 12, borderRadius: 6, zIndex: 2 },
-    line: { width: 2, flex: 1, marginVertical: -4, zIndex: 1 },
-    tickLabel: { color: colors.text.muted, fontSize: 14, fontWeight: '500', marginTop: -2 },
-    tickLabelPast: { color: colors.text.primary },
-    tickLabelCurrent: { color: colors.gold.primary, fontWeight: '700' },
+    mainCard: { margin: spacing[24], padding: spacing[24], gap: spacing[24] },
+    completedCard: { borderColor: colors.accent.primary + '44', borderWidth: 1 },
+    statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    statusInfo: { flex: 1 },
+    statusLabel: { color: colors.accent.primary, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    statusTitle: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold, marginTop: 4, letterSpacing: tracking.title },
 
-    workerCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
-    wPhoto: { width: 50, height: 50, borderRadius: 25 },
-    wInfo: { flex: 1 },
-    wName: { color: colors.text.primary, fontSize: 18, fontWeight: '700' },
-    verifiedBadge: {
-        backgroundColor: colors.success,
-        color: colors.bg.primary,
-        fontSize: 10,
-        fontWeight: '900',
-        width: 14,
-        height: 14,
-        borderRadius: 7,
-        textAlign: 'center',
-        lineHeight: 14,
-        overflow: 'hidden'
-    },
-    wMeta: { color: colors.text.secondary, fontSize: 13 },
-    wMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-    wMetaDot: { color: colors.text.muted, fontSize: 13 },
-    newWorkerBadgeMini: {
-        backgroundColor: colors.gold.primary + '22',
-        paddingHorizontal: 6,
-        paddingVertical: 1,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: colors.gold.primary + '33',
-    },
-    newWorkerTxtMini: {
-        color: colors.gold.primary,
-        fontSize: 9,
-        fontWeight: '800',
-        textTransform: 'uppercase',
-    },
-    viewReputation: { color: colors.gold.primary, fontSize: 12, fontWeight: '600', marginTop: 4, textDecorationLine: 'underline' },
-    callBtn: {
-        width: 44, height: 44, borderRadius: 22,
-        backgroundColor: colors.bg.surface, justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: colors.gold.primary + '44'
-    },
-    callIcon: { fontSize: 20 },
+    timerCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: colors.elevated, borderWidth: 2, borderColor: colors.accent.primary, justifyContent: 'center', alignItems: 'center' },
+    timerTxt: { color: colors.text.primary, fontSize: 14, fontWeight: fontWeight.bold },
 
-    readOnlyOtpWrap: {
-        backgroundColor: colors.bg.surface,
-        paddingVertical: spacing.xl,
-        paddingHorizontal: spacing.xxl || spacing.xl,
-        borderRadius: radius.lg,
-        borderWidth: 1,
-        borderColor: colors.gold.primary + '44',
-        width: '100%',
-        alignItems: 'center'
-    },
-    readOnlyOtpTxt: {
-        color: '#FFFFFF', // High contrast white
-        fontSize: 52,     // Increased size
-        fontWeight: '900', // Maximum weight
-        letterSpacing: 10,
-        fontFamily: 'Courier',
-    },
+    stagesRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing[8] },
+    stageCol: { flex: 1, alignItems: 'center', position: 'relative' },
+    stageDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.elevated },
+    stageDotActive: { backgroundColor: colors.accent.primary },
+    stageDotCurrent: { shadowColor: colors.accent.primary, shadowRadius: 6, shadowOpacity: 0.8, backgroundColor: '#FFF' },
+    stageLine: { position: 'absolute', left: '50%', top: 3.5, width: '100%', height: 1, backgroundColor: colors.elevated, zIndex: -1 },
+    stageLineActive: { backgroundColor: colors.accent.primary },
 
-    actionCard: { padding: spacing.xl, borderColor: colors.gold.primary, borderWidth: 1, alignItems: 'center' },
-    actionTitle: { color: colors.gold.primary, fontSize: 20, fontWeight: '800' },
-    actionSub: { color: colors.text.secondary, fontSize: 13, textAlign: 'center', marginTop: spacing.sm },
-    placeholderNote: { color: colors.text.muted, fontSize: 13, marginTop: spacing.md, fontStyle: 'italic' },
+    actionCard: { marginHorizontal: spacing[24], marginBottom: spacing[24], padding: spacing[24], alignItems: 'center', gap: spacing[16] },
+    actionTitle: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold },
+    actionSub: { color: colors.text.secondary, fontSize: fontSize.caption, textAlign: 'center' },
+    otpDisplay: { paddingVertical: spacing[16], paddingHorizontal: spacing[32], borderRadius: radius.lg, backgroundColor: colors.elevated },
+    otpTxt: { color: colors.accent.primary, fontSize: 32, fontWeight: '900', letterSpacing: 8 },
+    otpInputWrap: { marginTop: spacing[16] },
 
-    inProgressWrap: { gap: spacing.md },
-    ipCard: { padding: spacing.xl, alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderColor: colors.bg.surface },
-    ipTitle: { color: colors.text.primary, fontSize: 18, fontWeight: '700' },
-    ipTimer: { color: colors.gold.primary, fontSize: 28, fontWeight: '800' },
-    ipSub: { color: colors.text.muted, fontSize: 13 },
-    reportBtn: { alignSelf: 'center', padding: spacing.md },
-    reportTxt: { color: colors.error, fontWeight: '600' }
+    workerRow: { marginHorizontal: spacing[24], padding: spacing[16], backgroundColor: colors.surface, borderRadius: radius.xl, flexDirection: 'row', alignItems: 'center', gap: spacing[16], ...shadows.premium },
+    workerPhoto: { width: 50, height: 50, borderRadius: 25 },
+    workerInfo: { flex: 1 },
+    workerName: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    workerMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+    workerRating: { color: colors.accent.primary, fontSize: fontSize.micro, fontWeight: fontWeight.bold },
+    metaDivider: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.text.muted },
+    workerJobs: { color: colors.text.secondary, fontSize: fontSize.micro },
+    callIconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
+    callIcon: { fontSize: 16 },
+
+    detailsSection: { marginTop: spacing[32], paddingHorizontal: spacing[24] },
+    sectionHeader: { color: colors.text.muted, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5, marginBottom: spacing[12] },
+    detailsCard: { padding: spacing[16], gap: spacing[16] },
+    detailRow: { gap: 4 },
+    detailLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    detailValue: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
+
+    footerActions: { padding: spacing[24], gap: spacing[16] }
 });

@@ -1,22 +1,27 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Switch } from 'react-native';
-import * as Location from 'expo-location';
-import apiClient from '../../services/api/client';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import GoldButton from '../../components/GoldButton';
-import LocationInput from '../../components/LocationInput';
-import { useJobStore } from '../../stores/jobStore';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useT } from '../../hooks/useT';
+import apiClient from '../../services/api/client';
+import { colors, spacing, radius, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+import { useJobStore } from '../../stores/jobStore';
+import LocationInput from '../../components/LocationInput';
+import PremiumButton from '../../components/PremiumButton';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import FadeInView from '../../components/FadeInView';
+import Card from '../../components/Card';
 
 dayjs.extend(customParseFormat);
 
 export default function LocationScheduleScreen({ route, navigation }) {
+    const t = useT();
     const { category, label, answers, structuredAnswers, basePrice } = route.params || {};
 
     const [customerLocation, setCustomerLocation] = useState({});
-
     const [scheduleType, setScheduleType] = useState('now'); // 'now' or 'later'
     const [scheduledDate, setScheduledDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
@@ -33,6 +38,8 @@ export default function LocationScheduleScreen({ route, navigation }) {
         }
 
         setLoading(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
         try {
             const payload = {
                 category,
@@ -54,29 +61,28 @@ export default function LocationScheduleScreen({ route, navigation }) {
                 scheduled_for: scheduleType === 'now' ? null : dayjs(scheduledDate).format('YYYY-MM-DD HH:mm:ss'),
                 is_emergency: isEmergency ? 1 : 0
             };
+
             const idempotencyKey = `job-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
             const res = await apiClient.post('/api/jobs', payload, {
                 headers: { 'X-Idempotency-Key': idempotencyKey }
             });
             const newJobId = res.data?.job?.id || `job-${Date.now()}`;
 
-            // Register active job in store to survive screen unmounts
             const store = useJobStore.getState();
             store.setActiveJob({ id: newJobId, category });
             store.setSearchPhase('searching');
             store.setCanMinimize(false);
+
             try {
                 store.startListening(newJobId);
             } catch (fbErr) {
-                // Firebase listener failed — job exists in DB, we still navigate.
-                // The user will see the Searching screen; Firebase may reconnect.
-                console.error('[LocationSchedule] Firebase listener failed — continuing anyway:', fbErr);
+                console.error('[LocationSchedule] Firebase listener failed:', fbErr);
             }
 
             navigation.replace('Searching', { category, jobId: newJobId });
         } catch (e) {
             console.error('Job dispatch error', e);
-            Alert.alert('Error', 'Failed to dispatch job.');
+            Alert.alert('Error', 'Failed to dispatch request. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -86,156 +92,190 @@ export default function LocationScheduleScreen({ route, navigation }) {
 
     return (
         <View style={styles.screen}>
+            {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                    <Text style={styles.backTxt}>←</Text>
-                </TouchableOpacity>
-                <Text style={styles.title}>Location & Schedule</Text>
-                <View style={{ width: 40 }} />
+                <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                    <Text style={styles.headerBtnTxt}>←</Text>
+                </PressableAnimated>
+                <Text style={styles.headerTitle}>Location & Time</Text>
+                <View style={{ width: 44 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-                {/* Location Section */}
+                <FadeInView delay={50}>
+                    <Text style={styles.introTitle}>Where & when?</Text>
+                    <Text style={styles.introSub}>Set your location and choose a convenient time for the service.</Text>
+                </FadeInView>
+
+                {/* Location Input Component */}
                 <LocationInput onChange={setCustomerLocation} />
 
                 {/* Schedule Section */}
-                <Text style={styles.sectionTitle}>When do you need the service?</Text>
-                <View style={styles.tabRow}>
-                    <TouchableOpacity
-                        style={[styles.tab, scheduleType === 'now' && styles.tabActive]}
-                        onPress={() => setScheduleType('now')}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={[styles.tabTxt, scheduleType === 'now' && styles.tabTxtActive]}>ASAP (Now)</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.tab, scheduleType === 'later' && styles.tabActive]}
-                        onPress={() => setScheduleType('later')}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={[styles.tabTxt, scheduleType === 'later' && styles.tabTxtActive]}>Schedule Later</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {scheduleType === 'later' && (
-                    <Card style={styles.card}>
-                        <View style={styles.row}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.label}>Date</Text>
-                                <TouchableOpacity style={styles.dateInput} onPress={() => setShowDatePicker(true)}>
-                                    <Text style={{ color: colors.text.primary }}>{dayjs(scheduledDate).format('DD/MM/YYYY')}</Text>
-                                </TouchableOpacity>
-                            </View>
-                            <View style={{ width: spacing.md }} />
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.label}>Time</Text>
-                                <TouchableOpacity style={styles.dateInput} onPress={() => setShowTimePicker(true)}>
-                                    <Text style={{ color: colors.text.primary }}>{dayjs(scheduledDate).format('hh:mm A')}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                        {showDatePicker && (
-                            <DateTimePicker
-                                value={scheduledDate}
-                                mode="date"
-                                display="default"
-                                onChange={(event, date) => {
-                                    setShowDatePicker(false);
-                                    if (date) setScheduledDate(date);
-                                }}
-                            />
-                        )}
-                        {showTimePicker && (
-                            <DateTimePicker
-                                value={scheduledDate}
-                                mode="time"
-                                display="default"
-                                onChange={(event, date) => {
-                                    setShowTimePicker(false);
-                                    if (date) setScheduledDate(date);
-                                }}
-                            />
-                        )}
-                    </Card>
-                )}
-
-                <Card style={[styles.card, { marginTop: spacing.lg }]}>
-                    <View style={[styles.row, { alignItems: 'center', justifyContent: 'space-between' }]}>
-                        <View style={{ flex: 1, paddingRight: spacing.md }}>
-                            <Text style={styles.sectionTitle}>Emergency Service</Text>
-                            <Text style={{ color: colors.text.muted, fontSize: 13, marginTop: 4 }}>Need this handled immediately? Surcharges may apply.</Text>
-                        </View>
-                        <Switch
-                            value={isEmergency}
-                            onValueChange={setIsEmergency}
-                            trackColor={{ false: colors.bg.surface, true: colors.gold.primary }}
-                        />
+                <FadeInView delay={300} style={styles.section}>
+                    <Text style={styles.sectionHeader}>SCHEDULE</Text>
+                    <View style={styles.tabRow}>
+                        <PressableAnimated
+                            style={[styles.tab, scheduleType === 'now' && styles.tabActive]}
+                            onPress={() => {
+                                setScheduleType('now');
+                                Haptics.selectionAsync();
+                            }}
+                        >
+                            <Text style={[styles.tabTxt, scheduleType === 'now' && styles.tabTxtActive]}>ASAP (Now)</Text>
+                        </PressableAnimated>
+                        <PressableAnimated
+                            style={[styles.tab, scheduleType === 'later' && styles.tabActive]}
+                            onPress={() => {
+                                setScheduleType('later');
+                                Haptics.selectionAsync();
+                            }}
+                        >
+                            <Text style={[styles.tabTxt, scheduleType === 'later' && styles.tabTxtActive]}>Schedule Later</Text>
+                        </PressableAnimated>
                     </View>
-                </Card>
+
+                    {scheduleType === 'later' && (
+                        <FadeInView delay={100}>
+                            <Card style={styles.pickerCard}>
+                                <View style={styles.pickerRow}>
+                                    <TouchableOpacity
+                                        style={styles.pickerBtn}
+                                        onPress={() => setShowDatePicker(true)}
+                                    >
+                                        <Text style={styles.pickerLabel}>DATE</Text>
+                                        <Text style={styles.pickerValue}>{dayjs(scheduledDate).format('MMM D, YYYY')}</Text>
+                                    </TouchableOpacity>
+                                    <View style={styles.pickerDivider} />
+                                    <TouchableOpacity
+                                        style={styles.pickerBtn}
+                                        onPress={() => setShowTimePicker(true)}
+                                    >
+                                        <Text style={styles.pickerLabel}>TIME</Text>
+                                        <Text style={styles.pickerValue}>{dayjs(scheduledDate).format('hh:mm A')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </Card>
+                        </FadeInView>
+                    )}
+                </FadeInView>
+
+                {/* Emergency Section */}
+                <FadeInView delay={400} style={styles.section}>
+                    <Card style={[styles.emergencyCard, isEmergency && styles.emergencyCardActive]}>
+                        <View style={styles.emergencyRow}>
+                            <View style={styles.emergencyInfo}>
+                                <Text style={styles.emergencyTitle}>Emergency Dispatch</Text>
+                                <Text style={styles.emergencySub}>Prioritize your request. Professionals nearby will be notified instantly.</Text>
+                            </View>
+                            <Switch
+                                value={isEmergency}
+                                onValueChange={(val) => {
+                                    setIsEmergency(val);
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                }}
+                                trackColor={{ false: colors.elevated, true: colors.accent.primary }}
+                                thumbColor={isEmergency ? '#FFF' : '#AAA'}
+                            />
+                        </View>
+                    </Card>
+                </FadeInView>
+
+                <View style={styles.footer}>
+                    <PremiumButton
+                        title="Search for Professional"
+                        loading={loading}
+                        isDisabled={!isReady}
+                        onPress={handleConfirm}
+                    />
+                </View>
 
             </ScrollView>
 
-            <View style={styles.footer}>
-                <GoldButton
-                    title="Confirm & Find Worker"
-                    loading={loading}
-                    disabled={!isReady}
-                    onPress={handleConfirm}
+            {showDatePicker && (
+                <DateTimePicker
+                    value={scheduledDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={(event, date) => {
+                        setShowDatePicker(false);
+                        if (date) setScheduledDate(date);
+                    }}
                 />
-            </View>
+            )}
+            {showTimePicker && (
+                <DateTimePicker
+                    value={scheduledDate}
+                    mode="time"
+                    display="spinner"
+                    onChange={(event, date) => {
+                        setShowTimePicker(false);
+                        if (date) setScheduledDate(date);
+                    }}
+                />
+            )}
         </View>
     );
 }
 
-// Inline Card component since we don't import the shared one to avoid dependency cycles if modified
-const Card = ({ children, style }) => (
-    <View style={[{ backgroundColor: colors.bg.surface, borderRadius: radius.lg, padding: spacing.lg }, style]}>
-        {children}
-    </View>
-);
-
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: colors.background },
     header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingTop: spacing.xl + 20, paddingHorizontal: spacing.sm, paddingBottom: spacing.lg,
-        borderBottomWidth: 1, borderBottomColor: colors.bg.surface
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: spacing[16]
     },
-    backBtn: { padding: spacing.sm },
-    backTxt: { color: colors.text.primary, fontSize: 24 },
-    title: { color: colors.text.primary, fontSize: 20, fontWeight: '700' },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
+    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
 
-    content: { padding: spacing.lg, gap: spacing.lg },
-    sectionTitle: { color: colors.text.primary, fontSize: 18, fontWeight: '700', marginTop: spacing.md },
+    scrollContent: { padding: spacing[24], paddingBottom: 120 },
 
-    card: { gap: spacing.sm, backgroundColor: colors.bg.elevated, borderWidth: 1, borderColor: colors.bg.surface },
+    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
+    introSub: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, marginBottom: spacing[32], letterSpacing: tracking.body },
 
-    label: { color: colors.text.secondary, fontSize: 14, fontWeight: '600' },
-    input: {
-        backgroundColor: colors.bg.primary, borderRadius: radius.md,
-        color: colors.text.primary, padding: spacing.md, fontSize: 15,
-        minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: colors.bg.surface
-    },
-    gpsBtn: { alignSelf: 'flex-start', marginTop: spacing.xs },
-    gpsTxt: { color: colors.gold.primary, fontWeight: '600', fontSize: 14 },
+    section: { marginTop: spacing[32], gap: spacing[16] },
+    sectionHeader: { color: colors.accent.primary, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
 
-    tabRow: { flexDirection: 'row', gap: spacing.sm },
+    tabRow: { flexDirection: 'row', gap: spacing[12] },
     tab: {
-        flex: 1, paddingVertical: spacing.md, alignItems: 'center',
-        backgroundColor: colors.bg.surface, borderRadius: radius.lg,
-        borderWidth: 1, borderColor: colors.bg.surface
+        flex: 1,
+        paddingVertical: spacing[16],
+        backgroundColor: colors.surface,
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: colors.accent.border + '22',
+        alignItems: 'center',
+        ...shadows.premium
     },
-    tabActive: { backgroundColor: colors.gold.glow, borderColor: colors.gold.primary },
-    tabTxt: { color: colors.text.secondary, fontSize: 16, fontWeight: '600' },
-    tabTxtActive: { color: colors.gold.primary },
-
-    row: { flexDirection: 'row', justifyContent: 'space-between' },
-    dateInput: {
-        backgroundColor: colors.bg.primary, borderRadius: radius.md,
-        color: colors.text.primary, padding: spacing.md, fontSize: 15,
-        borderWidth: 1, borderColor: colors.bg.surface, textAlign: 'center'
+    tabActive: {
+        backgroundColor: colors.accent.primary + '11',
+        borderColor: colors.accent.primary
     },
+    tabTxt: { color: colors.text.muted, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
+    tabTxtActive: { color: colors.accent.primary },
 
-    footer: { padding: spacing.lg, paddingBottom: spacing.xl * 2, borderTopWidth: 1, borderTopColor: colors.bg.surface }
+    pickerCard: { padding: 0, overflow: 'hidden', marginTop: spacing[8] },
+    pickerRow: { flexDirection: 'row', alignItems: 'center' },
+    pickerBtn: { flex: 1, padding: spacing[20], alignItems: 'center', gap: 4 },
+    pickerLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    pickerValue: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.semibold },
+    pickerDivider: { width: 1, height: '60%', backgroundColor: colors.accent.border + '22' },
+
+    emergencyCard: {
+        padding: spacing[24],
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.accent.border + '22'
+    },
+    emergencyCardActive: { borderColor: colors.accent.primary + '44' },
+    emergencyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[16] },
+    emergencyInfo: { flex: 1 },
+    emergencyTitle: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, letterSpacing: tracking.cardTitle },
+    emergencySub: { color: colors.text.secondary, fontSize: 10, marginTop: 4, lineHeight: 14 },
+
+    footer: { marginTop: spacing[48] }
 });

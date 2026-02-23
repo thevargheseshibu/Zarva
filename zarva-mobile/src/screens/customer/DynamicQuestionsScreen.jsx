@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import { colors, spacing, radius } from '../../design-system/tokens';
-import GoldButton from '../../components/GoldButton';
+import * as Haptics from 'expo-haptics';
+import { useT } from '../../hooks/useT';
 import apiClient from '../../services/api/client';
+import FadeInView from '../../components/FadeInView';
+import PremiumButton from '../../components/PremiumButton';
+import PressableAnimated from '../../design-system/components/PressableAnimated';
+import Card from '../../components/Card';
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
-// Generic fallback questions — used ONLY when server is completely unreachable
 const DEFAULT_QUESTIONS = ['Describe what you need help with', 'Any specific requirements?'];
 
 function buildFallbackConfig(category, basePrice = 300) {
@@ -21,6 +25,7 @@ function buildFallbackConfig(category, basePrice = 300) {
 }
 
 export default function DynamicQuestionsScreen({ route, navigation }) {
+    const t = useT();
     const { category, label, location } = route.params || { category: 'unknown', label: 'Service', location: null };
 
     const [config, setConfig] = useState(() => buildFallbackConfig(category));
@@ -32,13 +37,10 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         const loadDynamicConfig = async () => {
             setLoading(true);
             try {
-                // Estimate the price based on category and mock hours
                 const estRes = await apiClient.post('/api/jobs/estimate', { category, hours: 1 });
-                // Grab the entire breakdown to forward
                 const breakDownData = estRes.data?.breakdown || estRes.data?.breakdown_exact || estRes.data?.breakdown_min || {};
                 const basePrice = estRes.data?.total_amount || breakDownData?.total_amount || 300;
 
-                // Load real questions
                 const cfgRes = await apiClient.get('/api/jobs/config');
                 const catQuestions = cfgRes.data?.questions?.[category] || [
                     "What exactly do you need help with?",
@@ -64,6 +66,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
 
     const handleAnswer = (questionId, value) => {
         setAnswers(prev => ({ ...prev, [questionId]: value }));
+        Haptics.selectionAsync();
     };
 
     const handleImageUpload = async (questionId) => {
@@ -73,13 +76,10 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
             return;
         }
 
-        // Delay to prevent Android SoftException unmount crash
-        await new Promise(resolve => setTimeout(resolve, 100));
-
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             quality: 0.2,
-            allowsEditing: false, // Disabled to prevent ExpoCropImageActivity from causing Android OOM kills
+            allowsEditing: false,
         });
 
         if (result.canceled) return;
@@ -88,7 +88,6 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         const localUri = result.assets[0].uri;
 
         try {
-            // 1. Prepare FormData for direct backend upload
             const formData = new FormData();
             formData.append('purpose', 'job_photo');
             formData.append('file', {
@@ -97,32 +96,18 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                 type: 'image/jpeg'
             });
 
-            console.log(`[S3] Starting upload and compression via backend...`);
-
-            // 2. Upload to Node.js server (which compresses via Sharp and pushes to S3)
             const uploadRes = await apiClient.post('/api/uploads/image', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            if (uploadRes.data.status !== 'ok') {
-                throw new Error(`Upload failed on server`);
-            }
+            if (uploadRes.data.status !== 'ok') throw new Error(`Upload failed`);
 
-            const { s3_key, url } = uploadRes.data;
-            const public_url = url.split('?')[0];
-
-            // Store the final S3 URL as the answer
+            const public_url = uploadRes.data.url.split('?')[0];
             handleAnswer(questionId, public_url);
-            console.log(`[S3] Photo linked: ${public_url}`);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         } catch (err) {
-            console.error('[S3 Export Error]', err.message);
-            Alert.alert(
-                'Upload Failed',
-                'Could not save your photo to our secure storage. Please check your connection and try again.'
-            );
-            // DO NOT fallback to localUri - it breaks tracking for workers
-            handleAnswer(questionId, null);
+            Alert.alert('Upload Failed', 'Could not save your photo. Please try again.');
         } finally {
             setUploading(false);
         }
@@ -130,166 +115,190 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
 
     const isNextDisabled = config.questions.some(q => q.required && !answers[q.id]);
 
-    const renderQuestion = (q) => {
+    const renderQuestion = (q, index) => {
         const answer = answers[q.id];
 
-        switch (q.type) {
-            case 'single_select':
-                return (
-                    <View style={styles.chipRow}>
-                        {q.options.map(opt => (
-                            <TouchableOpacity
-                                key={opt}
-                                style={[styles.chip, answer === opt && styles.chipActive]}
-                                onPress={() => handleAnswer(q.id, opt)}
-                                activeOpacity={0.8}
-                            >
-                                <Text style={[styles.chipText, answer === opt && styles.chipTextActive]}>
-                                    {opt}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+        return (
+            <FadeInView key={q.id} delay={index * 100}>
+                <Card style={styles.questionCard}>
+                    <View style={styles.qHeader}>
+                        <Text style={styles.qLabel}>{q.label}</Text>
+                        {q.required && <View style={styles.requiredDot} />}
                     </View>
-                );
-            case 'text':
-                return (
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Type here..."
-                        placeholderTextColor={colors.text.muted}
-                        value={answer || ''}
-                        onChangeText={(txt) => handleAnswer(q.id, txt)}
-                        multiline
-                    />
-                );
-            case 'image':
-                return (
-                    <TouchableOpacity
-                        style={[styles.uploadBox, answer && styles.uploadBoxDone]}
-                        onPress={() => handleImageUpload(q.id)}
-                    >
-                        {answer ? (
-                            <Image source={{ uri: answer }} style={styles.previewImage} />
-                        ) : (
-                            <View style={styles.uploadPlaceholder}>
-                                <Text style={styles.cameraIcon}>📷</Text>
-                                <Text style={styles.uploadText}>{uploading ? 'Uploading...' : 'Tap to upload photo'}</Text>
-                            </View>
-                        )}
-                    </TouchableOpacity>
-                );
-            default:
-                return null;
-        }
+
+                    {q.type === 'text' && (
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Type your details here..."
+                            placeholderTextColor={colors.text.muted}
+                            value={answer || ''}
+                            onChangeText={(txt) => handleAnswer(q.id, txt)}
+                            multiline
+                            selectionColor={colors.accent.primary}
+                        />
+                    )}
+
+                    {q.type === 'image' && (
+                        <PressableAnimated
+                            style={[styles.uploadBox, answer && styles.uploadBoxDone]}
+                            onPress={() => handleImageUpload(q.id)}
+                        >
+                            {answer ? (
+                                <Image source={{ uri: answer }} style={styles.previewImage} />
+                            ) : (
+                                <View style={styles.uploadPlaceholder}>
+                                    <Text style={styles.uploadIcon}>{uploading ? '⏳' : '📸'}</Text>
+                                    <Text style={styles.uploadText}>{uploading ? 'Uploading...' : 'Add a photo for better clarity'}</Text>
+                                </View>
+                            )}
+                        </PressableAnimated>
+                    )}
+
+                    {!q.required && !answer && (
+                        <TouchableOpacity
+                            style={styles.skipBtn}
+                            onPress={() => handleAnswer(q.id, 'SKIPPED')}
+                        >
+                            <Text style={styles.skipTxt}>Skip this step</Text>
+                        </TouchableOpacity>
+                    )}
+                </Card>
+            </FadeInView>
+        );
     };
 
     return (
         <View style={styles.screen}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-                    <Text style={styles.backTxt}>←</Text>
-                </TouchableOpacity>
-                <Text style={styles.title}>{label}</Text>
-                <View style={{ width: 40 }} />
+                <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                    <Text style={styles.headerBtnTxt}>←</Text>
+                </PressableAnimated>
+                <Text style={styles.headerTitle}>{label}</Text>
+                <View style={{ width: 44 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
-                {config.questions.map((q, i) => (
-                    <View key={q.id} style={styles.questionBlock}>
-                        <View style={styles.qHeader}>
-                            <Text style={styles.qLabel}>{i + 1}. {q.label}</Text>
-                            {q.skippable && !answers[q.id] && (
-                                <TouchableOpacity onPress={() => handleAnswer(q.id, 'SKIPPED')}>
-                                    <Text style={styles.skipTxt}>Skip →</Text>
-                                </TouchableOpacity>
-                            )}
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+            >
+                <FadeInView delay={50}>
+                    <Text style={styles.introTitle}>Tell us more</Text>
+                    <Text style={styles.introSub}>Providing details helps us find the best professional for you.</Text>
+                </FadeInView>
+
+                {config.questions.map((q, i) => renderQuestion(q, i))}
+
+                <FadeInView delay={400}>
+                    <View style={styles.pricingPreview}>
+                        <View style={styles.pricingInfo}>
+                            <Text style={styles.priceLabel}>ESTIMATED BASE</Text>
+                            <Text style={styles.priceValue}>₹{config.base_price}</Text>
                         </View>
-                        {renderQuestion(q)}
+                        <View style={styles.pricingHint}>
+                            <Text style={styles.hintTxt}>Final price may vary based on actual work.</Text>
+                        </View>
                     </View>
-                ))}
+                </FadeInView>
 
-                <View style={styles.estimateBox}>
-                    <Text style={styles.estLabel}>Estimated Base Price</Text>
-                    <Text style={styles.estValue}>₹{config.base_price}</Text>
+                <View style={styles.footer}>
+                    <PremiumButton
+                        title="Continue"
+                        isDisabled={isNextDisabled || uploading}
+                        onPress={() => {
+                            const structuredAnswers = config.questions.map(q => ({
+                                question: q.label,
+                                answer: answers[q.id] || (q.required ? '' : 'SKIPPED')
+                            })).filter(a => a.answer !== '');
+
+                            navigation.navigate('LocationSchedule', {
+                                category,
+                                label,
+                                location,
+                                answers,
+                                structuredAnswers,
+                                basePrice: config.base_price,
+                                breakdown: config.breakdown
+                            });
+                        }}
+                    />
                 </View>
-
-                <GoldButton
-                    title="Review Details"
-                    disabled={isNextDisabled || uploading}
-                    onPress={() => {
-                        const structuredAnswers = config.questions.map(q => ({
-                            question: q.label,
-                            answer: answers[q.id] || (q.required ? '' : 'SKIPPED')
-                        })).filter(a => a.answer !== '');
-
-                        navigation.navigate('LocationSchedule', {
-                            category,
-                            label,
-                            location,
-                            answers,
-                            structuredAnswers,
-                            basePrice: config.base_price,
-                            breakdown: config.breakdown
-                        });
-                    }}
-                    style={{ marginTop: spacing.xl }}
-                />
             </ScrollView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: colors.background },
     header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingTop: spacing.xl + 20, paddingHorizontal: spacing.sm, paddingBottom: spacing.lg,
-        borderBottomWidth: 1, borderBottomColor: colors.bg.surface
+        paddingTop: 60,
+        paddingHorizontal: spacing[24],
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: spacing[16]
     },
-    backBtn: { padding: spacing.sm },
-    backTxt: { color: colors.text.primary, fontSize: 24 },
-    title: { color: colors.text.primary, fontSize: 20, fontWeight: '700' },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
+    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
 
-    content: { padding: spacing.lg, gap: spacing.xl, paddingBottom: spacing.xl * 3 },
+    scrollContent: { padding: spacing[24], paddingBottom: 120 },
 
-    questionBlock: { gap: spacing.md },
-    qHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-    qLabel: { color: colors.text.primary, fontSize: 16, fontWeight: '600', flex: 1 },
-    skipTxt: { color: colors.text.muted, fontSize: 13, fontWeight: '600' },
+    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
+    introSub: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, marginBottom: spacing[32], letterSpacing: tracking.body },
 
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    chip: {
-        paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-        backgroundColor: colors.bg.surface, borderRadius: radius.full,
-        borderWidth: 1, borderColor: colors.bg.surface
-    },
-    chipActive: { backgroundColor: colors.gold.glow, borderColor: colors.gold.primary },
-    chipText: { color: colors.text.secondary, fontSize: 14, fontWeight: '500' },
-    chipTextActive: { color: colors.gold.primary },
+    questionCard: { padding: spacing[24], marginBottom: spacing[24], gap: spacing[16] },
+    qHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    qLabel: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, letterSpacing: tracking.cardTitle, flex: 1 },
+    requiredDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent.primary },
 
     input: {
-        backgroundColor: colors.bg.surface, borderRadius: radius.md,
-        color: colors.text.primary, padding: spacing.md, fontSize: 15,
-        minHeight: 100, textAlignVertical: 'top'
+        backgroundColor: colors.elevated,
+        borderRadius: radius.lg,
+        padding: spacing[16],
+        color: colors.text.primary,
+        fontSize: fontSize.body,
+        minHeight: 120,
+        textAlignVertical: 'top',
+        borderWidth: 1,
+        borderColor: colors.surface
     },
 
     uploadBox: {
-        height: 120, backgroundColor: colors.bg.surface, borderRadius: radius.md,
-        borderWidth: 1, borderColor: colors.bg.surface, borderStyle: 'dashed',
-        justifyContent: 'center', alignItems: 'center', overflow: 'hidden'
+        height: 160,
+        backgroundColor: colors.elevated,
+        borderRadius: radius.lg,
+        borderWidth: 1,
+        borderColor: colors.surface,
+        borderStyle: 'dashed',
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden'
     },
-    uploadBoxDone: { borderStyle: 'solid', borderColor: colors.success + '88' },
-    uploadPlaceholder: { alignItems: 'center', gap: spacing.xs },
-    cameraIcon: { fontSize: 28 },
-    uploadText: { color: colors.text.secondary, fontSize: 13 },
+    uploadBoxDone: { borderStyle: 'solid', borderColor: colors.accent.primary + '44' },
+    uploadPlaceholder: { alignItems: 'center', gap: 8 },
+    uploadIcon: { fontSize: 32 },
+    uploadText: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center' },
     previewImage: { width: '100%', height: '100%', resizeMode: 'cover' },
 
-    estimateBox: {
-        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        backgroundColor: colors.bg.elevated, padding: spacing.lg, borderRadius: radius.lg,
-        marginTop: spacing.md
+    skipBtn: { alignSelf: 'flex-end', marginTop: 4 },
+    skipTxt: { color: colors.text.muted, fontSize: fontSize.micro, fontWeight: fontWeight.bold, textDecorationLine: 'underline' },
+
+    pricingPreview: {
+        flexDirection: 'row',
+        backgroundColor: colors.surface,
+        padding: spacing[24],
+        borderRadius: radius.xl,
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: spacing[8],
+        ...shadows.premium
     },
-    estLabel: { color: colors.text.secondary, fontSize: 15 },
-    estValue: { color: colors.gold.primary, fontSize: 20, fontWeight: '700' }
+    pricingInfo: { gap: 4 },
+    priceLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    priceValue: { color: colors.text.primary, fontSize: 24, fontWeight: fontWeight.bold },
+    pricingHint: { flex: 0.8 },
+    hintTxt: { color: colors.text.muted, fontSize: 10, textAlign: 'right', fontStyle: 'italic' },
+
+    footer: { marginTop: spacing[40] }
 });
