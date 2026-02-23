@@ -168,7 +168,7 @@ export default function EditJobScreen({ route, navigation }) {
         return (
             <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color={colors.accent.primary} />
-                <Text style={styles.loadingTxt}>Preparing editor...</Text>
+                <Text style={styles.loadingTxt}>{t('preparing_editor')}</Text>
             </View>
         );
     }
@@ -180,20 +180,20 @@ export default function EditJobScreen({ route, navigation }) {
                 <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
-                <Text style={styles.headerTitle}>Edit Request</Text>
+                <Text style={styles.headerTitle}>{t('edit_request')}</Text>
                 <View style={{ width: 44 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
                 <FadeInView delay={50}>
-                    <Text style={styles.introTitle}>Modify details</Text>
-                    <Text style={styles.introSub}>Update your service requirements, location or scheduled time.</Text>
+                    <Text style={styles.introTitle}>{t('modify_details')}</Text>
+                    <Text style={styles.introSub}>{t('update_requirements')}</Text>
                 </FadeInView>
 
                 {/* Questions Section */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionHeader}>REQUIREMENTS</Text>
+                    <Text style={styles.sectionHeader}>{t('requirements_caps')}</Text>
                     {config.questions.map((q, i) => (
                         <FadeInView key={q.id} delay={100 + i * 100}>
                             <Card style={styles.questionCard}>
@@ -201,7 +201,7 @@ export default function EditJobScreen({ route, navigation }) {
                                 {q.type === 'text' ? (
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="Add more details..."
+                                        placeholder={t('add_more_details')}
                                         placeholderTextColor={colors.text.muted}
                                         value={answers[q.id] || ''}
                                         onChangeText={(txt) => handleAnswer(q.id, txt)}
@@ -218,7 +218,7 @@ export default function EditJobScreen({ route, navigation }) {
                                         ) : (
                                             <View style={styles.uploadPlaceholder}>
                                                 <Text style={styles.uploadIcon}>{uploading ? '⏳' : '📸'}</Text>
-                                                <Text style={styles.uploadText}>{uploading ? 'Uploading...' : 'Update photo'}</Text>
+                                                <Text style={styles.uploadText}>{uploading ? t('uploading_dots') : t('update_photo')}</Text>
                                             </View>
                                         )}
                                     </PressableAnimated>
@@ -230,7 +230,7 @@ export default function EditJobScreen({ route, navigation }) {
 
                 {/* Location Section */}
                 <FadeInView delay={400} style={styles.section}>
-                    <Text style={styles.sectionHeader}>LOCATION</Text>
+                    <Text style={styles.sectionHeader}>{t('location_caps')}</Text>
                     <LocationInput
                         onChange={setCustomerLocation}
                         initialData={{
@@ -243,7 +243,7 @@ export default function EditJobScreen({ route, navigation }) {
 
                 {/* Schedule Section */}
                 <FadeInView delay={500} style={styles.section}>
-                    <Text style={styles.sectionHeader}>SCHEDULE</Text>
+                    <Text style={styles.sectionHeader}>{t('schedule_caps')}</Text>
                     <View style={styles.tabRow}>
                         <PressableAnimated
                             style={[styles.tab, scheduleType === 'now' && styles.tabActive]}
@@ -252,7 +252,7 @@ export default function EditJobScreen({ route, navigation }) {
                                 Haptics.selectionAsync();
                             }}
                         >
-                            <Text style={[styles.tabTxt, scheduleType === 'now' && styles.tabTxtActive]}>ASAP</Text>
+                            <Text style={[styles.tabTxt, scheduleType === 'now' && styles.tabTxtActive]}>{t('asap_now').replace(' (Now)', '')}</Text>
                         </PressableAnimated>
                         <PressableAnimated
                             style={[styles.tab, scheduleType === 'later' && styles.tabActive]}
@@ -261,7 +261,7 @@ export default function EditJobScreen({ route, navigation }) {
                                 Haptics.selectionAsync();
                             }}
                         >
-                            <Text style={[styles.tabTxt, scheduleType === 'later' && styles.tabTxtActive]}>Later</Text>
+                            <Text style={[styles.tabTxt, scheduleType === 'later' && styles.tabTxtActive]}>{t('schedule_later').replace('Schedule ', '')}</Text>
                         </PressableAnimated>
                     </View>
 
@@ -269,12 +269,12 @@ export default function EditJobScreen({ route, navigation }) {
                         <Card style={styles.pickerCard}>
                             <View style={styles.pickerRow}>
                                 <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowDatePicker(true)}>
-                                    <Text style={styles.pickerLabel}>DATE</Text>
+                                    <Text style={styles.pickerLabel}>{t('date_caps')}</Text>
                                     <Text style={styles.pickerValue}>{dayjs(scheduledDate).format('DD/MM/YYYY')}</Text>
                                 </TouchableOpacity>
                                 <View style={styles.pickerDivider} />
                                 <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTimePicker(true)}>
-                                    <Text style={styles.pickerLabel}>TIME</Text>
+                                    <Text style={styles.pickerLabel}>{t('time_caps')}</Text>
                                     <Text style={styles.pickerValue}>{dayjs(scheduledDate).format('hh:mm A')}</Text>
                                 </TouchableOpacity>
                             </View>
@@ -284,7 +284,7 @@ export default function EditJobScreen({ route, navigation }) {
 
                 <View style={styles.footer}>
                     <PremiumButton
-                        title="Update Job Details"
+                        title={t('update_job_details')}
                         loading={saving}
                         onPress={handleSave}
                     />

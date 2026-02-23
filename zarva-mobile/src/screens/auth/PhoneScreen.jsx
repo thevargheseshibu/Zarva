@@ -107,15 +107,15 @@ export default function PhoneScreen({ navigation }) {
                         confirmationObj = { _isServerTestFlow: true, phone: `+91${phone}` };
                     } else {
                         // Real number, real failure — show a user-friendly message
-                        let userMsg = 'Could not send OTP. Please try again.';
+                        let userMsg = t('error_otp_send_failed');
                         if (firebaseErr.code === 'auth/too-many-requests') {
-                            userMsg = 'Too many attempts. Please wait a few minutes and try again.';
+                            userMsg = t('error_otp_too_many_requests');
                         } else if (firebaseErr.code === 'auth/invalid-phone-number') {
-                            userMsg = 'Invalid phone number. Please check and try again.';
+                            userMsg = t('error_otp_invalid_phone');
                         } else if (firebaseErr.code === 'auth/missing-client-identifier') {
-                            userMsg = 'App verification failed. Please try on a real device or use our test number.';
+                            userMsg = t('error_app_verification');
                         }
-                        Alert.alert('OTP Error', userMsg);
+                        Alert.alert(t('otp_error'), userMsg);
                         return;
                     }
                 }
@@ -134,7 +134,7 @@ export default function PhoneScreen({ navigation }) {
 
         } catch (err) {
             console.error('[handleSend unexpected error]', err);
-            Alert.alert('Error', 'Something went wrong. Please try again.');
+            Alert.alert(t('error'), t('error_generic'));
         } finally {
             setLoading(null);
         }

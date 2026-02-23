@@ -7,8 +7,10 @@ import PremiumButton from '../../../components/PremiumButton';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
+import { useT } from '../../../hooks/useT';
 
 export default function OnboardingPayment({ data, onNext }) {
+    const t = useT();
     const [method, setMethod] = useState('upi');
     const [upi, setUpi] = useState(data.upi || '');
     const [accountNo, setAccountNo] = useState(data.account_number || '');
@@ -35,13 +37,13 @@ export default function OnboardingPayment({ data, onNext }) {
     return (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             <FadeInView delay={50}>
-                <Text style={styles.headerSub}>STEP 04/05</Text>
-                <Text style={styles.title}>Settlement Link</Text>
-                <Text style={styles.sub}>Establish a secure channel for your professional earnings.</Text>
+                <Text style={styles.headerSub}>{t('step_04')}</Text>
+                <Text style={styles.title}>{t('settlement_link')}</Text>
+                <Text style={styles.sub}>{t('settlement_link_desc')}</Text>
             </FadeInView>
 
             <FadeInView delay={150} style={styles.section}>
-                <Text style={styles.label}>Settlement Mode</Text>
+                <Text style={styles.label}>{t('settlement_mode')}</Text>
                 <View style={styles.tabContainer}>
                     {['upi', 'bank'].map(m => {
                         const active = method === m;
@@ -52,7 +54,7 @@ export default function OnboardingPayment({ data, onNext }) {
                                 onPress={() => handleMethodChange(m)}
                             >
                                 <Text style={[styles.tabTxt, active && styles.tabTxtActive]}>
-                                    {m === 'upi' ? 'UPI INTERFACE' : 'BANK TRANSFER'}
+                                    {m === 'upi' ? t('upi_interface') : t('bank_transfer')}
                                 </Text>
                             </TouchableOpacity>
                         );
@@ -62,30 +64,30 @@ export default function OnboardingPayment({ data, onNext }) {
 
             {method === 'upi' ? (
                 <FadeInView delay={250} style={styles.section}>
-                    <Text style={styles.label}>Virtual Payment Address (VPA)</Text>
+                    <Text style={styles.label}>{t('vpa')}</Text>
                     <Card style={styles.inputCard}>
                         <TextInput
                             style={styles.input}
                             value={upi}
                             onChangeText={setUpi}
-                            placeholder="username@upi"
+                            placeholder={t('username_upi')}
                             placeholderTextColor={colors.text.muted}
                             autoCapitalize="none"
                             keyboardType="email-address"
                         />
                     </Card>
-                    <Text style={styles.hintTxt}>Instant settlements via unified payments protocol.</Text>
+                    <Text style={styles.hintTxt}>{t('upi_hint')}</Text>
                 </FadeInView>
             ) : (
                 <FadeInView delay={250} style={styles.section}>
-                    <Text style={styles.label}>Banking Coordinates</Text>
+                    <Text style={styles.label}>{t('banking_coordinates')}</Text>
                     <View style={styles.bankForm}>
                         <Card style={styles.inputCard}>
                             <TextInput
                                 style={styles.input}
                                 value={holderName}
                                 onChangeText={setHolderName}
-                                placeholder="Beneficiary Name"
+                                placeholder={t('beneficiary_name')}
                                 placeholderTextColor={colors.text.muted}
                                 autoCapitalize="words"
                             />
@@ -95,7 +97,7 @@ export default function OnboardingPayment({ data, onNext }) {
                                 style={styles.input}
                                 value={accountNo}
                                 onChangeText={setAccountNo}
-                                placeholder="Account Number"
+                                placeholder={t('account_number')}
                                 placeholderTextColor={colors.text.muted}
                                 keyboardType="number-pad"
                             />
@@ -105,23 +107,23 @@ export default function OnboardingPayment({ data, onNext }) {
                                 style={styles.input}
                                 value={ifsc}
                                 onChangeText={t => setIfsc(t.toUpperCase().slice(0, 11))}
-                                placeholder="IFSC Code"
+                                placeholder={t('ifsc_code')}
                                 placeholderTextColor={colors.text.muted}
                                 autoCapitalize="characters"
                             />
                         </Card>
                     </View>
-                    <Text style={styles.hintTxt}>Secure NEFT/RTGS settlements for institutional stability.</Text>
+                    <Text style={styles.hintTxt}>{t('bank_hint')}</Text>
                 </FadeInView>
             )}
 
             <FadeInView delay={450} style={styles.secureBadge}>
-                <Text style={styles.secureTxt}>🔒 END-TO-END ENCRYPTED FINANCIAL LINK</Text>
+                <Text style={styles.secureTxt}>{t('encrypted_link')}</Text>
             </FadeInView>
 
             <FadeInView delay={550} style={styles.footer}>
                 <PremiumButton
-                    title="Initialize Settlement"
+                    title={t('initialize_settlement')}
                     disabled={!isValid}
                     onPress={handleNext}
                 />

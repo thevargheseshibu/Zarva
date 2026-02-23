@@ -51,7 +51,7 @@ export default function RoleSelection() {
                 // Role already set in DB, likely logged in elsewhere and synced back
                 const dbProfile = err.response.data?.user;
                 if (dbProfile) {
-                    Alert.alert('Role Locked', err.response.data?.message || 'Role cannot be changed.');
+                    Alert.alert(t('role_locked'), err.response.data?.message || t('role_cannot_change'));
                     login({ ...user, ...dbProfile }, token);
                 }
             } else {

@@ -65,17 +65,17 @@ export default function CustomerProfileScreen() {
                     <Card style={styles.metricsContainer}>
                         <View style={styles.metric}>
                             <Text style={styles.metricValue}>{user?.profile?.total_jobs || 0}</Text>
-                            <Text style={styles.metricLabel}>{t('total_jobs') || 'TOTAL'}</Text>
+                            <Text style={styles.metricLabel}>{t('total_caps')}</Text>
                         </View>
                         <View style={styles.divider} />
                         <View style={styles.metric}>
                             <Text style={styles.metricValue}>{user?.profile?.cancelled_jobs || 0}</Text>
-                            <Text style={styles.metricLabel}>{t('cancelled') || 'FAILED'}</Text>
+                            <Text style={styles.metricLabel}>{t('failed_caps')}</Text>
                         </View>
                         <View style={styles.divider} />
                         <View style={styles.metric}>
                             <Text style={styles.metricValue}>{user?.profile?.average_rating ? Number(user.profile.average_rating).toFixed(1) : '5.0'}</Text>
-                            <Text style={styles.metricLabel}>{t('rating') || 'RATING'}</Text>
+                            <Text style={styles.metricLabel}>{t('rating_caps')}</Text>
                         </View>
                     </Card>
                 </FadeInView>
@@ -83,11 +83,11 @@ export default function CustomerProfileScreen() {
                 {/* Saved Addresses */}
                 {user?.profile?.saved_addresses && Array.isArray(user.profile.saved_addresses) && user.profile.saved_addresses.length > 0 && (
                     <FadeInView delay={300} style={styles.section}>
-                        <Text style={styles.sectionHeader}>SAVED ADDRESSES</Text>
+                        <Text style={styles.sectionHeader}>{t('saved_addresses_caps')}</Text>
                         {user.profile.saved_addresses.map((addr, i) => (
                             <Card key={i} style={styles.addressCard}>
                                 <View style={styles.addressTop}>
-                                    <Text style={styles.addressTag}>{addr.tag?.toUpperCase() || 'HOME'}</Text>
+                                    <Text style={styles.addressTag}>{addr.tag?.toUpperCase() || t('home_caps')}</Text>
                                     <Text style={styles.addressPin}>📍</Text>
                                 </View>
                                 <Text style={styles.addressText} numberOfLines={2}>{addr.address}</Text>
@@ -98,7 +98,7 @@ export default function CustomerProfileScreen() {
 
                 {/* Settings */}
                 <FadeInView delay={450} style={styles.section}>
-                    <Text style={styles.sectionHeader}>PREFERENCES</Text>
+                    <Text style={styles.sectionHeader}>{t('preferences_caps')}</Text>
                     <PressableAnimated style={styles.settingCard} onPress={() => setIsLangModalOpen(true)}>
                         <View style={styles.settingInfo}>
                             <Text style={styles.settingLabel}>{t('language')}</Text>

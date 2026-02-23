@@ -23,7 +23,14 @@ export default function WorkerProfileScreen({ navigation }) {
     const t = useT();
 
     const [isLangModalOpen, setIsLangModalOpen] = useState(false);
-    const [skills, setSkills] = useState(user?.profile?.skills || []);
+    const [skills, setSkills] = useState(() => {
+        const stored = user?.profile?.skills;
+        if (Array.isArray(stored)) return stored;
+        if (typeof stored === 'string') {
+            try { return JSON.parse(stored); } catch (e) { return []; }
+        }
+        return [];
+    });
     const [availableSkills, setAvailableSkills] = useState({});
     const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false);
     const [isMapVisible, setIsMapVisible] = useState(false);
@@ -37,16 +44,20 @@ export default function WorkerProfileScreen({ navigation }) {
             }
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status === 'granted') {
-                const loc = await Location.getCurrentPositionAsync({});
-                const [addressArr] = await Location.reverseGeocodeAsync({
-                    latitude: loc.coords.latitude,
-                    longitude: loc.coords.longitude
-                });
-                let addressText = 'Unknown Location';
-                if (addressArr) {
-                    addressText = [addressArr.name, addressArr.city || addressArr.subregion, addressArr.region].filter(Boolean).join(', ');
+                try {
+                    const loc = await Location.getCurrentPositionAsync({});
+                    const [addressArr] = await Location.reverseGeocodeAsync({
+                        latitude: loc.coords.latitude,
+                        longitude: loc.coords.longitude
+                    });
+                    let addressText = 'Unknown Location';
+                    if (addressArr) {
+                        addressText = [addressArr.name, addressArr.city || addressArr.subregion, addressArr.region].filter(Boolean).join(', ');
+                    }
+                    setLocation({ address: addressText, lat: loc.coords.latitude, lng: loc.coords.longitude });
+                } catch (err) {
+                    console.warn('Failed to get location in Worker Profile:', err);
                 }
-                setLocation({ address: addressText, lat: loc.coords.latitude, lng: loc.coords.longitude });
             }
         })();
     }, []);
@@ -108,7 +119,7 @@ export default function WorkerProfileScreen({ navigation }) {
         <View style={styles.screen}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>PRO IDENTITY</Text>
+                <Text style={styles.headerTitle}>{t('pro_identity')}</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -127,27 +138,27 @@ export default function WorkerProfileScreen({ navigation }) {
                     <View style={styles.metricsGrid}>
                         <View style={styles.metricItem}>
                             <Text style={styles.metricVal}>⭐ {Number(user?.profile?.average_rating || 0).toFixed(1)}</Text>
-                            <Text style={styles.metricLbl}>RATING</Text>
+                            <Text style={styles.metricLbl}>{t('rating')}</Text>
                         </View>
                         <View style={styles.metricDivider} />
                         <View style={styles.metricItem}>
                             <Text style={styles.metricVal}>{user?.profile?.total_jobs || 0}</Text>
-                            <Text style={styles.metricLbl}>MISSION COUNT</Text>
+                            <Text style={styles.metricLbl}>{t('mission_count')}</Text>
                         </View>
                     </View>
                 </FadeInView>
 
                 {/* Operations Section */}
                 <FadeInView delay={200} style={styles.section}>
-                    <Text style={styles.sectionHeader}>LIVE OPERATIONS</Text>
+                    <Text style={styles.sectionHeader}>{t('live_operations')}</Text>
                     <Card style={styles.settingsCard}>
                         <View style={styles.settingRow}>
                             <View style={styles.rowIcon}>
                                 <Text style={styles.iconTxt}>📶</Text>
                             </View>
                             <View style={styles.rowInfo}>
-                                <Text style={styles.rowTitle}>Visibility Status</Text>
-                                <Text style={styles.rowSub}>{isOnline ? 'Online • Discoverable by clients' : 'Offline • Invisible to marketplace'}</Text>
+                                <Text style={styles.rowTitle}>{t('visibility_status')}</Text>
+                                <Text style={styles.rowSub}>{isOnline ? t('visibility_online') : t('visibility_offline')}</Text>
                             </View>
                             <Switch
                                 value={isOnline}
@@ -164,7 +175,7 @@ export default function WorkerProfileScreen({ navigation }) {
                                 <Text style={styles.iconTxt}>📍</Text>
                             </View>
                             <View style={styles.rowInfo}>
-                                <Text style={styles.rowTitle}>Operational Center</Text>
+                                <Text style={styles.rowTitle}>{t('operational_center')}</Text>
                                 <Text style={styles.rowSub} numberOfLines={1}>{location.address}</Text>
                             </View>
                             <Text style={styles.rowChevron}>›</Text>
@@ -175,24 +186,33 @@ export default function WorkerProfileScreen({ navigation }) {
                 {/* Skills Section */}
                 <FadeInView delay={300} style={styles.section}>
                     <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionHeader}>PROFESSIONAL SKILLS</Text>
+                        <Text style={styles.sectionHeader}>{t('professional_skills')}</Text>
                         <TouchableOpacity onPress={() => setIsSkillsModalOpen(true)}>
-                            <Text style={styles.headerAction}>ADD SKILL</Text>
+                            <Text style={styles.headerAction}>{t('add_skill')}</Text>
                         </TouchableOpacity>
                     </View>
                     <Card style={styles.skillsCard}>
                         <View style={styles.skillsBox}>
                             {skills.length === 0 ? (
-                                <Text style={styles.emptySkills}>No skills registered. Add skills to match with jobs.</Text>
+                                <Text style={styles.emptySkills}>{t('no_skills_registered')}</Text>
                             ) : (
-                                skills.map(k => (
-                                    <View key={k} style={styles.skillPill}>
-                                        <Text style={styles.skillLabel}>{availableSkills[k]?.label || k}</Text>
-                                        <TouchableOpacity onPress={() => handleRemoveSkill(k)} style={styles.skillClose}>
-                                            <Text style={styles.closeIcon}>×</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                ))
+                                skills.map((k, index) => {
+                                    const skillKey = typeof k === 'object' ? (k.id || JSON.stringify(k)) : k;
+                                    let skillLabel = availableSkills[skillKey]?.label || skillKey;
+                                    // Extreme safety: never render an object inside <Text>
+                                    if (typeof skillLabel === 'object') {
+                                        skillLabel = skillLabel.label || skillLabel.id || JSON.stringify(skillLabel);
+                                    }
+
+                                    return (
+                                        <View key={index} style={styles.skillPill}>
+                                            <Text style={styles.skillLabel}>{skillLabel}</Text>
+                                            <TouchableOpacity onPress={() => handleRemoveSkill(skillKey)} style={styles.skillClose}>
+                                                <Text style={styles.closeIcon}>×</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    );
+                                })
                             )}
                         </View>
                     </Card>
@@ -200,14 +220,14 @@ export default function WorkerProfileScreen({ navigation }) {
 
                 {/* Preferences Section */}
                 <FadeInView delay={400} style={styles.section}>
-                    <Text style={styles.sectionHeader}>SYSTEM PREFERENCES</Text>
+                    <Text style={styles.sectionHeader}>{t('system_preferences')}</Text>
                     <Card style={styles.settingsCard}>
                         <PressableAnimated style={styles.settingRow} onPress={() => setIsLangModalOpen(true)}>
                             <View style={styles.rowIcon}>
                                 <Text style={styles.iconTxt}>🌐</Text>
                             </View>
                             <View style={styles.rowInfo}>
-                                <Text style={styles.rowTitle}>Display Language</Text>
+                                <Text style={styles.rowTitle}>{t('display_language')}</Text>
                                 <Text style={styles.rowSub}>{currentLangObj.flag} {currentLangObj.nativeLabel}</Text>
                             </View>
                             <Text style={styles.rowChevron}>›</Text>
@@ -220,8 +240,8 @@ export default function WorkerProfileScreen({ navigation }) {
                                 <Text style={styles.iconTxt}>🔔</Text>
                             </View>
                             <View style={styles.rowInfo}>
-                                <Text style={styles.rowTitle}>Mission Notifications</Text>
-                                <Text style={styles.rowSub}>Configure job push alerts</Text>
+                                <Text style={styles.rowTitle}>{t('mission_notifications')}</Text>
+                                <Text style={styles.rowSub}>{t('mission_notifications_desc')}</Text>
                             </View>
                             <Text style={styles.rowChevron}>›</Text>
                         </PressableAnimated>
@@ -230,7 +250,7 @@ export default function WorkerProfileScreen({ navigation }) {
 
                 {/* Footer Actions */}
                 <FadeInView delay={500} style={styles.authFooter}>
-                    <PremiumButton variant="ghost" title="Deauthorize Session" onPress={logout} />
+                    <PremiumButton variant="ghost" title={t('logout')} onPress={logout} />
                     <Text style={styles.appMetadata}>ZARVA PRO PROTOCOL • v2.8.4</Text>
                 </FadeInView>
 
@@ -241,9 +261,9 @@ export default function WorkerProfileScreen({ navigation }) {
                 <View style={styles.modalBackdrop}>
                     <View style={styles.modernModal}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Localization</Text>
+                            <Text style={styles.modalTitle}>{t('localization')}</Text>
                             <TouchableOpacity onPress={() => setIsLangModalOpen(false)}>
-                                <Text style={styles.modalClose}>DISMISS</Text>
+                                <Text style={styles.modalClose}>{t('dismiss')}</Text>
                             </TouchableOpacity>
                         </View>
                         <FlatList
@@ -269,9 +289,9 @@ export default function WorkerProfileScreen({ navigation }) {
                 <View style={styles.modalBackdrop}>
                     <View style={styles.modernModal}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Acquire Skill</Text>
+                            <Text style={styles.modalTitle}>{t('acquire_skill')}</Text>
                             <TouchableOpacity onPress={() => setIsSkillsModalOpen(false)}>
-                                <Text style={styles.modalClose}>DISMISS</Text>
+                                <Text style={styles.modalClose}>{t('dismiss')}</Text>
                             </TouchableOpacity>
                         </View>
                         <FlatList

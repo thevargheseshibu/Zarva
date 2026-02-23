@@ -8,10 +8,12 @@ import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 import FadeInView from '../../components/FadeInView';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
+import { useT } from '../../hooks/useT';
 
 export default function AlertPreferencesScreen() {
     const { alertPreferences, updateAlertPrefs } = useWorkerStore();
     const navigation = useNavigation();
+    const t = useT();
 
     const toggle = (key) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -26,22 +28,22 @@ export default function AlertPreferencesScreen() {
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
                 <View>
-                    <Text style={styles.headerSub}>NOTIFICATIONS</Text>
-                    <Text style={styles.headerTitle}>Mission Alerts</Text>
+                    <Text style={styles.headerSub}>{t('notifications_title')}</Text>
+                    <Text style={styles.headerTitle}>{t('mission_alerts')}</Text>
                 </View>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <FadeInView delay={50}>
-                    <Text style={styles.sectionLabel}>PREFERENCE CONFIGURATION</Text>
+                    <Text style={styles.sectionLabel}>{t('pref_config')}</Text>
                     <Card style={styles.settingsCard}>
                         <View style={styles.settingRow}>
                             <View style={styles.rowIcon}>
                                 <Text style={styles.iconTxt}>🔊</Text>
                             </View>
                             <View style={styles.rowInfo}>
-                                <Text style={styles.rowTitle}>Acoustic Alerts</Text>
-                                <Text style={styles.rowSub}>High-priority melody for incoming missions</Text>
+                                <Text style={styles.rowTitle}>{t('acoustic_alerts')}</Text>
+                                <Text style={styles.rowSub}>{t('acoustic_desc')}</Text>
                             </View>
                             <Switch
                                 value={alertPreferences.soundEnabled}
@@ -58,8 +60,8 @@ export default function AlertPreferencesScreen() {
                                 <Text style={styles.iconTxt}>📳</Text>
                             </View>
                             <View style={styles.rowInfo}>
-                                <Text style={styles.rowTitle}>Haptic Feedback</Text>
-                                <Text style={styles.rowSub}>Tactile pulses during the mobilization phase</Text>
+                                <Text style={styles.rowTitle}>{t('haptic_feedback')}</Text>
+                                <Text style={styles.rowSub}>{t('haptic_desc')}</Text>
                             </View>
                             <Switch
                                 value={alertPreferences.vibrationEnabled}
@@ -76,8 +78,8 @@ export default function AlertPreferencesScreen() {
                                 <Text style={styles.iconTxt}>🌙</Text>
                             </View>
                             <View style={styles.rowInfo}>
-                                <Text style={styles.rowTitle}>Quiet Mode</Text>
-                                <Text style={styles.rowSub}>Suppress all auditory and tactile alerts</Text>
+                                <Text style={styles.rowTitle}>{t('quiet_mode')}</Text>
+                                <Text style={styles.rowSub}>{t('quiet_mode_desc')}</Text>
                             </View>
                             <Switch
                                 value={alertPreferences.dndMode}
@@ -91,15 +93,15 @@ export default function AlertPreferencesScreen() {
 
                 <FadeInView delay={250}>
                     <Card style={styles.tipCard}>
-                        <Text style={styles.tipHeader}>💡 STRATEGIC ADVISORY</Text>
+                        <Text style={styles.tipHeader}>{t('strategic_advisory')}</Text>
                         <Text style={styles.tipBody}>
-                            Engaging both <Text style={styles.tipAccent}>Acoustic</Text> and <Text style={styles.tipAccent}>Haptic</Text> protocols maximizes your response velocity, ensuring priority access to premium marketplace opportunities.
+                            {t('strategic_desc_1')}<Text style={styles.tipAccent}>{t('strategic_desc_2')}</Text>{t('strategic_desc_3')}<Text style={styles.tipAccent}>{t('strategic_desc_4')}</Text>{t('strategic_desc_5')}
                         </Text>
                     </Card>
                 </FadeInView>
 
                 <View style={styles.footer}>
-                    <Text style={styles.footerTxt}>ZARVA PRO ALERTS • ENCRYPTED LAYER</Text>
+                    <Text style={styles.footerTxt}>{t('alert_footer')}</Text>
                 </View>
             </ScrollView>
         </View>

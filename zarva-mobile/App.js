@@ -99,11 +99,14 @@ export default function App() {
   const { language, isLoaded, loadLanguage } = useLanguageStore();
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
 
-  // 1. Load Language
+  // 1. Initial Data Load
   React.useEffect(() => {
-    loadLanguage(language);
+    // Only load if not already loaded to prevent flashes on hot-reload
+    if (!isLoaded) {
+      loadLanguage(language);
+    }
     JobAlertService.init();
-  }, [language]);
+  }, []);
 
   // 2. Auth-Gated / Post-Load Logic (Rehydration)
   React.useEffect(() => {

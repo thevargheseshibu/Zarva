@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { colors, radius, shadows } from '../design-system/tokens';
+import { colors, radius, shadows, spacing } from '../design-system/tokens';
 
 export default function Card({ children, style }) {
     return (
@@ -14,5 +14,6 @@ const styles = StyleSheet.create({
     card: {
         backgroundColor: colors.surface,
         borderRadius: radius.lg,
+        padding: spacing.md,
     },
 });

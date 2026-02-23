@@ -8,33 +8,7 @@ import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import { useAuthStore } from '../../../stores/authStore';
 import apiClient from '../../../services/api/client';
-
-const AGREEMENT_TEXT = `ZARVA PRO SERVICE PROTOCOL
-
-Last updated: February 2026
-
-1. ELIGIBILITY
-You confirm that you are at least 18 years old, legally permitted to work in India, and possess the skills listed in your profile.
-
-2. PLATFORM USAGE
-ZARVA provides a technology platform connecting you with customers. Each job contract is between you and the customer directly.
-
-3. QUALITY STANDARDS
-You agree to arrive on time, complete jobs professionally, and maintain a minimum rating of 3.5 stars.
-
-4. PAYMENTS
-ZARVA will remit your earnings within 48 hours of job completion, minus the platform fee (currently 15%).
-
-5. CANCELLATIONS
-Repeated last-minute cancellations may result in temporary or permanent suspension.
-
-6. DATA & PRIVACY
-Your location will be shared with matched customers during active jobs only.
-
-7. TERMINATION
-Either party may terminate this agreement with 7 days notice.
-
-By typing your name below, you agree to all terms.`;
+import { useT } from '../../../hooks/useT';
 
 const AGREEMENT_VERSION = 'v2026-02';
 
@@ -42,6 +16,7 @@ export default function OnboardingAgreement({ data, onNext }) {
     const [signature, setSignature] = useState('');
     const [loading, setLoading] = useState(false);
     const { user } = useAuthStore();
+    const t = useT();
 
     const isValid = signature.trim().length >= 2;
 
@@ -58,7 +33,7 @@ export default function OnboardingAgreement({ data, onNext }) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             onNext({ signature });
         } catch (err) {
-            Alert.alert('Protocol Error', err.response?.data?.message || 'Failed to submit application. Please verify connection.');
+            Alert.alert(t('protocol_error'), err.response?.data?.message || t('error_submit_application'));
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         } finally {
             setLoading(false);
@@ -69,38 +44,38 @@ export default function OnboardingAgreement({ data, onNext }) {
         <View style={styles.screen}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <FadeInView delay={50}>
-                    <Text style={styles.headerSub}>STEP 05/05</Text>
-                    <Text style={styles.title}>Professional Protocol</Text>
-                    <Text style={styles.sub}>Review the Zarva Pro service standards and formalize your enrollment.</Text>
+                    <Text style={styles.headerSub}>{t('step_05')}</Text>
+                    <Text style={styles.title}>{t('professional_protocol')}</Text>
+                    <Text style={styles.sub}>{t('professional_protocol_desc')}</Text>
                 </FadeInView>
 
                 <FadeInView delay={150} style={styles.section}>
-                    <Text style={styles.label}>Service Agreement</Text>
+                    <Text style={styles.label}>{t('service_agreement')}</Text>
                     <Card style={styles.agreementCard}>
                         <ScrollView style={styles.innerScroll} showsVerticalScrollIndicator={true}>
-                            <Text style={styles.agreementBody}>{AGREEMENT_TEXT}</Text>
+                            <Text style={styles.agreementBody}>{t('agreement_text')}</Text>
                         </ScrollView>
                     </Card>
                 </FadeInView>
 
                 <FadeInView delay={250} style={styles.section}>
-                    <Text style={styles.label}>Electronic Signature</Text>
+                    <Text style={styles.label}>{t('electronic_signature')}</Text>
                     <Card style={styles.inputCard}>
                         <TextInput
                             style={styles.input}
                             value={signature}
                             onChangeText={setSignature}
-                            placeholder={user?.name || 'Full Legal Name'}
+                            placeholder={user?.name || t('full_legal_name')}
                             placeholderTextColor={colors.text.muted}
                             autoCapitalize="words"
                         />
                     </Card>
-                    <Text style={styles.hintTxt}>By typing your name, you execute this agreement electronically.</Text>
+                    <Text style={styles.hintTxt}>{t('signature_hint')}</Text>
                 </FadeInView>
 
                 <FadeInView delay={350} style={styles.footer}>
                     <PremiumButton
-                        title="Authorize Enrollment"
+                        title={t('authorize_enrollment')}
                         disabled={!isValid}
                         loading={loading}
                         onPress={handleSubmit}

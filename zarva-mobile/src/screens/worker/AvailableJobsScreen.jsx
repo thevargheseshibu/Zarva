@@ -115,7 +115,7 @@ export default function AvailableJobsScreen({ navigation }) {
                     <Card style={styles.jobCard}>
                         <View style={styles.cardHeader}>
                             <View style={styles.catBox}>
-                                <Text style={styles.catTxt}>{item.category || 'Professional Service'}</Text>
+                                <Text style={styles.catTxt}>{item.category || t('professional_service')}</Text>
                             </View>
                             <Text style={styles.timeTxt}>{dayjs(item.time).fromNow()}</Text>
                         </View>
@@ -125,17 +125,17 @@ export default function AvailableJobsScreen({ navigation }) {
                         <View style={styles.statsRow}>
                             <View style={styles.statLine}>
                                 <Text style={styles.statIcon}>📍</Text>
-                                <Text style={styles.statTxt}>{formatDistance(item.dist) || '—'} away</Text>
+                                <Text style={styles.statTxt}>{formatDistance(item.dist) || '—'}{t('away_suffix')}</Text>
                             </View>
                             <View style={styles.rewardBox}>
-                                <Text style={styles.rewardLabel}>EST. PAYOUT</Text>
+                                <Text style={styles.rewardLabel}>{t('est_payout')}</Text>
                                 <Text style={styles.rewardVal}>₹{parseFloat(item.total_amount || 0).toFixed(0)}</Text>
                             </View>
                         </View>
 
                         <View style={styles.cardFooter}>
-                            <Text style={styles.clientLabel}>Requested by {item.customer_name?.split(' ')[0]}</Text>
-                            <Text style={styles.viewMore}>ACQUIRE REQUEST ›</Text>
+                            <Text style={styles.clientLabel}>{t('requested_by')}{item.customer_name?.split(' ')[0]}</Text>
+                            <Text style={styles.viewMore}>{t('acquire_request')}</Text>
                         </View>
                     </Card>
                 </PressableAnimated>
@@ -148,8 +148,8 @@ export default function AvailableJobsScreen({ navigation }) {
             <View style={styles.offlineScreen}>
                 <FadeInView delay={100} style={styles.offlineContent}>
                     <Text style={styles.offlineIcon}>🌘</Text>
-                    <Text style={styles.offlineTitle}>Currently Inactive</Text>
-                    <Text style={styles.offlineSub}>Go online from your dashboard to witness and accept incoming job requests.</Text>
+                    <Text style={styles.offlineTitle}>{t('currently_inactive')}</Text>
+                    <Text style={styles.offlineSub}>{t('go_online_desc')}</Text>
                 </FadeInView>
             </View>
         );
@@ -160,8 +160,8 @@ export default function AvailableJobsScreen({ navigation }) {
             {/* Header */}
             <View style={styles.header}>
                 <View>
-                    <Text style={styles.headerSub}>AVAILABLE OPPORTUNITIES</Text>
-                    <Text style={styles.headerTitle}>Marketplace</Text>
+                    <Text style={styles.headerSub}>{t('available_opportunities')}</Text>
+                    <Text style={styles.headerTitle}>{t('marketplace')}</Text>
                 </View>
                 <View style={styles.countBadge}>
                     <Text style={styles.countTxt}>{jobs.length}</Text>
@@ -194,6 +194,7 @@ export default function AvailableJobsScreen({ navigation }) {
 
                 <View style={styles.sortBar}>
                     {['Nearest', 'Latest', 'Reward'].map(opt => {
+                        const optKey = opt === 'Nearest' ? t('nearest') : opt === 'Latest' ? t('latest') : t('reward');
                         const active = sortBy === opt;
                         return (
                             <TouchableOpacity
@@ -204,7 +205,7 @@ export default function AvailableJobsScreen({ navigation }) {
                                     Haptics.selectionAsync();
                                 }}
                             >
-                                <Text style={[styles.sortTxt, active && styles.sortTxtActive]}>{opt}</Text>
+                                <Text style={[styles.sortTxt, active && styles.sortTxtActive]}>{optKey}</Text>
                             </TouchableOpacity>
                         );
                     })}
@@ -233,8 +234,8 @@ export default function AvailableJobsScreen({ navigation }) {
                     return (
                         <FadeInView delay={200} style={styles.emptyContainer}>
                             <Text style={styles.emptyIcon}>💎</Text>
-                            <Text style={styles.emptyTitle}>All caught up!</Text>
-                            <Text style={styles.emptySub}>No active requests matching your criteria. We'll notify you as soon as a new opportunity arises.</Text>
+                            <Text style={styles.emptyTitle}>{t('all_caught_up')}</Text>
+                            <Text style={styles.emptySub}>{t('no_active_requests')}</Text>
                         </FadeInView>
                     );
                 }}

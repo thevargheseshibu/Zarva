@@ -97,15 +97,15 @@ export default function LocationScheduleScreen({ route, navigation }) {
                 <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
-                <Text style={styles.headerTitle}>Location & Time</Text>
+                <Text style={styles.headerTitle}>{t('where_and_when')}</Text>
                 <View style={{ width: 44 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
                 <FadeInView delay={50}>
-                    <Text style={styles.introTitle}>Where & when?</Text>
-                    <Text style={styles.introSub}>Set your location and choose a convenient time for the service.</Text>
+                    <Text style={styles.introTitle}>{t('where_and_when')}</Text>
+                    <Text style={styles.introSub}>{t('set_location_time')}</Text>
                 </FadeInView>
 
                 {/* Location Input Component */}
@@ -113,7 +113,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
 
                 {/* Schedule Section */}
                 <FadeInView delay={300} style={styles.section}>
-                    <Text style={styles.sectionHeader}>SCHEDULE</Text>
+                    <Text style={styles.sectionHeader}>{t('schedule_caps')}</Text>
                     <View style={styles.tabRow}>
                         <PressableAnimated
                             style={[styles.tab, scheduleType === 'now' && styles.tabActive]}
@@ -122,7 +122,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
                                 Haptics.selectionAsync();
                             }}
                         >
-                            <Text style={[styles.tabTxt, scheduleType === 'now' && styles.tabTxtActive]}>ASAP (Now)</Text>
+                            <Text style={[styles.tabTxt, scheduleType === 'now' && styles.tabTxtActive]}>{t('asap_now')}</Text>
                         </PressableAnimated>
                         <PressableAnimated
                             style={[styles.tab, scheduleType === 'later' && styles.tabActive]}
@@ -131,7 +131,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
                                 Haptics.selectionAsync();
                             }}
                         >
-                            <Text style={[styles.tabTxt, scheduleType === 'later' && styles.tabTxtActive]}>Schedule Later</Text>
+                            <Text style={[styles.tabTxt, scheduleType === 'later' && styles.tabTxtActive]}>{t('schedule_later')}</Text>
                         </PressableAnimated>
                     </View>
 
@@ -143,7 +143,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
                                         style={styles.pickerBtn}
                                         onPress={() => setShowDatePicker(true)}
                                     >
-                                        <Text style={styles.pickerLabel}>DATE</Text>
+                                        <Text style={styles.pickerLabel}>{t('date_caps')}</Text>
                                         <Text style={styles.pickerValue}>{dayjs(scheduledDate).format('MMM D, YYYY')}</Text>
                                     </TouchableOpacity>
                                     <View style={styles.pickerDivider} />
@@ -151,7 +151,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
                                         style={styles.pickerBtn}
                                         onPress={() => setShowTimePicker(true)}
                                     >
-                                        <Text style={styles.pickerLabel}>TIME</Text>
+                                        <Text style={styles.pickerLabel}>{t('time_caps')}</Text>
                                         <Text style={styles.pickerValue}>{dayjs(scheduledDate).format('hh:mm A')}</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -165,8 +165,8 @@ export default function LocationScheduleScreen({ route, navigation }) {
                     <Card style={[styles.emergencyCard, isEmergency && styles.emergencyCardActive]}>
                         <View style={styles.emergencyRow}>
                             <View style={styles.emergencyInfo}>
-                                <Text style={styles.emergencyTitle}>Emergency Dispatch</Text>
-                                <Text style={styles.emergencySub}>Prioritize your request. Professionals nearby will be notified instantly.</Text>
+                                <Text style={styles.emergencyTitle}>{t('emergency_dispatch')}</Text>
+                                <Text style={styles.emergencySub}>{t('prioritize_request')}</Text>
                             </View>
                             <Switch
                                 value={isEmergency}
@@ -183,7 +183,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
 
                 <View style={styles.footer}>
                     <PremiumButton
-                        title="Search for Professional"
+                        title={t('search_for_pro')}
                         loading={loading}
                         isDisabled={!isReady}
                         onPress={handleConfirm}

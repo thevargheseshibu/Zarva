@@ -178,14 +178,14 @@ export default function WorkerHomeScreen({ navigation }) {
                             {worker.verified && <View style={styles.verifiedDot} />}
                         </View>
                         <View style={styles.headerText}>
-                            <Text style={styles.greeting}>GOOD DAY,</Text>
+                            <Text style={styles.greeting}>{t('good_day')}</Text>
                             <Text style={styles.name}>{worker.name.split(' ')[0]}</Text>
                         </View>
                     </View>
 
                     <View style={styles.statusBox}>
                         <Text style={[styles.statusTxt, isOnline && styles.statusTxtActive]}>
-                            {isOnline ? 'ONLINE' : 'OFFLINE'}
+                            {isOnline ? t('online').toUpperCase() : t('offline').toUpperCase()}
                         </Text>
                         <Switch
                             value={isOnline}
@@ -201,11 +201,11 @@ export default function WorkerHomeScreen({ navigation }) {
                     <PressableAnimated onPress={() => navigation.navigate('EarningsDetail')}>
                         <Card style={styles.earningsCard}>
                             <View style={styles.eInfo}>
-                                <Text style={styles.eLabel}>TODAY'S EARNINGS</Text>
+                                <Text style={styles.eLabel}>{t('earnings_today')}</Text>
                                 <Text style={styles.eValue}>₹{earningsToday}</Text>
                             </View>
                             <View style={styles.eAction}>
-                                <Text style={styles.eActionTxt}>PROFIT TRACKER ›</Text>
+                                <Text style={styles.eActionTxt}>{t('profit_tracker')}</Text>
                             </View>
                         </Card>
                     </PressableAnimated>
@@ -214,17 +214,17 @@ export default function WorkerHomeScreen({ navigation }) {
                 <FadeInView delay={300} style={styles.statsGrid}>
                     <View style={styles.statItem}>
                         <Text style={styles.statVal}>{stats.today}</Text>
-                        <Text style={styles.statLbl}>JOBS TODAY</Text>
+                        <Text style={styles.statLbl}>{t('jobs_today')}</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.statItem}>
                         <Text style={styles.statVal}>{stats.week}</Text>
-                        <Text style={styles.statLbl}>THIS WEEK</Text>
+                        <Text style={styles.statLbl}>{t('this_week')}</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.statItem}>
                         <Text style={styles.statVal}>⭐ {worker.rating.toFixed(1)}</Text>
-                        <Text style={styles.statLbl}>RATING</Text>
+                        <Text style={styles.statLbl}>{t('rating')}</Text>
                     </View>
                 </FadeInView>
             </View>
@@ -245,25 +245,25 @@ export default function WorkerHomeScreen({ navigation }) {
                     <PressableAnimated style={styles.locationBar} onPress={() => setIsMapVisible(true)}>
                         <Text style={styles.locIcon}>📍</Text>
                         <Text style={styles.locTxt} numberOfLines={1}>{location.address}</Text>
-                        <Text style={styles.locEdit}>EDIT</Text>
+                        <Text style={styles.locEdit}>{t('edit')}</Text>
                     </PressableAnimated>
                 </FadeInView>
 
                 {/* Active Job Section */}
                 {activeJob && (
                     <FadeInView delay={500} style={styles.section}>
-                        <Text style={styles.sectionHeader}>CURRENT ENGAGEMENT</Text>
+                        <Text style={styles.sectionHeader}>{t('current_engagement')}</Text>
                         <Card style={styles.activeJobCard}>
                             <View style={styles.ajTitleRow}>
-                                <Text style={styles.ajCategory}>{activeJob.category}</Text>
+                                <Text style={styles.ajCategory}>{t(`cat_${activeJob.category}`) || activeJob.category || t('cat_service')}</Text>
                                 <StatusPill status={activeJob.status} />
                             </View>
-                            <Text style={styles.ajAddress} numberOfLines={1}>Request from {activeJob.customer_address?.split(',')[0]}</Text>
+                            <Text style={styles.ajAddress} numberOfLines={1}>{t('request_from')} {activeJob.customer_address?.split(',')[0]}</Text>
                             <PressableAnimated
                                 style={styles.ajAction}
                                 onPress={() => navigation.navigate('ActiveJob', { jobId: activeJob.id })}
                             >
-                                <Text style={styles.ajActionTxt}>RESUME OPERATIONS</Text>
+                                <Text style={styles.ajActionTxt}>{t('resume_operations')}</Text>
                             </PressableAnimated>
                         </Card>
                     </FadeInView>
@@ -272,35 +272,45 @@ export default function WorkerHomeScreen({ navigation }) {
                 {/* Feed / Feedback Summary */}
                 <FadeInView delay={600} style={styles.section}>
                     <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionHeader}>RECENT FEEDBACK</Text>
+                        <Text style={styles.sectionHeader}>{t('recent_feedback')}</Text>
                         {reviews.length > 0 && (
                             <TouchableOpacity onPress={() => navigation.navigate('WorkerReputation', { workerId: worker.id, workerName: worker.name })}>
-                                <Text style={styles.viewAll}>SEE ALL</Text>
+                                <Text style={styles.viewAll}>{t('see_all')}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
 
                     {reviews.length === 0 ? (
                         <Card style={styles.emptyFeedback}>
-                            <Text style={styles.emptyTxt}>Complete jobs to unlock performance reviews.</Text>
-                        </Card>
-                    ) : (
-                        <Card style={styles.feedbackCard}>
-                            <View style={styles.fbHeader}>
-                                <Text style={styles.fbStars}>{"★".repeat(reviews[0].overall_score)}</Text>
-                                <Text style={styles.fbUser}>{reviews[0].reviewer_identifier}</Text>
-                            </View>
-                            <Text style={styles.fbComment} numberOfLines={2}>
-                                {reviews[0].comment ? `"${reviews[0].comment}"` : "The professional provided outstanding service."}
+                            <Text style={styles.emptyTxt}>
+                                {t('empty_feedback_desc')}
                             </Text>
                         </Card>
+                    ) : (
+                        reviews?.slice(0, 3).map((review, index) => (
+                            <Card key={index} style={styles.feedbackCard}>
+                                <View style={styles.fbHeader}>
+                                    <Text style={styles.fbStars}>
+                                        {"★".repeat(review.overall_score)}
+                                    </Text>
+                                    <Text style={styles.fbUser}>
+                                        {review.reviewer_identifier}
+                                    </Text>
+                                </View>
+                                <Text style={styles.fbComment} numberOfLines={2}>
+                                    {review.comment
+                                        ? `"${review.comment}"`
+                                        : t('default_feedback')}
+                                </Text>
+                            </Card>
+                        ))
                     )}
                 </FadeInView>
 
                 {/* Status Indicator */}
                 {!isOnline && (
                     <FadeInView delay={700} style={styles.offlineBox}>
-                        <Text style={styles.offlineTxt}>Offline • Not receiving new requests</Text>
+                        <Text style={styles.offlineTxt}>{t('offline_desc')}</Text>
                     </FadeInView>
                 )}
             </ScrollView>
@@ -332,32 +342,31 @@ const styles = StyleSheet.create({
     photo: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.accent.border },
     verifiedDot: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#00D1FF', borderWidth: 2, borderColor: colors.surface },
     headerText: { gap: 2 },
-    greeting: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    greeting: { color: colors.text.muted, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
     name: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold },
 
     statusBox: { alignItems: 'center', gap: 4 },
-    statusTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    statusTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     statusTxtActive: { color: colors.accent.primary },
 
     earningsCard: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: spacing[24],
         backgroundColor: colors.elevated,
         borderWidth: 1,
         borderColor: colors.surface,
         marginBottom: spacing[20]
     },
     eLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
-    eValue: { color: colors.text.primary, fontSize: 40, fontWeight: '900', marginTop: 4 },
+    eValue: { color: colors.text.primary, fontSize: 40, fontWeight: '1000', marginTop: 4 },
     eAction: { backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full },
-    eActionTxt: { color: colors.text.primary, fontSize: 8, fontWeight: fontWeight.bold },
+    eActionTxt: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold },
 
     statsGrid: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     statItem: { flex: 1, alignItems: 'center', gap: 4 },
     statVal: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
-    statLbl: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    statLbl: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     statDivider: { width: 1, height: 20, backgroundColor: colors.surface },
 
     scrollContent: { padding: spacing[24], paddingBottom: 120 },
@@ -375,29 +384,29 @@ const styles = StyleSheet.create({
     },
     locIcon: { fontSize: 14 },
     locTxt: { flex: 1, color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
-    locEdit: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold },
+    locEdit: { color: colors.accent.primary, fontSize: 12, fontWeight: fontWeight.bold },
 
     section: { marginBottom: spacing[32], gap: spacing[16] },
     sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    sectionHeader: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    viewAll: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold },
+    sectionHeader: { color: colors.accent.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    viewAll: { color: colors.text.muted, fontSize: 12, fontWeight: fontWeight.bold },
 
-    activeJobCard: { padding: spacing[24], gap: spacing[12], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent.border + '22' },
+    activeJobCard: { gap: spacing[12], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent.border + '22' },
     ajTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     ajCategory: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
     ajAddress: { color: colors.text.secondary, fontSize: fontSize.micro },
-    ajAction: { backgroundColor: colors.accent.primary, paddingVertical: 14, borderRadius: radius.lg, alignItems: 'center', marginTop: 8 },
+    ajAction: { backgroundColor: colors.accent.primary, paddingVertical: 14, borderRadius: radius.lg, alignItems: 'center', marginTop: 10 },
     ajActionTxt: { color: colors.background, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
 
-    feedbackCard: { padding: spacing[20], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface, gap: 8 },
+    feedbackCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface, gap: 10 },
     fbHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     fbStars: { color: colors.accent.primary, fontSize: 12, letterSpacing: 2 },
-    fbUser: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold },
+    fbUser: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold },
     fbComment: { color: colors.text.secondary, fontSize: fontSize.caption, fontStyle: 'italic', lineHeight: 20 },
 
-    emptyFeedback: { padding: spacing[24], alignItems: 'center', backgroundColor: colors.surface, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.surface },
+    emptyFeedback: { alignItems: 'center', backgroundColor: colors.surface, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.surface },
     emptyTxt: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center' },
 
-    offlineBox: { padding: spacing[16], alignItems: 'center', backgroundColor: colors.accent.primary + '08', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.accent.primary + '15' },
-    offlineTxt: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 }
+    offlineBox: { padding: spacing[16], alignItems: 'center', backgroundColor: colors.accent.primary + '010', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.accent.primary + '15' },
+    offlineTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 }
 });

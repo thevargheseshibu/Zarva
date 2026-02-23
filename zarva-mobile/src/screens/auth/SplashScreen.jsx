@@ -2,8 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { colors } from '../../design-system/tokens';
 import RadarAnimation from '../../components/RadarAnimation';
+import { useT } from '../../hooks/useT';
 
 export default function SplashScreen({ navigation }) {
+    const t = useT();
     React.useEffect(() => {
         const t = setTimeout(() => navigation.replace('Language'), 2000);
         return () => clearTimeout(t);
@@ -13,7 +15,7 @@ export default function SplashScreen({ navigation }) {
         <View style={styles.screen}>
             <RadarAnimation size={80} />
             <Text style={styles.brand}>ZARVA</Text>
-            <Text style={styles.tagline}>Kerala's Premier Home Services</Text>
+            <Text style={styles.tagline}>{t('splash_tagline')}</Text>
         </View>
     );
 }

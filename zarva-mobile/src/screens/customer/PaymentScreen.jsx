@@ -106,7 +106,7 @@ export default function PaymentScreen({ route, navigation }) {
         <View style={styles.screen}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>SECURE CHECKOUT</Text>
+                <Text style={styles.headerTitle}>{t('secure_checkout')}</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -115,8 +115,8 @@ export default function PaymentScreen({ route, navigation }) {
                     <View style={styles.checkCircle}>
                         <Text style={styles.checkIcon}>✅</Text>
                     </View>
-                    <Text style={styles.introTitle}>Job Complete</Text>
-                    <Text style={styles.introSub}>Review your service invoice and select a preferred payment method.</Text>
+                    <Text style={styles.introTitle}>{t('job_complete')}</Text>
+                    <Text style={styles.introSub}>{t('review_invoice')}</Text>
                 </FadeInView>
 
                 {/* Invoice Card */}
@@ -124,45 +124,45 @@ export default function PaymentScreen({ route, navigation }) {
                     <Card style={styles.invoiceCard}>
                         <View style={styles.invoiceHeader}>
                             <View>
-                                <Text style={styles.invoiceLabel}>INVOICE NO.</Text>
+                                <Text style={styles.invoiceLabel}>{t('invoice_no')}</Text>
                                 <Text style={styles.invoiceNo}>#{invoice.invoice_number}</Text>
                             </View>
                             <View style={styles.hoursBadge}>
-                                <Text style={styles.hoursTxt}>{invoice.actual_hours}h Session</Text>
+                                <Text style={styles.hoursTxt}>{t('session_hours').replace('%{hours}', invoice.actual_hours)}</Text>
                             </View>
                         </View>
 
                         <View style={styles.divider} />
 
                         <View style={styles.row}>
-                            <Text style={styles.label}>Labour Cost</Text>
+                            <Text style={styles.label}>{t('labour_cost')}</Text>
                             <Text style={styles.value}>₹{ib.base_amount}</Text>
                         </View>
                         <View style={styles.row}>
-                            <Text style={styles.label}>Travel Allowance</Text>
+                            <Text style={styles.label}>{t('travel_allowance')}</Text>
                             <Text style={styles.value}>₹{ib.travel_charge}</Text>
                         </View>
                         <View style={styles.row}>
-                            <Text style={styles.label}>Platform Service Fee</Text>
+                            <Text style={styles.label}>{t('platform_service_fee')}</Text>
                             <Text style={styles.value}>₹{ib.platform_fee}</Text>
                         </View>
 
                         <View style={styles.advanceRow}>
                             <View style={styles.advanceInfo}>
-                                <Text style={styles.advanceLabel}>ADVANCE PAID</Text>
+                                <Text style={styles.advanceLabel}>{t('advance_paid')}</Text>
                                 <Text style={styles.advanceValue}>- ₹{ib.advance_amount_paid}</Text>
                             </View>
                             <View style={styles.paidBadge}>
-                                <Text style={styles.paidBadgeTxt}>PAID</Text>
+                                <Text style={styles.paidBadgeTxt}>{t('paid_caps')}</Text>
                             </View>
                         </View>
 
                         <View style={styles.totalBlock}>
                             <View>
-                                <Text style={styles.balanceLabel}>BALANCE DUE</Text>
+                                <Text style={styles.balanceLabel}>{t('balance_due')}</Text>
                                 <Text style={styles.totalValue}>₹{ib.balance_due}</Text>
                             </View>
-                            <Text style={styles.secureBadge}>🔒 Secure Transmission</Text>
+                            <Text style={styles.secureBadge}>{t('secure_transmission')}</Text>
                         </View>
                     </Card>
                 </FadeInView>
@@ -173,7 +173,7 @@ export default function PaymentScreen({ route, navigation }) {
                         <>
                             <FadeInView delay={350}>
                                 <PremiumButton
-                                    title={`Pay ₹${ib.balance_due} Now`}
+                                    title={t('pay_now').replace('%{amount}', ib.balance_due)}
                                     loading={loading}
                                     onPress={handleDigitalPayment}
                                 />
@@ -186,7 +186,7 @@ export default function PaymentScreen({ route, navigation }) {
                                     disabled={loading}
                                 >
                                     <Text style={styles.cashBtnTxt}>
-                                        {loading ? 'Processing...' : 'Paid via Cash / Direct UPI'}
+                                        {loading ? t('processing') : t('paid_via_cash')}
                                     </Text>
                                 </TouchableOpacity>
                             </FadeInView>
@@ -194,7 +194,7 @@ export default function PaymentScreen({ route, navigation }) {
                     ) : (
                         <FadeInView delay={350}>
                             <PremiumButton
-                                title="Leave Feedback"
+                                title={t('leave_feedback')}
                                 onPress={() => navigation.replace('Rating', { jobId })}
                             />
                         </FadeInView>

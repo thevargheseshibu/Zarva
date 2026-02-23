@@ -37,10 +37,10 @@ export default function SearchingScreen({ route, navigation }) {
 
     useFocusEffect(useCallback(() => {
         const onBackPress = () => {
-            Alert.alert('Cancel Request?', 'Changing your mind? This will cancel your service request.', [
-                { text: 'Keep Waiting', style: 'cancel' },
+            Alert.alert(t('cancel_request_title'), t('cancel_request_msg'), [
+                { text: t('keep_waiting'), style: 'cancel' },
                 {
-                    text: 'Cancel Request', style: 'destructive',
+                    text: t('cancel'), style: 'destructive',
                     onPress: async () => {
                         stopListening(); clearActiveJob();
                         try { await apiClient.post(`/api/jobs/${jobId}/cancel`); } catch (e) { }
@@ -66,12 +66,11 @@ export default function SearchingScreen({ route, navigation }) {
                     <View style={styles.errorIconCircle}>
                         <Text style={styles.errorIcon}>📍</Text>
                     </View>
-                    <Text style={styles.errorTitle}>No Workers Nearby</Text>
+                    <Text style={styles.errorTitle}>{t('no_workers_found')}</Text>
                     <Text style={styles.errorSub}>
-                        We couldn't find an available {t(`cat_${category}`) || category} in your area right now.
-                        Try adjusting your location or checking back in a few minutes.
+                        {t('no_workers_desc').replace('%{category}', t(`cat_${category}`) || category)}
                     </Text>
-                    <PremiumButton title="Return Home" onPress={handleGoHome} />
+                    <PremiumButton title={t('return_home')} onPress={handleGoHome} />
                 </FadeInView>
             </View>
         );
@@ -81,22 +80,22 @@ export default function SearchingScreen({ route, navigation }) {
         <View style={styles.screen}>
             <View style={styles.content}>
                 <FadeInView delay={200} style={styles.searchingHeader}>
-                    <Text style={styles.searchingTitle}>Searching for {t(`cat_${category}`) || category}</Text>
-                    <Text style={styles.searchingSub}>Optimizing provider matching for your location</Text>
+                    <Text style={styles.searchingTitle}>{t('searching_for').replace('%{category}', t(`cat_${category}`) || category)}</Text>
+                    <Text style={styles.searchingSub}>{t('searching_sub')}</Text>
                 </FadeInView>
 
                 <View style={styles.radarWrapper}>
                     <RadarAnimation size={240} />
                     <View style={styles.pulseLabel}>
-                        <Text style={styles.waveTxt}>WAVE {waveNumber}/3</Text>
+                        <Text style={styles.waveTxt}>{t('wave')} {waveNumber}/3</Text>
                     </View>
                 </View>
 
                 <FadeInView delay={400} style={styles.statusBox}>
                     <Text style={styles.statusTxt}>
-                        {waveNumber === 1 && "Contacting nearest providers..."}
-                        {waveNumber === 2 && "Expanding search radius..."}
-                        {waveNumber === 3 && "Requesting priority matching..."}
+                        {waveNumber === 1 && t('contacting_providers')}
+                        {waveNumber === 2 && t('expanding_search')}
+                        {waveNumber === 3 && t('priority_matching')}
                     </Text>
                 </FadeInView>
             </View>
@@ -104,7 +103,7 @@ export default function SearchingScreen({ route, navigation }) {
             <View style={styles.bottomArea}>
                 {!canMinimize ? (
                     <FadeInView delay={800} style={styles.minimizeInfo}>
-                        <Text style={styles.minimizeTxt}>You can minimize in {countdown}s</Text>
+                        <Text style={styles.minimizeTxt}>{t('minimize_info').replace('%{seconds}', countdown)}</Text>
                     </FadeInView>
                 ) : (
                     <FadeInView delay={100}>
@@ -112,7 +111,7 @@ export default function SearchingScreen({ route, navigation }) {
                             onPress={() => navigation.replace('CustomerTabs')}
                             style={styles.minimizeBtn}
                         >
-                            <Text style={styles.minimizeBtnTxt}>Continue in Background</Text>
+                            <Text style={styles.minimizeBtnTxt}>{t('continue_background')}</Text>
                         </PressableAnimated>
                     </FadeInView>
                 )}
@@ -122,10 +121,10 @@ export default function SearchingScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background, padding: spacing[24] },
+    screen: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
     content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-    searchingHeader: { alignItems: 'center', marginBottom: spacing[48] },
+    searchingHeader: { alignItems: 'center', marginBottom: spacing.xxl },
     searchingTitle: {
         color: colors.text.primary,
         fontSize: fontSize.title,
@@ -146,7 +145,7 @@ const styles = StyleSheet.create({
         height: 280,
         justifyContent: 'center',
         alignItems: 'center',
-        marginVertical: spacing[32]
+        marginVertical: spacing.xl
     },
     pulseLabel: {
         position: 'absolute',
@@ -166,7 +165,7 @@ const styles = StyleSheet.create({
         letterSpacing: 2
     },
 
-    statusBox: { marginTop: spacing[48], minHeight: 40 },
+    statusBox: { marginTop: spacing.xxl, minHeight: 40 },
     statusTxt: {
         color: colors.text.muted,
         fontSize: fontSize.caption,
@@ -199,7 +198,7 @@ const styles = StyleSheet.create({
         letterSpacing: 1
     },
 
-    errorContent: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing[24] },
+    errorContent: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.lg },
     errorIconCircle: {
         width: 80,
         height: 80,
@@ -216,8 +215,8 @@ const styles = StyleSheet.create({
         fontSize: fontSize.body,
         textAlign: 'center',
         lineHeight: 24,
-        paddingHorizontal: spacing[16],
-        marginBottom: spacing[16],
+        paddingHorizontal: spacing.lg,
+        marginBottom: spacing.md,
         letterSpacing: tracking.body
     }
 });

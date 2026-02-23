@@ -116,14 +116,14 @@ export default function HomeScreen({ navigation }) {
 
                 <FadeInView delay={100}>
                     <Text style={styles.greeting}>{t('customer_home_greeting')}</Text>
-                    <Text style={styles.subGreeting}>A selection of premium services at your doorstep.</Text>
+                    <Text style={styles.subGreeting}>{t('premium_services_desc')}</Text>
                 </FadeInView>
 
                 {activeJob && searchPhase && (
                     <FadeInView delay={200}>
                         <Card glow style={styles.activeJobCard}>
                             <View style={styles.activeHeader}>
-                                <Text style={styles.activeLabel}>ACTIVE REQUEST</Text>
+                                <Text style={styles.activeLabel}>{t('active_request')}</Text>
                                 <StatusPill status={searchPhase} />
                             </View>
                             <View style={styles.activeBody}>
@@ -133,12 +133,12 @@ export default function HomeScreen({ navigation }) {
                                 <View style={styles.activeInfo}>
                                     <Text style={styles.activeName}>{t(`cat_${activeJob.category}`) || activeJob.category}</Text>
                                     <Text style={styles.activeStatusDesc}>
-                                        {searchPhase === 'searching' ? 'Finding the best worker...' : 'Service in progress'}
+                                        {searchPhase === 'searching' ? t('finding_best_worker') : t('service_in_progress')}
                                     </Text>
                                 </View>
                             </View>
                             <PremiumButton
-                                title="Track Status"
+                                title={t('track_status')}
                                 onPress={() => searchPhase === 'searching' ? navigation.navigate('Searching', { category: activeJob.category, jobId: activeJob.id }) : navigation.navigate('JobStatusDetail', { jobId: activeJob.id })}
                             />
                         </Card>
@@ -150,7 +150,7 @@ export default function HomeScreen({ navigation }) {
                         <Text style={styles.searchIcon}>🔍</Text>
                         <TextInput
                             style={styles.searchInput}
-                            placeholder="What do you need help with?"
+                            placeholder={t('what_need_help_with')}
                             placeholderTextColor={colors.text.secondary}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
@@ -159,7 +159,7 @@ export default function HomeScreen({ navigation }) {
                 </FadeInView>
 
                 <View style={styles.gridSection}>
-                    <Text style={styles.sectionTitle}>Categories</Text>
+                    <Text style={styles.sectionTitle}>{t('categories')}</Text>
                     <View style={styles.grid}>
                         {isLoadingServices ? (
                             [1, 2, 3, 4, 5, 6].map((i) => (
@@ -186,9 +186,9 @@ export default function HomeScreen({ navigation }) {
                 {recentJobs.length > 0 && (
                     <View style={styles.recentSection}>
                         <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Recent Activity</Text>
+                            <Text style={styles.sectionTitle}>{t('recent_activity')}</Text>
                             <PressableAnimated onPress={() => navigation.navigate('MyJobs')}>
-                                <Text style={styles.viewAllTxt}>View All</Text>
+                                <Text style={styles.viewAllTxt}>{t('view_all')}</Text>
                             </PressableAnimated>
                         </View>
                         {recentJobs.map((job, i) => (
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
     greeting: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.semibold, letterSpacing: tracking.hero },
     subGreeting: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, letterSpacing: tracking.body },
 
-    activeJobCard: { marginTop: spacing[32], padding: spacing[24], gap: spacing[16] },
+    activeJobCard: { marginTop: spacing[32], gap: spacing[16] },
     activeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     activeLabel: { color: colors.accent.primary, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
     activeBody: { flexDirection: 'row', alignItems: 'center', gap: spacing[16], marginVertical: spacing[8] },

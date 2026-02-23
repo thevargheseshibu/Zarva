@@ -17,8 +17,10 @@ import { useAuthStore } from '../../../stores/authStore';
 import apiClient from '../../../services/api/client';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
+import { useT } from '../../../hooks/useT';
 
 export default function PendingApproval() {
+    const t = useT();
     const scale = useSharedValue(0);
     const opacity = useSharedValue(0);
     const { logout, refreshUser } = useAuthStore();
@@ -68,18 +70,18 @@ export default function PendingApproval() {
                 </Animated.View>
 
                 <View style={styles.textStack}>
-                    <Text style={styles.statusLabel}>ENROLLMENT PENDING</Text>
-                    <Text style={styles.title}>Protocol Under Review</Text>
+                    <Text style={styles.statusLabel}>{t('enrollment_pending')}</Text>
+                    <Text style={styles.title}>{t('protocol_under_review')}</Text>
                     <Text style={styles.sub}>
-                        Our intelligence team is validating your credentials. Access to the Zarva Pro network is typically granted within <Text style={styles.accentText}>24 hours</Text>.
+                        {t('protocol_under_review_desc_1')}<Text style={styles.accentText}>{t('protocol_under_review_desc_2')}</Text>{t('protocol_under_review_desc_3')}
                     </Text>
                 </View>
 
                 <View style={styles.timeline}>
                     {[
-                        { label: 'CREDENTIALS SUBMITTED', status: 'done' },
-                        { label: 'SECURITY VALIDATION', status: 'pending' },
-                        { label: 'NETWORK ACTIVATION', status: 'future' }
+                        { label: t('credentials_submitted'), status: 'done' },
+                        { label: t('security_validation'), status: 'pending' },
+                        { label: t('network_activation'), status: 'future' }
                     ].map((step, i) => (
                         <View key={i} style={styles.stepRow}>
                             <View style={[styles.stepDot, step.status === 'done' && styles.dotDone, step.status === 'pending' && styles.dotPending]} />
@@ -93,14 +95,14 @@ export default function PendingApproval() {
 
                 <View style={styles.footer}>
                     <PremiumButton
-                        title="Return to Terminal"
+                        title={t('return_to_terminal')}
                         variant="ghost"
                         onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                             logout();
                         }}
                     />
-                    <Text style={styles.footerHint}>We will notify you via encrypted channel once active.</Text>
+                    <Text style={styles.footerHint}>{t('notify_encrypted_channel')}</Text>
                 </View>
             </FadeInView>
         </View>

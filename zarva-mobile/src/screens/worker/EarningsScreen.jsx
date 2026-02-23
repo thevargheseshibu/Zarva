@@ -9,14 +9,13 @@ import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
 import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
-
-const TABS = ['Today', 'This Week', 'This Month'];
+import { fontWeight, tracking, fontSize } from '../../design-system/typography';
 
 export default function EarningsScreen({ navigation }) {
     const t = useT();
-    const [activeTab, setActiveTab] = useState('Today');
-    const [overview, setOverview] = useState({ Today: 0, 'This Week': 0, 'This Month': 0 });
+    const TABS = [t('today'), t('this_week'), t('this_month')];
+    const [activeTab, setActiveTab] = useState(t('today'));
+    const [overview, setOverview] = useState({ [t('today')]: 0, [t('this_week')]: 0, [t('this_month')]: 0 });
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -24,7 +23,12 @@ export default function EarningsScreen({ navigation }) {
         useCallback(() => {
             apiClient.get('/api/worker/earnings')
                 .then(res => {
-                    setOverview(res.data?.overview || { Today: 0, 'This Week': 0, 'This Month': 0 });
+                    const mappedOverview = {
+                        [t('today')]: res.data?.overview?.Today || 0,
+                        [t('this_week')]: res.data?.overview?.['This Week'] || 0,
+                        [t('this_month')]: res.data?.overview?.['This Month'] || 0
+                    };
+                    setOverview(mappedOverview);
                     setTransactions(res.data?.transactions || []);
                 })
                 .catch(err => console.error('Failed to pull earnings', err))
@@ -51,7 +55,7 @@ export default function EarningsScreen({ navigation }) {
                     <Text style={[styles.txAmt, item.type === 'debit' && styles.txAmtDebit]}>
                         {item.type === 'credit' ? '+' : '-'} ₹{item.amt}
                     </Text>
-                    {item.type === 'credit' && <View style={styles.settledBadge}><Text style={styles.settledTxt}>SETTLED</Text></View>}
+                    {item.type === 'credit' && <View style={styles.settledBadge}><Text style={styles.settledTxt}>{t('settled')}</Text></View>}
                 </View>
             </View>
         </FadeInView>
@@ -64,7 +68,7 @@ export default function EarningsScreen({ navigation }) {
                 <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
-                <Text style={styles.headerTitle}>Financial Portfolio</Text>
+                <Text style={styles.headerTitle}>{t('financial_portfolio')}</Text>
                 <View style={{ width: 44 }} />
             </View>
 
@@ -89,13 +93,13 @@ export default function EarningsScreen({ navigation }) {
                 {/* Main Hero Metric */}
                 <FadeInView delay={150}>
                     <Card style={styles.heroCard}>
-                        <Text style={styles.heroLabel}>{activeTab.toUpperCase()} REVENUE</Text>
+                        <Text style={styles.heroLabel}>{activeTab.toUpperCase()}{t('revenue_suffix')}</Text>
                         <View style={styles.valueRow}>
                             <Text style={styles.currency}>₹</Text>
                             <Text style={styles.heroValue}>{overview[activeTab] || 0}</Text>
                         </View>
                         <View style={styles.availableBadge}>
-                            <Text style={styles.availableTxt}>Liquidity: ₹{overview[activeTab] || 0}</Text>
+                            <Text style={styles.availableTxt}>{t('liquidity')}{overview[activeTab] || 0}</Text>
                         </View>
                     </Card>
                 </FadeInView>
@@ -104,12 +108,12 @@ export default function EarningsScreen({ navigation }) {
                 <FadeInView delay={250}>
                     <Card style={styles.withdrawCard}>
                         <View style={styles.withdrawInfo}>
-                            <Text style={styles.withdrawTitle}>Settlement Funds</Text>
-                            <Text style={styles.withdrawSub}>Transactions are automatically settled to your registered bank account weekly.</Text>
+                            <Text style={styles.withdrawTitle}>{t('settlement_funds')}</Text>
+                            <Text style={styles.withdrawSub}>{t('settlement_desc')}</Text>
                         </View>
                         <PremiumButton
                             variant="ghost"
-                            title="Instant Payout"
+                            title={t('instant_payout')}
                             disabled={true}
                             style={styles.withdrawBtn}
                             textStyle={{ fontSize: 10 }}
@@ -120,8 +124,8 @@ export default function EarningsScreen({ navigation }) {
                 {/* History Section */}
                 <View style={styles.section}>
                     <FadeInView delay={350} style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionHeader}>TRANSACTION HISTORY</Text>
-                        <Text style={styles.historyMeta}>Recent 20</Text>
+                        <Text style={styles.sectionHeader}>{t('transaction_history')}</Text>
+                        <Text style={styles.historyMeta}>{t('recent_20')}</Text>
                     </FadeInView>
 
                     {loading ? (
@@ -138,7 +142,7 @@ export default function EarningsScreen({ navigation }) {
                             ItemSeparatorComponent={() => <View style={styles.divider} />}
                             ListEmptyComponent={
                                 <FadeInView delay={500} style={styles.emptyBox}>
-                                    <Text style={styles.emptyTxt}>No historical transactions recorded.</Text>
+                                    <Text style={styles.emptyTxt}>{t('no_historical_tx')}</Text>
                                 </FadeInView>
                             }
                         />

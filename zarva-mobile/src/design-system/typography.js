@@ -3,12 +3,12 @@
  */
 
 export const fontSize = {
-    hero: 40,
-    title: 26,
-    cardTitle: 19,
-    body: 16,
-    caption: 14,
-    micro: 12,
+    hero: 52,
+    title: 28,
+    cardTitle: 20,
+    body: 17,
+    caption: 15,
+    micro: 13,
 };
 
 export const fontWeight = {

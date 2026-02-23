@@ -12,11 +12,10 @@ import StatusPill from '../../components/StatusPill';
 import { colors, radius, spacing, shadows } from '../../design-system/tokens';
 import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
-const FILTERS = ['All', 'Active', 'Completed', 'Cancelled', 'Disputed'];
-
 export default function MyWorkScreen({ navigation }) {
     const t = useT();
-    const [filter, setFilter] = useState('All');
+    const FILTERS = [t('filter_all'), t('filter_active'), t('filter_completed'), t('filter_cancelled'), t('filter_disputed')];
+    const [filter, setFilter] = useState(t('filter_all'));
     const [sortBy, setSortBy] = useState('Latest');
     const [refreshing, setRefreshing] = useState(false);
     const [history, setHistory] = useState([]);
@@ -42,9 +41,16 @@ export default function MyWorkScreen({ navigation }) {
 
     const filtered = useMemo(() => {
         let result = history.filter(h => {
-            if (filter === 'All') return true;
-            if (filter === 'Active') return ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(h.status);
-            return h.status === filter.toLowerCase();
+            if (filter === t('filter_all')) return true;
+            if (filter === t('filter_active')) return ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(h.status);
+
+            // Map the localized filter back to internal status
+            const filterToStatus = {
+                [t('filter_completed')]: 'completed',
+                [t('filter_cancelled')]: 'cancelled',
+                [t('filter_disputed')]: 'disputed'
+            };
+            return h.status === filterToStatus[filter];
         });
 
         if (sortBy === 'Latest') {
@@ -84,7 +90,7 @@ export default function MyWorkScreen({ navigation }) {
                 <Card style={styles.historyCard}>
                     <View style={styles.cardTop}>
                         <View style={styles.catBox}>
-                            <Text style={styles.catTxt}>{item.category || 'Service'}</Text>
+                            <Text style={styles.catTxt}>{item.category || t('cat_service')}</Text>
                         </View>
                         <Text style={styles.amtTxt}>₹{item.amount || item.total_amount}</Text>
                     </View>
@@ -113,8 +119,8 @@ export default function MyWorkScreen({ navigation }) {
             {/* Header */}
             <View style={styles.header}>
                 <View>
-                    <Text style={styles.headerSub}>MISSION TRACKER</Text>
-                    <Text style={styles.headerTitle}>Professional History</Text>
+                    <Text style={styles.headerSub}>{t('mission_tracker')}</Text>
+                    <Text style={styles.headerTitle}>{t('professional_history')}</Text>
                 </View>
             </View>
 
@@ -122,12 +128,12 @@ export default function MyWorkScreen({ navigation }) {
             <FadeInView delay={100} style={styles.statsBar}>
                 <View style={styles.statBox}>
                     <Text style={styles.statVal}>{stats.count}</Text>
-                    <Text style={styles.statLbl}>COMPLETED</Text>
+                    <Text style={styles.statLbl}>{t('completed_badge')}</Text>
                 </View>
                 <View style={styles.statDivider} />
                 <View style={styles.statBox}>
                     <Text style={styles.statVal}>₹{stats.revenue}</Text>
-                    <Text style={styles.statLbl}>LIFETIME PAYOUT</Text>
+                    <Text style={styles.statLbl}>{t('lifetime_payout')}</Text>
                 </View>
             </FadeInView>
 
@@ -157,6 +163,7 @@ export default function MyWorkScreen({ navigation }) {
                 <View style={styles.sortSection}>
                     {['Latest', 'Premium', 'Oldest'].map(opt => {
                         const active = sortBy === opt;
+                        const optLabel = opt === 'Latest' ? t('sort_latest') : opt === 'Oldest' ? t('sort_oldest') : t('sort_premium');
                         return (
                             <TouchableOpacity
                                 key={opt}
@@ -166,7 +173,7 @@ export default function MyWorkScreen({ navigation }) {
                                     Haptics.selectionAsync();
                                 }}
                             >
-                                <Text style={[styles.sortTxt, active && styles.sortTxtActive]}>{opt}</Text>
+                                <Text style={[styles.sortTxt, active && styles.sortTxtActive]}>{optLabel}</Text>
                             </TouchableOpacity>
                         );
                     })}
@@ -195,11 +202,11 @@ export default function MyWorkScreen({ navigation }) {
                     return (
                         <FadeInView delay={200} style={styles.emptyContainer}>
                             <Text style={styles.emptyIcon}>📂</Text>
-                            <Text style={styles.emptyTitle}>Archive Empty</Text>
+                            <Text style={styles.emptyTitle}>{t('archive_empty')}</Text>
                             <Text style={styles.emptySub}>
-                                {filter === 'All'
-                                    ? 'You have not initiated any missions yet. Success awaits in the marketplace.'
-                                    : `No ${filter.toLowerCase()} entries found in your professional record.`}
+                                {filter === t('filter_all')
+                                    ? t('not_initiated')
+                                    : t('no_entries_found')}
                             </Text>
                         </FadeInView>
                     );

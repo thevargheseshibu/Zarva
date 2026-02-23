@@ -129,7 +129,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                     {q.type === 'text' && (
                         <TextInput
                             style={styles.input}
-                            placeholder="Type your details here..."
+                            placeholder={t('type_details_here')}
                             placeholderTextColor={colors.text.muted}
                             value={answer || ''}
                             onChangeText={(txt) => handleAnswer(q.id, txt)}
@@ -148,7 +148,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                             ) : (
                                 <View style={styles.uploadPlaceholder}>
                                     <Text style={styles.uploadIcon}>{uploading ? '⏳' : '📸'}</Text>
-                                    <Text style={styles.uploadText}>{uploading ? 'Uploading...' : 'Add a photo for better clarity'}</Text>
+                                    <Text style={styles.uploadText}>{uploading ? t('uploading_dots') : t('add_photo_for_clarity')}</Text>
                                 </View>
                             )}
                         </PressableAnimated>
@@ -159,7 +159,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                             style={styles.skipBtn}
                             onPress={() => handleAnswer(q.id, 'SKIPPED')}
                         >
-                            <Text style={styles.skipTxt}>Skip this step</Text>
+                            <Text style={styles.skipTxt}>{t('skip_this_step')}</Text>
                         </TouchableOpacity>
                     )}
                 </Card>
@@ -183,8 +183,8 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                 contentContainerStyle={styles.scrollContent}
             >
                 <FadeInView delay={50}>
-                    <Text style={styles.introTitle}>Tell us more</Text>
-                    <Text style={styles.introSub}>Providing details helps us find the best professional for you.</Text>
+                    <Text style={styles.introTitle}>{t('tell_us_more')}</Text>
+                    <Text style={styles.introSub}>{t('providing_details_helps')}</Text>
                 </FadeInView>
 
                 {config.questions.map((q, i) => renderQuestion(q, i))}
@@ -192,18 +192,18 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                 <FadeInView delay={400}>
                     <View style={styles.pricingPreview}>
                         <View style={styles.pricingInfo}>
-                            <Text style={styles.priceLabel}>ESTIMATED BASE</Text>
+                            <Text style={styles.priceLabel}>{t('estimated_base')}</Text>
                             <Text style={styles.priceValue}>₹{config.base_price}</Text>
                         </View>
                         <View style={styles.pricingHint}>
-                            <Text style={styles.hintTxt}>Final price may vary based on actual work.</Text>
+                            <Text style={styles.hintTxt}>{t('final_price_vary')}</Text>
                         </View>
                     </View>
                 </FadeInView>
 
                 <View style={styles.footer}>
                     <PremiumButton
-                        title="Continue"
+                        title={t('continue')}
                         isDisabled={isNextDisabled || uploading}
                         onPress={() => {
                             const structuredAnswers = config.questions.map(q => ({

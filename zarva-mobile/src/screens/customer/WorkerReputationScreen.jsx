@@ -44,7 +44,7 @@ export default function WorkerReputationScreen({ route, navigation }) {
         return (
             <View style={styles.loadingScreen}>
                 <ActivityIndicator size="large" color={colors.accent.primary} />
-                <Text style={styles.loadingText}>Loading Reputation...</Text>
+                <Text style={styles.loadingText}>{t('loading_reputation')}</Text>
             </View>
         );
     }
@@ -56,7 +56,7 @@ export default function WorkerReputationScreen({ route, navigation }) {
                 <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
-                <Text style={styles.headerTitle}>Professional Reputation</Text>
+                <Text style={styles.headerTitle}>{t('professional_reputation')}</Text>
                 <View style={{ width: 44 }} />
             </View>
 
@@ -71,10 +71,10 @@ export default function WorkerReputationScreen({ route, navigation }) {
                                 <Text style={styles.maxScore}>/ 5.0</Text>
                             </View>
                             <View style={styles.summaryInfo}>
-                                <Text style={styles.workerName}>{workerName || 'Professional'}</Text>
+                                <Text style={styles.workerName}>{workerName || t('worker') || 'Professional'}</Text>
                                 <View style={styles.starsBox}>
                                     <Text style={styles.starsTxt}>{"★".repeat(Math.round(summary.avg))}</Text>
-                                    <Text style={styles.reviewsCount}>{summary.count} verified reviews</Text>
+                                    <Text style={styles.reviewsCount}>{t('verified_reviews_count').replace('%{count}', summary.count)}</Text>
                                 </View>
                             </View>
                         </View>
@@ -82,12 +82,12 @@ export default function WorkerReputationScreen({ route, navigation }) {
                 </FadeInView>
 
                 <FadeInView delay={200}>
-                    <Text style={styles.sectionHeader}>VERIFIED EXCELLENCE</Text>
+                    <Text style={styles.sectionHeader}>{t('verified_excellence')}</Text>
                 </FadeInView>
 
                 {reviews.length === 0 ? (
                     <FadeInView delay={300} style={styles.emptyBox}>
-                        <Text style={styles.emptyTxt}>No reviews yet. Be the first to share your experience!</Text>
+                        <Text style={styles.emptyTxt}>{t('no_reviews_yet')}</Text>
                     </FadeInView>
                 ) : (
                     reviews.map((item, index) => (

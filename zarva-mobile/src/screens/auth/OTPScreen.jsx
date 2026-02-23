@@ -72,7 +72,7 @@ export default function OTPScreen({ navigation, route }) {
     };
 
     const showInvalidOtp = () => {
-        Alert.alert('Wrong OTP', 'The code you entered is incorrect. Please try again.');
+        Alert.alert(t('wrong_otp'), t('error_otp_incorrect'));
         setDigits(Array(BOX_COUNT).fill(''));
         inputs.current[0]?.focus();
     };
@@ -96,7 +96,7 @@ export default function OTPScreen({ navigation, route }) {
             const confirmation = useOtpStore.getState().confirmationObj;
 
             if (!confirmation) {
-                Alert.alert('Session Expired', 'Please go back and request a new OTP.');
+                Alert.alert(t('session_expired'), t('request_new_otp_msg'));
                 return;
             }
 
@@ -116,7 +116,7 @@ export default function OTPScreen({ navigation, route }) {
                     if (serverCode === 'INVALID_OTP') {
                         showInvalidOtp();
                     } else {
-                        Alert.alert('Error', serverErr?.response?.data?.message || 'Verification failed.');
+                        Alert.alert(t('error'), serverErr?.response?.data?.message || t('error_generic'));
                     }
                 }
                 return;
@@ -133,7 +133,7 @@ export default function OTPScreen({ navigation, route }) {
                 if (isInvalid) {
                     showInvalidOtp();
                 } else {
-                    Alert.alert('Error', confirmErr.message || 'Verification failed.');
+                    Alert.alert(t('error'), confirmErr.message || t('error_generic'));
                 }
                 return;
             }
@@ -149,7 +149,7 @@ export default function OTPScreen({ navigation, route }) {
 
         } catch (err) {
             console.error('[handleVerify error]', err?.response?.data || err.message);
-            Alert.alert('Error', err?.response?.data?.message || t('error_otp_invalid'));
+            Alert.alert(t('error'), err?.response?.data?.message || t('error_otp_invalid'));
             setDigits(Array(BOX_COUNT).fill(''));
             inputs.current[0]?.focus();
         } finally {
@@ -178,7 +178,7 @@ export default function OTPScreen({ navigation, route }) {
             }
         } catch (e) {
             console.error('[handleResend error]', e);
-            Alert.alert('Resend Failed', 'Could not resend OTP. Please try again.');
+            Alert.alert(t('resend_failed'), t('error_resend_failed'));
         }
         setSecondsLeft(RESEND_SECONDS);
         setDigits(Array(BOX_COUNT).fill(''));
@@ -226,7 +226,7 @@ export default function OTPScreen({ navigation, route }) {
                 </View>
 
                 <GoldButton
-                    title="Verify"
+                    title={t('verify')}
                     loading={loading}
                     disabled={digits.join('').length < BOX_COUNT}
                     onPress={() => handleVerify()}

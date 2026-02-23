@@ -56,10 +56,10 @@ export default function MyJobsScreen({ navigation }) {
         });
 
     const handleDeleteJob = (id) => {
-        Alert.alert('Delete Request', 'Are you sure you want to remove this service request?', [
-            { text: 'Cancel', style: 'cancel' },
+        Alert.alert(t('delete_request_title'), t('delete_request_msg'), [
+            { text: t('cancel'), style: 'cancel' },
             {
-                text: 'Delete',
+                text: t('delete'),
                 style: 'destructive',
                 onPress: async () => {
                     try {
@@ -99,12 +99,12 @@ export default function MyJobsScreen({ navigation }) {
                                 <View style={styles.workerBrief}>
                                     <Image source={{ uri: item.worker.photo }} style={styles.workerAvatar} />
                                     <View>
-                                        <Text style={styles.workerLabel}>WORKER</Text>
+                                        <Text style={styles.workerLabel}>{t('worker_caps')}</Text>
                                         <Text style={styles.workerName}>{item.worker.name}</Text>
                                     </View>
                                 </View>
                             ) : (
-                                <Text style={styles.searchingTxt}>Searching for worker...</Text>
+                                <Text style={styles.searchingTxt}>{t('searching_for_worker')}</Text>
                             )}
 
                             <View style={styles.actionRow}>
@@ -129,9 +129,9 @@ export default function MyJobsScreen({ navigation }) {
     return (
         <View style={styles.screen}>
             <View style={styles.header}>
-                <Text style={styles.title}>My Requests</Text>
+                <Text style={styles.title}>{t('my_requests')}</Text>
                 <PressableAnimated onPress={() => setSortNewest(!sortNewest)} style={styles.sortToggle}>
-                    <Text style={styles.sortTxt}>{sortNewest ? 'Newest First' : 'Oldest First'}</Text>
+                    <Text style={styles.sortTxt}>{sortNewest ? t('newest_first') : t('oldest_first')}</Text>
                 </PressableAnimated>
             </View>
 
@@ -147,7 +147,9 @@ export default function MyJobsScreen({ navigation }) {
                             onPress={() => setFilter(item)}
                             style={[styles.filterChip, filter === item && styles.filterChipActive]}
                         >
-                            <Text style={[styles.filterText, filter === item && styles.filterTextActive]}>{item}</Text>
+                            <Text style={[styles.filterText, filter === item && styles.filterTextActive]}>
+                                {item === 'All' ? t('filter_all') : item === 'Active' ? t('filter_active') : item === 'Completed' ? t('filter_completed') : t('filter_cancelled')}
+                            </Text>
                         </PressableAnimated>
                     )}
                 />
@@ -171,8 +173,8 @@ export default function MyJobsScreen({ navigation }) {
                     ListEmptyComponent={() => (
                         <View style={styles.emptyState}>
                             <Text style={styles.emptyIcon}>📋</Text>
-                            <Text style={styles.emptyTitle}>No requests found</Text>
-                            <Text style={styles.emptySub}>Your service history will appear here.</Text>
+                            <Text style={styles.emptyTitle}>{t('no_requests_found')}</Text>
+                            <Text style={styles.emptySub}>{t('service_history_appear_here')}</Text>
                         </View>
                     )}
                 />

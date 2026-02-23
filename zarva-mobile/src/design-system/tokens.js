@@ -10,19 +10,19 @@ export const colors = {
     overlay: 'rgba(20, 20, 27, 0.92)',
 
     accent: {
-        primary: '#7B5CFF',  // Electric Violet
+        primary: '#6f5bddff',  // Electric Violet
         glow: 'rgba(123, 92, 255, 0.18)',
         border: 'rgba(123, 92, 255, 0.35)',
     },
 
-    success: '#30D158',
+    success: '#3d9042ff',
     warning: '#FF9F0A',
     danger: '#FF453A',
 
     text: {
         primary: '#F2F2F7',
         secondary: '#8E8E9A',
-        muted: '#3A3A4A',
+        muted: '#8e8c73ff',
     },
 
     // Compatibility mapping
@@ -38,17 +38,9 @@ export const colors = {
 };
 
 export const spacing = {
-    4: 4,
-    8: 8,
-    12: 12,
-    16: 16,
-    24: 24,
-    32: 32,
-    40: 40,
-    48: 48,
-    64: 64,
-    // Alias for existing usage
-    xxs: 4, xs: 8, sm: 12, md: 16, lg: 24, xl: 32, xxl: 40,
+    4: 4, 8: 8, 12: 12, 16: 16, 20: 20, 24: 24, 32: 32, 40: 40, 48: 48, 64: 64,
+    // Alias for existing usage - scaled up for "bigger" feel
+    xxs: 6, xs: 10, sm: 14, md: 20, lg: 30, xl: 38, xxl: 48,
 };
 
 export const radius = {

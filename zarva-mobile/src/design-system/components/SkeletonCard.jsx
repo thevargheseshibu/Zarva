@@ -1,16 +1,10 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
-import {
-    Canvas,
-    LinearGradient,
-    Rect,
-    useSharedValueEffect,
-    useValue,
-} from '@shopify/react-native-skia';
-import {
+import Animated, {
     useSharedValue,
     withRepeat,
     withTiming,
+    useAnimatedStyle,
     Easing,
 } from 'react-native-reanimated';
 import { colors, radius, spacing } from '../tokens';
@@ -19,35 +13,26 @@ export default function SkeletonCard({ width, height = 120, style }) {
     const { width: screenWidth } = useWindowDimensions();
     const cardWidth = width || screenWidth - spacing.lg * 2;
 
-    const x = useSharedValue(0);
+    const translateX = useSharedValue(-cardWidth);
 
     useEffect(() => {
-        x.value = withRepeat(
-            withTiming(cardWidth + 200, {
+        translateX.value = withRepeat(
+            withTiming(cardWidth, {
                 duration: 1500,
-                easing: Easing.linear,
+                easing: Easing.inOut(Easing.ease),
             }),
             -1,
             false
         );
     }, [cardWidth]);
 
+    const rStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: translateX.value }],
+    }));
+
     return (
         <View style={[styles.container, { width: cardWidth, height }, style]}>
-            <Canvas style={{ flex: 1 }}>
-                <Rect x={0} y={0} width={cardWidth} height={height} color={colors.elevated}>
-                    <LinearGradient
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 200, y: 0 }}
-                        colors={[
-                            'transparent',
-                            'rgba(255, 255, 255, 0.05)',
-                            'transparent',
-                        ]}
-                        transform={[{ translateX: x.value - 100 }]}
-                    />
-                </Rect>
-            </Canvas>
+            <Animated.View style={[styles.shimmer, rStyle]} />
         </View>
     );
 }
@@ -57,5 +42,11 @@ const styles = StyleSheet.create({
         backgroundColor: colors.surface,
         borderRadius: radius.lg,
         overflow: 'hidden',
+    },
+    shimmer: {
+        ...StyleSheet.absoluteFillObject,
+        width: '50%',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        transform: [{ skewX: '-20deg' }],
     },
 });

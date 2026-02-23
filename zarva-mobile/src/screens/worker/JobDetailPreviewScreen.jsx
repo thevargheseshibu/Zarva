@@ -89,7 +89,7 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                 <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
-                <Text style={styles.headerTitle}>Job Specification</Text>
+                <Text style={styles.headerTitle}>{t('job_specification')}</Text>
                 <View style={{ width: 44 }} />
             </View>
 
@@ -99,13 +99,13 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                 <FadeInView delay={50}>
                     <Card style={styles.heroCard}>
                         <View style={styles.categoryBox}>
-                            <Text style={styles.categoryTxt}>{job.category?.toUpperCase() || 'SERVICE'}</Text>
+                            <Text style={styles.categoryTxt}>{job.category?.toUpperCase() || t('category_service')}</Text>
                         </View>
                         <Text style={styles.payoutValue}>₹{job.total_amount ? parseFloat(job.total_amount).toFixed(0) : '—'}</Text>
                         <View style={styles.metaBox}>
                             <View style={styles.metaLine}>
                                 <Text style={styles.metaIcon}>📍</Text>
-                                <Text style={styles.metaTxt}>{job.dist != null ? formatDistance(job.dist) : '—'} away</Text>
+                                <Text style={styles.metaTxt}>{job.dist != null ? formatDistance(job.dist) : '—'}{t('away_suffix')}</Text>
                             </View>
                             <View style={styles.metaLine}>
                                 <Text style={styles.metaIcon}>⏰</Text>
@@ -117,21 +117,21 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
 
                 {/* Client Info */}
                 <FadeInView delay={200} style={styles.section}>
-                    <Text style={styles.sectionHeader}>REQUESTER</Text>
+                    <Text style={styles.sectionHeader}>{t('requester')}</Text>
                     <Card style={styles.clientCard}>
                         <View style={styles.avatarMini}>
                             <Text style={styles.avatarMiniTxt}>{job.customer_name?.charAt(0) || 'C'}</Text>
                         </View>
                         <View>
                             <Text style={styles.clientName}>{job.customer_name || 'Customer'}</Text>
-                            <Text style={styles.clientSub}>Contact details hidden until accepted</Text>
+                            <Text style={styles.clientSub}>{t('secret_contact')}</Text>
                         </View>
                     </Card>
                 </FadeInView>
 
                 {/* Requirements */}
                 <FadeInView delay={350} style={styles.section}>
-                    <Text style={styles.sectionHeader}>REQUIREMENTS</Text>
+                    <Text style={styles.sectionHeader}>{t('requirements')}</Text>
                     <Card style={styles.reqCard}>
                         {structuredQuestions.length > 0 ? (
                             structuredQuestions.map((item, idx) => (
@@ -142,7 +142,7 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                                 </View>
                             ))
                         ) : (
-                            <Text style={styles.reqDesc}>"{finalDescription || 'No specific instructions provided.'}"</Text>
+                            <Text style={styles.reqDesc}>"{finalDescription || t('no_instructions')}"</Text>
                         )}
                     </Card>
                 </FadeInView>
@@ -150,7 +150,7 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                 {/* Attachments */}
                 {photos.length > 0 && (
                     <FadeInView delay={450} style={styles.section}>
-                        <Text style={styles.sectionHeader}>ATTACHMENTS</Text>
+                        <Text style={styles.sectionHeader}>{t('attachments')}</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoList}>
                             {photos.map((uri, idx) => (
                                 <TouchableOpacity key={idx} activeOpacity={0.9}>
@@ -163,20 +163,20 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
 
                 {/* Payout Breakdown */}
                 <FadeInView delay={550} style={styles.section}>
-                    <Text style={styles.sectionHeader}>FINANCIAL BREAKDOWN</Text>
+                    <Text style={styles.sectionHeader}>{t('financial_breakdown')}</Text>
                     <Card style={styles.breakdownCard}>
                         <View style={styles.priceRow}>
-                            <Text style={styles.priceLabel}>Professional Service Fee</Text>
+                            <Text style={styles.priceLabel}>{t('pro_service_fee')}</Text>
                             <Text style={styles.priceVal}>₹{job.rate_per_hour}</Text>
                         </View>
                         {job.travel_charge > 0 && (
                             <View style={styles.priceRow}>
-                                <Text style={styles.priceLabel}>Travel Allowance</Text>
+                                <Text style={styles.priceLabel}>{t('travel_allowance')}</Text>
                                 <Text style={styles.priceVal}>₹{job.travel_charge}</Text>
                             </View>
                         )}
                         <View style={styles.totalRow}>
-                            <Text style={styles.totalLabel}>TOTAL ESTIMATE</Text>
+                            <Text style={styles.totalLabel}>{t('total_estimate')}</Text>
                             <Text style={styles.totalVal}>₹{job.total_amount}</Text>
                         </View>
                     </Card>
@@ -186,10 +186,10 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
 
             <View style={styles.footer}>
                 <View style={{ flex: 1.2 }}>
-                    <PremiumButton variant="ghost" title="Decline" onPress={() => navigation.goBack()} disabled={loading} />
+                    <PremiumButton variant="ghost" title={t('decline')} onPress={() => navigation.goBack()} disabled={loading} />
                 </View>
                 <View style={{ flex: 2 }}>
-                    <PremiumButton title="Acquire Request" onPress={handleAccept} loading={loading} />
+                    <PremiumButton title={t('acquire_request')} onPress={handleAccept} loading={loading} />
                 </View>
             </View>
         </View>

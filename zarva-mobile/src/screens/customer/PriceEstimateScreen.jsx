@@ -37,29 +37,29 @@ export default function PriceEstimateScreen({ route, navigation }) {
                 <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
-                <Text style={styles.headerTitle}>Estimate</Text>
+                <Text style={styles.headerTitle}>{t('pricing_breakdown')}</Text>
                 <View style={{ width: 44 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <FadeInView delay={50}>
-                    <Text style={styles.introTitle}>Pricing breakdown</Text>
-                    <Text style={styles.introSub}>Transparent estimate based on your service requirements and local distance.</Text>
+                    <Text style={styles.introTitle}>{t('pricing_breakdown')}</Text>
+                    <Text style={styles.introSub}>{t('transparent_estimate')}</Text>
                 </FadeInView>
 
                 {/* Estimate Detail Card */}
                 <FadeInView delay={200}>
                     <Card style={styles.detailCard}>
-                        <Text style={styles.sectionLabel}>SERVICE COST</Text>
+                        <Text style={styles.sectionLabel}>{t('service_cost_caps')}</Text>
 
                         <View style={styles.costRow}>
-                            <Text style={styles.costLabel}>Base Labour</Text>
+                            <Text style={styles.costLabel}>{t('base_labour')}</Text>
                             <Text style={styles.costValue}>₹{labour}</Text>
                         </View>
 
                         {travel > 0 && (
                             <View style={styles.costRow}>
-                                <Text style={styles.costLabel}>Travel Allowance</Text>
+                                <Text style={styles.costLabel}>{t('travel_allowance')}</Text>
                                 <Text style={styles.costValue}>₹{travel}</Text>
                             </View>
                         )}
@@ -68,13 +68,13 @@ export default function PriceEstimateScreen({ route, navigation }) {
                             <View style={styles.surchargeBox}>
                                 {nightSurcharge > 0 && (
                                     <View style={styles.costRow}>
-                                        <Text style={styles.surchargeLabel}>Night Surcharge</Text>
+                                        <Text style={styles.surchargeLabel}>{t('night_surcharge')}</Text>
                                         <Text style={styles.surchargeValue}>₹{nightSurcharge}</Text>
                                     </View>
                                 )}
                                 {emergencySurcharge > 0 && (
                                     <View style={styles.costRow}>
-                                        <Text style={styles.surchargeLabel}>Emergency Fee</Text>
+                                        <Text style={styles.surchargeLabel}>{t('emergency_fee')}</Text>
                                         <Text style={styles.surchargeValue}>₹{emergencySurcharge}</Text>
                                     </View>
                                 )}
@@ -84,19 +84,19 @@ export default function PriceEstimateScreen({ route, navigation }) {
                         <View style={styles.divider} />
 
                         <View style={styles.costRow}>
-                            <Text style={styles.subtotalLabel}>Subtotal</Text>
+                            <Text style={styles.subtotalLabel}>{t('subtotal')}</Text>
                             <Text style={styles.subtotalValue}>₹{subtotal}</Text>
                         </View>
 
                         <View style={styles.costRow}>
-                            <Text style={styles.costLabel}>Service Access Fee</Text>
+                            <Text style={styles.costLabel}>{t('service_access_fee')}</Text>
                             <Text style={styles.costValue}>₹{platformFee}</Text>
                         </View>
 
                         <View style={styles.totalRow}>
                             <View>
-                                <Text style={styles.totalLabel}>TOTAL ESTIMATE</Text>
-                                <Text style={styles.totalHint}>Final cost depends on work duration</Text>
+                                <Text style={styles.totalLabel}>{t('total_estimate_caps')}</Text>
+                                <Text style={styles.totalHint}>{t('final_cost_depends')}</Text>
                             </View>
                             <Text style={styles.totalValue}>₹{total}</Text>
                         </View>
@@ -107,20 +107,20 @@ export default function PriceEstimateScreen({ route, navigation }) {
                 <FadeInView delay={350}>
                     <Card style={styles.paymentCard}>
                         <View style={styles.paymentHeader}>
-                            <Text style={styles.paymentTitle}>Payment Terms</Text>
+                            <Text style={styles.paymentTitle}>{t('payment_terms')}</Text>
                         </View>
 
                         <View style={styles.paymentSplit}>
                             <View style={styles.splitBox}>
-                                <Text style={styles.splitLabel}>ADVANCE</Text>
+                                <Text style={styles.splitLabel}>{t('advance')}</Text>
                                 <Text style={styles.splitValue}>₹{advance}</Text>
-                                <Text style={styles.splitHint}>Payable now</Text>
+                                <Text style={styles.splitHint}>{t('payable_now')}</Text>
                             </View>
                             <View style={styles.splitDivider} />
                             <View style={styles.splitBox}>
-                                <Text style={styles.splitLabel}>BALANCE</Text>
+                                <Text style={styles.splitLabel}>{t('balance')}</Text>
                                 <Text style={styles.splitValue}>₹{balance}</Text>
-                                <Text style={styles.splitHint}>Pay after work</Text>
+                                <Text style={styles.splitHint}>{t('pay_after_work')}</Text>
                             </View>
                         </View>
                     </Card>
@@ -128,7 +128,7 @@ export default function PriceEstimateScreen({ route, navigation }) {
 
                 <View style={styles.footer}>
                     <PremiumButton
-                        title="Proceed to Location"
+                        title={t('proceed_to_loc')}
                         onPress={handleContinue}
                     />
                 </View>

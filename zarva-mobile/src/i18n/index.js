@@ -12,7 +12,11 @@ export const useLanguageStore = create(
 
             // dynamically import the file based on code
             loadLanguage: async (code) => {
-                // Do not set isLoaded to false here as it will unmount the entire App navigator
+                // Prevent redundant loads if already on this language and loaded
+                if (get().language === code && get().isLoaded && Object.keys(get().translations).length > 0) {
+                    return;
+                }
+
                 try {
                     let module;
                     switch (code) {
@@ -34,16 +38,24 @@ export const useLanguageStore = create(
                             break;
                     }
 
+                    const data = module.default || module;
+                    if (!data || Object.keys(data).length === 0) {
+                        throw new Error('Empty translation module');
+                    }
+
                     set({
                         language: code,
-                        translations: module.default || module,
+                        translations: data,
                         isLoaded: true
                     });
                 } catch (err) {
                     console.error('[i18n] Failed to load language:', code, err);
-                    // Fallback to English if file is missing completely
+                    // Fallback to English if file is missing completely or empty
                     if (code !== 'en') {
-                        get().loadLanguage('en');
+                        await get().loadLanguage('en');
+                    } else {
+                        // Critical failure - even English failed?
+                        set({ isLoaded: true });
                     }
                 }
             }

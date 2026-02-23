@@ -7,15 +7,18 @@ import PremiumButton from '../../../components/PremiumButton';
 import apiClient from '../../../services/api/client';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
-
-const EXP_LEVELS = [
-    { value: '0-1', label: 'Inception (< 1 year)' },
-    { value: '1-3', label: 'Developing (1–3 years)' },
-    { value: '3-5', label: 'Established (3–5 years)' },
-    { value: '5+', label: 'Master (5+ years)' },
-];
+import { useT } from '../../../hooks/useT';
 
 export default function OnboardingSkills({ data, onNext }) {
+    const t = useT();
+
+    const EXP_LEVELS = [
+        { value: '0-1', label: t('exp_level_0') },
+        { value: '1-3', label: t('exp_level_1') },
+        { value: '3-5', label: t('exp_level_3') },
+        { value: '5+', label: t('exp_level_5') },
+    ];
+
     const [selected, setSelected] = useState(data.categories || []);
     const [exp, setExp] = useState(data.experience || '');
     const [categories, setCategories] = useState([]);
@@ -68,17 +71,17 @@ export default function OnboardingSkills({ data, onNext }) {
     return (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             <FadeInView delay={50}>
-                <Text style={styles.headerSub}>STEP 02/05</Text>
-                <Text style={styles.title}>Define Expertise</Text>
-                <Text style={styles.sub}>Select the competencies that define your professional service.</Text>
+                <Text style={styles.headerSub}>{t('step_02')}</Text>
+                <Text style={styles.title}>{t('define_expertise')}</Text>
+                <Text style={styles.sub}>{t('define_expertise_desc')}</Text>
             </FadeInView>
 
             <FadeInView delay={150} style={styles.section}>
-                <Text style={styles.label}>Competency Selection</Text>
+                <Text style={styles.label}>{t('competency_selection')}</Text>
                 <Card style={styles.searchCard}>
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Search competencies..."
+                        placeholder={t('search_competencies')}
                         placeholderTextColor={colors.text.muted}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -107,18 +110,18 @@ export default function OnboardingSkills({ data, onNext }) {
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                             }}
                         >
-                            <Text style={styles.moreTxt}>+ VIEW ALL SKILLS</Text>
+                            <Text style={styles.moreTxt}>{t('view_all_skills')}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
 
                 {isSearching && displayedCategories.length === 0 && (
-                    <Text style={styles.emptyResults}>No matching competencies found.</Text>
+                    <Text style={styles.emptyResults}>{t('no_competencies_found')}</Text>
                 )}
             </FadeInView>
 
             <FadeInView delay={350} style={styles.section}>
-                <Text style={styles.label}>Cumulative Experience</Text>
+                <Text style={styles.label}>{t('cumulative_experience')}</Text>
                 <View style={styles.expGrid}>
                     {EXP_LEVELS.map(e => {
                         const active = exp === e.value;
@@ -138,7 +141,7 @@ export default function OnboardingSkills({ data, onNext }) {
 
             <FadeInView delay={550} style={styles.footer}>
                 <PremiumButton
-                    title="Validate Skills"
+                    title={t('validate_skills')}
                     disabled={!isValid}
                     onPress={() => {
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

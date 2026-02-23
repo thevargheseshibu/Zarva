@@ -7,11 +7,13 @@ import PremiumButton from '../../../components/PremiumButton';
 import LocationInput from '../../../components/LocationInput';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
+import { useT } from '../../../hooks/useT';
 
-const GENDERS = ['Male', 'Female', 'Other'];
 const RANGES = [10, 20, 50];
 
 export default function OnboardingBasicInfo({ data, onNext }) {
+    const t = useT();
+    const GENDERS = [t('gender_male'), t('gender_female'), t('gender_other')];
     const [gender, setGender] = useState(data.gender || '');
     const [experience, setExperience] = useState(data.experience_years ? String(data.experience_years) : '');
     const [workerLocation, setWorkerLocation] = useState({});
@@ -32,13 +34,13 @@ export default function OnboardingBasicInfo({ data, onNext }) {
     return (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             <FadeInView delay={50}>
-                <Text style={styles.headerSub}>STEP 01/05</Text>
-                <Text style={styles.title}>Professional Foundation</Text>
-                <Text style={styles.sub}>Establish your core identity on the Zarva Pro network.</Text>
+                <Text style={styles.headerSub}>{t('step_01')}</Text>
+                <Text style={styles.title}>{t('professional_foundation')}</Text>
+                <Text style={styles.sub}>{t('professional_foundation_desc')}</Text>
             </FadeInView>
 
             <FadeInView delay={150} style={styles.section}>
-                <Text style={styles.label}>Identity</Text>
+                <Text style={styles.label}>{t('identity')}</Text>
                 <View style={styles.radioGrid}>
                     {GENDERS.map(g => {
                         const active = gender === g;
@@ -56,13 +58,13 @@ export default function OnboardingBasicInfo({ data, onNext }) {
             </FadeInView>
 
             <FadeInView delay={250} style={styles.section}>
-                <Text style={styles.label}>Expertise (Years)</Text>
+                <Text style={styles.label}>{t('expertise_years')}</Text>
                 <Card style={styles.inputCard}>
                     <TextInput
                         style={styles.input}
                         value={experience}
                         onChangeText={t => setExperience(t.replace(/[^0-9]/g, ''))}
-                        placeholder="e.g. 5"
+                        placeholder={t('eg_years')}
                         placeholderTextColor={colors.text.muted}
                         keyboardType="number-pad"
                         maxLength={2}
@@ -71,7 +73,7 @@ export default function OnboardingBasicInfo({ data, onNext }) {
             </FadeInView>
 
             <FadeInView delay={350} style={styles.section}>
-                <Text style={styles.label}>Operational Radius (KM)</Text>
+                <Text style={styles.label}>{t('operational_radius')}</Text>
                 <View style={styles.radioGrid}>
                     {RANGES.map(r => {
                         const active = serviceRange === r;
@@ -81,16 +83,16 @@ export default function OnboardingBasicInfo({ data, onNext }) {
                                 style={[styles.radioChip, active && styles.radioChipActive]}
                                 onPress={() => handleRangeSelect(r)}
                             >
-                                <Text style={[styles.radioText, active && styles.radioTextActive]}>{r} KM</Text>
+                                <Text style={[styles.radioText, active && styles.radioTextActive]}>{r} {t('km_suffix')}</Text>
                             </TouchableOpacity>
                         );
                     })}
                 </View>
-                <Text style={styles.noteTxt}>This determines the reach of your job discovery.</Text>
+                <Text style={styles.noteTxt}>{t('radius_hint')}</Text>
             </FadeInView>
 
             <FadeInView delay={450} style={styles.section}>
-                <Text style={styles.label}>Mission Base (Location)</Text>
+                <Text style={styles.label}>{t('mission_base')}</Text>
                 <Card style={styles.locCard}>
                     <LocationInput onChange={setWorkerLocation} />
                 </Card>
@@ -98,7 +100,7 @@ export default function OnboardingBasicInfo({ data, onNext }) {
 
             <FadeInView delay={550} style={styles.footer}>
                 <PremiumButton
-                    title="Initialize Profile"
+                    title={t('initialize_profile')}
                     disabled={!isValid}
                     onPress={() => {
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -70,9 +70,9 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         useCallback(() => {
             const onBackPress = () => {
                 if (currentStageIdx < STAGES.length && !['completed', 'cancelled'].includes(status)) {
-                    Alert.alert('Active Request', 'This request is currently active. Go to Home instead?', [
-                        { text: 'Stay', style: 'cancel' },
-                        { text: 'Go Home', onPress: () => navigation.replace('CustomerTabs') }
+                    Alert.alert(t('active_request_title'), t('active_request_msg'), [
+                        { text: t('stay'), style: 'cancel' },
+                        { text: t('go_home'), onPress: () => navigation.replace('CustomerTabs') }
                     ]);
                     return true;
                 }
@@ -138,7 +138,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
-                <Text style={styles.headerTitle}>Status</Text>
+                <Text style={styles.headerTitle}>{t('status')}</Text>
                 <View style={{ width: 44 }} />
             </View>
 
@@ -161,15 +161,15 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 <Card style={[styles.mainCard, status === 'completed' && styles.completedCard]}>
                     <View style={styles.statusRow}>
                         <View style={styles.statusInfo}>
-                            <Text style={styles.statusLabel}>CURRENT STATUS</Text>
+                            <Text style={styles.statusLabel}>{t('current_status')}</Text>
                             <Text style={styles.statusTitle}>
-                                {status === 'searching' && "Finding your professional..."}
-                                {status === 'assigned' && "Professional matched!"}
-                                {status === 'worker_en_route' && "En route to your location"}
-                                {status === 'worker_arrived' && "At your doorstep"}
-                                {status === 'in_progress' && "Service in progress"}
-                                {status === 'pending_completion' && "Reviewing completion"}
-                                {status === 'completed' && "Service complete"}
+                                {status === 'searching' && t('status_finding_prof')}
+                                {status === 'assigned' && t('status_prof_matched')}
+                                {status === 'worker_en_route' && t('status_en_route')}
+                                {status === 'worker_arrived' && t('status_at_doorstep')}
+                                {status === 'in_progress' && t('status_in_progress')}
+                                {status === 'pending_completion' && t('status_reviewing')}
+                                {status === 'completed' && t('status_complete')}
                             </Text>
                         </View>
                         {status === 'in_progress' && (
@@ -203,8 +203,8 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 {status === 'worker_arrived' && (
                     <FadeInView delay={200}>
                         <Card glow style={styles.actionCard}>
-                            <Text style={styles.actionTitle}>Share Start Code</Text>
-                            <Text style={styles.actionSub}>Provide this code to the professional to begin the service.</Text>
+                            <Text style={styles.actionTitle}>{t('share_start_code')}</Text>
+                            <Text style={styles.actionSub}>{t('share_start_code_desc')}</Text>
                             <View style={styles.otpDisplay}>
                                 <Text style={styles.otpTxt}>{job?.start_otp || '----'}</Text>
                             </View>
@@ -215,8 +215,8 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 {status === 'pending_completion' && (
                     <FadeInView delay={200}>
                         <Card glow style={styles.actionCard}>
-                            <Text style={styles.actionTitle}>Verify Completion</Text>
-                            <Text style={styles.actionSub}>Enter the code provided by the professional to finalize.</Text>
+                            <Text style={styles.actionTitle}>{t('verify_completion')}</Text>
+                            <Text style={styles.actionSub}>{t('verify_completion_desc')}</Text>
                             <View style={styles.otpInputWrap}>
                                 <OTPInput
                                     disabled={verifyingEndOtp}
@@ -226,7 +226,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                             await apiClient.post(`/api/jobs/${jobId}/verify-end-otp`, { otp: code });
                                             navigation.replace('Payment', { jobId });
                                         } catch (err) {
-                                            Alert.alert('Error', 'Invalid code. Please try again.');
+                                            Alert.alert('Error', t('invalid_code'));
                                         } finally {
                                             setVerifyingEndOtp(false);
                                         }
@@ -248,9 +248,9 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                             <View style={styles.workerInfo}>
                                 <Text style={styles.workerName}>{assignedWorker.name}</Text>
                                 <View style={styles.workerMeta}>
-                                    <Text style={styles.workerRating}>⭐ {assignedWorker.rating || 'New'}</Text>
+                                    <Text style={styles.workerRating}>⭐ {assignedWorker.rating || t('new_worker')}</Text>
                                     <View style={styles.metaDivider} />
-                                    <Text style={styles.workerJobs}>{assignedWorker.completed_jobs || 0} jobs</Text>
+                                    <Text style={styles.workerJobs}>{t('completed_jobs_count').replace('%{count}', assignedWorker.completed_jobs || 0)}</Text>
                                 </View>
                             </View>
                             <TouchableOpacity style={styles.callIconBtn}>
@@ -263,19 +263,19 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 {/* Job Info Section */}
                 {job && (
                     <FadeInView delay={400} style={styles.detailsSection}>
-                        <Text style={styles.sectionHeader}>REQUEST DETAILS</Text>
+                        <Text style={styles.sectionHeader}>{t('request_details')}</Text>
                         <Card style={styles.detailsCard}>
                             <View style={styles.detailRow}>
-                                <Text style={styles.detailLabel}>SERVICE</Text>
+                                <Text style={styles.detailLabel}>{t('service').toUpperCase()}</Text>
                                 <Text style={styles.detailValue}>{t(`cat_${job.category}`) || job.category}</Text>
                             </View>
                             <View style={styles.detailRow}>
-                                <Text style={styles.detailLabel}>LOCATION</Text>
+                                <Text style={styles.detailLabel}>{t('location').toUpperCase()}</Text>
                                 <Text style={styles.detailValue} numberOfLines={2}>{job.address}</Text>
                             </View>
                             {job.scheduled_for && (
                                 <View style={styles.detailRow}>
-                                    <Text style={styles.detailLabel}>SCHEDULED</Text>
+                                    <Text style={styles.detailLabel}>{t('scheduled').toUpperCase()}</Text>
                                     <Text style={styles.detailValue}>{dayjs(job.scheduled_for).format('MMM D, h:mm A')}</Text>
                                 </View>
                             )}
@@ -288,12 +288,12 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     {['searching', 'assigned', 'worker_en_route'].includes(status) && (
                         <PremiumButton
                             variant="secondary"
-                            title="Cancel Request"
+                            title={t('status_cancelled')}
                             onPress={() => {
-                                Alert.alert('Cancel Request', 'Are you sure?', [
-                                    { text: 'No', style: 'cancel' },
+                                Alert.alert(t('status_cancelled'), t('are_you_sure'), [
+                                    { text: t('no'), style: 'cancel' },
                                     {
-                                        text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
+                                        text: t('yes_cancel'), style: 'destructive', onPress: async () => {
                                             try {
                                                 await apiClient.post(`/api/jobs/${jobId}/cancel`);
                                                 navigation.replace('CustomerTabs');
@@ -306,7 +306,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     )}
                     {status === 'completed' && (
                         <PremiumButton
-                            title="Leave a Review"
+                            title={t('leave_review')}
                             onPress={() => navigation.navigate('Rating', { jobId })}
                         />
                     )}
@@ -320,11 +320,11 @@ const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: spacing.lg,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing[16]
+        paddingBottom: spacing.sm
     },
     headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
     headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     map: { flex: 1 },
     mapOverlay: { position: 'absolute', top: 20, right: 20 },
 
-    mainCard: { margin: spacing[24], padding: spacing[24], gap: spacing[24] },
+    mainCard: { margin: spacing.lg, gap: spacing.lg },
     completedCard: { borderColor: colors.accent.primary + '44', borderWidth: 1 },
     statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     statusInfo: { flex: 1 },
@@ -354,14 +354,14 @@ const styles = StyleSheet.create({
     stageLine: { position: 'absolute', left: '50%', top: 3.5, width: '100%', height: 1, backgroundColor: colors.elevated, zIndex: -1 },
     stageLineActive: { backgroundColor: colors.accent.primary },
 
-    actionCard: { marginHorizontal: spacing[24], marginBottom: spacing[24], padding: spacing[24], alignItems: 'center', gap: spacing[16] },
+    actionCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg, alignItems: 'center', gap: spacing.md },
     actionTitle: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold },
     actionSub: { color: colors.text.secondary, fontSize: fontSize.caption, textAlign: 'center' },
     otpDisplay: { paddingVertical: spacing[16], paddingHorizontal: spacing[32], borderRadius: radius.lg, backgroundColor: colors.elevated },
     otpTxt: { color: colors.accent.primary, fontSize: 32, fontWeight: '900', letterSpacing: 8 },
     otpInputWrap: { marginTop: spacing[16] },
 
-    workerRow: { marginHorizontal: spacing[24], padding: spacing[16], backgroundColor: colors.surface, borderRadius: radius.xl, flexDirection: 'row', alignItems: 'center', gap: spacing[16], ...shadows.premium },
+    workerRow: { marginHorizontal: spacing.lg, backgroundColor: colors.surface, borderRadius: radius.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md, ...shadows.premium },
     workerPhoto: { width: 50, height: 50, borderRadius: 25 },
     workerInfo: { flex: 1 },
     workerName: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
@@ -372,12 +372,12 @@ const styles = StyleSheet.create({
     callIconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
     callIcon: { fontSize: 16 },
 
-    detailsSection: { marginTop: spacing[32], paddingHorizontal: spacing[24] },
-    sectionHeader: { color: colors.text.muted, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5, marginBottom: spacing[12] },
-    detailsCard: { padding: spacing[16], gap: spacing[16] },
+    detailsSection: { marginTop: spacing.xl, paddingHorizontal: spacing.lg },
+    sectionHeader: { color: colors.text.muted, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5, marginBottom: spacing.sm },
+    detailsCard: { gap: spacing.md },
     detailRow: { gap: 4 },
     detailLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
     detailValue: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
 
-    footerActions: { padding: spacing[24], gap: spacing[16] }
+    footerActions: { padding: spacing.lg, gap: spacing.md }
 });

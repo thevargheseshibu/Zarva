@@ -9,13 +9,7 @@ import apiClient from '../../../services/api/client';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
-
-const DOCS = [
-    { key: 'aadhaar_front', label: 'AADHAAR FRONT', icon: '🪪' },
-    { key: 'aadhaar_back', label: 'AADHAAR BACK', icon: '🪪' },
-    { key: 'selfie', label: 'E-PORTRAIT (SELFIE)', icon: '🤳' },
-    { key: 'agreement_signature', label: 'SIGNATURE SCAN', icon: '📝' },
-];
+import { useT } from '../../../hooks/useT';
 
 async function uploadImage(uri, docKey) {
     try {
@@ -39,6 +33,15 @@ async function uploadImage(uri, docKey) {
 }
 
 export default function OnboardingDocuments({ data, onNext }) {
+    const t = useT();
+
+    const DOCS = [
+        { key: 'aadhaar_front', label: t('aadhaar_front'), icon: '🪪' },
+        { key: 'aadhaar_back', label: t('aadhaar_back'), icon: '🪪' },
+        { key: 'selfie', label: t('selfie_eportrait'), icon: '🤳' },
+        { key: 'agreement_signature', label: t('signature_scan'), icon: '📝' },
+    ];
+
     const [uploads, setUploads] = useState(data.documents || {});
     const [aadhaarNumber, setAadhaarNumber] = useState(data.aadhaar_number || '');
     const [loading, setLoading] = useState({});
@@ -49,7 +52,7 @@ export default function OnboardingDocuments({ data, onNext }) {
     const pickImage = async (docKey) => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Permission needed', 'Please allow access to your photo library.');
+            Alert.alert(t('permission_needed'), t('allow_photo_access'));
             return;
         }
 
@@ -103,13 +106,13 @@ export default function OnboardingDocuments({ data, onNext }) {
     return (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             <FadeInView delay={50}>
-                <Text style={styles.headerSub}>STEP 03/05</Text>
-                <Text style={styles.title}>Credentialing</Text>
-                <Text style={styles.sub}>Submit your official credentials for secure background verification.</Text>
+                <Text style={styles.headerSub}>{t('step_03')}</Text>
+                <Text style={styles.title}>{t('credentialing')}</Text>
+                <Text style={styles.sub}>{t('credentialing_desc')}</Text>
             </FadeInView>
 
             <FadeInView delay={150} style={styles.section}>
-                <Text style={styles.label}>National Identifier (Aadhaar)</Text>
+                <Text style={styles.label}>{t('national_identifier')}</Text>
                 <Card style={styles.inputCard}>
                     <TextInput
                         style={styles.input}
@@ -155,7 +158,7 @@ export default function OnboardingDocuments({ data, onNext }) {
                                 <View style={styles.docInfo}>
                                     <Text style={styles.docLabel}>{doc.label}</Text>
                                     <Text style={[styles.docStatus, isFailed && styles.statusError]}>
-                                        {isLoading ? 'UPLOADING...' : isFailed ? 'FAILED • RETRY' : isSuccess ? 'VERIFIED' : 'PENDING UPLOAD'}
+                                        {isLoading ? t('uploading') : isFailed ? t('failed_retry') : isSuccess ? t('verified') : t('pending_upload')}
                                     </Text>
                                 </View>
                             </PressableAnimated>
@@ -166,7 +169,7 @@ export default function OnboardingDocuments({ data, onNext }) {
 
             <FadeInView delay={650} style={styles.footer}>
                 <PremiumButton
-                    title="Validate Credentials"
+                    title={t('validate_credentials')}
                     disabled={!isComplete}
                     onPress={() => {
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

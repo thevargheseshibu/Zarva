@@ -153,11 +153,11 @@ export default function ActiveJobScreen({ route, navigation }) {
             return (
                 <FadeInView delay={200} style={styles.actionSection}>
                     <Card style={styles.actionCard}>
-                        <Text style={styles.actionLabel}>MISSION STATUS</Text>
-                        <Text style={styles.actionTitle}>Navigate to Client</Text>
-                        <Text style={styles.actionSub}>Follow the GPS to the specified location. Confirm arrival to request the Start Code.</Text>
+                        <Text style={styles.actionLabel}>{t('mission_status')}</Text>
+                        <Text style={styles.actionTitle}>{t('navigate_to_client')}</Text>
+                        <Text style={styles.actionSub}>{t('navigate_desc')}</Text>
                         <PremiumButton
-                            title="Confirm Arrival"
+                            title={t('confirm_arrival')}
                             onPress={handleArrived}
                             loading={actionLoading}
                         />
@@ -170,9 +170,9 @@ export default function ActiveJobScreen({ route, navigation }) {
             return (
                 <FadeInView delay={200} style={styles.actionSection}>
                     <Card style={styles.actionCard}>
-                        <Text style={styles.actionLabel}>AUTHENTICATION</Text>
-                        <Text style={styles.actionTitle}>Enter Start Code</Text>
-                        <Text style={styles.actionSub}>The client has been provided a 4-digit code. Enter it below to begin the billable session.</Text>
+                        <Text style={styles.actionLabel}>{t('authentication')}</Text>
+                        <Text style={styles.actionTitle}>{t('enter_start_code')}</Text>
+                        <Text style={styles.actionSub}>{t('enter_start_code_desc')}</Text>
                         <View style={styles.otpWrap}>
                             <OTPInput
                                 disabled={actionLoading}
@@ -180,13 +180,13 @@ export default function ActiveJobScreen({ route, navigation }) {
                             />
                         </View>
                         <PremiumButton
-                            title="Start Billable Session"
+                            title={t('start_billable_session')}
                             onPress={handleVerifyStartOtp}
                             loading={actionLoading}
                             disabled={startOtp.join('').length < 4}
                         />
                         {otpExpirySeconds !== null && (
-                            <Text style={styles.expiryTxt}>CODE EXPIRES IN: {formatTime(otpExpirySeconds)}</Text>
+                            <Text style={styles.expiryTxt}>{t('code_expires_in')}{formatTime(otpExpirySeconds)}</Text>
                         )}
                     </Card>
                 </FadeInView>
@@ -197,17 +197,17 @@ export default function ActiveJobScreen({ route, navigation }) {
             return (
                 <FadeInView delay={200} style={styles.actionSection}>
                     <Card style={styles.actionCard}>
-                        <Text style={styles.actionLabel}>ACTIVE SESSION</Text>
+                        <Text style={styles.actionLabel}>{t('active_session')}</Text>
                         <View style={styles.timerBox}>
                             <Text style={styles.timerValue}>{formatTime(timeElapsed)}</Text>
                             <View style={styles.liveBadge}>
                                 <View style={styles.liveDot} />
-                                <Text style={styles.liveTxt}>LIVE BILLING</Text>
+                                <Text style={styles.liveTxt}>{t('live_billing')}</Text>
                             </View>
                         </View>
-                        <Text style={styles.actionSub}>Perform requested tasks with excellence. Tap below once the job is physically completed.</Text>
+                        <Text style={styles.actionSub}>{t('active_session_desc')}</Text>
                         <PremiumButton
-                            title="Terminate & Complete"
+                            title={t('terminate_complete')}
                             onPress={handleMarkComplete}
                             loading={actionLoading}
                         />
@@ -220,15 +220,15 @@ export default function ActiveJobScreen({ route, navigation }) {
             return (
                 <FadeInView delay={200} style={styles.actionSection}>
                     <Card style={styles.actionCard}>
-                        <Text style={styles.actionLabel}>FINALIZATION</Text>
-                        <Text style={styles.actionTitle}>Share Completion Code</Text>
-                        <Text style={styles.actionSub}>Provide this code to the client. They must enter it on their device to release payment.</Text>
+                        <Text style={styles.actionLabel}>{t('finalization')}</Text>
+                        <Text style={styles.actionTitle}>{t('share_completion_code')}</Text>
+                        <Text style={styles.actionSub}>{t('share_completion_code_desc')}</Text>
                         <View style={styles.endOtpBox}>
                             <Text style={styles.endOtpCode}>{endOtp}</Text>
                         </View>
                         <View style={styles.waitingIconBox}>
                             <ActivityIndicator size="small" color={colors.accent.primary} />
-                            <Text style={styles.waitingTxt}>Awaiting client confirmation...</Text>
+                            <Text style={styles.waitingTxt}>{t('awaiting_confirmation')}</Text>
                         </View>
                     </Card>
                 </FadeInView>
@@ -237,11 +237,11 @@ export default function ActiveJobScreen({ route, navigation }) {
 
         return (
             <FadeInView delay={200} style={styles.finishedBox}>
-                <Text style={styles.finishStatus}>MISSION COMPLETE</Text>
-                <Text style={styles.finishTitle}>Session Archived</Text>
+                <Text style={styles.finishStatus}>{t('mission_complete')}</Text>
+                <Text style={styles.finishTitle}>{t('session_archived')}</Text>
                 <PremiumButton
                     variant="ghost"
-                    title="Return to Dashboard"
+                    title={t('return_to_dashboard')}
                     onPress={() => navigation.navigate('WorkerTabs')}
                 />
             </FadeInView>
@@ -251,7 +251,7 @@ export default function ActiveJobScreen({ route, navigation }) {
     if (loading) return (
         <View style={styles.loadingScreen}>
             <ActivityIndicator size="large" color={colors.accent.primary} />
-            <Text style={styles.loadingTxt}>Synchronizing session...</Text>
+            <Text style={styles.loadingTxt}>{t('syncing_session')}</Text>
         </View>
     );
 
@@ -263,7 +263,7 @@ export default function ActiveJobScreen({ route, navigation }) {
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>Live Operations</Text>
+                    <Text style={styles.headerTitle}>{t('live_operations')}</Text>
                     <View style={styles.statusPillWrap}>
                         <StatusPill status={status} />
                     </View>
@@ -281,7 +281,7 @@ export default function ActiveJobScreen({ route, navigation }) {
                                 <Text style={styles.avatarTxt}>{job?.customer_name?.charAt(0) || 'C'}</Text>
                             </View>
                             <View style={styles.clientInfo}>
-                                <Text style={styles.clientLabel}>CLIENT</Text>
+                                <Text style={styles.clientLabel}>{t('client_label')}</Text>
                                 <Text style={styles.clientName}>{job?.customer_name || 'Client'}</Text>
                                 <Text style={styles.categoryTxt}>{job?.category}</Text>
                             </View>
@@ -289,7 +289,7 @@ export default function ActiveJobScreen({ route, navigation }) {
 
                         <View style={styles.jobLocation}>
                             <View style={styles.locLeft}>
-                                <Text style={styles.locLabel}>SERVICE ADDRESS</Text>
+                                <Text style={styles.locLabel}>{t('service_address')}</Text>
                                 <Text style={styles.locAddress} numberOfLines={2}>{job?.address}</Text>
                             </View>
                             <PressableAnimated style={styles.navBtn} onPress={handleNavigate}>
@@ -300,7 +300,7 @@ export default function ActiveJobScreen({ route, navigation }) {
                         <View style={styles.contactActions}>
                             <TouchableOpacity style={styles.contactBtn} onPress={handleCall}>
                                 <Text style={styles.contactIcon}>📞</Text>
-                                <Text style={styles.contactTxt}>VOICE CALL</Text>
+                                <Text style={styles.contactTxt}>{t('voice_call')}</Text>
                             </TouchableOpacity>
                         </View>
                     </Card>

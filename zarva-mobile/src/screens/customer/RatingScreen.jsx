@@ -129,7 +129,7 @@ export default function RatingScreen({ route, navigation }) {
                 </PressableAnimated>
                 {!isReadOnly && (
                     <TouchableOpacity onPress={() => navigation.popToTop()}>
-                        <Text style={styles.skipTxt}>SKIP</Text>
+                        <Text style={styles.skipTxt}>{t('skip_caps')}</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -143,9 +143,9 @@ export default function RatingScreen({ route, navigation }) {
                             <Text style={styles.ratingBadgeTxt}>⭐ {parseFloat(worker.rating || 0).toFixed(1)}</Text>
                         </View>
                     </View>
-                    <Text style={styles.title}>{isReadOnly ? 'Your Review' : `Rate ${worker.name}`}</Text>
+                    <Text style={styles.title}>{isReadOnly ? t('your_review') : t('rate_name').replace('%{name}', worker.name)}</Text>
                     <Text style={styles.sub}>
-                        {isReadOnly ? 'Thank you for your valuable feedback.' : 'How was your experience with the service?'}
+                        {isReadOnly ? t('thank_you_feedback') : t('how_was_experience')}
                     </Text>
                 </FadeInView>
 
@@ -153,12 +153,12 @@ export default function RatingScreen({ route, navigation }) {
                 <FadeInView delay={200} style={styles.mainRatingBox}>
                     <StarRow value={rating} onChange={setRating} size={56} />
                     <Text style={styles.ratingLabel}>
-                        {rating === 1 && "Poor"}
-                        {rating === 2 && "Fair"}
-                        {rating === 3 && "Good"}
-                        {rating === 4 && "Very Good"}
-                        {rating === 5 && "Exceptional!"}
-                        {rating === 0 && "Select a Rating"}
+                        {rating === 1 && t('rating_poor')}
+                        {rating === 2 && t('rating_fair')}
+                        {rating === 3 && t('rating_good')}
+                        {rating === 4 && t('rating_very_good')}
+                        {rating === 5 && t('rating_exceptional')}
+                        {rating === 0 && t('rating_select')}
                     </Text>
                 </FadeInView>
 
@@ -167,23 +167,23 @@ export default function RatingScreen({ route, navigation }) {
                     <FadeInView delay={350}>
                         <Card style={styles.metricsCard}>
                             <View style={styles.metricRow}>
-                                <Text style={styles.metricLabel}>Punctuality</Text>
+                                <Text style={styles.metricLabel}>{t('punctuality')}</Text>
                                 <StarRow value={punctuality} onChange={setPunctuality} size={24} />
                             </View>
                             <View style={styles.metricRow}>
-                                <Text style={styles.metricLabel}>Communication</Text>
+                                <Text style={styles.metricLabel}>{t('communication')}</Text>
                                 <StarRow value={communication} onChange={setCommunication} size={24} />
                             </View>
                             <View style={styles.metricRow}>
-                                <Text style={styles.metricLabel}>Professionalism</Text>
+                                <Text style={styles.metricLabel}>{t('professionalism')}</Text>
                                 <StarRow value={professionalism} onChange={setProfessionalism} size={24} />
                             </View>
 
                             <View style={styles.commentWrap}>
-                                <Text style={styles.commentLabel}>COMMENT</Text>
+                                <Text style={styles.commentLabel}>{t('comment_caps')}</Text>
                                 <TextInput
                                     style={[styles.input, isReadOnly && styles.inputDisabled]}
-                                    placeholder="Add details about your experience..."
+                                    placeholder={t('add_details_experience')}
                                     placeholderTextColor={colors.text.muted}
                                     value={comment}
                                     onChangeText={setComment}
@@ -198,7 +198,7 @@ export default function RatingScreen({ route, navigation }) {
 
                 <View style={styles.footer}>
                     <PremiumButton
-                        title={isReadOnly ? "Back to Home" : "Submit Review"}
+                        title={isReadOnly ? t('back_to_home') : t('submit_review')}
                         isDisabled={!isReadOnly && rating === 0}
                         loading={loading}
                         onPress={handleSubmit}

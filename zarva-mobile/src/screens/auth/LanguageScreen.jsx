@@ -28,16 +28,20 @@ export default function LanguageScreen({ navigation }) {
         );
     }, [searchQuery]);
 
-    const handleContinue = () => {
-        // Persist language preference in auth store for sync to DB later
-        setUser({ language: selected });
+    const handleContinue = async () => {
+        // Persist language preference in auth store – safely merge if user exists
+        if (user) {
+            setUser({ ...user, language: selected });
+        } else {
+            setUser({ language: selected });
+        }
 
-        // Navigate immediately so the UI transitions smoothly
+        // Load the language dynamically and wait for it
+        // so the next screen (Phone) is already translated
+        await loadLanguage(selected);
+
+        // Navigate
         navigation.navigate('Phone');
-
-        // Load the language dynamically into Zustand i18n store in the background
-        // without awaiting so it doesn't block the UI transition
-        loadLanguage(selected);
     };
 
     const renderItem = ({ item }) => {
