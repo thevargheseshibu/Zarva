@@ -109,6 +109,18 @@ export default function App() {
   React.useEffect(() => {
     if (!isLoaded) return;
 
+    // Refresh User Profile to ensure local state has latest name/dob
+    if (isAuthenticated) {
+      apiClient.get('/api/me')
+        .then(res => {
+          if (res.data?.user) {
+            const current = useAuthStore.getState().user || {};
+            useAuthStore.getState().setUser({ ...current, ...res.data.user });
+          }
+        })
+        .catch(e => console.warn('[App.js] Profile refresh failed:', e.message));
+    }
+
     // Rehydrate minimizable active job queue
     apiClient.get('/api/me/jobs?status=active').then(res => {
       const job = res.data?.jobs?.[0] || res.data?.data?.[0];

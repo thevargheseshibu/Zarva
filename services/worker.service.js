@@ -5,18 +5,19 @@
  * Note: `onboarding_status` in API maps directly to `kyc_status` in MySQL.
  */
 
-const ALLOWED_SKILLS = new Set([
-    'electrician', 'plumber', 'carpenter', 'ac_technician',
-    'painter', 'cleaner', 'driver'
-]);
+import configLoader from '../config/loader.js';
 
 /**
- * Validates array of skills against the allowed enum list.
+ * Validates array of skills against the allowed enum list from config.
  */
 function validateSkills(skills) {
     if (!Array.isArray(skills)) return false;
+
+    const jobsCfg = configLoader.get('jobs');
+    const allowedSkills = new Set(Object.keys(jobsCfg.categories));
+
     for (const skill of skills) {
-        if (!ALLOWED_SKILLS.has(skill)) return false;
+        if (!allowedSkills.has(skill)) return false;
     }
     return true;
 }
@@ -44,7 +45,7 @@ export async function startOnboarding(userId, pool) {
     // 2. Create Draft Profile (INSERT IGNORE in case they restarted)
     await pool.query(
         `INSERT IGNORE INTO worker_profiles (user_id, name, category, kyc_status)
-     VALUES (?, ?, 'general', 'draft')`,
+     VALUES (?, ?, 'service partner', 'draft')`,
         [userId, defaultName]
     );
 
@@ -56,33 +57,41 @@ export async function startOnboarding(userId, pool) {
  * Sets demographic and skill data. Progresses status from 'draft' to 'documents_pending'.
  */
 export async function updateProfile(userId, profileData, pool) {
-    const { full_name, dob, gender, skills, experience_years, service_pincodes } = profileData;
+    const { gender, skills, experience_years, service_range } = profileData;
 
-    if (!full_name || !dob || !gender || !skills || experience_years === undefined || !service_pincodes) {
+    const [rows] = await pool.query('SELECT * FROM worker_profiles WHERE user_id = ?', [userId]);
+    if (!rows.length) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
+
+    const wp = rows[0];
+
+    const newGender = gender !== undefined ? gender : wp.gender;
+    const newSkills = skills !== undefined ? skills : (typeof wp.skills === 'string' ? JSON.parse(wp.skills) : wp.skills);
+    const newExp = experience_years !== undefined ? experience_years : wp.experience_years;
+    const newRange = service_range !== undefined ? service_range : wp.service_range;
+
+    if (!newGender || !newSkills || newExp === undefined || newRange === undefined) {
         throw Object.assign(new Error('Missing required profile fields'), { status: 400 });
     }
 
-    if (!validateSkills(skills)) {
-        throw Object.assign(new Error(`Invalid skills provided. Allowed: ${[...ALLOWED_SKILLS].join(', ')}`), { status: 400 });
+    if (!validateSkills(newSkills)) {
+        const jobsCfg = configLoader.get('jobs');
+        throw Object.assign(new Error(`Invalid skills provided. Allowed: ${Object.keys(jobsCfg.categories).join(', ')}`), { status: 400 });
     }
 
-    if (!Array.isArray(service_pincodes)) {
-        throw Object.assign(new Error('service_pincodes must be an array'), { status: 400 });
+    if (typeof newRange !== 'number' || newRange < 1) {
+        throw Object.assign(new Error('service_range must be a positive number'), { status: 400 });
     }
-
-    const [rows] = await pool.query('SELECT kyc_status FROM worker_profiles WHERE user_id = ?', [userId]);
-    if (!rows.length) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
 
     // Update profile
     await pool.query(
         `UPDATE worker_profiles 
-        SET name = ?, dob = ?, gender = ?, skills = ?, experience_years = ?, service_pincodes = ? 
+        SET gender = ?, skills = ?, experience_years = ?, service_range = ? 
       WHERE user_id = ?`,
-        [full_name, dob, gender, JSON.stringify(skills), experience_years, JSON.stringify(service_pincodes), userId]
+        [newGender, JSON.stringify(newSkills), newExp, newRange, userId]
     );
 
     // Progress status if it was draft
-    if (rows[0].kyc_status === 'draft') {
+    if (wp.kyc_status === 'draft') {
         await pool.query("UPDATE worker_profiles SET kyc_status = 'documents_pending' WHERE user_id = ?", [userId]);
     }
 
@@ -125,10 +134,14 @@ export async function updatePayment(userId, paymentData, pool) {
  * Asserts document ownership/upload validity and registers them.
  */
 export async function submitDocuments(userId, docs, pool) {
-    const { aadhar_front_key, aadhar_back_key, photo_key } = docs;
+    const { aadhar_front_key, aadhar_back_key, photo_key, aadhar_number } = docs;
 
     if (!aadhar_front_key || !aadhar_back_key || !photo_key) {
         throw Object.assign(new Error('Missing required S3 upload keys'), { status: 400 });
+    }
+
+    if (aadhar_number && !/^\d{12}$/.test(aadhar_number)) {
+        throw Object.assign(new Error('Aadhaar number must be exactly 12 digits.'), { status: 400 });
     }
 
     const keysToVerify = [aadhar_front_key, aadhar_back_key, photo_key];
@@ -157,9 +170,9 @@ export async function submitDocuments(userId, docs, pool) {
         [userId, aadhar_front_key, userId, aadhar_back_key, userId, photo_key]
     );
 
-    // Update status
+    // Update status and aadhaar_number
     console.log(`[Worker Onboarding] Documents Saved. Progressing pipeline to pending_review for U:${userId}`);
-    await pool.query(`UPDATE worker_profiles SET kyc_status = 'pending_review' WHERE user_id = ?`, [userId]);
+    await pool.query(`UPDATE worker_profiles SET kyc_status = 'pending_review', aadhar_number = ? WHERE user_id = ?`, [aadhar_number || null, userId]);
 
     return { success: true };
 }

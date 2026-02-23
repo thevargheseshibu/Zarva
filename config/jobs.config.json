@@ -1,44 +1,305 @@
 {
-    "questions": {
-        "electrician": [
-            "What type of electrical work do you need?",
-            "Is it a repair, installation, or replacement?",
-            "Are there any exposed wires or immediate safety hazards?"
-        ],
-        "plumber": [
-            "What plumbing issue are you experiencing?",
-            "Is there an active leak?",
-            "Do you need pipe replacement or block clearing?"
-        ],
-        "carpenter": [
-            "What kind of woodwork is needed?",
-            "Do you need repair or custom furniture building?",
-            "Do you have the materials ready?"
-        ],
-        "ac_technician": [
-            "What is the issue with your AC?",
-            "Is it split AC or Window AC?",
-            "Has the AC been serviced in the last 6 months?"
-        ],
-        "painter": [
-            "How many rooms need painting?",
-            "Do you require interior or exterior painting?",
-            "Will we need to scrape existing paint?"
-        ],
-        "cleaner": [
-            "Is this a deep clean or regular cleaning?",
-            "How many bedrooms and bathrooms?",
-            "Do you have pets at home?"
-        ],
-        "driver": [
-            "What type of vehicle needs driving?",
-            "Is it a manual or automatic transmission?",
-            "Will this be a round trip or one-way drop?"
-        ],
-        "driver1": [
-            "What type of vehicle needs driving?",
-            "Is it a manual or automatic transmission?",
-            "Will this be a round trip or one-way drop?"
-        ]
+    "categories": {
+        "electrician": {
+            "id": "electrician",
+            "label": "⚡ Electrician",
+            "rate_per_hour": 350,
+            "min_hours": 1,
+            "currency": "INR",
+            "questions": [
+                "What type of electrical work do you need?",
+                "Is it a repair, installation, or replacement?",
+                "Are there any exposed wires or safety hazards?"
+            ]
+        },
+        "plumber": {
+            "id": "plumber",
+            "label": "🔧 Plumber",
+            "rate_per_hour": 320,
+            "min_hours": 1,
+            "currency": "INR",
+            "questions": [
+                "What plumbing issue are you experiencing?",
+                "Is there an active leak or flooding?",
+                "Is the issue in kitchen, bathroom, or pipeline?"
+            ]
+        },
+        "carpenter": {
+            "id": "carpenter",
+            "label": "🪵 Carpenter",
+            "rate_per_hour": 400,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "What kind of woodwork is needed?",
+                "Is it repair or new work?",
+                "Do you have the materials ready?"
+            ]
+        },
+        "mason": {
+            "id": "mason",
+            "label": "🧱 Mason",
+            "rate_per_hour": 350,
+            "min_hours": 4,
+            "currency": "INR",
+            "questions": [
+                "What type of work — brickwork, plastering, or tiling?",
+                "Is it new construction, renovation, or repair?",
+                "Are materials available on site?"
+            ]
+        },
+        "painter": {
+            "id": "painter",
+            "label": "🎨 Painter",
+            "rate_per_hour": 350,
+            "min_hours": 4,
+            "currency": "INR",
+            "questions": [
+                "How many rooms need painting?",
+                "Interior or exterior?",
+                "Do you have paint and materials, or should we arrange?"
+            ]
+        },
+        "welder": {
+            "id": "welder",
+            "label": "🔥 Welder",
+            "rate_per_hour": 400,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "What needs to be welded or fabricated?",
+                "What material — steel, iron, or aluminium?",
+                "Is it a repair or new fabrication?"
+            ]
+        },
+        "ac_repair": {
+            "id": "ac_repair",
+            "label": "❄️ AC Repair & Service",
+            "rate_per_hour": 500,
+            "min_hours": 1,
+            "currency": "INR",
+            "questions": [
+                "What is the issue with your AC?",
+                "Is it split AC, window AC, or cassette unit?",
+                "Has it been serviced in the last 6 months?"
+            ]
+        },
+        "appliance_repair": {
+            "id": "appliance_repair",
+            "label": "🔌 Appliance Repair",
+            "rate_per_hour": 380,
+            "min_hours": 1,
+            "currency": "INR",
+            "questions": [
+                "Which appliance — fridge, washing machine, TV, or other?",
+                "What is the exact issue?",
+                "Is it still under warranty?"
+            ]
+        },
+        "cleaning": {
+            "id": "cleaning",
+            "label": "🧹 Home Cleaning",
+            "rate_per_hour": 250,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "Is this a deep clean or regular cleaning?",
+                "How many bedrooms and bathrooms?",
+                "Do you need cleaning supplies brought along?"
+            ]
+        },
+        "pest_control": {
+            "id": "pest_control",
+            "label": "🐜 Pest Control",
+            "rate_per_hour": 400,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "What type of pest — cockroaches, termites, rats, or bedbugs?",
+                "What is the approximate area in sq ft?",
+                "Are there children or elderly at home?"
+            ]
+        },
+        "driver": {
+            "id": "driver",
+            "label": "🚘 Personal Driver",
+            "rate_per_hour": 200,
+            "min_hours": 4,
+            "currency": "INR",
+            "questions": [
+                "What type of vehicle needs driving?",
+                "Is it daily commute, outstation, or a one-time trip?",
+                "Round trip or one-way drop?"
+            ]
+        },
+        "vehicle_repair": {
+            "id": "vehicle_repair",
+            "label": "🚗 Vehicle Repair (Doorstep)",
+            "rate_per_hour": 400,
+            "min_hours": 1,
+            "currency": "INR",
+            "questions": [
+                "Is it a car, bike, or auto rickshaw?",
+                "What is the issue?",
+                "Is it a breakdown or routine service?"
+            ]
+        },
+        "helper": {
+            "id": "helper",
+            "label": "🤝 Helper / Labour",
+            "rate_per_hour": 200,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "What kind of help do you need?",
+                "How many helpers and for how long?",
+                "Is it lifting, shifting, or general assistance?"
+            ]
+        },
+        "movers_packers": {
+            "id": "movers_packers",
+            "label": "📦 Movers & Packers",
+            "rate_per_hour": 300,
+            "min_hours": 4,
+            "currency": "INR",
+            "questions": [
+                "What is the size of the move — 1BHK, 2BHK, or full house?",
+                "What is the pickup and drop location?",
+                "Do you need packing materials included?"
+            ]
+        },
+        "cook": {
+            "id": "cook",
+            "label": "👨‍🍳 Cook",
+            "rate_per_hour": 280,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "Is it for daily cooking or a one-time event?",
+                "How many people are to be served?",
+                "What cuisine — Kerala, North Indian, or other?"
+            ]
+        },
+        "babysitter": {
+            "id": "babysitter",
+            "label": "👶 Babysitter / Nanny",
+            "rate_per_hour": 200,
+            "min_hours": 4,
+            "currency": "INR",
+            "questions": [
+                "How many children and what are their ages?",
+                "Is it for a few hours or a regular arrangement?",
+                "Are there any special care needs?"
+            ]
+        },
+        "elder_care": {
+            "id": "elder_care",
+            "label": "🧓 Elder Care Attendant",
+            "rate_per_hour": 250,
+            "min_hours": 4,
+            "currency": "INR",
+            "questions": [
+                "What are the specific care needs?",
+                "Is the patient mobile or bedridden?",
+                "Day shift, night shift, or 24-hour care?"
+            ]
+        },
+        "gardener": {
+            "id": "gardener",
+            "label": "🌿 Gardener",
+            "rate_per_hour": 220,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "What work is needed — mowing, trimming, or planting?",
+                "What is the approximate garden size?",
+                "One-time service or recurring?"
+            ]
+        },
+        "security_guard": {
+            "id": "security_guard",
+            "label": "🔒 Security Guard",
+            "rate_per_hour": 200,
+            "min_hours": 8,
+            "currency": "INR",
+            "questions": [
+                "What premises — home, shop, or event?",
+                "Day shift, night shift, or 24 hours?",
+                "How many days do you need the guard?"
+            ]
+        },
+        "waterproofing": {
+            "id": "waterproofing",
+            "label": "🏠 Waterproofing & Leakage",
+            "rate_per_hour": 450,
+            "min_hours": 4,
+            "currency": "INR",
+            "questions": [
+                "Where is the leakage — roof, bathroom, or wall?",
+                "Approximate affected area in sq ft?",
+                "Has any prior waterproofing been done?"
+            ]
+        },
+        "tank_cleaning": {
+            "id": "tank_cleaning",
+            "label": "💧 Tank & Sump Cleaning",
+            "rate_per_hour": 380,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "Is it a water tank, sump, or septic tank?",
+                "What is the approximate capacity?",
+                "When was it last cleaned?"
+            ]
+        },
+        "solar_technician": {
+            "id": "solar_technician",
+            "label": "☀️ Solar Panel Service",
+            "rate_per_hour": 500,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "Is it installation, repair, or cleaning?",
+                "What is the system capacity in kW?",
+                "Is it a grid-tied or battery backup system?"
+            ]
+        },
+        "cctv_installation": {
+            "id": "cctv_installation",
+            "label": "📷 CCTV Installation",
+            "rate_per_hour": 450,
+            "min_hours": 2,
+            "currency": "INR",
+            "questions": [
+                "How many cameras need to be installed?",
+                "New setup or repair of existing system?",
+                "Do you need remote viewing on your phone?"
+            ]
+        },
+        "delivery": {
+            "id": "delivery",
+            "label": "🛵 Delivery Rider",
+            "rate_per_hour": 180,
+            "min_hours": 4,
+            "currency": "INR",
+            "questions": [
+                "What needs to be delivered — parcels, documents, or goods?",
+                "What is the pickup and drop location?",
+                "Does the rider need to provide their own bike?"
+            ]
+        }
+    },
+    "global_pricing": {
+        "platform_commission_percent": 10,
+        "advance_percent": 15,
+        "night_surcharge_percent": 20,
+        "emergency_surcharge_percent": 25,
+        "weekend_surcharge_percent": 10,
+        "travel": {
+            "petrol_rate_per_km": 8,
+            "free_km_radius": 2,
+            "max_travel_charge": 150,
+            "min_travel_charge": 30
+        }
     }
 }

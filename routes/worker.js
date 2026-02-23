@@ -98,7 +98,7 @@ router.get('/onboard/status', (req, res) =>
  */
 router.post('/onboard', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const { name, dob, gender, location, categories, experience, payment, documents, agreement_signature } = req.body;
+        const { gender, location, categories, experience, payment, documents, agreement_signature, aadhaar_number } = req.body;
         const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
 
         // Boot role if needed safely
@@ -108,12 +108,10 @@ router.post('/onboard', (req, res) =>
 
         // Mappings
         await WorkerService.updateProfile(userId, {
-            full_name: name,
-            dob,
             gender,
             skills: categories || [],
             experience_years: experience,
-            service_pincodes: location?.pincode ? [location.pincode] : ['682001']
+            service_range: location?.service_range || 20
         }, pool);
 
         // Location Injection
@@ -134,7 +132,8 @@ router.post('/onboard', (req, res) =>
             await WorkerService.submitDocuments(userId, {
                 aadhar_front_key: documents.aadhaar_front,
                 aadhar_back_key: documents.aadhaar_back,
-                photo_key: documents.selfie
+                photo_key: documents.selfie,
+                aadhar_number
             }, pool);
         }
 

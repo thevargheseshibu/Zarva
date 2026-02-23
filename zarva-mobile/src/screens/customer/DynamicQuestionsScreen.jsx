@@ -6,35 +6,22 @@ import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from '../../components/GoldButton';
 import apiClient from '../../services/api/client';
 
-// Category-aware fallback questions — used when server is unreachable
-const CATEGORY_QUESTIONS = {
-    plumber: ['What type of plumbing issue?', 'Where is the problem located?'],
-    electrician: ['What electrical work is needed?', 'Is it urgent / power cut?'],
-    carpenter: ['What furniture or fixture needs work?', 'Approximate size / dimensions?'],
-    ac_repair: ['Which type of AC? (Split / Window / Cassette)', 'What is the exact problem?'],
-    painter: ['How many rooms / area in sq ft?', 'Interior, exterior, or both?'],
-    cleaning: ['Type of cleaning? (Home / Office / Post-renovation)', 'Approximate area in sq ft?'],
-    cleaner: ['Type of cleaning? (Home / Office / Post-renovation)', 'Approximate area in sq ft?'],
-    driver: ['Outstation or local trip?', 'Please share pickup & drop location'],
-    helper: ['What kind of help do you need?', 'How many hours approximately?'],
-};
-
+// Generic fallback questions — used ONLY when server is completely unreachable
 const DEFAULT_QUESTIONS = ['Describe what you need help with', 'Any specific requirements?'];
 
 function buildFallbackConfig(category, basePrice = 300) {
-    const qs = CATEGORY_QUESTIONS[category] || DEFAULT_QUESTIONS;
     return {
         base_price: basePrice,
         questions: [
-            { id: 'q1', type: 'text', label: qs[0], required: true },
-            { id: 'q2', type: 'text', label: qs[1] || 'Any other details?', required: false, skippable: true },
+            { id: 'q1', type: 'text', label: DEFAULT_QUESTIONS[0], required: true },
+            { id: 'q2', type: 'text', label: DEFAULT_QUESTIONS[1], required: false, skippable: true },
             { id: 'q3', type: 'image', label: 'Upload a photo (optional)', required: false, skippable: true },
         ]
     };
 }
 
 export default function DynamicQuestionsScreen({ route, navigation }) {
-    const { category, label } = route.params || { category: 'electrician', label: 'Electrician' };
+    const { category, label } = route.params || { category: 'unknown', label: 'Service' };
 
     const [config, setConfig] = useState(() => buildFallbackConfig(category));
     const [answers, setAnswers] = useState({});
@@ -45,9 +32,11 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         const loadDynamicConfig = async () => {
             setLoading(true);
             try {
-                // Estimate the price based on category
+                // Estimate the price based on category and mock hours
                 const estRes = await apiClient.post('/api/jobs/estimate', { category, hours: 1 });
-                const basePrice = estRes.data?.total || 300;
+                // Grab the entire breakdown to forward
+                const breakDownData = estRes.data?.breakdown || estRes.data?.breakdown_exact || estRes.data?.breakdown_min || {};
+                const basePrice = estRes.data?.total_amount || breakDownData?.total_amount || 300;
 
                 // Load real questions
                 const cfgRes = await apiClient.get('/api/jobs/config');
@@ -62,10 +51,9 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                     { id: 'q3', type: 'image', label: 'Upload a photo (optional)', required: false, skippable: true }
                 ];
 
-                setConfig({ base_price: basePrice, questions: dynamicQuestions });
+                setConfig({ base_price: basePrice, breakdown: breakDownData, questions: dynamicQuestions });
             } catch (err) {
                 console.error('Failed to load dynamic config', err);
-                // Use category-aware fallback — never fall back to plumber questions
                 setConfig(buildFallbackConfig(category));
             } finally {
                 setLoading(false);
@@ -240,7 +228,8 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                             label,
                             answers,
                             structuredAnswers,
-                            basePrice: config.base_price
+                            basePrice: config.base_price,
+                            breakdown: config.breakdown
                         });
                     }}
                     style={{ marginTop: spacing.xl }}

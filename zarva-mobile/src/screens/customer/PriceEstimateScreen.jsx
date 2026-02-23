@@ -5,20 +5,22 @@ import GoldButton from '../../components/GoldButton';
 
 export default function PriceEstimateScreen({ route, navigation }) {
     // Read passed params or use mock data for testing
-    const { category, label, answers, structuredAnswers, basePrice } = route.params || {
-        category: 'plumber', label: 'Plumber', answers: {}, structuredAnswers: [], basePrice: 300
+    const { category, label, answers, structuredAnswers, basePrice, breakdown } = route.params || {
+        category: 'unknown', label: 'Service', answers: {}, structuredAnswers: [], basePrice: 300, breakdown: null
     };
 
     const [loading, setLoading] = useState(false);
 
-    // Hardcoded logic for MVP pricing rendering
-    const labour = basePrice;
-    const travel = 50;
-    const subtotal = labour + travel;
-    const platformFee = Math.round(subtotal * 0.1); // 10% config
-    const total = subtotal + platformFee;
-    const advance = platformFee; // Advance is usually the platform fee
-    const balance = subtotal; // Balance to be paid directly to worker in cash or UPI
+    // Extract values strictly from the server-provided breakdown
+    const labour = breakdown?.base_amount || basePrice;
+    const travel = breakdown?.travel_charge || 0;
+    const nightSurcharge = breakdown?.night_surcharge || 0;
+    const emergencySurcharge = breakdown?.emergency_surcharge || 0;
+    const subtotal = breakdown?.subtotal || (labour + travel + nightSurcharge + emergencySurcharge);
+    const platformFee = breakdown?.platform_fee || 0;
+    const advance = breakdown?.advance_amount || platformFee;
+    const balance = breakdown?.balance_due || subtotal;
+    const total = breakdown?.total_amount || (subtotal + platformFee);
 
     const handleFindWorker = () => {
         navigation.navigate('LocationSchedule', { category, label, answers, structuredAnswers, basePrice });
@@ -41,13 +43,27 @@ export default function PriceEstimateScreen({ route, navigation }) {
 
                 <View style={styles.card}>
                     <View style={styles.row}>
-                        <Text style={styles.label}>Labour (1 hr base)</Text>
+                        <Text style={styles.label}>Labour (Base)</Text>
                         <Text style={styles.value}>₹{labour}</Text>
                     </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Travel Allowance</Text>
-                        <Text style={styles.value}>₹{travel}</Text>
-                    </View>
+                    {travel > 0 && (
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Travel Allowance</Text>
+                            <Text style={styles.value}>₹{travel}</Text>
+                        </View>
+                    )}
+                    {nightSurcharge > 0 && (
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Night Surcharge</Text>
+                            <Text style={styles.value}>₹{nightSurcharge}</Text>
+                        </View>
+                    )}
+                    {emergencySurcharge > 0 && (
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Emergency Surcharge</Text>
+                            <Text style={styles.value}>₹{emergencySurcharge}</Text>
+                        </View>
+                    )}
                     <View style={styles.divider} />
 
                     <View style={styles.row}>
@@ -55,7 +71,7 @@ export default function PriceEstimateScreen({ route, navigation }) {
                         <Text style={styles.valueBold}>₹{subtotal}</Text>
                     </View>
                     <View style={styles.row}>
-                        <Text style={styles.label}>Platform Fee (10%)</Text>
+                        <Text style={styles.label}>Platform Fee</Text>
                         <Text style={styles.value}>₹{platformFee}</Text>
                     </View>
                     <View style={styles.divider} />

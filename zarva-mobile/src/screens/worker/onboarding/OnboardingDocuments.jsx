@@ -3,7 +3,7 @@
  * Step 4: 3 upload cards (Aadhaar front/back + selfie) via expo-image-picker + presign API.
  */
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, Alert, ScrollView, TextInput } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { colors, spacing, radius } from '../../../design-system/tokens';
@@ -45,8 +45,11 @@ async function uploadImage(uri, docKey) {
 
 export default function OnboardingDocuments({ data, onNext }) {
     const [uploads, setUploads] = useState(data.documents || {});
+    const [aadhaarNumber, setAadhaarNumber] = useState(data.aadhaar_number || '');
     const [loading, setLoading] = useState({});
     const [errors, setErrors] = useState({});
+
+    const isValidAadhaar = /^\d{12}$/.test(aadhaarNumber);
 
     const pickImage = async (docKey) => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -97,11 +100,25 @@ export default function OnboardingDocuments({ data, onNext }) {
     };
 
     const allUploaded = DOCS.every(d => uploads[d.key] && !errors[d.key]);
+    const isComplete = allUploaded && isValidAadhaar;
 
     return (
         <ScrollView contentContainerStyle={styles.screen}>
-            <Text style={styles.title}>Upload Documents</Text>
-            <Text style={styles.sub}>Clear photos required for verification. This is a one-time process.</Text>
+            <Text style={styles.title}>Verification</Text>
+            <Text style={styles.sub}>Clear details required for verification. This is a one-time process.</Text>
+
+            <View style={styles.fieldGroup}>
+                <Text style={styles.label}>12-Digit Aadhaar Number</Text>
+                <TextInput
+                    style={styles.input}
+                    value={aadhaarNumber}
+                    onChangeText={t => setAadhaarNumber(t.replace(/[^0-9]/g, ''))}
+                    placeholder="e.g. 123456789012"
+                    placeholderTextColor={colors.text.muted}
+                    keyboardType="number-pad"
+                    maxLength={12}
+                />
+            </View>
 
             {DOCS.map(doc => {
                 const uri = uploads[doc.key];
@@ -135,8 +152,8 @@ export default function OnboardingDocuments({ data, onNext }) {
 
             <GoldButton
                 title="Continue"
-                disabled={!allUploaded}
-                onPress={() => onNext({ documents: uploads })}
+                disabled={!isComplete}
+                onPress={() => onNext({ documents: uploads, aadhaar_number: aadhaarNumber })}
                 style={{ marginTop: spacing.xl }}
             />
         </ScrollView>
@@ -146,7 +163,14 @@ export default function OnboardingDocuments({ data, onNext }) {
 const styles = StyleSheet.create({
     screen: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2 },
     title: { color: colors.text.primary, fontSize: 24, fontWeight: '700' },
-    sub: { color: colors.text.secondary, fontSize: 14 },
+    sub: { color: colors.text.secondary, fontSize: 14, marginBottom: spacing.sm },
+    fieldGroup: { gap: spacing.xs, marginBottom: spacing.md },
+    label: { color: colors.text.secondary, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
+    input: {
+        backgroundColor: colors.bg.elevated, borderRadius: radius.md,
+        paddingHorizontal: spacing.md, paddingVertical: 14,
+        color: colors.text.primary, fontSize: 16, borderWidth: 1, borderColor: colors.bg.surface,
+    },
     card: {
         flexDirection: 'row', alignItems: 'center', gap: spacing.md,
         backgroundColor: colors.bg.elevated, borderRadius: radius.lg,

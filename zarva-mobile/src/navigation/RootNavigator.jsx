@@ -14,6 +14,7 @@ import CustomerStack from './CustomerStack';
 import WorkerStack from './WorkerStack';
 import OnboardingNavigator from './OnboardingNavigator';
 import RoleSelection from '../screens/auth/RoleSelection';
+import CompleteProfileScreen from '../screens/auth/CompleteProfileScreen';
 import { useAuthStore } from '../stores/authStore';
 import { useJobStore } from '../stores/jobStore';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
@@ -89,6 +90,14 @@ export default function RootNavigator() {
         if (!isHydrated) return <View style={{ flex: 1, backgroundColor: ZarvaTheme.colors.background }} />;
 
         if (!isAuthenticated || !user) return <AuthNavigator />;
+
+        if (!user.name) {
+            return (
+                <Stack.Navigator screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
+                </Stack.Navigator>
+            );
+        }
 
         if (!user.active_role) {
             return (

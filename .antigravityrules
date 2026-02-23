@@ -1,0 +1,162 @@
+# ZARVA CORE ARCHITECTURE PROTOCOL (ZCAP)
+
+This is the permanent constitution of the ZARVA codebase. This is NOT a suggestion guide; it is a strict structural mandate. Every new feature, bug fix, or AI task MUST pass through this protocol before a single line of code is written. 
+
+When I give a development command, you must clearly differentiate what belongs to React Native (mobile app) and what belongs to the Node.js server. We are building a secure production-grade application. All secrets, sensitive logic, and core processing must remain inside the Node.js backend. The mobile app should handle only UI, user input, and API communication. Do not mix responsibilities. Keep business logic, validation, matching algorithms, pricing, authentication control, and all sensitive operations strictly on the server. Always structure responses by clearly separating: 📱 Mobile (React Native) 🖥 Server (Node.js) 🔐 Security considerations (if applicable) The server must always be the source of truth
+
+Server-First Processing All important logic must be implemented in Node.js by default. If there is any doubt about where logic belongs,ask the question to user. Mobile must never: Control job state Calculate price Validate payments Decide worker eligibility Control retries or counters
+
+ Server-First Processing All important logiSecurity by Default Every feature must be designed assuming: Users can inspect the mobile app Users can manipulate requests Users can tamper with frontend code Therefore: Validate everything on server Never trust client input Sanitize all requests Protect against replay attacks Use role-based authorization
+
+API-Only Communication Mobile must: Never connect directly to database Never call third-party services using secret keys Never store sensitive credentials All communication must go through: React Native → HTTPS / Socket → Node Server → Database
+
+
+/- Node js project
+
+/zarva-mobile -react native project . So what ever said in perspective with react native project will be from /zarva-mobile.
+
+
+
+---
+
+## 🛑 SECTION 0: THE PRIME DIRECTIVES (Zero Tolerance Policy)
+
+1. **SERVER-FIRST PROCESSING RULE**
+   - **Mandate:** ALL business logic, mathematical calculations, pricing, job state management, matching algorithms, worker eligibility, and sensitive operations MUST live entirely on the Node.js backend.
+   - **Mobile Restriction:** The React Native app is strictly a "dumb client". It handles ONLY UI rendering, user input capture, device APIs (location/notifications), and pushing data to the server. It must NEVER calculate a price, determine a job phase locally, or process payments directly.
+   - **Trust Zero Clients:** Assume the mobile app is compromised. Validate, sanitize, and authorize every single request on the server.
+
+2. **THE TRIFECTA SYNCHRONIZATION RULE (MySQL → Firebase → FCM)**
+   - **Mandate:** `MySQL` is the permanent Source of Truth for all state. `Firebase Realtime Database` is a temporary mirror for instant UI reactivity. `FCM` is for waking up clients. 
+   - **Execution Order:** When state changes, you MUST update in this exact sequence:
+     1. Write to MySQL (commit transaction).
+     2. Write to Firebase (update mirroring node).
+     3. Fire FCM Notification (wake up the intended user).
+   - *Never allow Firebase and MySQL to diverge.*
+
+3. **SECRETS & TOKENS**
+   - **Mandate:** JWTs and sensitive credentials on mobile MUST be stored using `expo-secure-store`. Never use `AsyncStorage` for secrets.
+
+---
+
+## 🗺️ SECTION 1: NEW FEATURE INTAKE PROTOCOL
+
+Before writing any code, run through this mental checklist:
+
+**Step 1. Classify the Feature**
+- UI only? → *Follow Mobile Protocol*
+- Logic/Data only? → *Follow Backend Protocol*
+- Real-time reactivity? → *Requires Firebase Protocol*
+- Money/Pricing? → *Requires Backend Service + Idempotency*
+
+**Step 2. Prevent Duplication (Search First)**
+- Search the API Contract Map, Store Fields, and existing UI Components. If an entity exists, extend it. Do not rebuild it.
+
+**Step 3. Identify the Blast Radius**
+- Which existing files, API contracts, store fields, and UI behaviors will this change impact? Document them internally.
+
+**Step 4. Trace the Data Flow**
+- Map the data origin (Input/Device) → Destination (MySQL/Store) → Secondary Observers (Firebase/FCM listeners). 
+
+---
+
+## 📱 SECTION 2: MOBILE PLACEMENT MAP (React Native) - ./zarva-mobile
+
+Every piece of mobile code has exactly one correct home.
+
+| What you are building | Where it belongs |
+| :--- | :--- |
+| **New Screen** | `src/screens/{role}/{ScreenName}.jsx`. Register strictly in the corresponding Navigator (`CustomerNavigator`, `WorkerNavigator`, `AuthNavigator`). |
+| **Reusable UI Component** | `src/components/{ComponentName}.jsx`. Zero business logic. Must be used across 2+ screens. |
+| **Design Primitive (UI)** | `src/design-system/components/`. Buttons, Cards, Inputs. Receive props, render UI. Nothing else. |
+| **Tokens / Theming** | `src/design-system/tokens.js`. NEVER hardcode Hex colors, spacing, or typography sizes in screens. |
+| **Global State (Zustand)** | `src/stores/{domain}Store.js`. (e.g., `authStore`, `jobStore`, `workerStore`). Do not mix domains. |
+| **API Call Functions** | `src/services/api/{domain}Api.js` or via `apiClient`. Screens call store actions, store actions call the API. |
+| **Firebase References** | `src/services/FirebaseRealtime.js`. Keep all string paths localized here. |
+| **Push Notifications** | `src/services/FCMService.js` and `NotificationHandler.js`. |
+| **Device Location** | `src/services/LocationService.js`. Never invoke `expo-location` directly inside a UI screen. |
+| **Pure Utility Logic** | `src/utils/{name}.js`. No side effects. No hooks. |
+| **i18n Translations** | `src/i18n/translations/`. Always use `t('key')`. NEVER hardcode english text inside JSX. |
+
+---
+
+## 🖥️ SECTION 3: BACKEND PLACEMENT MAP (Node.js)
+
+Every piece of backend architecture has exactly one correct home.
+
+| What you are building | Where it belongs |
+| :--- | :--- |
+| **API Endpoints** | `routes/{domain}.js`. Route handlers MUST NOT contain complex business logic. They do three things: Validate -> Call Service -> Respond. |
+| **Request Validation** | `middleware/validate.js` or directly before Service invocation. |
+| **Authentication Logic** | `middleware/index.js` -> `authenticateJWT`. |
+| **Business Logic** | `services/{domain}.service.js`. All queries, calculations, and mutations live here. |
+| **Database Queries** | `services/{domain}.service.js`. Always use parameterized array inputs (`[val1, val2]`). NEVER interpolate user input into SQL strings. |
+| **Configuration Values** | `config/loader.js` (reading from `.json` files). Rates, delays, limits, and radii are never hardcoded. |
+| **Scheduled Jobs / Cron** | `services/cron.service.js`. |
+| **Idempotency Locks** | `config/redis.js` or directly via MySQL `FOR UPDATE` in transactional queries. |
+
+---
+
+## 🗄️ SECTION 4: DATA OWNERSHIP MAP
+
+When you need data, retrieve it from its absolute Source of Truth.
+
+| Data Type | Absolute Owner & Source of Truth |
+| :--- | :--- |
+| **User Identity & Role** | MySQL: `users` table. Mobile checks `authStore`. |
+| **Session State** | Mobile: `expo-secure-store` (JWT). |
+| **Job Statuses** | MySQL: `jobs.status`. Mirrored to Firebase `active_jobs/{jobId}/status` for UI. |
+| **Job OTPs** | MySQL: `start_otp_hash` & `end_otp_hash`. NEVER written to Firebase. NEVER validated on the mobile client. |
+| **Worker Live Location** | MySQL: `worker_profiles.last_location_lat/lng`. Mirrored to Firebase `worker_presence/{id}`. |
+| **Invoice / Pricing** | MySQL: `job_invoices` table. Mobile receives via `/api/jobs/estimate` or `/api/payment/invoice`. |
+| **Chat Messages** | MySQL: `messages` table. Firebase handles ONLY typing states and unread counts natively. |
+| **Feature Flags** | Server: `features.config.json`. |
+
+---
+
+## 🔗 SECTION 5: FEATURE CONNECTION MAP
+
+Understand exactly how modifying one core system impacts others.
+
+- **Job Posting (Customer):** 
+  - *Trigger:* `LocationScheduleScreen` -> `POST /api/jobs`.
+  - *Impact:* Writes to MySQL `jobs`. Triggers `matchingEngine.js`. Spawns `active_jobs` Firebase tracking node. Fires Job Alert FCM to nearby workers.
+- **Wave Matching (Backend):** 
+  - *Trigger:* `Job Posting` -> reads `worker_profiles`. 
+  - *Impact:* Modifies `job_worker_notifications`. Fires FCM to subsequent worker waves based on timeouts in `jobs.config.json`.
+- **Job Acceptance (Backend):** 
+  - *Trigger:* Worker accepts via Mobile FCM prompt. 
+  - *Impact:* Redis NX lock protects from race conditions. MySQL overrides `status=assigned`. Firebase synchronized. Customer receives FCM.
+- **Start/End OTP Verification:** 
+  - *Trigger:* Mobile inputs code.
+  - *Impact:* Server performs `bcrypt.compare`. On failure (5x) -> Auto-Dispute. On success -> Transitions Job State, generates Invoice.
+- **Invoicing:** 
+  - *Trigger:* Successful `End OTP`. Data read strictly from Server DB and `jobs.config.json` rates. Payout split calculated securely.
+
+---
+
+## 🏗️ SECTION 6: SCHEMA CHANGE PROTOCOL
+
+When the database structure requires modification:
+1. **Never mutate tables manually.**
+2. **Create a script logic:** (e.g., `ALTER TABLE...`) to handle the schema update.
+3. **Execution Pipeline:** 
+   1. Alter DB.
+   2. Update Backend Service querying that DB.
+   3. Update API Route formatting object.
+   4. Update Mobile interface/stores mapped to that object.
+4. **Safety Check:** If dropping a column, audit every `SELECT *` or specific `SELECT` query utilizing that column first.
+
+---
+
+## 🤖 SECTION 7: THE AI WORKFLOW MANDATE
+
+**ATTENTION AI AGENTS:** When you receive a prompt to build a new feature, you must internally generate and confirm this intake check before writing code:
+
+**(1) FEATURE INTAKE CLASSIFICATION:** [Mobile / Backend / Real-time / Notifications / Payment]
+**(2) EXISTING ARTIFACTS:** [What files/components already exist?]
+**(3) NEW FILES / ENDPOINTS:** [Exact paths of modifications]
+**(4) DATA ORIGIN & DESTINATION:** [User -> UI -> API -> MySQL -> Firebase]
+**(5) PROTOCOL CONFLICTS:** [Does this violate the Server-First rule? Does this bypass a UI lock?]
+
+*Only after validating against the exact items above may code generation commence.*

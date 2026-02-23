@@ -127,6 +127,8 @@ router.post('/verify-otp', normalizePhone, async (req, res) => {
             user: {
                 id: user.id,
                 phone: user.phone,
+                name: user.name,
+                dob: user.dob,
                 roles: user.role ? [user.role] : [],
                 active_role: user.active_role || null,
             },
@@ -266,6 +268,8 @@ router.post('/dev-otp/verify', normalizePhone, async (req, res) => {
             user: {
                 id: user.id,
                 phone: user.phone,
+                name: user.name,
+                dob: user.dob,
                 roles: user.role ? [user.role] : [],
                 active_role: user.active_role || null,
             },
@@ -309,6 +313,8 @@ router.post('/dev-login', normalizePhone, async (req, res) => {
             user: {
                 id: user.id,
                 phone: user.phone,
+                name: user.name,
+                dob: user.dob,
                 roles: [user.role],
                 active_role: user.role,
             },

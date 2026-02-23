@@ -59,7 +59,7 @@ function signJwt(user) {
 async function findOrCreateUser(phone, pool) {
     // 1. Try to find existing user
     const [rows] = await pool.query(
-        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at
+        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at, name, dob
        FROM users WHERE phone = ? LIMIT 1`,
         [phone],
     );
@@ -84,7 +84,7 @@ async function findOrCreateUser(phone, pool) {
     // That happens later in PUT /api/me when the user actually chooses a role.
 
     const [newRows] = await pool.query(
-        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at
+        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at, name, dob
        FROM users WHERE id = ? LIMIT 1`,
         [userId],
     );
@@ -187,18 +187,18 @@ async function refreshTokenPair(oldRefreshToken, pool) {
  */
 async function getUserProfile(userId, pool) {
     const [userRows] = await pool.query(
-        `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference, u.last_login_at, u.created_at,
-            cp.name, cp.email, cp.profile_s3_key, cp.city,
+        `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference, u.last_login_at, u.created_at, u.name as global_name, u.dob,
+            cp.email, cp.profile_s3_key, cp.city,
             cp.default_lat, cp.default_lng, cp.total_jobs as customer_total_jobs,
             cp.average_rating as customer_average_rating, cp.rating_count as customer_rating_count,
             COALESCE(cp.cancelled_jobs, 0) as customer_cancelled_jobs,
             COALESCE(cp.saved_addresses, '[]') as saved_addresses,
-            wp.name        as worker_name,
             wp.category    as worker_category,
             COALESCE(wp.average_rating, 0) as average_rating, 
             COALESCE(wp.total_jobs, 0) as worker_total_jobs,
             COALESCE(wp.subscription_status, 'free') as subscription_status,
-            COALESCE(wp.service_pincodes, '[]') as service_pincodes,
+            COALESCE(wp.skills, '[]') as skills,
+            COALESCE(wp.service_range, 20) as service_range,
             wp.is_verified, wp.is_online, wp.is_available,
             wp.kyc_status, wp.city as worker_city, wp.current_job_id,
             wp.last_location_lat, wp.last_location_lng,
@@ -221,6 +221,8 @@ async function getUserProfile(userId, pool) {
     const base = {
         id: row.id,
         phone: row.phone,
+        name: row.global_name,
+        dob: row.dob,
         roles: [role],
         active_role: row.active_role,
         is_blocked: Boolean(row.is_blocked),
@@ -235,7 +237,8 @@ async function getUserProfile(userId, pool) {
             average_rating: row.average_rating,
             total_jobs: row.worker_total_jobs,
             subscription_status: row.subscription_status,
-            service_pincodes: row.service_pincodes,
+            skills: typeof row.skills === 'string' ? JSON.parse(row.skills) : (row.skills || []),
+            service_range: row.service_range,
             is_verified: Boolean(row.is_verified),
             is_online: Boolean(row.is_online),
             is_available: Boolean(row.is_available),
@@ -250,7 +253,6 @@ async function getUserProfile(userId, pool) {
         };
     } else {
         base.profile = {
-            name: row.name,
             email: row.email,
             city: row.city,
             total_jobs: row.customer_total_jobs,

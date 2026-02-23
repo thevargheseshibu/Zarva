@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
@@ -14,16 +14,24 @@ export default function HomeScreen({ navigation }) {
     const t = useT();
     const [recentJobs, setRecentJobs] = React.useState([]);
 
-    const SERVICES = [
-        { id: 'electrician', label: t('cat_electrician'), icon: '⚡' },
-        { id: 'plumber', label: t('cat_plumber'), icon: '🔧' },
-        { id: 'carpenter', label: t('cat_carpenter'), icon: '🪵' },
-        { id: 'ac_repair', label: t('cat_ac_repair'), icon: '❄️' },
-        { id: 'painter', label: t('cat_painter'), icon: '🎨' },
-        { id: 'cleaning', label: t('cat_cleaner'), icon: '🧹' },
-        { id: 'driver', label: t('cat_driver'), icon: '🚗' },
-        { id: 'helper', label: 'Helper', icon: '📦' },
-    ];
+    const [services, setServices] = React.useState([]);
+    const [showAllServices, setShowAllServices] = React.useState(false);
+    const [searchQuery, setSearchQuery] = React.useState('');
+
+    const isSearching = searchQuery.trim() !== '';
+    const displayedServices = isSearching
+        ? services.filter(s => s.label.toLowerCase().includes(searchQuery.toLowerCase()))
+        : (showAllServices ? services : services.slice(0, 3));
+
+    React.useEffect(() => {
+        apiClient.get('/api/jobs/config')
+            .then(res => {
+                if (res.data?.categories) {
+                    setServices(Object.values(res.data.categories));
+                }
+            })
+            .catch(err => console.error('Failed to fetch jobs configuration', err));
+    }, []);
 
     const { activeJob, searchPhase, clearActiveJob } = useJobStore();
 
@@ -99,18 +107,61 @@ export default function HomeScreen({ navigation }) {
             )}
 
             {/* Service Grid */}
+            <View style={styles.searchContainer}>
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search for a service..."
+                    placeholderTextColor={colors.text.muted}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+            </View>
+
             <View style={styles.grid}>
-                {SERVICES.map((s) => (
-                    <TouchableOpacity
-                        key={s.id}
-                        style={styles.serviceCard}
-                        activeOpacity={0.8}
-                        onPress={() => navigation.navigate('DynamicQuestions', { category: s.id, label: s.label })}
-                    >
-                        <Text style={styles.serviceIcon}>{s.icon}</Text>
-                        <Text style={styles.serviceLabel}>{s.label}</Text>
-                    </TouchableOpacity>
-                ))}
+                {services.length > 0 ? (
+                    <>
+                        {displayedServices.map((s) => (
+                            <TouchableOpacity
+                                key={s.id}
+                                style={styles.serviceCard}
+                                activeOpacity={0.8}
+                                onPress={() => navigation.navigate('DynamicQuestions', { category: s.id, label: s.label })}
+                            >
+                                <Text style={styles.serviceIcon}>{s.icon || '🛠️'}</Text>
+                                <Text style={styles.serviceLabel}>{s.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        {services.length > 3 && !showAllServices && !isSearching && (
+                            <TouchableOpacity
+                                style={styles.serviceCard}
+                                activeOpacity={0.8}
+                                onPress={() => setShowAllServices(true)}
+                            >
+                                <Text style={styles.serviceIcon}>➕</Text>
+                                <Text style={styles.serviceLabel}>View All</Text>
+                            </TouchableOpacity>
+                        )}
+                        {showAllServices && !isSearching && (
+                            <TouchableOpacity
+                                style={styles.serviceCard}
+                                activeOpacity={0.8}
+                                onPress={() => setShowAllServices(false)}
+                            >
+                                <Text style={styles.serviceIcon}>➖</Text>
+                                <Text style={styles.serviceLabel}>Show Less</Text>
+                            </TouchableOpacity>
+                        )}
+                    </>
+                ) : (
+                    <View style={{ padding: spacing.xl, alignItems: 'center', width: '100%' }}>
+                        <Text style={{ color: colors.gold.muted }}>Loading services...</Text>
+                    </View>
+                )}
+                {isSearching && displayedServices.length === 0 && (
+                    <View style={{ padding: spacing.lg, alignItems: 'center', width: '100%' }}>
+                        <Text style={{ color: colors.text.muted }}>No services found for "{searchQuery}"</Text>
+                    </View>
+                )}
             </View>
 
             {/* Recent Posts Section */}
@@ -134,7 +185,7 @@ export default function HomeScreen({ navigation }) {
                                 <View style={styles.recentCardTop}>
                                     <View style={styles.recentIconBox}>
                                         <Text style={{ fontSize: 20 }}>
-                                            {SERVICES.find(s => s.id === job.category)?.icon || '🛠️'}
+                                            {services.find(s => s.id === job.category)?.icon || '🛠️'}
                                         </Text>
                                     </View>
                                     <View style={styles.recentInfo}>
@@ -204,4 +255,16 @@ const styles = StyleSheet.create({
     recentInfo: { flex: 1, gap: 2 },
     recentCat: { color: colors.text.primary, fontSize: 14, fontWeight: '600' },
     recentDate: { color: colors.text.muted, fontSize: 12 },
+
+    searchContainer: { marginBottom: spacing.sm },
+    searchInput: {
+        backgroundColor: colors.bg.surface,
+        borderRadius: radius.full,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        color: colors.text.primary,
+        fontSize: 15,
+        borderWidth: 1,
+        borderColor: colors.bg.surface,
+    }
 });

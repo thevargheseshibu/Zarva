@@ -80,38 +80,38 @@ export function calculatePricing(params, config) {
 
     // 2. Travel Charge
     let travelCharge = 0;
-    if (config.travel) {
+    if (config.global_pricing && config.global_pricing.travel) {
         travelCharge = calculateTravelCharge(
             travelKm,
-            config.travel.free_km_radius || 0,
-            config.travel.petrol_rate_per_km || 0,
-            config.travel.min_travel_charge,
-            config.travel.max_travel_charge
+            config.global_pricing.travel.free_km_radius || 0,
+            config.global_pricing.travel.petrol_rate_per_km || 0,
+            config.global_pricing.travel.min_travel_charge,
+            config.global_pricing.travel.max_travel_charge
         );
     }
 
     // 3. Night Surcharge
     const nightHoursWorked = calculateNightHours(scheduledAt ? new Date(scheduledAt) : new Date(), actualHours);
     const nightBase = Number((hourlyRate * nightHoursWorked).toFixed(2));
-    const nightSurchargePercent = config.night_surcharge_percent || 0;
+    const nightSurchargePercent = config.global_pricing.night_surcharge_percent || 0;
     const nightSurcharge = Number((nightBase * (nightSurchargePercent / 100)).toFixed(2));
 
     // 4. Emergency Surcharge
     let emergencySurcharge = 0;
     if (isEmergency) {
-        const emPercent = config.emergency_surcharge_percent || 0;
+        const emPercent = config.global_pricing.emergency_surcharge_percent || 0;
         emergencySurcharge = Number((baseAmount * (emPercent / 100)).toFixed(2));
     }
 
     // 5. Totals
     const subtotal = Number((baseAmount + travelCharge + nightSurcharge + emergencySurcharge).toFixed(2));
 
-    const platformFeePercent = config.platform_commission_percent || 0;
+    const platformFeePercent = config.global_pricing.platform_commission_percent || 0;
     const platformFee = Number((subtotal * (platformFeePercent / 100)).toFixed(2));
 
     const totalAmount = Number((subtotal + platformFee).toFixed(2));
 
-    const advancePercent = config.advance_percent || 0;
+    const advancePercent = config.global_pricing.advance_percent || 0;
     const advanceAmount = Number((totalAmount * (advancePercent / 100)).toFixed(2));
 
     const breakdown = {

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, Image, RefreshControl, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
@@ -47,6 +47,24 @@ export default function MyJobsScreen({ navigation }) {
         return true;
     });
 
+    const handleDeleteJob = (id) => {
+        Alert.alert('Delete Job', 'Are you sure you want to delete this job?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    try {
+                        await apiClient.delete(`/api/jobs/${id}`);
+                        fetchJobs();
+                    } catch (err) {
+                        Alert.alert('Error', err.response?.data?.message || 'Failed to delete job');
+                    }
+                }
+            }
+        ]);
+    };
+
     const renderJob = ({ item }) => {
         const { text: parsedDesc } = parseJobDescription(item.description);
         const desc = parsedDesc || 'Service Request';
@@ -63,7 +81,14 @@ export default function MyJobsScreen({ navigation }) {
                             <Text style={styles.desc} numberOfLines={1}>{desc}</Text>
                             <Text style={styles.date}>{dayjs(item.created_at).format('MMM D, h:mm A')}</Text>
                         </View>
-                        <StatusPill status={item.status} />
+                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                            <StatusPill status={item.status} />
+                            {['open', 'searching', 'no_worker_found'].includes(item.status) && (
+                                <TouchableOpacity onPress={() => handleDeleteJob(item.id)} style={styles.deleteBtn}>
+                                    <Text style={styles.deleteTxt}>🗑️ Delete</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     </View>
 
                     {item.worker && (['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'completed', 'cancelled', 'disputed'].includes(item.status)) && (
@@ -223,4 +248,7 @@ const styles = StyleSheet.create({
     emptyIcon: { fontSize: 48, marginBottom: spacing.md },
     emptyTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '700', marginBottom: spacing.sm },
     emptySub: { color: colors.text.secondary, fontSize: 14, textAlign: 'center', paddingHorizontal: spacing.xl, lineHeight: 22 },
+
+    deleteBtn: { backgroundColor: colors.bg.primary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, borderWidth: 1, borderColor: colors.error },
+    deleteTxt: { color: colors.error, fontSize: 11, fontWeight: '600' },
 });

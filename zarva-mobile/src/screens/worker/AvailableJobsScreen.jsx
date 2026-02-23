@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, radius } from '../../design-system/tokens';
 import Card from '../../components/Card';
@@ -12,10 +12,10 @@ import { haversineKm, formatDistance } from '../../utils/distance';
 
 dayjs.extend(relativeTime);
 
-const CATEGORIES = ['All', 'Electrician', 'Plumber', 'Carpenter', 'AC Repair', 'Painter', 'Cleaning'];
-
 export default function AvailableJobsScreen({ navigation }) {
     const [filter, setFilter] = useState('All');
+    const [sortBy, setSortBy] = useState('Nearest');
+    const [categories, setCategories] = useState(['All']);
     const [refreshing, setRefreshing] = useState(false);
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -71,14 +71,37 @@ export default function AvailableJobsScreen({ navigation }) {
     useFocusEffect(
         useCallback(() => {
             fetchJobs();
+
+            // Also fetch categories
+            apiClient.get('/api/jobs/config')
+                .then(res => {
+                    if (res.data?.categories) {
+                        const dynamicCats = Object.values(res.data.categories).map(c => c.label);
+                        setCategories(['All', ...dynamicCats]);
+                    }
+                })
+                .catch(err => console.error('Failed to fetch categories for filtering', err));
         }, [])
     );
 
-    const filtered = jobs.filter(j => {
-        if (filter === 'All') return true;
-        // Basic case-insensitive matching for the category
-        return j.category?.toLowerCase() === filter.toLowerCase();
-    });
+    const sortedAndFilteredJobs = useMemo(() => {
+        let result = jobs.filter(j => {
+            if (filter === 'All') return true;
+            return j.category?.toLowerCase() === filter.toLowerCase();
+        });
+
+        if (sortBy === 'Nearest') {
+            result.sort((a, b) => (a.dist || 999) - (b.dist || 999));
+        } else if (sortBy === 'Latest') {
+            result.sort((a, b) => new Date(b.time) - new Date(a.time));
+        } else if (sortBy === 'Price: High to Low') {
+            result.sort((a, b) => (parseFloat(b.total_amount) || 0) - (parseFloat(a.total_amount) || 0));
+        } else if (sortBy === 'Price: Low to High') {
+            result.sort((a, b) => (parseFloat(a.total_amount) || 0) - (parseFloat(b.total_amount) || 0));
+        }
+
+        return result;
+    }, [jobs, filter, sortBy]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -163,7 +186,7 @@ export default function AvailableJobsScreen({ navigation }) {
                 <FlatList
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    data={CATEGORIES}
+                    data={categories}
                     keyExtractor={item => item}
                     contentContainerStyle={styles.filterList}
                     renderItem={({ item }) => (
@@ -179,8 +202,23 @@ export default function AvailableJobsScreen({ navigation }) {
                 />
             </View>
 
+            <View style={styles.sortWrap}>
+                <Text style={styles.sortLabel}>Sort by:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortList}>
+                    {['Nearest', 'Latest', 'Price: High to Low', 'Price: Low to High'].map(opt => (
+                        <TouchableOpacity
+                            key={opt}
+                            style={[styles.sortChip, sortBy === opt && styles.sortChipActive]}
+                            onPress={() => setSortBy(opt)}
+                        >
+                            <Text style={[styles.sortChipTxt, sortBy === opt && styles.sortChipTxtActive]}>{opt}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+
             <FlatList
-                data={filtered}
+                data={sortedAndFilteredJobs}
                 keyExtractor={i => String(i.id)}
                 contentContainerStyle={styles.list}
                 renderItem={renderJob}
@@ -213,6 +251,14 @@ const styles = StyleSheet.create({
     chipActive: { backgroundColor: colors.gold.glow, borderColor: colors.gold.primary },
     chipText: { color: colors.text.secondary, fontSize: 13, fontWeight: '600' },
     chipTextActive: { color: colors.gold.primary },
+
+    sortWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    sortLabel: { color: colors.text.muted, fontSize: 13, fontWeight: '600' },
+    sortList: { gap: spacing.sm, paddingRight: spacing.xl },
+    sortChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full, borderWidth: 1, borderColor: colors.bg.surface, backgroundColor: colors.bg.elevated },
+    sortChipActive: { borderColor: colors.gold.primary, backgroundColor: colors.gold.glow },
+    sortChipTxt: { color: colors.text.secondary, fontSize: 12, fontWeight: '600' },
+    sortChipTxtActive: { color: colors.gold.primary, fontWeight: '700' },
 
     // List
     list: { padding: spacing.lg, gap: spacing.lg, flexGrow: 1 },

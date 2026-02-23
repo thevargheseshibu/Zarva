@@ -7,7 +7,7 @@ import apiClient from '../../services/api/client';
 import { useJobStore } from '../../stores/jobStore';
 
 export default function SearchingScreen({ route, navigation }) {
-    const { category, jobId } = route.params || { category: 'electrician', jobId: 'mock-123' };
+    const { category, jobId } = route.params || { category: 'unknown', jobId: 'mock-123' };
     const [countdown, setCountdown] = useState(5);
     const [waveLog, setWaveLog] = useState([]);
     const flashAnim = useRef(new Animated.Value(0)).current;

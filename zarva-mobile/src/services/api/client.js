@@ -7,10 +7,22 @@
  * - 429 → Alert 'Too many requests'
  */
 import axios from 'axios';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
+import Constants from 'expo-constants';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+let BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+
+if (!BASE_URL && __DEV__) {
+    const hostUri = Constants?.expoConfig?.hostUri;
+    if (hostUri) {
+        BASE_URL = `http://${hostUri.split(':')[0]}:3000`;
+    } else {
+        BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+    }
+} else if (!BASE_URL) {
+    BASE_URL = 'http://localhost:3000';
+}
 
 const apiClient = axios.create({
     baseURL: BASE_URL,

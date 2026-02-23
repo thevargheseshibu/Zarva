@@ -26,12 +26,29 @@ const fail = (res, message, status = 400, code = 'BAD_REQUEST') =>
  */
 router.get('/config', (req, res) => {
     try {
-        const pricing = configLoader.get('pricing');
         const jobsCfg = configLoader.get('jobs');
 
+        // Extract clean categories and questions
+        const categories = {};
+        const questions = {};
+
+        for (const [key, details] of Object.entries(jobsCfg.categories)) {
+            const match = details.label.match(/^([^\w\s]+)\s+(.*)$/u) || details.label.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base})\s+(.*)$/u);
+            const icon = match ? match[1] : '🛠️';
+            const cleanLabel = match ? match[2] : details.label;
+
+            categories[key] = {
+                id: details.id,
+                label: cleanLabel,
+                icon: icon
+            };
+            questions[key] = details.questions;
+        }
+
         return ok(res, {
-            categories: Object.keys(pricing.categories),
-            questions: jobsCfg.questions
+            categories,
+            questions,
+            global_pricing: jobsCfg.global_pricing
         });
     } catch (err) {
         return fail(res, 'Failed to fetch jobs configuration', 500, 'SERVER_ERROR');
@@ -59,7 +76,7 @@ router.post('/estimate', (req, res) => {
             hours,
             isEmergency: Boolean(is_emergency),
             travelKm
-        }, configLoader.get('pricing'));
+        }, configLoader.get('jobs'));
 
         return ok(res, estimate);
     } catch (err) {
@@ -156,6 +173,41 @@ router.post('/', async (req, res) => {
             console.error(`[Jobs] Creation failed for U:${userId}:`, err.message);
         }
         return fail(res, err.message, status, 'JOB_CREATION_FAILED');
+    }
+});
+
+/**
+ * DELETE /api/jobs/:id
+ * Allows customer to delete a job if it hasn't been assigned yet.
+ */
+router.delete('/:id', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const jobId = req.params.id;
+        const pool = getPool();
+
+        const [jobs] = await pool.query('SELECT status FROM jobs WHERE id = ? AND customer_id = ?', [jobId, userId]);
+        if (jobs.length === 0) {
+            return fail(res, 'Job not found or unauthorized', 404, 'NOT_FOUND');
+        }
+
+        const job = jobs[0];
+        if (!['open', 'searching', 'no_worker_found'].includes(job.status)) {
+            return fail(res, 'Job cannot be deleted at this stage because a worker is involved. Please cancel or dispute it.', 400, 'CANNOT_DELETE');
+        }
+
+        await pool.query('DELETE FROM jobs WHERE id = ?', [jobId]);
+
+        // Cleanup Firebase representation
+        const { updateJobNode } = await import('../services/firebase.service.js');
+        await updateJobNode(jobId, { status: 'cancelled' });
+
+        return ok(res, { message: 'Job deleted successfully' });
+    } catch (err) {
+        console.error(`[Jobs] API DELETE /${req.params.id} failed for U:${req.user?.id}`, err);
+        return fail(res, 'Internal Error deleting job', 500);
     }
 });
 
@@ -282,7 +334,7 @@ router.post('/:id/verify-end-otp', async (req, res) => {
                     hours: actual_hours,
                     travelKm: 0, // Mock for now until Geo
                     scheduledAt: job.scheduled_at
-                }, configLoader.get('pricing'));
+                }, configLoader.get('jobs'));
 
                 // 1. Finalize Job Record
                 await conn.query(

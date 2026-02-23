@@ -11,53 +11,20 @@ import GoldButton from '../../../components/GoldButton';
 import LocationInput from '../../../components/LocationInput';
 
 const GENDERS = ['Male', 'Female', 'Other'];
+const RANGES = [10, 20, 50];
 
 export default function OnboardingBasicInfo({ data, onNext }) {
-    const [name, setName] = useState(data.name || '');
-    const [dob, setDob] = useState(data.dob || '');
     const [gender, setGender] = useState(data.gender || '');
     const [experience, setExperience] = useState(data.experience_years ? String(data.experience_years) : '');
     const [workerLocation, setWorkerLocation] = useState({});
+    const [serviceRange, setServiceRange] = useState(data.service_range || 20);
 
-    const isValid = name.trim().length >= 2 && dob.length === 10 && gender && workerLocation.isValid && experience.trim().length > 0;
-
-    const handleDob = (t) => {
-        // Auto-format DD/MM/YYYY
-        const nums = t.replace(/\D/g, '').slice(0, 8);
-        let formatted = nums;
-        if (nums.length > 4) formatted = nums.slice(0, 2) + '/' + nums.slice(2, 4) + '/' + nums.slice(4);
-        else if (nums.length > 2) formatted = nums.slice(0, 2) + '/' + nums.slice(2);
-        setDob(formatted);
-    };
+    const isValid = gender && workerLocation.isValid && experience.trim().length > 0;
 
     return (
         <ScrollView contentContainerStyle={styles.screen}>
             <Text style={styles.title}>Basic Info</Text>
-            <Text style={styles.sub}>Tell us a bit about yourself</Text>
-
-            <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Full Name</Text>
-                <TextInput
-                    style={styles.input}
-                    value={name}
-                    onChangeText={setName}
-                    placeholder="e.g. Rajan Kumar"
-                    placeholderTextColor={colors.text.muted}
-                    autoCapitalize="words"
-                />
-            </View>
-
-            <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Date of Birth</Text>
-                <TextInput
-                    style={styles.input}
-                    value={dob}
-                    onChangeText={handleDob}
-                    placeholder="DD/MM/YYYY"
-                    placeholderTextColor={colors.text.muted}
-                    keyboardType="number-pad"
-                />
-            </View>
+            <Text style={styles.sub}>Tell us a bit about your professional side.</Text>
 
             <View style={styles.fieldGroup}>
                 <Text style={styles.label}>Gender</Text>
@@ -88,6 +55,21 @@ export default function OnboardingBasicInfo({ data, onNext }) {
             </View>
 
             <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Service Range (Radius)</Text>
+                <View style={styles.radioRow}>
+                    {RANGES.map(r => (
+                        <TouchableOpacity
+                            key={r}
+                            style={[styles.radioChip, serviceRange === r && styles.radioChipActive]}
+                            onPress={() => setServiceRange(r)}
+                        >
+                            <Text style={[styles.radioText, serviceRange === r && styles.radioTextActive]}>{r} km</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
+
+            <View style={styles.fieldGroup}>
                 <Text style={styles.label}>Home / Base Location</Text>
                 <LocationInput onChange={setWorkerLocation} />
             </View>
@@ -95,7 +77,7 @@ export default function OnboardingBasicInfo({ data, onNext }) {
             <GoldButton
                 title="Continue"
                 disabled={!isValid}
-                onPress={() => onNext({ name: name.trim(), dob, gender, location: workerLocation, experience_years: parseInt(experience, 10) || 0 })}
+                onPress={() => onNext({ gender, location: workerLocation, experience_years: parseInt(experience, 10) || 0, service_range: serviceRange })}
                 style={{ marginTop: spacing.xl }}
             />
         </ScrollView>

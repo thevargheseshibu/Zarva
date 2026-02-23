@@ -47,26 +47,35 @@ router.post('/profile', async (req, res) => {
         });
     }
 
-    const { language_preference, name, email, city } = req.body;
+    const { language_preference, name, email, city, dob } = req.body;
 
     try {
         const pool = getPool();
+        const profile = await getUserProfile(req.user.id, pool);
+        const role = profile.active_role;
 
-        // Update name on global user record and relevant role-profile
+        // 1. Update global user record
+        const userUpdates = [];
+        const userValues = [];
+
+        if (language_preference) {
+            userUpdates.push('language_preference = ?');
+            userValues.push(language_preference);
+        }
         if (name) {
-            const role = profile.active_role;
-            if (role === 'customer') {
-                await pool.query(`UPDATE customer_profiles SET name = ? WHERE user_id = ?`, [name, req.user.id]);
-            } else if (role === 'worker') {
-                await pool.query(`UPDATE worker_profiles SET name = ? WHERE user_id = ?`, [name, req.user.id]);
-            }
+            userUpdates.push('name = ?');
+            userValues.push(name);
+        }
+        if (dob) {
+            userUpdates.push('dob = ?');
+            userValues.push(dob);
         }
 
-        // Update language preference on global user record
-        if (language_preference) {
+        if (userUpdates.length > 0) {
+            userValues.push(req.user.id);
             await pool.query(
-                `UPDATE users SET language_preference = ? WHERE id = ?`,
-                [language_preference, req.user.id]
+                `UPDATE users SET ${userUpdates.join(', ')} WHERE id = ?`,
+                userValues
             );
         }
 

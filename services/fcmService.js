@@ -9,18 +9,23 @@ import configLoader from '../config/loader.js';
 import { calculatePricing } from '../utils/pricingEngine.js';
 
 /**
- * Helper to get icon for category
+ * Helper to get icon for category dynamically from the central jobs config
  */
 function getCategoryIcon(cat) {
-    const icons = {
-        'Electrician': '⚡',
-        'Plumber': '🔧',
-        'Carpenter': '🔨',
-        'AC Repair': '❄️',
-        'Painter': '🖌️',
-        'Cleaning': '🧹'
-    };
-    return icons[cat] || '🛠️';
+    try {
+        const jobsCfg = configLoader.get('jobs');
+        const catInfo = jobsCfg.categories[cat];
+        if (catInfo && catInfo.label) {
+            // Attempt to extract an emoji/icon from the label (e.g. "⚡ Electrician")
+            const match = catInfo.label.match(/^([^\w\s]+)\s+(.*)$/u) || catInfo.label.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base})\s+(.*)$/u);
+            if (match) {
+                return match[1];
+            }
+        }
+    } catch (e) {
+        console.warn(`[FCM Service] Failed to lookup icon for category ${cat}`);
+    }
+    return '🛠️'; // Centralized fallback
 }
 
 /**
