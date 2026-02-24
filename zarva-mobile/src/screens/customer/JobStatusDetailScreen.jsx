@@ -4,6 +4,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import dayjs from 'dayjs';
 import { useT } from '../../hooks/useT';
+import { ref, onValue, off } from 'firebase/database';
+import { db } from '../../utils/firebase';
 import { useJobStore } from '../../stores/jobStore';
 import apiClient from '../../services/api/client';
 import { parseJobDescription } from '../../utils/jobParser';
@@ -16,7 +18,7 @@ import PressableAnimated from '../../design-system/components/PressableAnimated'
 import { colors, radius, spacing, shadows } from '../../design-system/tokens';
 import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
-const STAGES = ['searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
+const STAGES = ['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
 
 export default function JobStatusDetailScreen({ route, navigation }) {
     const t = useT();
@@ -26,14 +28,26 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const [job, setJob] = useState(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [verifyingEndOtp, setVerifyingEndOtp] = useState(false);
+    const [chatUnread, setChatUnread] = useState(0);
 
-    const status = searchPhase || 'searching';
+    const status = searchPhase || job?.status || 'searching';
     const currentStageIdx = STAGES.indexOf(status) === -1 ? STAGES.length : STAGES.indexOf(status);
 
     useEffect(() => {
         fetchJobDetails();
         startListening(jobId);
-        return () => stopListening();
+
+        // Chat Unread Listener
+        const chatUnreadRef = ref(db, `active_jobs/${jobId}/chat_unread/customer`);
+        const listener = onValue(chatUnreadRef, (snapshot) => {
+            const count = snapshot.val() || 0;
+            setChatUnread(count);
+        });
+
+        return () => {
+            stopListening();
+            off(chatUnreadRef, 'value', listener);
+        };
     }, [jobId]);
 
     const fetchJobDetails = async () => {
@@ -44,6 +58,13 @@ export default function JobStatusDetailScreen({ route, navigation }) {
             console.error('Failed to fetch job details', err);
         }
     };
+
+    // Auto-refresh details specifically when worker arrives or starts work to get OTP/timestamps
+    useEffect(() => {
+        if (['worker_arrived', 'in_progress'].includes(status)) {
+            fetchJobDetails();
+        }
+    }, [status]);
 
     // Live Timer for In Progress
     useEffect(() => {
@@ -139,7 +160,22 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
                 <Text style={styles.headerTitle}>{t('status')}</Text>
-                <View style={{ width: 44 }} />
+
+                {['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(status) && job ? (
+                    <PressableAnimated
+                        style={styles.headerChatBtn}
+                        onPress={() => navigation.navigate('Chat', { jobId, userRole: 'customer', otherUserId: job.worker_id })}
+                    >
+                        <Text style={styles.chatIcon}>💬</Text>
+                        {chatUnread > 0 && (
+                            <View style={styles.unreadBadge}>
+                                <Text style={styles.unreadTxt}>{chatUnread}</Text>
+                            </View>
+                        )}
+                    </PressableAnimated>
+                ) : (
+                    <View style={{ width: 44 }} />
+                )}
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -288,9 +324,9 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     {['searching', 'assigned', 'worker_en_route'].includes(status) && (
                         <PremiumButton
                             variant="secondary"
-                            title={t('status_cancelled')}
+                            title={t('status_cancel')}
                             onPress={() => {
-                                Alert.alert(t('status_cancelled'), t('are_you_sure'), [
+                                Alert.alert(t('status_cancel'), t('are_you_sure'), [
                                     { text: t('no'), style: 'cancel' },
                                     {
                                         text: t('yes_cancel'), style: 'destructive', onPress: async () => {
@@ -329,6 +365,10 @@ const styles = StyleSheet.create({
     headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
     headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
     headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    headerChatBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+    chatIcon: { fontSize: 20 },
+    unreadBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: colors.danger, minWidth: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.background },
+    unreadTxt: { color: '#FFF', fontSize: 10, fontWeight: '900' },
 
     scrollContent: { paddingBottom: 100 },
 

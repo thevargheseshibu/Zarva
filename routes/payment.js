@@ -71,7 +71,7 @@ router.post('/create-order', async (req, res) => {
         let amountToCharge = 0;
 
         if (payment_type === 'advance') {
-            const pricingConf = configLoader.get('pricing');
+            const pricingConf = configLoader.get('jobs');
             const estimate = calculatePricing({
                 category: job.category,
                 hours: pricingConf.categories[job.category].min_hours,

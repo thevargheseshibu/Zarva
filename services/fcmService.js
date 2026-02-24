@@ -32,7 +32,7 @@ function getCategoryIcon(cat) {
  * Calculates estimated earnings for the worker (subtotal).
  */
 function calculateEstimatedEarnings(job, distanceKm) {
-    const pricingConfig = configLoader.get('pricing');
+    const pricingConfig = configLoader.get('jobs');
     const pricing = calculatePricing({
         category: job.category,
         hours: job.estimated_hours || 0,
@@ -160,5 +160,57 @@ async function pruneStaleTokens(staleTokens, tokenToUserMap) {
         console.log(`[FCM Service] Successfully pruned stale tokens from DB.`);
     } catch (err) {
         console.error(`[FCM Service] Error pruning stale tokens:`, err);
+    }
+}
+
+/**
+ * Dispatches a 'NEW_CHAT_MESSAGE' push notification to a specific user.
+ */
+export async function sendChatNotification(jobId, recipientId, senderName, messagePreview, messageType) {
+    const messaging = getMessaging();
+    if (!messaging) return;
+
+    try {
+        const pool = getPool();
+        const [users] = await pool.query('SELECT fcm_token FROM users WHERE id = ?', [recipientId]);
+        if (!users.length || !users[0].fcm_token) return;
+
+        const token = users[0].fcm_token;
+        const message = {
+            token,
+            notification: {
+                title: senderName,
+                body: messagePreview
+            },
+            data: {
+                type: 'NEW_CHAT_MESSAGE',
+                job_id: String(jobId),
+                sender_name: senderName,
+                message_type: messageType
+            },
+            android: {
+                priority: 'high',
+                notification: {
+                    channelId: 'chat_alerts' // Use a specific channel for chat
+                }
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        badge: 1,
+                        'content-available': 1
+                    }
+                }
+            }
+        };
+
+        const response = await messaging.send(message);
+        console.log(`[FCM Service] Chat notification sent successfully: ${response}`);
+    } catch (err) {
+        console.error(`[FCM Service] Failed to send chat notification to user ${recipientId}:`, err);
+        if (err.code === 'messaging/invalid-registration-token' || err.code === 'messaging/registration-token-not-registered') {
+            const pool = getPool();
+            await pool.query('UPDATE users SET fcm_token = NULL WHERE id = ?', [recipientId]);
+        }
     }
 }

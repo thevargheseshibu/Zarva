@@ -62,7 +62,7 @@ export async function createJob(customerId, payload, idempotencyKey, pool) {
     }
 
     // 2. Load Configs & Compute Exact Pricing bindings
-    const pricingConfig = configLoader.get('pricing');
+    const pricingConfig = configLoader.get('jobs');
     if (!pricingConfig.categories[category]) {
         throw Object.assign(new Error(`Invalid category: ${category}`), { status: 400 });
     }

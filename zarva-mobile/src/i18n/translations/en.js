@@ -371,7 +371,7 @@ export default {
     service: 'Service',
     location: 'Location',
     scheduled: 'Scheduled',
-    status_cancelled: 'Cancel Request',
+    status_cancel: 'Cancel Request',
     are_you_sure: 'Are you sure?',
     no: 'No',
     yes_cancel: 'Yes, Cancel',
@@ -529,6 +529,17 @@ export default {
     cat_cleaner: 'Cleaner',
     cat_driver: 'Driver',
     cat_mason: 'Mason',
+    cat_pest_control: 'Pest Control',
+    cat_appliance_repair: 'Appliance Repair',
+    cat_water_tank_cleaning: 'Water Tank Cleaning',
+    cat_welding: 'Welding',
+    cat_water_leakage: 'Water Leakage',
+    cat_drainage_cleaning: 'Drainage Cleaning',
+    cat_water_pump_repair: 'Water Pump Repair',
+    cat_water_heater_repair: 'Water Heater Repair',
+    cat_water_filter_repair: 'Water Filter Repair',
+    cat_water_softener_repair: 'Water Softener Repair',
+    cat_water_softener_repair: 'Water Softener Repair',
 
     // ── Job Posting (Dynamic Questions) ───────────────
     whats_the_issue: "What's the issue?",
@@ -670,6 +681,13 @@ export default {
     edit_profile: 'Edit Profile',
     language: 'Language',
     logout: 'Logout',
+
+    // ── Chat System ───────────────────────────────────
+    chat_with_worker: 'Chat with Professional',
+    chat_with_customer: 'Chat with Client',
+    typing: 'typing...',
+    type_a_message: 'Type a message...',
+    message_deleted: 'Message deleted',
 
     // ── Errors ────────────────────────────────────────
     error_generic: 'Something went wrong. Please try again.',

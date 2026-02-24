@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
         borderColor: colors.surface
     },
     docCardActive: { borderColor: colors.accent.primary + '44' },
-    docCardError: { borderColor: colors.error + '44' },
+    docCardError: { borderColor: colors.danger + '44' },
 
     docPreviewWrap: { width: '100%', aspectRatio: 1.2, borderRadius: radius.lg, backgroundColor: colors.elevated, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
     docPreview: { width: '100%', height: '100%', resizeMode: 'cover', opacity: 0.8 },
@@ -216,12 +216,12 @@ const styles = StyleSheet.create({
 
     loaderOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
     successDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent.primary },
-    errorDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.error },
+    errorDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
 
     docInfo: { gap: 2 },
     docLabel: { color: colors.text.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
     docStatus: { color: colors.text.muted, fontSize: 7, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
-    statusError: { color: colors.error },
+    statusError: { color: colors.danger },
 
     footer: { marginTop: spacing[16] }
 });

@@ -79,7 +79,10 @@ export default function LocationScheduleScreen({ route, navigation }) {
                 console.error('[LocationSchedule] Firebase listener failed:', fbErr);
             }
 
-            navigation.replace('Searching', { category, jobId: newJobId });
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'Searching', params: { category, jobId: newJobId } }],
+            });
         } catch (e) {
             console.error('Job dispatch error', e);
             Alert.alert('Error', 'Failed to dispatch request. Please try again.');

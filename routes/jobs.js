@@ -396,7 +396,7 @@ router.post('/:id/verify-end-otp', async (req, res) => {
 
                 // 1. Finalize Job Record
                 await conn.query(
-                    `UPDATE jobs SET status='completed', actual_hours=?, end_otp_verified_at=NOW() WHERE id=?`,
+                    `UPDATE jobs SET status='completed', actual_hours=?, chat_enabled=0, end_otp_verified_at=NOW() WHERE id=?`,
                     [actual_hours, jobId]
                 );
 
@@ -425,7 +425,10 @@ router.post('/:id/verify-end-otp', async (req, res) => {
 
                 await conn.commit();
 
-                console.log(`[Firebase Mock] active_jobs/${jobId}/status = 'completed'`);
+                // Real Firebase Update
+                const { updateJobNode } = await import('../services/firebase.service.js');
+                await updateJobNode(jobId, { status: 'completed' });
+
                 return ok(res, { completed: true, invoice: invoiceBreakdown });
 
             } else {
@@ -492,11 +495,14 @@ router.post('/:id/cancel', async (req, res) => {
             }
 
             // Valid Cancellation Process
-            await conn.query(`UPDATE jobs SET status='cancelled', cancelled_by='customer', cancel_reason='Customer requested cancellation' WHERE id=?`, [jobId]);
+            await conn.query(`UPDATE jobs SET status='cancelled', chat_enabled=0, cancelled_by='customer', cancel_reason='Customer requested cancellation' WHERE id=?`, [jobId]);
 
             if (job.worker_id) {
                 await conn.query(`UPDATE worker_profiles SET current_job_id = NULL WHERE user_id=?`, [job.worker_id]);
-                console.log(`[Firebase Mock] Worker Notification: Customer cancelled the job.`);
+
+                // Real Firebase Update
+                const { updateJobNode } = await import('../services/firebase.service.js');
+                await updateJobNode(jobId, { status: 'cancelled' });
             }
 
             // Execute full refund sweep
@@ -542,11 +548,14 @@ router.post('/:id/dispute', async (req, res) => {
         }
 
         await pool.query(
-            `UPDATE jobs SET status='disputed', dispute_reason=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
+            `UPDATE jobs SET chat_enabled=0, status='disputed', dispute_reason=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
             [reason, jobId]
         );
 
-        console.log(`[Firebase Mock] -> Customer & Worker: "Dispute raised. Our team will review within 48 hours."`);
+        // Real Firebase Update
+        const { updateJobNode } = await import('../services/firebase.service.js');
+        await updateJobNode(jobId, { status: 'disputed' });
+
         return ok(res, { disputed: true, message: 'Dispute submitted. Admin will review within 48h.' });
     } catch (err) {
         return fail(res, err.message, err.status || 500);

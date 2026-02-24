@@ -24,6 +24,7 @@ import workerRouter from './routes/worker.js';
 import jobsRouter from './routes/jobs.js';
 import paymentRouter from './routes/payment.js';
 import reviewsRouter from './routes/reviews.js';
+import chatRouter from './routes/chat.js';
 import {
     generalLimiter,
     authenticateJWT,
@@ -79,7 +80,8 @@ async function bootstrap() {
     app.use('/api/reviews', reviewsRouter);      // protected — requires valid JWT
     app.use('/api/uploads', uploadsRouter); // protected — requires valid JWT
     app.use('/api/worker', workerRouter);   // protected — requires valid JWT
-    app.use('/api/jobs', jobsRouter);       // protected — requires valid JWT
+    app.use('/api/jobs/:jobId/chat', chatRouter); // Specific route first
+    app.use('/api/jobs', jobsRouter);       // General route second
 
     // 5. 404 handler
     app.use((_req, res) => {

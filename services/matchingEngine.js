@@ -9,7 +9,7 @@ import { getPool } from '../config/database.js';
 import { getRedisClient } from '../config/redis.js';
 import configLoader from '../config/loader.js';
 import * as fcmService from './fcmService.js';
-import { updateJobNode } from '../services/firebase.service.js';
+import { updateJobNode, updateJobLastMessage } from '../services/firebase.service.js';
 
 // Helper: Sleep for wave delays
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -49,7 +49,6 @@ async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
             AND u.fcm_token IS NOT NULL
             AND u.is_blocked = 0
             AND (wp.category = ? OR JSON_CONTAINS(wp.skills, JSON_QUOTE(?)))
-            AND wp.last_location_at > DATE_SUB(NOW(), INTERVAL 30 MINUTE)
             AND (
                 6371 * ACOS(
                     COS(RADIANS(?)) * COS(RADIANS(wp.last_location_lat)) *
@@ -257,7 +256,7 @@ export async function acceptJob(jobId, workerId) {
             const matchingConfig = configLoader.get('zarva')?.matching || { cancellation_lock_minutes: 15 };
 
             await conn.query(
-                'UPDATE jobs SET status="assigned", worker_id=?, accepted_at=NOW(), cancellation_locked_at=DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id=?',
+                'UPDATE jobs SET status="assigned", worker_id=?, accepted_at=NOW(), chat_enabled=1, cancellation_locked_at=DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id=?',
                 [workerId, matchingConfig.cancellation_lock_minutes, jobId]
             );
 
@@ -273,6 +272,15 @@ export async function acceptJob(jobId, workerId) {
 
             await conn.commit();
             console.log(`[MatchingEngine] Job ${jobId} successfully assigned to worker ${workerId}`);
+
+            // Initialize Firebase chat node for the job
+            await updateJobLastMessage(jobId, {
+                content: 'Chat started',
+                sender_id: 'system',
+                sender_name: 'Zarva System',
+                sent_at: Date.now(),
+                message_type: 'text'
+            }).catch(() => { });
         } catch (txnErr) {
             console.error(`[MatchingEngine] Job ${jobId} assignment failed:`, txnErr);
             await conn.rollback();

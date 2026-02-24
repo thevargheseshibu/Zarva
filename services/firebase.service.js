@@ -130,3 +130,27 @@ export async function readWorkerPresence(workerId) {
     const snap = await ref.once('value');
     return snap.val();
 }
+
+// ── Chat System Helpers ──────────────────────────────────────────────────────
+
+export async function updateJobChatUnread(jobId, userId, count) {
+    if (!isLiveTracking()) return;
+    const ref = await dbRef(`active_jobs/${jobId}/chat_unread/${userId}`);
+    if (!ref) return;
+    await ref.set(count);
+}
+
+export async function updateJobLastMessage(jobId, data) {
+    if (!isLiveTracking()) return;
+    const ref = await dbRef(`active_jobs/${jobId}/chat_last_message`);
+    if (!ref) return;
+    await ref.set(data);
+}
+
+export async function updateJobTyping(jobId, userId) {
+    if (!isLiveTracking()) return;
+    const ref = await dbRef(`active_jobs/${jobId}/chat_typing/${userId}`);
+    if (!ref) return;
+    // Set timestamp, client can assume typing is true if timestamp is within last 3 seconds
+    await ref.set(Date.now());
+}

@@ -27,6 +27,7 @@ export default function ActiveJobScreen({ route, navigation }) {
     const [timeElapsed, setTimeElapsed] = useState(0);
     const [endOtp, setEndOtp] = useState('----');
     const [otpExpirySeconds, setOtpExpirySeconds] = useState(null);
+    const [chatUnread, setChatUnread] = useState(0);
 
     useEffect(() => {
         if (!jobId) return;
@@ -35,7 +36,16 @@ export default function ActiveJobScreen({ route, navigation }) {
             const data = snapshot.val();
             if (data?.status) setStatus(data.status);
         });
-        return () => off(jobRef, 'value', listener);
+
+        const chatUnreadRef = ref(db, `active_jobs/${jobId}/chat_unread/worker`);
+        const chatListener = onValue(chatUnreadRef, (snapshot) => {
+            setChatUnread(snapshot.val() || 0);
+        });
+
+        return () => {
+            off(jobRef, 'value', listener);
+            off(chatUnreadRef, 'value', chatListener);
+        };
     }, [jobId]);
 
     useEffect(() => {
@@ -268,7 +278,21 @@ export default function ActiveJobScreen({ route, navigation }) {
                         <StatusPill status={status} />
                     </View>
                 </View>
-                <View style={{ width: 44 }} />
+                {['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(status) && job ? (
+                    <PressableAnimated
+                        style={styles.headerChatBtn}
+                        onPress={() => navigation.navigate('Chat', { jobId, userRole: 'worker', otherUserId: job.customer_id })}
+                    >
+                        <Text style={styles.chatIcon}>💬</Text>
+                        {chatUnread > 0 && (
+                            <View style={styles.unreadBadge}>
+                                <Text style={styles.unreadTxt}>{chatUnread}</Text>
+                            </View>
+                        )}
+                    </PressableAnimated>
+                ) : (
+                    <View style={{ width: 44 }} />
+                )}
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -330,6 +354,10 @@ const styles = StyleSheet.create({
     headerCenter: { alignItems: 'center', gap: 4 },
     headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
     statusPillWrap: { transform: [{ scale: 0.85 }] },
+    headerChatBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+    chatIcon: { fontSize: 20 },
+    unreadBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: colors.danger, minWidth: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.background },
+    unreadTxt: { color: '#FFF', fontSize: 10, fontWeight: '900' },
 
     scrollContent: { padding: spacing[24], paddingBottom: 120, gap: spacing[24] },
 

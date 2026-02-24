@@ -407,6 +407,6 @@ const styles = StyleSheet.create({
     emptyFeedback: { alignItems: 'center', backgroundColor: colors.surface, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.surface },
     emptyTxt: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center' },
 
-    offlineBox: { padding: spacing[16], alignItems: 'center', backgroundColor: colors.accent.primary + '010', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.accent.primary + '15' },
+    offlineBox: { padding: spacing[16], alignItems: 'center', backgroundColor: colors.accent.primary + '10', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.accent.primary + '15' },
     offlineTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 }
 });

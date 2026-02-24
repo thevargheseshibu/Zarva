@@ -72,10 +72,13 @@ export default function RootNavigator() {
             if (!navigationRef.isReady()) return;
 
             const role = authState.user?.active_role;
-            const jobId = jobState.activeJob?.id;
+            const pushData = response.notification.request.content.data;
+            const jobId = pushData?.job_id || jobState.activeJob?.id;
 
             if (jobId) {
-                if (role === 'customer') {
+                if (pushData?.type === 'NEW_CHAT_MESSAGE') {
+                    navigationRef.navigate('Chat', { jobId, userRole: role });
+                } else if (role === 'customer') {
                     navigationRef.navigate('JobStatusDetail', { jobId });
                 } else if (role === 'worker') {
                     navigationRef.navigate('ActiveJob', { jobId });

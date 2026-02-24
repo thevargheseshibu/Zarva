@@ -28,14 +28,19 @@ export const useJobStore = create((set, get) => ({
     waveNumber: 1,          // 1, 2, or 3 from matching engine expansions
     lastKnownLocation: null, // { address, lat, lng }
     locationOverride: null,  // User-picked { address, lat, lng }
+    chatUnreadCount: 0,
+    activeChatJobId: null,
 
     setActiveJob: (job) => set({ activeJob: job }),
     setSearchPhase: (phase) => set({ searchPhase: phase }),
     setCanMinimize: (val) => set({ canMinimize: val }),
-    clearActiveJob: () => set({ activeJob: null, searchPhase: null, assignedWorker: null, canMinimize: false, jobHistory: [], waveNumber: 1 }),
+    clearActiveJob: () => set({ activeJob: null, searchPhase: null, assignedWorker: null, canMinimize: false, jobHistory: [], waveNumber: 1, chatUnreadCount: 0, activeChatJobId: null }),
     setJobHistory: (history) => set({ jobHistory: history }),
     setLocationOverride: (loc) => set({ locationOverride: loc, lastKnownLocation: loc }),
     setLastKnownLocation: (loc) => set({ lastKnownLocation: loc }),
+    setActiveChatJobId: (jobId) => set({ activeChatJobId: jobId }),
+    clearActiveChatJobId: () => set({ activeChatJobId: null }),
+    setChatUnreadCount: (count) => set({ chatUnreadCount: count }),
 
     startListening: (jobId) => {
         // Stop any existing listener
@@ -112,9 +117,15 @@ export const useJobStore = create((set, get) => ({
                     }
                 }
 
-                // If terminal state, auto-clear after 10s is handled by the UI
-                if (['completed', 'cancelled', 'no_worker_found'].includes(newPhase)) {
-                    get().stopListening();
+                // If terminal state, delay clearing slightly to let UI re-render the final state
+                if (['completed', 'cancelled', 'no_worker_found', 'disputed'].includes(newPhase)) {
+                    setTimeout(() => {
+                        // Check if we haven't started listening to another job in the meantime
+                        const currentRef = ref(db, `active_jobs/${jobId}`);
+                        if (firebaseJobRefVal?.toString() === currentRef.toString()) {
+                            get().stopListening();
+                        }
+                    }, 5000);
                 }
             }
         });

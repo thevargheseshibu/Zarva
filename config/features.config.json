@@ -28,6 +28,13 @@
   "matching": {
     "geo_matching_enabled": true
   },
+  "chat": {
+    "enabled": true,
+    "max_message_length": 500,
+    "image_messages_enabled": true,
+    "delete_window_seconds": 60,
+    "messages_per_page": 50
+  },
   "rate_limiting": {
     "otp_per_phone_per_hour": 3,
     "api_requests_per_minute": 60,

@@ -10,19 +10,19 @@ export const colors = {
     overlay: 'rgba(20, 20, 27, 0.92)',
 
     accent: {
-        primary: '#6f5bddff',  // Electric Violet
+        primary: '#6F5BDD',  // Electric Violet
         glow: 'rgba(123, 92, 255, 0.18)',
-        border: 'rgba(123, 92, 255, 0.35)',
+        border: '#7B5CFF', // Base color for concatenation
     },
 
-    success: '#3d9042ff',
+    success: '#3D9042',
     warning: '#FF9F0A',
     danger: '#FF453A',
 
     text: {
         primary: '#F2F2F7',
         secondary: '#8E8E9A',
-        muted: '#8e8c73ff',
+        muted: '#8E8C73',
     },
 
     // Compatibility mapping

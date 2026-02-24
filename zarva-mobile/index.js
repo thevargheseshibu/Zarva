@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import { registerRootComponent } from 'expo';
 import messaging from '@react-native-firebase/messaging';
 import AsyncStorage from '@react-native-async-storage/async-storage';

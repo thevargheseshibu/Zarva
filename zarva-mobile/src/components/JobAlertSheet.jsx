@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     title: { color: colors.text.primary, fontSize: 20, fontWeight: '800' },
     timer: { color: colors.text.primary, fontSize: 18, fontWeight: '700', fontFamily: 'Courier' },
-    timerDanger: { color: colors.error },
+    timerDanger: { color: colors.danger },
 
     infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', borderBottomColor: colors.bg.surface, borderBottomWidth: 1, paddingBottom: spacing.sm },
     category: { color: colors.text.secondary, fontSize: 16, textTransform: 'uppercase', letterSpacing: 1 },
