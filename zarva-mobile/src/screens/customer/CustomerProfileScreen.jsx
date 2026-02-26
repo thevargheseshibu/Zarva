@@ -11,9 +11,11 @@ import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
+import { useNavigation } from '@react-navigation/native';
 import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
 export default function CustomerProfileScreen() {
+    const navigation = useNavigation();
     const { user, logout, setUser } = useAuthStore();
     const { language, loadLanguage } = useLanguageStore();
     const t = useT();
@@ -95,6 +97,18 @@ export default function CustomerProfileScreen() {
                         ))}
                     </FadeInView>
                 )}
+
+                {/* Support */}
+                <FadeInView delay={350} style={styles.section}>
+                    <Text style={styles.sectionHeader}>{t('support_caps', { defaultValue: 'SUPPORT' })}</Text>
+                    <PressableAnimated style={styles.settingCard} onPress={() => navigation.navigate('Support')}>
+                        <View style={styles.settingInfo}>
+                            <Text style={styles.settingLabel}>{t('help_center', { defaultValue: 'Help Center' })}</Text>
+                            <Text style={styles.settingValue}>{t('support_disputes', { defaultValue: 'Support & Disputes' })}</Text>
+                        </View>
+                        <Text style={styles.chevron}>›</Text>
+                    </PressableAnimated>
+                </FadeInView>
 
                 {/* Settings */}
                 <FadeInView delay={450} style={styles.section}>
@@ -210,7 +224,7 @@ const styles = StyleSheet.create({
     metric: { alignItems: 'center', flex: 1 },
     divider: { width: 1, height: '50%', backgroundColor: colors.accent.border + '22', alignSelf: 'center' },
     metricValue: { color: colors.accent.primary, fontSize: 24, fontWeight: '900' },
-    metricLabel: { color: colors.text.muted, fontSize: 8, marginTop: 4, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    metricLabel: { color: colors.text.muted, fontSize: 10, marginTop: 4, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
 
     section: { gap: spacing[16] },
     sectionHeader: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2, marginLeft: 4 },
@@ -244,7 +258,7 @@ const styles = StyleSheet.create({
     chevron: { color: colors.accent.primary, fontSize: 24, fontWeight: '200' },
 
     footer: { marginTop: spacing[16], gap: spacing[24], alignItems: 'center' },
-    versionTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.medium, letterSpacing: 1 },
+    versionTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium, letterSpacing: 1 },
 
     // Modal
     modalScreen: { flex: 1, backgroundColor: colors.background, paddingTop: 60 },
@@ -263,7 +277,7 @@ const styles = StyleSheet.create({
     },
     searchInput: { color: colors.text.primary, fontSize: fontSize.body, paddingVertical: spacing[16] },
 
-    listContent: { paddingHorizontal: spacing[24], paddingBottom: 60, gap: spacing[12] },
+    listContent: { paddingHorizontal: spacing[24], paddingBottom: 120, gap: spacing[12] },
     langCard: {
         flexDirection: 'row',
         alignItems: 'center',

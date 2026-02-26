@@ -8,6 +8,9 @@ import apiClient from '../../../services/api/client';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import { useT } from '../../../hooks/useT';
+import { useUIStore } from '../../../stores/uiStore';
+import MainBackground from '../../../components/MainBackground';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function OnboardingSkills({ data, onNext }) {
     const t = useT();
@@ -25,6 +28,7 @@ export default function OnboardingSkills({ data, onNext }) {
     const [showAllCategories, setShowAllCategories] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
+    const { showLoader, hideLoader } = useUIStore();
 
     const isSearching = searchQuery.trim() !== '';
     const displayedCategories = isSearching
@@ -32,6 +36,7 @@ export default function OnboardingSkills({ data, onNext }) {
         : (showAllCategories ? categories : categories.slice(0, 12));
 
     useEffect(() => {
+        showLoader(t('fetching_competencies') || "Initializing Skills Matrix...");
         const fetchCategories = async () => {
             try {
                 const res = await apiClient.get('/api/jobs/config');
@@ -43,6 +48,7 @@ export default function OnboardingSkills({ data, onNext }) {
                 console.error("Failed to load skills categories", err);
             } finally {
                 setLoading(false);
+                hideLoader();
             }
         };
         fetchCategories();
@@ -61,107 +67,125 @@ export default function OnboardingSkills({ data, onNext }) {
     const isValid = selected.length > 0 && exp;
 
     if (loading) {
-        return (
-            <View style={styles.loadingScreen}>
-                <ActivityIndicator size="large" color={colors.accent.primary} />
-            </View>
-        );
+        return <MainBackground />;
     }
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            <FadeInView delay={50}>
-                <Text style={styles.headerSub}>{t('step_02')}</Text>
-                <Text style={styles.title}>{t('define_expertise')}</Text>
-                <Text style={styles.sub}>{t('define_expertise_desc')}</Text>
-            </FadeInView>
+        <MainBackground>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                <FadeInView delay={50}>
+                    <Text style={styles.headerSub}>{t('step_02')}</Text>
+                    <Text style={styles.title}>{t('define_expertise')}</Text>
+                    <Text style={styles.sub}>{t('define_expertise_desc')}</Text>
+                </FadeInView>
 
-            <FadeInView delay={150} style={styles.section}>
-                <Text style={styles.label}>{t('competency_selection')}</Text>
-                <Card style={styles.searchCard}>
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder={t('search_competencies')}
-                        placeholderTextColor={colors.text.muted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                </Card>
+                <FadeInView delay={150} style={styles.section}>
+                    <Text style={styles.label}>{t('competency_selection')}</Text>
+                    <Card style={styles.searchCard}>
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder={t('search_competencies')}
+                            placeholderTextColor={colors.text.muted}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                    </Card>
 
-                <View style={styles.skillsGrid}>
-                    {displayedCategories.map(c => {
-                        const active = selected.includes(c.id);
-                        return (
+                    <View style={styles.skillsGrid}>
+                        {displayedCategories.map(c => {
+                            const active = selected.includes(c.id);
+                            return (
+                                <TouchableOpacity
+                                    key={c.id}
+                                    style={[styles.skillChip, active && styles.skillChipActive]}
+                                    onPress={() => toggle(c.id)}
+                                >
+                                    {active && (
+                                        <LinearGradient
+                                            colors={['#FF4FA3', '#A855F7']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={StyleSheet.absoluteFill}
+                                        />
+                                    )}
+                                    <Text style={[styles.skillTxt, active && styles.skillTxtActive]}>{c.label.toUpperCase()}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+
+                        {categories.length > 12 && !showAllCategories && !isSearching && (
                             <TouchableOpacity
-                                key={c.id}
-                                style={[styles.skillChip, active && styles.skillChipActive]}
-                                onPress={() => toggle(c.id)}
+                                style={styles.moreChip}
+                                onPress={() => {
+                                    setShowAllCategories(true);
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                }}
                             >
-                                <Text style={[styles.skillTxt, active && styles.skillTxtActive]}>{c.label.toUpperCase()}</Text>
+                                <Text style={styles.moreTxt}>{t('view_all_skills')}</Text>
                             </TouchableOpacity>
-                        );
-                    })}
+                        )}
+                    </View>
 
-                    {categories.length > 12 && !showAllCategories && !isSearching && (
-                        <TouchableOpacity
-                            style={styles.moreChip}
-                            onPress={() => {
-                                setShowAllCategories(true);
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            }}
-                        >
-                            <Text style={styles.moreTxt}>{t('view_all_skills')}</Text>
-                        </TouchableOpacity>
+                    {isSearching && displayedCategories.length === 0 && (
+                        <Text style={styles.emptyResults}>{t('no_competencies_found')}</Text>
                     )}
-                </View>
+                </FadeInView>
 
-                {isSearching && displayedCategories.length === 0 && (
-                    <Text style={styles.emptyResults}>{t('no_competencies_found')}</Text>
-                )}
-            </FadeInView>
+                <FadeInView delay={350} style={styles.section}>
+                    <Text style={styles.label}>{t('cumulative_experience')}</Text>
+                    <View style={styles.expGrid}>
+                        {EXP_LEVELS.map(e => {
+                            const active = exp === e.value;
+                            return (
+                                <TouchableOpacity
+                                    key={e.value}
+                                    style={[styles.expChip, active && styles.expChipActive]}
+                                    onPress={() => handleExpSelect(e.value)}
+                                >
+                                    {active && (
+                                        <LinearGradient
+                                            colors={['#FF4FA3', '#A855F7']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={StyleSheet.absoluteFill}
+                                        />
+                                    )}
+                                    <Text style={[styles.expLabel, active && styles.expLabelActive]}>{e.label.toUpperCase()}</Text>
+                                    {active && <View style={styles.activeIndicator} />}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </FadeInView>
 
-            <FadeInView delay={350} style={styles.section}>
-                <Text style={styles.label}>{t('cumulative_experience')}</Text>
-                <View style={styles.expGrid}>
-                    {EXP_LEVELS.map(e => {
-                        const active = exp === e.value;
-                        return (
-                            <TouchableOpacity
-                                key={e.value}
-                                style={[styles.expChip, active && styles.expChipActive]}
-                                onPress={() => handleExpSelect(e.value)}
-                            >
-                                <Text style={[styles.expLabel, active && styles.expLabelActive]}>{e.label.toUpperCase()}</Text>
-                                {active && <View style={styles.activeIndicator} />}
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            </FadeInView>
-
-            <FadeInView delay={550} style={styles.footer}>
-                <PremiumButton
-                    title={t('validate_skills')}
-                    disabled={!isValid}
-                    onPress={() => {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        onNext({ categories: selected, experience: exp });
-                    }}
-                />
-            </FadeInView>
-        </ScrollView>
+                <FadeInView delay={550} style={styles.footer}>
+                    <PremiumButton
+                        title={t('validate_skills')}
+                        disabled={!isValid}
+                        onPress={() => {
+                            if (!isValid) {
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                                return;
+                            }
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            onNext({ categories: selected, experience: exp });
+                        }}
+                    />
+                </FadeInView>
+            </ScrollView>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    loadingScreen: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' },
+    loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
-    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    headerSub: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
     title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
     sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
 
     section: { gap: 12 },
-    label: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    label: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
 
     searchCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface, marginBottom: 8 },
     searchInput: {
@@ -178,12 +202,21 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.surface
     },
-    skillChipActive: { backgroundColor: colors.accent.primary, borderColor: colors.accent.primary },
-    skillTxt: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    skillTxtActive: { color: colors.background },
+    skillChipActive: {
+        borderColor: 'transparent',
+        overflow: 'hidden',
+        ...shadows.accentGlow
+    },
+    skillTxt: { color: colors.text.muted, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    skillTxtActive: {
+        color: '#FFFFFF',
+        textShadowColor: 'rgba(0,0,0,0.2)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4
+    },
 
     moreChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.lg, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.accent.border + '44' },
-    moreTxt: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    moreTxt: { color: colors.accent.secondary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 1 },
 
     emptyResults: { color: colors.text.muted, fontSize: 13, fontStyle: 'italic', paddingLeft: 4 },
 
@@ -199,10 +232,19 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.surface
     },
-    expChipActive: { borderColor: colors.accent.primary + '44', backgroundColor: colors.accent.primary + '08' },
+    expChipActive: {
+        borderColor: 'transparent',
+        overflow: 'hidden',
+        ...shadows.accentGlow
+    },
     expLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    expLabelActive: { color: colors.accent.primary },
-    activeIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent.primary },
+    expLabelActive: {
+        color: '#FFFFFF',
+        textShadowColor: 'rgba(0,0,0,0.2)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4
+    },
+    activeIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' },
 
     footer: { marginTop: spacing[8] }
 });

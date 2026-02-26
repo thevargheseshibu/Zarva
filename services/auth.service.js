@@ -59,33 +59,36 @@ function signJwt(user) {
 async function findOrCreateUser(phone, pool) {
     // 1. Try to find existing user
     const [rows] = await pool.query(
-        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at, name, dob
-       FROM users WHERE phone = ? LIMIT 1`,
+        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at
+       FROM users WHERE phone = $1 LIMIT 1`,
         [phone],
     );
 
     if (rows.length > 0) {
         // Update last_login_at
         await pool.query(
-            `UPDATE users SET last_login_at = NOW() WHERE id = ?`,
+            `UPDATE users SET last_login_at = NOW() WHERE id = $1`,
             [rows[0].id],
         );
         return rows[0];
     }
 
-    // 2. Create new user (role defaults to NULL to force Role Selection screen)
+    // 2. Create new user (role defaults to customer, active_role defaults to NULL to force Role Selection)
     const [result] = await pool.query(
-        `INSERT INTO users (phone, role, active_role) VALUES (?, NULL, NULL)`,
+        `INSERT INTO users (phone) VALUES ($1) RETURNING id`,
         [phone],
     );
-    const userId = result.insertId;
+    const userId = result[0]?.id;
 
-    // 3. DO NOT create matching customer_profile here.
-    // That happens later in PUT /api/me when the user actually chooses a role.
+    // 3. Create matching customer_profile immediately so name/email updates work.
+    await pool.query(
+        `INSERT INTO customer_profiles (user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+        [userId]
+    );
 
     const [newRows] = await pool.query(
-        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at, name, dob
-       FROM users WHERE id = ? LIMIT 1`,
+        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at
+       FROM users WHERE id = $1 LIMIT 1`,
         [userId],
     );
     return newRows[0];
@@ -113,7 +116,7 @@ async function issueTokenPair(user, pool, meta = {}) {
     await pool.query(
         `INSERT INTO auth_tokens
        (user_id, token_hash, device_info, ip_address, expires_at)
-     VALUES (?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5)`,
         [user.id, tokenHash, meta.device_info ?? null, meta.ip_address ?? null, accessExpires],
     );
 
@@ -121,7 +124,7 @@ async function issueTokenPair(user, pool, meta = {}) {
     await pool.query(
         `INSERT INTO auth_tokens
        (user_id, token_hash, device_info, ip_address, expires_at)
-     VALUES (?, ?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4, $5)`,
         [user.id, refreshTokenHash, meta.device_info ?? null, meta.ip_address ?? null, refreshExpires],
     );
 
@@ -138,7 +141,7 @@ async function revokeToken(tokenHash, pool) {
     await pool.query(
         `UPDATE auth_tokens
         SET revoked_at = NOW()
-      WHERE token_hash = ? AND revoked_at IS NULL`,
+      WHERE token_hash = $1 AND revoked_at IS NULL`,
         [tokenHash],
     );
 }
@@ -159,7 +162,7 @@ async function refreshTokenPair(oldRefreshToken, pool) {
             u.id as uid, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference
        FROM auth_tokens at
        JOIN users u ON u.id = at.user_id
-      WHERE at.token_hash = ?
+      WHERE at.token_hash = $1
       LIMIT 1`,
         [oldHash],
     );
@@ -187,7 +190,7 @@ async function refreshTokenPair(oldRefreshToken, pool) {
  */
 async function getUserProfile(userId, pool) {
     const [userRows] = await pool.query(
-        `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference, u.last_login_at, u.created_at, u.name as global_name, u.dob,
+        `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference, u.last_login_at, u.created_at, COALESCE(cp.name, wp.name) as global_name, NULL as dob,
             cp.email, cp.profile_s3_key, cp.city,
             cp.default_lat, cp.default_lng, cp.total_jobs as customer_total_jobs,
             cp.average_rating as customer_average_rating, cp.rating_count as customer_rating_count,
@@ -196,19 +199,19 @@ async function getUserProfile(userId, pool) {
             wp.category    as worker_category,
             COALESCE(wp.average_rating, 0) as average_rating, 
             COALESCE(wp.total_jobs, 0) as worker_total_jobs,
-            COALESCE(wp.subscription_status, 'free') as subscription_status,
-            COALESCE(wp.skills, '[]') as skills,
-            COALESCE(wp.service_range, 20) as service_range,
+            'free' as subscription_status,
+            '[]' as skills,
+            20 as service_range,
             wp.is_verified, wp.is_online, wp.is_available,
             wp.kyc_status, wp.city as worker_city, wp.current_job_id,
             wp.last_location_lat, wp.last_location_lng,
-            (SELECT COALESCE(SUM(ji.subtotal), 0) FROM job_invoices ji JOIN jobs j ON ji.job_id = j.id WHERE j.worker_id = u.id AND DATE(j.end_otp_verified_at) = CURDATE()) as earnings_today,
-            (SELECT COUNT(*) FROM jobs WHERE worker_id = u.id AND status = 'completed' AND DATE(end_otp_verified_at) = CURDATE()) as jobs_today,
-            (SELECT COUNT(*) FROM jobs WHERE worker_id = u.id AND status = 'completed' AND end_otp_verified_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) as jobs_week
+            (SELECT COALESCE(SUM(ji.subtotal), 0) FROM job_invoices ji JOIN jobs j ON ji.job_id = j.id WHERE j.worker_id = u.id AND j.work_ended_at::date = CURRENT_DATE) as earnings_today,
+            (SELECT COUNT(*) FROM jobs WHERE worker_id = u.id AND status = 'completed' AND work_ended_at::date = CURRENT_DATE) as jobs_today,
+            (SELECT COUNT(*) FROM jobs WHERE worker_id = u.id AND status = 'completed' AND work_ended_at >= NOW() - INTERVAL '7 days') as jobs_week
        FROM users u
        LEFT JOIN customer_profiles cp ON cp.user_id = u.id
        LEFT JOIN worker_profiles   wp ON wp.user_id = u.id
-      WHERE u.id = ?
+      WHERE u.id = $1
       LIMIT 1`,
         [userId],
     );

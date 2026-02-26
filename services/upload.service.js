@@ -79,7 +79,7 @@ export async function generatePresignedUpload(userId, purpose, filename, mimeTyp
     console.log(`[Uploads Service] Logging token to DB s3_upload_tokens: U:${userId} S3Key:${s3Key}`);
     await pool.query(
         `INSERT INTO s3_upload_tokens (user_id, s3_key, purpose, expires_at)
-     VALUES (?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4)`,
         [userId, s3Key, purpose, expiresAt]
     );
 
@@ -120,10 +120,15 @@ export async function uploadBufferToS3(userId, purpose, filename, mimeType, buff
     });
 
     await getS3Client().send(command);
-
-    // Skip creating token confirmation flow since the server is trusted,
-    // but we can log it explicitly or return the key.
     console.log(`[Uploads Service] Native buffer uploaded to S3: U:${userId} -> ${s3Key}`);
+
+    // Register token in DB so it passes the 'is_used' verification check in services
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour buffer
+    await pool.query(
+        `INSERT INTO s3_upload_tokens (user_id, s3_key, purpose, expires_at, is_used)
+         VALUES ($1, $2, $3, $4, true)`,
+        [userId, s3Key, purpose, expiresAt]
+    );
 
     return {
         s3_key: s3Key,
@@ -147,7 +152,7 @@ export async function confirmUpload(userId, s3Key, pool) {
     const [rows] = await pool.query(
         `SELECT id, is_used, expires_at
        FROM s3_upload_tokens
-      WHERE user_id = ? AND s3_key = ?
+      WHERE user_id = $1 AND s3_key = $2
         LIMIT 1`,
         [userId, s3Key]
     );
@@ -159,7 +164,7 @@ export async function confirmUpload(userId, s3Key, pool) {
 
     const token = rows[0];
 
-    if (token.is_used === 1) {
+    if (token.is_used === true) {
         throw Object.assign(new Error('Token already used.'), { status: 409 });
     }
 
@@ -169,9 +174,9 @@ export async function confirmUpload(userId, s3Key, pool) {
     }
 
     // Update token to used
-    console.log(`[Uploads Service] S3 Token Validated.Updating is_used = 1 in DB for ID:${token.id} `);
+    console.log(`[Uploads Service] S3 Token Validated.Updating is_used = true in DB for ID:${token.id} `);
     await pool.query(
-        `UPDATE s3_upload_tokens SET is_used = 1 WHERE id = ? `,
+        `UPDATE s3_upload_tokens SET is_used = true WHERE id = $1`,
         [token.id]
     );
 

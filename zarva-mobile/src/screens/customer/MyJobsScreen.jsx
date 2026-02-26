@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     filterText: { color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium, letterSpacing: tracking.caption },
     filterTextActive: { color: colors.text.primary, fontWeight: fontWeight.bold },
 
-    listContent: { padding: spacing[24], paddingBottom: 100 },
+    listContent: { padding: spacing[24], paddingBottom: 120 },
     card: { padding: spacing[24], gap: spacing[16], marginBottom: spacing[24] },
     cardTop: { flexDirection: 'row', alignItems: 'center', gap: spacing[16] },
     jobTypeBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     },
     workerBrief: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     workerAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.elevated },
-    workerLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    workerLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     workerName: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.semibold },
     searchingTxt: { color: colors.accent.primary, fontSize: 11, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
 

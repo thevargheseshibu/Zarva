@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.surface
     },
-    metricTagTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
+    metricTagTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
 
     emptyBox: {
         padding: spacing[48],

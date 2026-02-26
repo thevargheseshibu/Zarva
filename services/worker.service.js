@@ -27,7 +27,7 @@ function validateSkills(skills) {
  * Upgrades user role (if not already worker) and creates draft profile.
  */
 export async function startOnboarding(userId, pool) {
-    const [users] = await pool.query('SELECT role FROM users WHERE id = ?', [userId]);
+    const [users] = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
     if (!users.length) throw Object.assign(new Error('User not found'), { status: 404 });
 
     const currentRole = users[0].role;
@@ -36,16 +36,16 @@ export async function startOnboarding(userId, pool) {
     }
 
     // Attempt to grab name from customer profile if it exists
-    const [custRows] = await pool.query('SELECT name FROM customer_profiles WHERE user_id = ?', [userId]);
+    const [custRows] = await pool.query('SELECT name FROM customer_profiles WHERE user_id = $1', [userId]);
     const defaultName = custRows[0]?.name || 'Pending Onboarding';
 
     // 1. Upgrade Role
-    await pool.query("UPDATE users SET role = 'worker' WHERE id = ?", [userId]);
+    await pool.query("UPDATE users SET role = 'worker' WHERE id = $1", [userId]);
 
-    // 2. Create Draft Profile (INSERT IGNORE in case they restarted)
+    // 2. Create Draft Profile
     await pool.query(
-        `INSERT IGNORE INTO worker_profiles (user_id, name, category, kyc_status)
-     VALUES (?, ?, 'service partner', 'draft')`,
+        `INSERT INTO worker_profiles (user_id, name, category, kyc_status)
+     VALUES ($1, $2, 'service partner', 'draft') ON CONFLICT (user_id) DO NOTHING`,
         [userId, defaultName]
     );
 
@@ -59,7 +59,7 @@ export async function startOnboarding(userId, pool) {
 export async function updateProfile(userId, profileData, pool) {
     const { gender, skills, experience_years, service_range } = profileData;
 
-    const [rows] = await pool.query('SELECT * FROM worker_profiles WHERE user_id = ?', [userId]);
+    const [rows] = await pool.query('SELECT * FROM worker_profiles WHERE user_id = $1', [userId]);
     if (!rows.length) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
 
     const wp = rows[0];
@@ -85,14 +85,14 @@ export async function updateProfile(userId, profileData, pool) {
     // Update profile
     await pool.query(
         `UPDATE worker_profiles 
-        SET gender = ?, skills = ?, experience_years = ?, service_range = ? 
-      WHERE user_id = ?`,
+        SET gender = $1, skills = $2, experience_years = $3, service_range = $4 
+      WHERE user_id = $5`,
         [newGender, JSON.stringify(newSkills), newExp, newRange, userId]
     );
 
     // Progress status if it was draft
     if (wp.kyc_status === 'draft') {
-        await pool.query("UPDATE worker_profiles SET kyc_status = 'documents_pending' WHERE user_id = ?", [userId]);
+        await pool.query("UPDATE worker_profiles SET kyc_status = 'documents_pending' WHERE user_id = $1", [userId]);
     }
 
     return { success: true };
@@ -122,7 +122,7 @@ export async function updatePayment(userId, paymentData, pool) {
     }
 
     await pool.query(
-        `UPDATE worker_profiles SET payment_method = ?, payment_details = ? WHERE user_id = ?`,
+        `UPDATE worker_profiles SET payment_method = $1, payment_details = $2 WHERE user_id = $3`,
         [payment_method, JSON.stringify(payment_details), userId]
     );
 
@@ -146,10 +146,10 @@ export async function submitDocuments(userId, docs, pool) {
 
     const keysToVerify = [aadhar_front_key, aadhar_back_key, photo_key];
 
-    // Verify all keys belong to user and are confirmed (is_used = 1)
+    // Verify all keys belong to user and are confirmed (is_used = true)
     const [tokens] = await pool.query(
         `SELECT s3_key FROM s3_upload_tokens 
-      WHERE user_id = ? AND is_used = 1 AND s3_key IN (?, ?, ?)`,
+      WHERE user_id = $1 AND is_used = true AND s3_key IN ($2, $3, $4)`,
         [userId, ...keysToVerify]
     );
 
@@ -161,18 +161,18 @@ export async function submitDocuments(userId, docs, pool) {
     console.log(`[Worker Onboarding] Valid S3 keys matched for U:${userId}. Inserting into worker_documents schema.`);
 
     // Insert into worker_documents
-    // (IGNORE in case they repeatedly submit)
     await pool.query(
-        `INSERT IGNORE INTO worker_documents (worker_id, doc_type, s3_key) VALUES 
-      (?, 'aadhaar_front', ?),
-      (?, 'aadhaar_back', ?),
-      (?, 'selfie', ?)`,
+        `INSERT INTO worker_documents (worker_id, doc_type, s3_key) VALUES 
+      ($1, 'aadhaar_front', $2),
+      ($3, 'aadhaar_back', $4),
+      ($5, 'selfie', $6)
+      ON CONFLICT (worker_id, doc_type) DO NOTHING`,
         [userId, aadhar_front_key, userId, aadhar_back_key, userId, photo_key]
     );
 
     // Update status and aadhaar_number
     console.log(`[Worker Onboarding] Documents Saved. Progressing pipeline to pending_review for U:${userId}`);
-    await pool.query(`UPDATE worker_profiles SET kyc_status = 'pending_review', aadhar_number = ? WHERE user_id = ?`, [aadhar_number || null, userId]);
+    await pool.query(`UPDATE worker_profiles SET kyc_status = 'pending_review', aadhar_number_last4 = $1 WHERE user_id = $2`, [aadhar_number ? aadhar_number.slice(-4) : null, userId]);
 
     return { success: true };
 }
@@ -185,7 +185,7 @@ export async function agreeToTerms(userId, nameTyped, ipAddress, pool) {
         throw Object.assign(new Error('You must type your name to agree.'), { status: 400 });
     }
 
-    const [profiles] = await pool.query('SELECT name FROM worker_profiles WHERE user_id = ?', [userId]);
+    const [profiles] = await pool.query('SELECT name FROM worker_profiles WHERE user_id = $1', [userId]);
     if (!profiles.length) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
 
     const profileName = profiles[0].name;
@@ -194,9 +194,9 @@ export async function agreeToTerms(userId, nameTyped, ipAddress, pool) {
     }
 
     await pool.query(
-        `INSERT INTO worker_agreements (worker_id, name_typed, version, ip_address)
-     VALUES (?, ?, 'v1.0', ?)`,
-        [userId, nameTyped.trim(), ipAddress]
+        `INSERT INTO worker_agreements (worker_id, version, ip_address)
+     VALUES ($1, 'v1.0', $2)`,
+        [userId, ipAddress]
     );
 
     return { agreed: true, message: 'Application submitted for review' };
@@ -206,7 +206,7 @@ export async function agreeToTerms(userId, nameTyped, ipAddress, pool) {
  * 6. Get Onboarding Status
  */
 export async function getOnboardingStatus(userId, pool) {
-    const [profiles] = await pool.query('SELECT kyc_status, is_verified, payment_method, payment_details FROM worker_profiles WHERE user_id = ?', [userId]);
+    const [profiles] = await pool.query('SELECT kyc_status, is_verified, payment_method, payment_details FROM worker_profiles WHERE user_id = $1', [userId]);
 
     if (!profiles.length) {
         return {
@@ -219,12 +219,12 @@ export async function getOnboardingStatus(userId, pool) {
     const prof = profiles[0];
 
     // Check docs
-    const [docs] = await pool.query('SELECT COUNT(*) as count FROM worker_documents WHERE worker_id = ?', [userId]);
-    const hasDocs = docs[0].count >= 3;
+    const [docs] = await pool.query('SELECT COUNT(*) as count FROM worker_documents WHERE worker_id = $1', [userId]);
+    const hasDocs = parseInt(docs[0].count, 10) >= 3;
 
     // Check agreement
-    const [agreements] = await pool.query('SELECT COUNT(*) as count FROM worker_agreements WHERE worker_id = ?', [userId]);
-    const hasAgreement = agreements[0].count >= 1;
+    const [agreements] = await pool.query('SELECT COUNT(*) as count FROM worker_agreements WHERE worker_id = $1', [userId]);
+    const hasAgreement = parseInt(agreements[0].count, 10) >= 1;
 
     // Profile is complete if it moved past draft (though could be more strict)
     const isProfileComplete = prof.kyc_status !== 'draft';

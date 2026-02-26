@@ -8,7 +8,7 @@ import PressableAnimated from '../design-system/components/PressableAnimated';
 import Card from './Card';
 import FadeInView from './FadeInView';
 
-export default function LocationInput({ onChange, initialData = {} }) {
+export default function LocationInput({ onChange, onLoading, initialData = {} }) {
     const [loading, setLoading] = useState(false);
     const [gpsText, setGpsText] = useState('');
 
@@ -30,7 +30,7 @@ export default function LocationInput({ onChange, initialData = {} }) {
     useEffect(() => {
         const emitChange = () => {
             const isValidPincode = /^\d{6}$/.test(fields.pincode);
-            const isValid = !!(fields.street && fields.city && fields.state && isValidPincode);
+            const isValid = !!(fields.house && fields.street && fields.city && fields.state && isValidPincode);
 
             const fullAddress = [
                 fields.house, fields.street, fields.landmark,
@@ -56,6 +56,7 @@ export default function LocationInput({ onChange, initialData = {} }) {
                 return;
             }
             setLoading(true);
+            if (onLoading) onLoading(true);
             const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
 
             setCoords({
@@ -88,6 +89,7 @@ export default function LocationInput({ onChange, initialData = {} }) {
             Alert.alert('Could not get location', 'Please type your address manually.');
         } finally {
             setLoading(false);
+            if (onLoading) onLoading(false);
         }
     };
 
@@ -97,14 +99,10 @@ export default function LocationInput({ onChange, initialData = {} }) {
         <View style={styles.container}>
             <FadeInView delay={100}>
                 <PressableAnimated style={styles.gpsBtn} onPress={handleGpsPress} disabled={loading}>
-                    {loading ? (
-                        <ActivityIndicator size="small" color={colors.accent.primary} />
-                    ) : (
-                        <View style={styles.gpsBtnContent}>
-                            <Text style={styles.gpsIcon}>📍</Text>
-                            <Text style={styles.gpsTxt}>Use Current Location</Text>
-                        </View>
-                    )}
+                    <View style={styles.gpsBtnContent}>
+                        <Text style={styles.gpsIcon}>📍</Text>
+                        <Text style={styles.gpsTxt}>Use Current Location</Text>
+                    </View>
                 </PressableAnimated>
                 {gpsText ? <Text style={styles.gpsReadout}>{gpsText}</Text> : null}
             </FadeInView>
@@ -115,7 +113,7 @@ export default function LocationInput({ onChange, initialData = {} }) {
 
                     <TextInput
                         style={styles.input}
-                        placeholder="House / Flat No."
+                        placeholder="House / Flat No. *"
                         placeholderTextColor={colors.text.muted}
                         value={fields.house}
                         onChangeText={(val) => updateField('house', val)}

@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     clientAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent.primary + '11', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.accent.border + '22' },
     avatarTxt: { color: colors.accent.primary, fontSize: 20, fontWeight: '900' },
     clientInfo: { gap: 2 },
-    clientLabel: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    clientLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
     clientName: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold },
     categoryTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
 
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
         borderColor: colors.surface
     },
     locLeft: { flex: 1, gap: 4 },
-    locLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    locLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     locAddress: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
     navBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent.primary + '22', justifyContent: 'center', alignItems: 'center' },
     navBtnIcon: { fontSize: 16 },
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     actionSub: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center', lineHeight: 20, marginBottom: spacing[24] },
 
     otpWrap: { width: '100%', marginBottom: spacing[24] },
-    expiryTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, marginTop: 16, letterSpacing: 1 },
+    expiryTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, marginTop: 16, letterSpacing: 1 },
 
     timerBox: { alignItems: 'center', gap: 12, marginBottom: spacing[24] },
     timerValue: { color: colors.text.primary, fontSize: 56, fontWeight: '900', letterSpacing: 2 },
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
         borderRadius: radius.full
     },
     liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent.primary },
-    liveTxt: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    liveTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
 
     endOtpBox: {
         backgroundColor: colors.elevated,

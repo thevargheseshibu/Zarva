@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     },
     headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
     headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
-    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    headerSub: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
     headerTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '900', letterSpacing: tracking.body },
 
     scrollContent: { padding: spacing[24], gap: 32, paddingBottom: 100 },
@@ -147,5 +147,5 @@ const styles = StyleSheet.create({
     tipAccent: { color: colors.text.primary, fontWeight: fontWeight.bold },
 
     footer: { marginTop: 40, alignItems: 'center' },
-    footerTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 }
+    footerTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 }
 });

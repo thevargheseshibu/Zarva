@@ -51,7 +51,7 @@ async function logNotification(pool, userId, status, title, body, data = {}, cha
         await pool.query(
             `INSERT INTO notification_log
                (user_id, actor_role, type, channel, title, body, data, status, sent_at)
-             VALUES (?, 'admin', 'push', ?, ?, ?, ?, ?,
+             VALUES ($1, 'admin', 'push', $2, $3, $4, $5, $6,
                ${status === 'sent' ? 'NOW()' : 'NULL'})`,
             [userId, channel, title, body, JSON.stringify(data), status]
         );
@@ -74,7 +74,7 @@ async function logNotification(pool, userId, status, title, body, data = {}, cha
 export async function sendFCM(userId, title, body, data = {}) {
     const pool = getPool();
     const [users] = await pool.query(
-        'SELECT fcm_token, language FROM users WHERE id=?', [userId]
+        'SELECT fcm_token, language_preference FROM users WHERE id=$1', [userId]
     );
     const user = users[0];
     if (!user) return;
@@ -112,7 +112,7 @@ export async function sendFCM(userId, title, body, data = {}) {
 
         // Stale token — clear it so we don't retry indefinitely
         if (err.code === 'messaging/registration-token-not-registered') {
-            await pool.query('UPDATE users SET fcm_token=NULL WHERE id=?', [userId]);
+            await pool.query('UPDATE users SET fcm_token=NULL WHERE id=$1', [userId]);
             console.warn(`[FCM] Stale token cleared for userId=${userId}`);
         }
     }
@@ -122,8 +122,8 @@ export async function sendFCM(userId, title, body, data = {}) {
 
 async function sendTemplated(userId, event, vars = {}, extraData = {}) {
     const pool = getPool();
-    const [rows] = await pool.query('SELECT language FROM users WHERE id=?', [userId]);
-    const lang = rows[0]?.language || 'en';
+    const [rows] = await pool.query('SELECT language_preference FROM users WHERE id=$1', [userId]);
+    const lang = rows[0]?.language_preference || 'en';
     const { title, body } = resolveTemplate(event, lang, vars);
     await sendFCM(userId, title, body, { event, ...extraData });
 }
@@ -135,7 +135,7 @@ async function sendTemplated(userId, event, vars = {}, extraData = {}) {
  */
 export async function notifyWorkersNewJob(jobId, workerIds) {
     const pool = getPool();
-    const [jobs] = await pool.query('SELECT category, latitude, longitude FROM jobs WHERE id=?', [jobId]);
+    const [jobs] = await pool.query('SELECT category, latitude, longitude FROM jobs WHERE id=$1', [jobId]);
     const job = jobs[0];
     if (!job) return;
 
@@ -156,7 +156,7 @@ export async function notifyCustomerWorkerFound(jobId) {
         `SELECT j.customer_id, COALESCE(wp.name, 'Worker') AS worker_name
          FROM jobs j
          LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
-         WHERE j.id=?`, [jobId]
+         WHERE j.id=$1`, [jobId]
     );
     const job = jobs[0];
     if (!job) return;
@@ -175,7 +175,7 @@ export async function notifyCustomerWorkerArrived(jobId, startOtp) {
         `SELECT j.customer_id, COALESCE(wp.name, 'Worker') AS worker_name
          FROM jobs j
          LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
-         WHERE j.id=?`, [jobId]
+         WHERE j.id=$1`, [jobId]
     );
     const job = jobs[0];
     if (!job) return;
@@ -191,7 +191,7 @@ export async function notifyCustomerWorkerArrived(jobId, startOtp) {
 export async function notifyWorkersJobTaken(jobId, acceptedWorkerId) {
     const pool = getPool();
     const [notified] = await pool.query(
-        `SELECT worker_id FROM job_worker_notifications WHERE job_id=? AND worker_id != ?`,
+        `SELECT worker_id FROM job_worker_notifications WHERE job_id=$1 AND worker_id != $2`,
         [jobId, acceptedWorkerId]
     );
     await Promise.allSettled(notified.map(r =>
@@ -204,7 +204,7 @@ export async function notifyWorkersJobTaken(jobId, acceptedWorkerId) {
  */
 export async function notifyJobCompleted(jobId) {
     const pool = getPool();
-    const [jobs] = await pool.query('SELECT customer_id, worker_id FROM jobs WHERE id=?', [jobId]);
+    const [jobs] = await pool.query('SELECT customer_id, worker_id FROM jobs WHERE id=$1', [jobId]);
     const job = jobs[0];
     if (!job) return;
     await Promise.allSettled([
@@ -228,7 +228,7 @@ export async function notifyPaymentReceived(workerId, amount, jobId) {
  */
 export async function notifyJobCancelled(jobId, cancelledBy) {
     const pool = getPool();
-    const [jobs] = await pool.query('SELECT customer_id, worker_id FROM jobs WHERE id=?', [jobId]);
+    const [jobs] = await pool.query('SELECT customer_id, worker_id FROM jobs WHERE id=$1', [jobId]);
     const job = jobs[0];
     if (!job) return;
 
@@ -261,13 +261,27 @@ export async function notifyWorkerApproved(workerId) {
  */
 export async function notifyDisputeRaised(jobId) {
     const pool = getPool();
-    const [jobs] = await pool.query('SELECT customer_id, worker_id FROM jobs WHERE id=?', [jobId]);
+    const [jobs] = await pool.query('SELECT customer_id, worker_id FROM jobs WHERE id=$1', [jobId]);
     const job = jobs[0];
     if (!job) return;
     await Promise.allSettled([
         sendTemplated(job.customer_id, 'dispute_raised', { job_id: jobId }, { job_id: String(jobId) }),
         sendTemplated(job.worker_id, 'dispute_raised', { job_id: jobId }, { job_id: String(jobId) })
     ]);
+}
+
+/**
+ * Notify User of Ticket Resolution
+ */
+export async function notifyTicketResolved(userId, ticketNumber, ticketId) {
+    await sendFCM(userId, 'Ticket Resolved', `Your ticket ${ticketNumber} has been resolved.`, { type: 'ticket_resolved', ticket_id: ticketId });
+}
+
+/**
+ * Notify User of a New Chat Message on their Ticket
+ */
+export async function notifyTicketMessage(userId, ticketNumber, ticketId) {
+    await sendFCM(userId, 'New Message', `You have a new message on ticket ${ticketNumber}.`, { type: 'ticket_message', ticket_id: ticketId });
 }
 
 export { resolveTemplate };

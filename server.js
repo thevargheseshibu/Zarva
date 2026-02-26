@@ -21,10 +21,12 @@ import authWhatsappRouter from './routes/auth_whatsapp.js';
 import meRouter from './routes/me.js';
 import uploadsRouter from './routes/uploads.js';
 import workerRouter from './routes/worker.js';
+import coverageRouter from './routes/coverage.js';
 import jobsRouter from './routes/jobs.js';
 import paymentRouter from './routes/payment.js';
 import reviewsRouter from './routes/reviews.js';
 import chatRouter from './routes/chat.js';
+import supportRouter from './routes/support/index.js';
 import {
     generalLimiter,
     authenticateJWT,
@@ -48,6 +50,19 @@ async function bootstrap() {
     const app = express();
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
+
+    // Manual CORS middleware (since we don't have the 'cors' package installed)
+    app.use((req, res, next) => {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+
+        // Handle preflight
+        if (req.method === 'OPTIONS') {
+            return res.sendStatus(200);
+        }
+        next();
+    });
 
     // Global Request Logger to track all Events
     app.use((req, res, next) => {
@@ -77,9 +92,11 @@ async function bootstrap() {
     app.use('/api/whatsapp', authWhatsappRouter); // public - WhatsApp OTP handler
     app.use('/api/me', meRouter);     // protected — requires valid JWT
     app.use('/api/payment', paymentRouter);     // protected — requires valid JWT
+    app.use('/api/coverage', coverageRouter);    // protected — requires valid JWT
     app.use('/api/reviews', reviewsRouter);      // protected — requires valid JWT
     app.use('/api/uploads', uploadsRouter); // protected — requires valid JWT
     app.use('/api/worker', workerRouter);   // protected — requires valid JWT
+    app.use('/api/support', supportRouter); // protected — requires valid JWT
     app.use('/api/jobs/:jobId/chat', chatRouter); // Specific route first
     app.use('/api/jobs', jobsRouter);       // General route second
 

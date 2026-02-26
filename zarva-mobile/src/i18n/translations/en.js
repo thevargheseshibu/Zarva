@@ -285,6 +285,10 @@ export default {
     categories: 'CATEGORIES',
     recent_activity: 'Recent Activity',
     view_all: 'View All',
+    not_available_yet: 'Beyond Our Reach... For Now',
+    not_available_desc: "We don't have professionals available in {{location}} just yet. Our expansion team is working hard to bring Zarva to your doorstep soon!",
+    try_another_location: 'Try Another Location',
+    expanding_rapidly: '✨ EXPANDING RAPIDLY',
     // ... DynamicQuestions
 
     // ── Dynamic Questions Screen ─────────────────────
@@ -479,7 +483,9 @@ export default {
 
     // ── Language Screen ───────────────────────────────
     choose_language_title: 'Choose your language',
-    search_language: 'Search language...',
+    search_language: 'Search all languages...',
+    featured_languages: 'FEATURED',
+    view_all_languages: 'Explore more languages...',
 
     // ── Auth & Onboarding ─────────────────────────────
     phone_entry_title: 'Enter your number',
@@ -487,6 +493,10 @@ export default {
     get_otp_whatsapp: 'Get OTP via WhatsApp',
     get_otp_sms: 'Get OTP via SMS',
     sending: 'Sending...',
+    fetching_competencies: 'Initializing Skills Matrix...',
+    processing_payment: 'Initializing Settlement...',
+    initializing_agreement: 'Synchronizing Agreement...',
+    fetching_location: 'Acquiring Coordinates...',
     terms_text_1: "By continuing, you agree to ZARVA's",
     terms_text_2: 'Terms of Service',
     terms_text_3: 'and',
@@ -553,24 +563,6 @@ export default {
     total_amount: 'Total Amount',
     advance: 'Advance',
     find_worker: 'Find Worker',
-
-    // ── Job Searching / Radar ─────────────────────────
-    finding_workers_nearby: 'Finding workers nearby',
-    please_wait: 'Please wait...',
-    no_workers_found: 'No Workers Nearby',
-    no_workers_desc: "We couldn't find an available {{category}} in your area right now. Try adjusting your location or checking back in a few minutes.",
-    return_home: 'Return Home',
-    searching_for: 'Searching for {{category}}',
-    searching_sub: 'Optimizing provider matching for your location',
-    wave: 'WAVE',
-    contacting_providers: 'Contacting nearest providers...',
-    expanding_search: 'Expanding search radius...',
-    priority_matching: 'Requesting priority matching...',
-    minimize_info: 'You can minimize in {{seconds}}s',
-    continue_background: 'Continue in Background',
-    cancel_request_title: 'Cancel Request?',
-    cancel_request_msg: 'Changing your mind? This will cancel your service request.',
-    keep_waiting: 'Keep Waiting',
 
     // ── Job Status Labels ─────────────────────────────
     status_open: 'Open',

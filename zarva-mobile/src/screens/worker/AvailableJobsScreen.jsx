@@ -11,6 +11,7 @@ import { useWorkerStore } from '../../stores/workerStore';
 import FadeInView from '../../components/FadeInView';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
+import MainBackground from '../../components/MainBackground';
 import { colors, radius, spacing, shadows } from '../../design-system/tokens';
 import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 import { haversineKm, formatDistance } from '../../utils/distance';
@@ -145,18 +146,20 @@ export default function AvailableJobsScreen({ navigation }) {
 
     if (!isOnline) {
         return (
-            <View style={styles.offlineScreen}>
-                <FadeInView delay={100} style={styles.offlineContent}>
-                    <Text style={styles.offlineIcon}>🌘</Text>
-                    <Text style={styles.offlineTitle}>{t('currently_inactive')}</Text>
-                    <Text style={styles.offlineSub}>{t('go_online_desc')}</Text>
-                </FadeInView>
-            </View>
+            <MainBackground>
+                <View style={styles.offlineScreen}>
+                    <FadeInView delay={100} style={styles.offlineContent}>
+                        <Text style={styles.offlineIcon}>🌘</Text>
+                        <Text style={styles.offlineTitle}>{t('currently_inactive')}</Text>
+                        <Text style={styles.offlineSub}>{t('go_online_desc')}</Text>
+                    </FadeInView>
+                </View>
+            </MainBackground>
         );
     }
 
     return (
-        <View style={styles.screen}>
+        <MainBackground>
             {/* Header */}
             <View style={styles.header}>
                 <View>
@@ -240,12 +243,12 @@ export default function AvailableJobsScreen({ navigation }) {
                     );
                 }}
             />
-        </View>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+    screen: { flex: 1 },
     header: {
         paddingTop: 60,
         paddingHorizontal: spacing[24],
@@ -254,7 +257,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingBottom: spacing[24]
     },
-    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    headerSub: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
     headerTitle: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero },
     countBadge: {
         backgroundColor: colors.accent.primary + '11',
@@ -292,7 +295,7 @@ const styles = StyleSheet.create({
     },
     sortChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.md },
     sortChipActive: { backgroundColor: colors.elevated },
-    sortTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    sortTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     sortTxtActive: { color: colors.accent.primary },
 
     listContent: { padding: spacing[24], paddingBottom: 120, gap: spacing[16], flexGrow: 1 },
@@ -310,7 +313,7 @@ const styles = StyleSheet.create({
     statTxt: { color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
 
     rewardBox: { alignItems: 'flex-end', gap: 2 },
-    rewardLabel: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    rewardLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     rewardVal: { color: colors.text.primary, fontSize: 24, fontWeight: '900' },
 
     cardFooter: {
@@ -324,7 +327,7 @@ const styles = StyleSheet.create({
     clientLabel: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.medium },
     viewMore: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
 
-    offlineScreen: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: spacing[40] },
+    offlineScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing[40] },
     offlineContent: { alignItems: 'center', gap: spacing[16] },
     offlineIcon: { fontSize: 64, marginBottom: 8 },
     offlineTitle: { color: colors.text.primary, fontSize: 24, fontWeight: '900', textAlign: 'center' },

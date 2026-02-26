@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     initials: {
-        color: colors.gold.primary,
+        color: colors.accent.primary,
         fontSize: fontSize.md,
         fontWeight: fontWeight.bold,
     },
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
     },
     row: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-    star: { color: colors.gold.primary, fontSize: fontSize.sm },
+    star: { color: colors.accent.primary, fontSize: fontSize.sm },
     rating: { color: colors.text.secondary, fontSize: fontSize.sm },
     chip: {
         marginTop: spacing.xs,
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
         textTransform: 'capitalize',
     },
     distance: {
-        color: colors.gold.muted,
+        color: colors.accent.muted,
         fontSize: fontSize.sm,
         fontWeight: fontWeight.medium,
     },

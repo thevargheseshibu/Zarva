@@ -9,16 +9,45 @@
 import axios from 'axios';
 import { Alert, Platform } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
+import { useUIStore } from '../../stores/uiStore';
 import Constants from 'expo-constants';
 
-let BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+let BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 
-if (!BASE_URL && __DEV__) {
-    const hostUri = Constants?.expoConfig?.hostUri;
-    if (hostUri) {
-        BASE_URL = `http://${hostUri.split(':')[0]}:3000`;
-    } else {
-        BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+if (__DEV__) {
+    const expoConfig = Constants?.expoConfig || Constants?.manifest || {};
+    const hostUri = expoConfig.hostUri;
+    const debuggerHost = expoConfig.debuggerHost;
+
+    // In dev, we usually want to connect to the machine running Metro
+    // We treat 'localhost' or '127.0.0.1' as a signal that we need to resolve the machine IP
+    const needsResolution = !BASE_URL || BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1');
+
+    console.log('[api/client] Environment:', {
+        BASE_URL,
+        hostUri,
+        debuggerHost,
+        os: Platform.OS,
+        needsResolution
+    });
+
+    if (needsResolution) {
+        let detectedIP = null;
+        if (hostUri) detectedIP = hostUri.split(':')[0];
+        else if (debuggerHost) detectedIP = debuggerHost.split(':')[0];
+
+        if (detectedIP && detectedIP !== 'localhost' && detectedIP !== '127.0.0.1' && !process.env.EXPO_PUBLIC_API_URL?.includes('localhost')) {
+            BASE_URL = `http://${detectedIP}:3000`;
+            console.log('[api/client] 🚀 Resolved to Metro machine IP:', BASE_URL);
+        } else if (Platform.OS === 'android' && !process.env.EXPO_PUBLIC_API_URL?.includes('localhost')) {
+            // 10.0.2.2 is the special alias to your host loopback interface for Android Emulators
+            BASE_URL = 'http://10.0.2.2:3000';
+            console.log('[api/client] 🤖 Resolved to Android Emulator host alias:', BASE_URL);
+        } else {
+            // Fallback for iOS simulator, adb reverse, or when IP detection fails
+            BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+            console.log('[api/client] 🔌 Using configured/default URL (supporting adb reverse):', BASE_URL);
+        }
     }
 } else if (!BASE_URL) {
     BASE_URL = 'http://localhost:3000';
@@ -30,22 +59,40 @@ const apiClient = axios.create({
     headers: { 'Content-Type': 'application/json' },
 });
 
-// ── Request interceptor: attach JWT ─────────────────────────────────────────
+// ── Request interceptor: attach JWT & Global Loader ─────────────────────────
 apiClient.interceptors.request.use(
     (config) => {
         const token = useAuthStore.getState().token;
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+
+        // Show Global Loader for mutation requests unless explicitly opted-out or specifically excluded
+        const method = config.method?.toLowerCase();
+        const isMutation = ['post', 'put', 'delete'].includes(method);
+        const isBackground = config.url?.includes('/location') || config.url?.includes('/presence') || config.url?.includes('/metrics');
+
+        if (isMutation && !isBackground && config.useLoader !== false) {
+            useUIStore.getState().showLoader(config.loaderMessage || 'Processing...');
+        }
+
         return config;
     },
-    (error) => Promise.reject(error)
+    (error) => {
+        useUIStore.getState().hideLoader();
+        return Promise.reject(error);
+    }
 );
 
-// ── Response interceptor: handle 401 / 429 & Retry ────────────────────────
+// ── Response interceptor: handle 401 / 429 & Retry & Loader ──────────────────
 apiClient.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        useUIStore.getState().hideLoader();
+        return response;
+    },
     async (error) => {
+        useUIStore.getState().hideLoader();
+
         const status = error?.response?.status;
         const originalRequest = error.config;
 
@@ -53,6 +100,13 @@ apiClient.interceptors.response.use(
         if ((!status || status >= 500) && originalRequest && !originalRequest._retry) {
             originalRequest._retry = true;
             try {
+                // Restore loader for retry if it was active
+                if (originalRequest.useLoader !== false) {
+                    const method = originalRequest.method?.toLowerCase();
+                    if (['post', 'put', 'delete'].includes(method)) {
+                        useUIStore.getState().showLoader(originalRequest.loaderMessage || 'Retrying...');
+                    }
+                }
                 return await apiClient(originalRequest);
             } catch (retryError) {
                 return Promise.reject(retryError);
@@ -70,7 +124,6 @@ apiClient.interceptors.response.use(
                 [{ text: 'OK' }]
             );
         }
-        // Only show global alert for unexpected 5xx errors, not 4xx which screens handle locally
         else if (error?.response?.data?.message && status >= 500) {
             Alert.alert('Server Error', error.response.data.message, [{ text: 'OK' }]);
         }

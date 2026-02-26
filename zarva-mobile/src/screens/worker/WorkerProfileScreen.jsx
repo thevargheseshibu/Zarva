@@ -13,6 +13,7 @@ import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
 import MapPickerModal from '../../components/MapPickerModal';
+import MainBackground from '../../components/MainBackground';
 import { colors, radius, spacing, shadows } from '../../design-system/tokens';
 import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
@@ -116,7 +117,7 @@ export default function WorkerProfileScreen({ navigation }) {
     };
 
     return (
-        <View style={styles.screen}>
+        <MainBackground>
             {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>{t('pro_identity')}</Text>
@@ -245,6 +246,19 @@ export default function WorkerProfileScreen({ navigation }) {
                             </View>
                             <Text style={styles.rowChevron}>›</Text>
                         </PressableAnimated>
+
+                        <View style={styles.innerDivider} />
+
+                        <PressableAnimated style={styles.settingRow} onPress={() => navigation.navigate('Support')}>
+                            <View style={styles.rowIcon}>
+                                <Text style={styles.iconTxt}>💬</Text>
+                            </View>
+                            <View style={styles.rowInfo}>
+                                <Text style={styles.rowTitle}>{t('help_center', { defaultValue: 'Help Center' })}</Text>
+                                <Text style={styles.rowSub}>{t('support_disputes', { defaultValue: 'Support & Disputes' })}</Text>
+                            </View>
+                            <Text style={styles.rowChevron}>›</Text>
+                        </PressableAnimated>
                     </Card>
                 </FadeInView>
 
@@ -319,12 +333,12 @@ export default function WorkerProfileScreen({ navigation }) {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 }}
             />
-        </View>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+    screen: { flex: 1 },
     header: {
         paddingTop: 60,
         paddingHorizontal: spacing[24],
@@ -364,7 +378,7 @@ const styles = StyleSheet.create({
     metricsGrid: { flexDirection: 'row', alignItems: 'center', marginTop: 32, gap: 32 },
     metricItem: { alignItems: 'center', gap: 4 },
     metricVal: { color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold },
-    metricLbl: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    metricLbl: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     metricDivider: { width: 1, height: 32, backgroundColor: colors.surface },
 
     section: { gap: 16 },
@@ -401,7 +415,7 @@ const styles = StyleSheet.create({
     emptySkills: { color: colors.text.muted, fontSize: 10, fontStyle: 'italic', textAlign: 'center', width: '100%' },
 
     authFooter: { alignItems: 'center', gap: 16, paddingVertical: 20 },
-    appMetadata: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    appMetadata: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
 
     modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 24 },
     modernModal: { backgroundColor: colors.surface, borderRadius: radius.xxl, padding: 24, maxHeight: '70%', borderWidth: 1, borderColor: colors.accent.border + '11' },

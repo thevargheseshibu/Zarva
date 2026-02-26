@@ -6,10 +6,12 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, UIManager, Platform, Alert } from 'react-native';
 
 import { colors, spacing, radius } from '../../design-system/tokens';
-import GoldButton from '../../components/GoldButton';
+import PremiumButton from '../../components/PremiumButton';
 import { useAuthStore } from '../../stores/authStore';
 import apiClient from '../../services/api/client';
 import { useT } from '../../hooks/useT';
+import MainBackground from '../../components/MainBackground';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function RoleSelection() {
     const [selected, setSelected] = useState(null);
@@ -66,51 +68,61 @@ export default function RoleSelection() {
     };
 
     return (
-        <View style={styles.screen}>
-            <Text style={styles.title}>{t('choose_role')}</Text>
+        <MainBackground>
+            <View style={styles.content}>
+                <Text style={styles.title}>{t('choose_role')}</Text>
 
-            <View style={styles.cards}>
-                {ROLES.map((r) => {
-                    const isSelected = selected === r.role;
-                    return (
-                        <TouchableOpacity
-                            key={r.role}
-                            style={[styles.card, isSelected && styles.cardSelected]}
-                            onPress={() => {
-                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                                setSelected(r.role);
-                            }}
-                            activeOpacity={0.85}
-                        >
-                            <Text style={styles.icon}>{r.icon}</Text>
-                            <View style={styles.cardText}>
-                                <Text style={[styles.cardTitle, isSelected && styles.cardTitleActive]}>
-                                    {r.title}
-                                </Text>
-                                <Text style={styles.cardSub}>{r.sub}</Text>
-                            </View>
-                            <View style={[styles.radio, isSelected && styles.radioActive]}>
-                                {isSelected && <View style={styles.radioDot} />}
-                            </View>
-                        </TouchableOpacity>
-                    );
-                })}
+                <View style={styles.cards}>
+                    {ROLES.map((r) => {
+                        const isSelected = selected === r.role;
+                        return (
+                            <TouchableOpacity
+                                key={r.role}
+                                style={[styles.card, isSelected && styles.cardSelected]}
+                                onPress={() => {
+                                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                    setSelected(r.role);
+                                }}
+                                activeOpacity={0.85}
+                            >
+                                {isSelected && (
+                                    <LinearGradient
+                                        colors={['#FF4FA315', '#A855F715']}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={StyleSheet.absoluteFill}
+                                    />
+                                )}
+                                <Text style={styles.icon}>{r.icon}</Text>
+                                <View style={styles.cardText}>
+                                    <Text style={[styles.cardTitle, isSelected && styles.cardTitleActive]}>
+                                        {r.title}
+                                    </Text>
+                                    <Text style={styles.cardSub}>{r.sub}</Text>
+                                </View>
+                                <View style={[styles.radio, isSelected && styles.radioActive]}>
+                                    {isSelected && <View style={styles.radioDot} />}
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+
+                <PremiumButton
+                    title={t('continue')}
+                    disabled={!selected}
+                    loading={loading}
+                    onPress={handleContinue}
+                    style={{ marginTop: spacing.xl }}
+                />
             </View>
-
-            <GoldButton
-                title={t('continue')}
-                disabled={!selected}
-                loading={loading}
-                onPress={handleContinue}
-                style={{ marginTop: spacing.xl }}
-            />
-        </View>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: {
-        flex: 1, backgroundColor: colors.bg.primary,
+    content: {
+        flex: 1,
         paddingHorizontal: spacing.lg, justifyContent: 'center', gap: spacing.sm,
     },
     title: { color: colors.text.primary, fontSize: 30, fontWeight: '800' },
@@ -118,12 +130,12 @@ const styles = StyleSheet.create({
     cards: { gap: spacing.md },
     card: {
         flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-        backgroundColor: colors.bg.elevated, borderRadius: radius.xl,
+        backgroundColor: colors.surface, borderRadius: radius.xl,
         padding: spacing.lg, borderWidth: 1.5, borderColor: 'transparent',
+        overflow: 'hidden'
     },
     cardSelected: {
-        borderColor: colors.gold.primary,
-        backgroundColor: colors.gold.glow,
+        borderColor: colors.accent.primary + '44',
     },
     icon: { fontSize: 40 },
     cardText: { flex: 1 },
@@ -135,9 +147,9 @@ const styles = StyleSheet.create({
         borderWidth: 2, borderColor: colors.text.muted,
         justifyContent: 'center', alignItems: 'center',
     },
-    radioActive: { borderColor: colors.gold.primary },
+    radioActive: { borderColor: colors.accent.primary },
     radioDot: {
         width: 11, height: 11, borderRadius: 5.5,
-        backgroundColor: colors.gold.primary,
+        backgroundColor: colors.accent.primary,
     },
 });

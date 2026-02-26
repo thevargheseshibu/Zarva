@@ -10,6 +10,7 @@ import { colors } from '../design-system/tokens';
 import HomeScreen from '../screens/customer/HomeScreen';
 import MyJobsScreen from '../screens/customer/MyJobsScreen';
 import ProfileScreen from '../screens/customer/CustomerProfileScreen';
+import PremiumTabBar from '../components/PremiumTabBar';
 
 const Tab = createBottomTabNavigator();
 
@@ -19,16 +20,9 @@ const icon = (label) => ({ color }) =>
 export default function CustomerNavigator() {
     return (
         <Tab.Navigator
+            tabBar={props => <PremiumTabBar {...props} />}
             screenOptions={{
                 headerShown: false,
-                tabBarStyle: {
-                    backgroundColor: colors.bg.elevated,
-                    borderTopColor: colors.bg.surface,
-                    height: 62,
-                },
-                tabBarActiveTintColor: colors.gold.primary,
-                tabBarInactiveTintColor: colors.text.muted,
-                tabBarLabelStyle: { fontSize: 11, marginBottom: 6 },
             }}
         >
             <Tab.Screen

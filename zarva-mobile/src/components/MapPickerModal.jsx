@@ -149,7 +149,7 @@ export default function MapPickerModal({ visible, onClose, onSelectLocation, ini
 
                     {loading || !region ? (
                         <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color={colors.gold.primary} />
+                            <ActivityIndicator size="large" color={colors.accent.primary} />
                             <Text style={styles.loadingTxt}>Fetching map...</Text>
                         </View>
                     ) : (
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     hintBox: { position: 'absolute', top: spacing.md, alignSelf: 'center', backgroundColor: colors.bg.elevated, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
     hintTxt: { color: colors.text.primary, fontSize: 12, fontWeight: '600' },
     footer: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.bg.surface, backgroundColor: colors.bg.primary },
-    confirmBtn: { backgroundColor: colors.gold.primary, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
+    confirmBtn: { backgroundColor: colors.accent.primary, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
     confirmBtnDisabled: { opacity: 0.5 },
     confirmTxt: { color: colors.bg.primary, fontSize: 16, fontWeight: '700' }
 });

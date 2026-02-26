@@ -12,6 +12,7 @@ import AvailableJobsScreen from '../screens/worker/AvailableJobsScreen';
 import MyWorkScreen from '../screens/worker/MyWorkScreen';
 import WorkerProfileScreen from '../screens/worker/WorkerProfileScreen';
 import JobAlertBottomSheet from '../components/JobAlertBottomSheet';
+import PremiumTabBar from '../components/PremiumTabBar';
 import { useNavigation } from '@react-navigation/native';
 
 const Tab = createBottomTabNavigator();
@@ -24,16 +25,9 @@ export default function WorkerNavigator() {
     return (
         <>
             <Tab.Navigator
+                tabBar={props => <PremiumTabBar {...props} />}
                 screenOptions={{
                     headerShown: false,
-                    tabBarStyle: {
-                        backgroundColor: colors.bg.elevated,
-                        borderTopColor: colors.bg.surface,
-                        height: 62,
-                    },
-                    tabBarActiveTintColor: colors.gold.primary,
-                    tabBarInactiveTintColor: colors.text.muted,
-                    tabBarLabelStyle: { fontSize: 11, marginBottom: 6 },
                 }}
             >
                 <Tab.Screen
@@ -44,7 +38,7 @@ export default function WorkerNavigator() {
                 <Tab.Screen
                     name="AvailableJobs"
                     component={AvailableJobsScreen}
-                    options={{ tabBarIcon: icon('🔍'), tabBarLabel: 'Jobs' }}
+                    options={{ tabBarIcon: icon('💎'), tabBarLabel: 'Jobs' }}
                 />
                 <Tab.Screen
                     name="MyWork"

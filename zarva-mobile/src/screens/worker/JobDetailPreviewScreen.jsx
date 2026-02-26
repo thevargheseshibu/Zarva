@@ -31,8 +31,25 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
     const finalDescription = parsedText || job?.description || job?.desc;
 
     useEffect(() => {
-        const getDist = async () => {
+        const getDistAndDetails = async () => {
             try {
+                // 1. If we only have an ID or missing description, fetch from API
+                const jobId = job.id || initialJob?.id;
+                if (jobId && (!job.description && !job.desc)) {
+                    setLoading(true);
+                    try {
+                        const res = await apiClient.get(`/api/worker/jobs/${jobId}`);
+                        if (res.data?.job) {
+                            setJob(prev => ({ ...prev, ...res.data.job }));
+                        }
+                    } catch (e) {
+                        console.warn('[JobPreview] Details fetch failed:', e.message);
+                    } finally {
+                        setLoading(false);
+                    }
+                }
+
+                // 2. Refresh Location & Distance
                 const { status } = await Location.requestForegroundPermissionsAsync();
                 if (status !== 'granted') {
                     setLocLoading(false);
@@ -47,16 +64,18 @@ export default function JobDetailPreviewScreen({ route, navigation }) {
                 }
                 setWorkerLoc(currentCoords);
 
-                if (job.latitude && job.longitude) {
-                    const kms = haversineKm(currentCoords.lat, currentCoords.lng, parseFloat(job.latitude), parseFloat(job.longitude));
+                // Re-check job coords after possible fetch
+                const targetJob = job.latitude ? job : (initialJob || {});
+                if (targetJob.latitude && targetJob.longitude) {
+                    const kms = haversineKm(currentCoords.lat, currentCoords.lng, parseFloat(targetJob.latitude), parseFloat(targetJob.longitude));
                     const travel = calculateTravelCharge(kms);
-                    const baseRate = parseFloat(job.rate_per_hour || 0);
-                    const estTotal = baseRate + travel + (parseFloat(job.advance_amount || 0));
+                    const baseRate = parseFloat(targetJob.rate_per_hour || 0);
+                    const estTotal = baseRate + travel + (parseFloat(targetJob.advance_amount || 0));
                     setJob(prev => ({ ...prev, dist: kms, travel_charge: travel, total_amount: estTotal }));
                 }
             } catch (err) { } finally { setLocLoading(false); }
         };
-        getDist();
+        getDistAndDetails();
     }, []);
 
     const handleAccept = async () => {
@@ -232,7 +251,7 @@ const styles = StyleSheet.create({
 
     reqCard: { padding: spacing[20], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
     reqItem: { gap: 4 },
-    reqLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    reqLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     reqVal: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.medium },
     reqDivider: { height: 1, backgroundColor: colors.elevated, marginVertical: 12 },
     reqDesc: { color: colors.text.primary, fontSize: fontSize.body, fontStyle: 'italic', lineHeight: 24, opacity: 0.9 },

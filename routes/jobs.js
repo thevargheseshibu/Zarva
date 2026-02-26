@@ -12,6 +12,7 @@ import { getRedisClient } from '../config/redis.js';
 import * as JobService from '../services/job.service.js';
 import { generateEstimate, calculatePricing } from '../utils/pricingEngine.js';
 import { readWorkerPresence } from '../services/firebase.service.js';
+import supportService from '../services/supportService.js';
 
 const router = Router();
 
@@ -103,12 +104,12 @@ router.get('/', async (req, res) => {
                 wp.category as worker_category,
                 wp.average_rating as worker_rating,
                 wp.profile_s3_key as worker_photo,
-                (wp.kyc_status = 'verified') as worker_verified,
-                (SELECT COUNT(*) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
+                (wp.kyc_status = 'approved') as worker_verified,
+                (SELECT COUNT(*)::INT FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
                 (SELECT score FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as rating_given
             FROM jobs j
             LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
-            WHERE j.customer_id = ?
+            WHERE j.customer_id = $1
             ORDER BY j.created_at DESC
         `, [userId]);
 
@@ -116,7 +117,7 @@ router.get('/', async (req, res) => {
         const region = process.env.AWS_REGION;
 
         const formattedJobs = jobsWithWorkers.map(job => {
-            const { start_otp_hash, end_otp_hash, worker_name, worker_rating, worker_photo, worker_category, worker_verified, ...safeJob } = job;
+            const { arrived_at, end_otp_hash, worker_name, worker_rating, worker_photo, worker_category, worker_verified, ...safeJob } = job;
             if (job.worker_id) {
                 const w_name = worker_name || 'Worker'; // Base name for the worker
                 const photoUrl = worker_photo
@@ -161,6 +162,13 @@ router.post('/', async (req, res) => {
 
     try {
         const pool = getPool();
+
+        // Check if user is locked due to active disputes
+        const concurrencyCheck = await supportService.canUserTakeNewJob(userId);
+        if (!concurrencyCheck.can_take) {
+            return fail(res, concurrencyCheck.reason, 403, 'CONCURRENCY_LOCKED');
+        }
+
         const { job, is_duplicate } = await JobService.createJob(userId, req.body || {}, idempotencyKey, pool);
 
         // Ensure returning 200 for BOTH initial creates AND idempotent hits, indicating success.
@@ -188,7 +196,7 @@ router.delete('/:id', async (req, res) => {
         const jobId = req.params.id;
         const pool = getPool();
 
-        const [jobs] = await pool.query('SELECT status FROM jobs WHERE id = ? AND customer_id = ?', [jobId, userId]);
+        const [jobs] = await pool.query('SELECT status FROM jobs WHERE id = $1 AND customer_id = $2', [jobId, userId]);
         if (jobs.length === 0) {
             return fail(res, 'Job not found or unauthorized', 404, 'NOT_FOUND');
         }
@@ -198,7 +206,7 @@ router.delete('/:id', async (req, res) => {
             return fail(res, 'Job cannot be deleted at this stage because a worker is involved. Please cancel or dispute it.', 400, 'CANNOT_DELETE');
         }
 
-        await pool.query('DELETE FROM jobs WHERE id = ?', [jobId]);
+        await pool.query('DELETE FROM jobs WHERE id = $1', [jobId]);
 
         // Cleanup Firebase representation
         const { updateJobNode } = await import('../services/firebase.service.js');
@@ -220,6 +228,11 @@ router.get('/:id', async (req, res) => {
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
     try {
+        const jobId = req.params.id;
+        if (!jobId || isNaN(parseInt(jobId, 10))) {
+            return fail(res, 'Invalid Job ID', 400, 'INVALID_ID');
+        }
+
         const pool = getPool();
         const [jobsWithWorkers] = await pool.query(`
             SELECT 
@@ -228,17 +241,21 @@ router.get('/:id', async (req, res) => {
                 wp.category as worker_category,
                 wp.average_rating as worker_rating,
                 wp.profile_s3_key as worker_photo,
-                (wp.kyc_status = 'verified') as worker_verified,
-                (SELECT COUNT(*) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
-                (SELECT JSON_OBJECT('score', score, 'category_scores', category_scores, 'comment', comment) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as review_details
+                (wp.kyc_status = 'approved') as worker_verified,
+                (SELECT COUNT(*)::INT FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
+                (SELECT json_build_object('score', score, 'category_scores', category_scores, 'comment', comment) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as review_details
             FROM jobs j
             LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
-            WHERE j.id = ?
-        `, [req.params.id]);
+            WHERE j.id = $1
+        `, [jobId]);
 
         const job = jobsWithWorkers[0];
 
-        if (!job || job.customer_id !== userId) return fail(res, 'Not found', 404, 'NOT_FOUND');
+        // Use loose comparison (==) because req.user.id might be string while job.customer_id is integer
+        if (!job || job.customer_id != userId) {
+            console.warn(`[Jobs] Job ${req.params.id} not found or mismatch: C:${job?.customer_id} vs U:${userId}`);
+            return fail(res, 'Not found', 404, 'NOT_FOUND');
+        }
 
         // Clean out sensitive hashes
         delete job.start_otp_hash;
@@ -291,7 +308,8 @@ router.get('/:id', async (req, res) => {
 
         return ok(res, { job });
     } catch (err) {
-        return fail(res, 'Internal Error fetching job', 500);
+        console.error('[Jobs] Detailed error fetching job:', err);
+        return fail(res, 'Internal Error fetching job: ' + err.message, 500);
     }
 });
 
@@ -316,7 +334,7 @@ router.put('/:id', async (req, res) => {
 
     try {
         const pool = getPool();
-        const [jobs] = await pool.query('SELECT * FROM jobs WHERE id = ?', [jobId]);
+        const [jobs] = await pool.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
         const job = jobs[0];
 
         if (!job || job.customer_id !== userId) return fail(res, 'Not found', 404, 'NOT_FOUND');
@@ -335,10 +353,10 @@ router.put('/:id', async (req, res) => {
 
         if (Object.keys(updates).length === 0) return ok(res, { message: 'No changes provided' });
 
-        const setClause = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+        const setClause = Object.keys(updates).map((k, i) => `${k} = $${i + 1}`).join(', ');
         const values = [...Object.values(updates), jobId];
 
-        await pool.query(`UPDATE jobs SET ${setClause} WHERE id = ?`, values);
+        await pool.query(`UPDATE jobs SET ${setClause} WHERE id = $${Object.keys(updates).length + 1}`, values);
 
         // If a worker is assigned, we should probably notify them
         if (job.worker_id) {
@@ -370,7 +388,7 @@ router.post('/:id/verify-end-otp', async (req, res) => {
         await conn.beginTransaction();
 
         try {
-            const [jobs] = await conn.query('SELECT * FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+            const [jobs] = await conn.query('SELECT * FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
             const job = jobs[0];
 
             if (!job || job.customer_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
@@ -382,7 +400,7 @@ router.post('/:id/verify-end-otp', async (req, res) => {
 
             if (match) {
                 // SUCCESS - INVOICE GENERATION
-                const [timeCheck] = await conn.query(`SELECT TIMESTAMPDIFF(SECOND, work_started_at, NOW()) / 3600 AS actual_hours FROM jobs WHERE id=?`, [jobId]);
+                const [timeCheck] = await conn.query(`SELECT EXTRACT(EPOCH FROM (NOW() - work_started_at)) / 3600 AS actual_hours FROM jobs WHERE id=$1`, [jobId]);
                 // Ensure at least min floor bounds depending on pricing config rules
                 let actual_hours = parseFloat(timeCheck[0].actual_hours || 0);
 
@@ -395,29 +413,23 @@ router.post('/:id/verify-end-otp', async (req, res) => {
                 }, configLoader.get('jobs'));
 
                 // 1. Finalize Job Record
-                await conn.query(
-                    `UPDATE jobs SET status='completed', actual_hours=?, chat_enabled=0, end_otp_verified_at=NOW() WHERE id=?`,
-                    [actual_hours, jobId]
+                await conn.query(`UPDATE jobs SET status='completed', actual_hours=$1, chat_enabled=false, work_ended_at=NOW() WHERE id=$2`, [actual_hours, jobId]
                 );
 
                 // 2. Draft Invoice Row
                 const invNo = `INV-${Date.now()}-${jobId}`;
-                await conn.query(
-                    `INSERT INTO job_invoices (job_id, invoice_number, subtotal, platform_fee, travel_charge, discount, tax, total) VALUES (?, ?, ?, ?, ?, 0, 0, ?)`,
-                    [jobId, invNo, invoiceBreakdown.subtotal, invoiceBreakdown.platform_fee, invoiceBreakdown.travel_charge, invoiceBreakdown.total_amount]
+                await conn.query(`INSERT INTO job_invoices (job_id, invoice_number, subtotal, platform_fee, travel_charge, discount, tax, total) VALUES ($1, $2, $3, $4, $5, 0, 0, $6)`, [jobId, invNo, invoiceBreakdown.subtotal, invoiceBreakdown.platform_fee, invoiceBreakdown.travel_charge, invoiceBreakdown.total_amount]
                 );
 
                 // 3. Worker Aggregations
-                await conn.query(
-                    `UPDATE worker_profiles SET total_jobs = total_jobs + 1, current_job_id = NULL WHERE user_id=?`,
-                    [job.worker_id]
+                await conn.query(`UPDATE worker_profiles SET total_jobs = total_jobs + 1, current_job_id = NULL WHERE user_id=$1`, [job.worker_id]
                 );
 
                 // Note: The task states `total_earnings+=worker_payout`, but `total_earnings` doesn't exist on schema. 
                 // Omitting earnings modification natively to avoid schema errors as we didn't migrate it, just handling `total_jobs` mapping.
 
                 // 4. Customer Aggregation
-                await conn.query(`UPDATE customer_profiles SET total_jobs = total_jobs + 1 WHERE user_id=?`, [job.customer_id]);
+                await conn.query(`UPDATE customer_profiles SET total_jobs = total_jobs + 1 WHERE user_id=$1`, [job.customer_id]);
 
                 // Cleanup Redis
                 const redisClient = getRedisClient();
@@ -434,14 +446,12 @@ router.post('/:id/verify-end-otp', async (req, res) => {
             } else {
                 const attempts = job.end_otp_attempts + 1;
                 if (attempts >= 5) {
-                    await conn.query(
-                        `UPDATE jobs SET status='disputed', end_otp_attempts=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
-                        [attempts, jobId]
+                    await conn.query(`UPDATE jobs SET status='disputed', end_otp_attempts=$1, dispute_raised_at=NOW(), auto_escalate_at=NOW() + INTERVAL '48 hours' WHERE id=$2`, [attempts, jobId]
                     );
                     await conn.commit();
                     throw Object.assign(new Error('Job disputed due to max attempts'), { status: 403 });
                 } else {
-                    await conn.query(`UPDATE jobs SET end_otp_attempts=? WHERE id=?`, [attempts, jobId]);
+                    await conn.query(`UPDATE jobs SET end_otp_attempts=$1 WHERE id=$2`, [attempts, jobId]);
                     await conn.commit();
                     throw Object.assign(new Error('Incorrect completion code'), { status: 400 });
                 }
@@ -477,10 +487,10 @@ router.post('/:id/cancel', async (req, res) => {
         await conn.beginTransaction();
 
         try {
-            const [jobs] = await conn.query('SELECT status, customer_id, worker_id, cancellation_locked_at FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+            const [jobs] = await conn.query('SELECT status, customer_id, worker_id, cancellation_locked_at FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
             const job = jobs[0];
 
-            if (!job || job.customer_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (!job || job.customer_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
 
             if (['in_progress', 'pending_completion', 'completed', 'disputed', 'cancelled'].includes(job.status)) {
                 throw Object.assign(new Error('Work in progress or already finalized. Raise a dispute.'), { status: 403, code: 'CANNOT_CANCEL' });
@@ -495,10 +505,10 @@ router.post('/:id/cancel', async (req, res) => {
             }
 
             // Valid Cancellation Process
-            await conn.query(`UPDATE jobs SET status='cancelled', chat_enabled=0, cancelled_by='customer', cancel_reason='Customer requested cancellation' WHERE id=?`, [jobId]);
+            await conn.query(`UPDATE jobs SET status='cancelled', chat_enabled=false, cancelled_by='customer', cancel_reason='Customer requested cancellation' WHERE id=$1`, [jobId]);
 
             if (job.worker_id) {
-                await conn.query(`UPDATE worker_profiles SET current_job_id = NULL WHERE user_id=?`, [job.worker_id]);
+                await conn.query(`UPDATE worker_profiles SET current_job_id = NULL WHERE user_id=$1`, [job.worker_id]);
 
                 // Real Firebase Update
                 const { updateJobNode } = await import('../services/firebase.service.js');
@@ -506,9 +516,9 @@ router.post('/:id/cancel', async (req, res) => {
             }
 
             // Execute full refund sweep
-            const [payments] = await conn.query(`SELECT id, amount FROM payments WHERE job_id=? AND status='captured'`, [jobId]);
+            const [payments] = await conn.query(`SELECT id, amount FROM payments WHERE job_id=$1 AND status='captured'`, [jobId]);
             for (let payment of payments) {
-                await conn.query(`INSERT INTO refund_queue (payment_id, job_id, amount, status) VALUES (?, ?, ?, 'pending')`, [payment.id, jobId, payment.amount]);
+                await conn.query(`INSERT INTO refund_queue (payment_id, job_id, amount, status) VALUES ($1, $2, $3, 'pending')`, [payment.id, jobId, payment.amount]);
             }
 
             await conn.commit();
@@ -538,18 +548,16 @@ router.post('/:id/dispute', async (req, res) => {
 
     try {
         const pool = getPool();
-        const [jobs] = await pool.query('SELECT status, customer_id, worker_id FROM jobs WHERE id = ?', [jobId]);
+        const [jobs] = await pool.query('SELECT status, customer_id, worker_id FROM jobs WHERE id = $1', [jobId]);
         const job = jobs[0];
 
-        if (!job || job.customer_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (!job || job.customer_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
 
         if (job.status === 'completed' || job.status === 'cancelled') {
             throw Object.assign(new Error('Job is finalized.'), { status: 400 });
         }
 
-        await pool.query(
-            `UPDATE jobs SET chat_enabled=0, status='disputed', dispute_reason=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
-            [reason, jobId]
+        await pool.query(`UPDATE jobs SET chat_enabled=false, status='disputed', dispute_reason=$1, dispute_raised_at=NOW(), auto_escalate_at=NOW() + INTERVAL '48 hours' WHERE id=$2`, [reason, jobId]
         );
 
         // Real Firebase Update
@@ -575,14 +583,12 @@ router.get('/:id/worker-location', async (req, res) => {
 
     try {
         const pool = getPool();
-        const [jobs] = await pool.query(
-            'SELECT customer_id, worker_id, status FROM jobs WHERE id=?',
-            [jobId]
+        const [jobs] = await pool.query('SELECT customer_id, worker_id, status FROM jobs WHERE id=$1', [jobId]
         );
         const job = jobs[0];
 
         if (!job) return fail(res, 'Job not found', 404);
-        if (job.customer_id !== userId) return fail(res, 'Forbidden', 403, 'FORBIDDEN');
+        if (job.customer_id != userId) return fail(res, 'Forbidden', 403, 'FORBIDDEN');
         if (!ACTIVE_STATUSES.includes(job.status)) {
             return fail(res, `Worker location only available when job is active (current: ${job.status})`, 400, 'INVALID_STATE');
         }

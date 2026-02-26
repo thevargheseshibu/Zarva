@@ -9,19 +9,34 @@ import Card from '../../../components/Card';
 import { useAuthStore } from '../../../stores/authStore';
 import apiClient from '../../../services/api/client';
 import { useT } from '../../../hooks/useT';
+import { useUIStore } from '../../../stores/uiStore';
+import MainBackground from '../../../components/MainBackground';
 
 const AGREEMENT_VERSION = 'v2026-02';
 
 export default function OnboardingAgreement({ data, onNext }) {
     const [signature, setSignature] = useState('');
     const [loading, setLoading] = useState(false);
+    const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
     const { user } = useAuthStore();
     const t = useT();
 
-    const isValid = signature.trim().length >= 2;
+    const handleScroll = ({ nativeEvent }) => {
+        const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+        const paddingToBottom = 20;
+        if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+            if (!hasScrolledToBottom) {
+                setHasScrolledToBottom(true);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }
+        }
+    };
+
+    const isValid = signature.trim().length >= 2 && hasScrolledToBottom;
 
     const handleSubmit = async () => {
-        setLoading(true);
+        const { showLoader, hideLoader } = useUIStore.getState();
+        showLoader(t('submitting_application') || "Finalizing Enrollment...");
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         try {
             await apiClient.post('/api/worker/onboard', {
@@ -36,12 +51,12 @@ export default function OnboardingAgreement({ data, onNext }) {
             Alert.alert(t('protocol_error'), err.response?.data?.message || t('error_submit_application'));
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         } finally {
-            setLoading(false);
+            hideLoader();
         }
     };
 
     return (
-        <View style={styles.screen}>
+        <MainBackground>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <FadeInView delay={50}>
                     <Text style={styles.headerSub}>{t('step_05')}</Text>
@@ -50,12 +65,20 @@ export default function OnboardingAgreement({ data, onNext }) {
                 </FadeInView>
 
                 <FadeInView delay={150} style={styles.section}>
-                    <Text style={styles.label}>{t('service_agreement')}</Text>
-                    <Card style={styles.agreementCard}>
-                        <ScrollView style={styles.innerScroll} showsVerticalScrollIndicator={true}>
+                    <Text style={styles.label}>{t('service_agreement')} {!hasScrolledToBottom && "(Please read to the end)"}</Text>
+                    <Card style={[styles.agreementCard, !hasScrolledToBottom && { borderColor: colors.accent.primary + '66' }]}>
+                        <ScrollView
+                            style={styles.innerScroll}
+                            showsVerticalScrollIndicator={true}
+                            nestedScrollEnabled={true}
+                            onScroll={handleScroll}
+                            scrollEventThrottle={16}
+                        >
                             <Text style={styles.agreementBody}>{t('agreement_text')}</Text>
+                            <View style={{ height: 20 }} />
                         </ScrollView>
                     </Card>
+                    {hasScrolledToBottom && <Text style={styles.successHint}>✓ Read completely</Text>}
                 </FadeInView>
 
                 <FadeInView delay={250} style={styles.section}>
@@ -78,23 +101,32 @@ export default function OnboardingAgreement({ data, onNext }) {
                         title={t('authorize_enrollment')}
                         disabled={!isValid}
                         loading={loading}
-                        onPress={handleSubmit}
+                        onPress={() => {
+                            if (!isValid) {
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                                if (!hasScrolledToBottom) {
+                                    Alert.alert(t('protocol_required'), t('please_read_agreement'));
+                                }
+                                return;
+                            }
+                            handleSubmit();
+                        }}
                     />
                 </FadeInView>
             </ScrollView>
-        </View>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
-    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    headerSub: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
     title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
     sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
 
     section: { gap: 12 },
-    label: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    label: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
 
     agreementCard: {
         height: 240,
@@ -113,5 +145,6 @@ const styles = StyleSheet.create({
     },
     hintTxt: { color: colors.text.muted, fontSize: 10, fontStyle: 'italic', paddingLeft: 4 },
 
-    footer: { marginTop: spacing[16] }
+    footer: { marginTop: spacing[16] },
+    successHint: { color: colors.accent.primary, fontSize: 10, fontWeight: 'bold', textAlign: 'right', marginTop: 4 }
 });

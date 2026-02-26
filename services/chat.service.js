@@ -12,7 +12,7 @@ export async function getMessages(jobId, userId, beforeMessageId, limit = 50) {
     const pool = getPool();
 
     // Secure the read: Ensure user is part of this job
-    const [jobs] = await pool.query('SELECT customer_id, worker_id, chat_enabled FROM jobs WHERE id = ?', [jobId]);
+    const [jobs] = await pool.query('SELECT customer_id, worker_id, chat_enabled FROM jobs WHERE id = $1', [jobId]);
     if (jobs.length === 0) {
         throw Object.assign(new Error('Job not found'), { status: 404 });
     }
@@ -32,16 +32,17 @@ export async function getMessages(jobId, userId, beforeMessageId, limit = 50) {
             u.name as sender_name
         FROM job_messages m
         JOIN users u ON m.sender_id = u.id
-        WHERE m.job_id = ?
+        WHERE m.job_id = $1
     `;
     const params = [jobId];
+    let paramIndex = 2;
 
     if (beforeMessageId) {
-        query += ' AND m.id < ?';
+        query += ` AND m.id < $${paramIndex++}`;
         params.push(beforeMessageId);
     }
 
-    query += ' ORDER BY m.created_at DESC LIMIT ?';
+    query += ` ORDER BY m.created_at DESC LIMIT $${paramIndex++}`;
     params.push(limit);
 
     const [messages] = await pool.query(query, params);
@@ -67,7 +68,7 @@ export async function sendMessage({ jobId, senderId, senderRole, messageType, co
     await conn.beginTransaction();
     try {
         // Validate job state
-        const [jobs] = await conn.query('SELECT customer_id, worker_id, chat_enabled FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+        const [jobs] = await conn.query('SELECT customer_id, worker_id, chat_enabled FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
         if (jobs.length === 0) throw Object.assign(new Error('Job not found'), { status: 404 });
 
         const job = jobs[0];
@@ -81,11 +82,11 @@ export async function sendMessage({ jobId, senderId, senderRole, messageType, co
         const recipientId = senderRole === 'customer' ? job.worker_id : job.customer_id;
 
         // Idempotency Check
-        const [existing] = await conn.query('SELECT * FROM job_messages WHERE job_id = ? AND client_message_id = ?', [jobId, clientMessageId]);
+        const [existing] = await conn.query('SELECT * FROM job_messages WHERE job_id = $1 AND client_message_id = $2', [jobId, clientMessageId]);
         if (existing.length > 0) {
             await conn.commit();
             const msg = existing[0];
-            const [u] = await pool.query('SELECT name FROM users WHERE id = ?', [msg.sender_id]);
+            const [u] = await pool.query('SELECT name FROM users WHERE id = $1', [msg.sender_id]);
             msg.sender_name = u[0].name;
             return msg; // Already saved
         }
@@ -93,25 +94,25 @@ export async function sendMessage({ jobId, senderId, senderRole, messageType, co
         // Insert message
         const [res] = await conn.query(
             `INSERT INTO job_messages (job_id, sender_id, sender_role, message_type, content, s3_key, client_message_id) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
             [jobId, senderId, senderRole, messageType, content || null, s3Key || null, clientMessageId]
         );
 
-        const newMessageId = res.insertId;
+        const newMessageId = res[0].id;
 
         // Update Job Aggregates
         const updateField = senderRole === 'customer' ? 'worker_unread_count' : 'customer_unread_count';
         await conn.query(
-            `UPDATE jobs SET last_message_at = NOW(), ${updateField} = ${updateField} + 1 WHERE id = ?`,
+            `UPDATE jobs SET last_message_at = NOW(), ${updateField} = ${updateField} + 1 WHERE id = $1`,
             [jobId]
         );
 
         // Fetch new state for Firebase sync
-        const [updatedJobs] = await conn.query('SELECT customer_unread_count, worker_unread_count FROM jobs WHERE id = ?', [jobId]);
+        const [updatedJobs] = await conn.query('SELECT customer_unread_count, worker_unread_count FROM jobs WHERE id = $1', [jobId]);
         const newUnreadCount = senderRole === 'customer' ? updatedJobs[0].worker_unread_count : updatedJobs[0].customer_unread_count;
 
         // Fetch sender name
-        const [senders] = await conn.query('SELECT name FROM users WHERE id = ?', [senderId]);
+        const [senders] = await conn.query('SELECT name FROM users WHERE id = $1', [senderId]);
         const senderName = senders[0].name;
 
         await conn.commit();
@@ -134,7 +135,7 @@ export async function sendMessage({ jobId, senderId, senderRole, messageType, co
         const [msgs] = await pool.query(`
             SELECT m.*, u.name as sender_name 
             FROM job_messages m JOIN users u ON m.sender_id = u.id 
-            WHERE m.id = ?
+            WHERE m.id = $1
         `, [newMessageId]);
 
         return msgs[0];
@@ -150,7 +151,7 @@ export async function deleteMessage(jobId, messageId, requesterId) {
     const pool = getPool();
     const chatConfig = configLoader.get('features')?.chat || { delete_window_seconds: 60 };
 
-    const [msgs] = await pool.query('SELECT sender_id, created_at, is_deleted FROM job_messages WHERE id = ? AND job_id = ?', [messageId, jobId]);
+    const [msgs] = await pool.query('SELECT sender_id, created_at, is_deleted FROM job_messages WHERE id = $1 AND job_id = $2', [messageId, jobId]);
     if (msgs.length === 0) throw Object.assign(new Error('Message not found'), { status: 404 });
     const msg = msgs[0];
 
@@ -165,7 +166,7 @@ export async function deleteMessage(jobId, messageId, requesterId) {
     }
 
     await pool.query(
-        'UPDATE job_messages SET is_deleted = 1, content = NULL, s3_key = NULL, deleted_at = NOW() WHERE id = ?',
+        'UPDATE job_messages SET is_deleted = true, content = NULL, s3_key = NULL, deleted_at = NOW() WHERE id = $1',
         [messageId]
     );
 
@@ -183,12 +184,14 @@ export async function markRead(jobId, userId, userRole) {
     const conn = await pool.getConnection();
     await conn.beginTransaction();
     try {
-        await conn.query(`UPDATE jobs SET ${updateField} = 0 WHERE id = ?`, [jobId]);
+        // updateField is likely unread_count, which is INT, so leave 0. 
+        // Wait, let's check chat.service.js updateField.
+        await conn.query(`UPDATE jobs SET ${updateField} = 0 WHERE id = $1`, [jobId]);
 
         // Mark all other party's messages as read
         await conn.query(`
             UPDATE job_messages SET read_at = NOW() 
-            WHERE job_id = ? AND sender_role = ? AND read_at IS NULL
+            WHERE job_id = $1 AND sender_role = $2 AND read_at IS NULL
         `, [jobId, otherRole]);
 
         await conn.commit();

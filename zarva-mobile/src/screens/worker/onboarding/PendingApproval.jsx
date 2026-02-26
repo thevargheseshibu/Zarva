@@ -18,6 +18,7 @@ import apiClient from '../../../services/api/client';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import { useT } from '../../../hooks/useT';
+import MainBackground from '../../../components/MainBackground';
 
 export default function PendingApproval() {
     const t = useT();
@@ -62,7 +63,7 @@ export default function PendingApproval() {
     }));
 
     return (
-        <View style={styles.screen}>
+        <MainBackground>
             <FadeInView delay={50} style={styles.content}>
                 <Animated.View style={[styles.statusIconBox, checkStyle]}>
                     <View style={styles.glowCircle} />
@@ -105,7 +106,7 @@ export default function PendingApproval() {
                     <Text style={styles.footerHint}>{t('notify_encrypted_channel')}</Text>
                 </View>
             </FadeInView>
-        </View>
+        </MainBackground>
     );
 }
 

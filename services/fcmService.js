@@ -135,7 +135,7 @@ export async function sendJobAlertToWorkers(jobId, workers, job, waveNum) {
             // Prune via token match
             const pool = getPool();
             for (const token of staleTokens) {
-                await pool.query('UPDATE users SET fcm_token = NULL WHERE fcm_token = ?', [token]);
+                await pool.query('UPDATE users SET fcm_token = NULL WHERE fcm_token = $1', [token]);
             }
         }
     } catch (err) {
@@ -151,7 +151,7 @@ async function pruneStaleTokens(staleTokens, tokenToUserMap) {
         if (userIdsToPrune.length === 0) return;
 
         const pool = getPool();
-        const placeholders = userIdsToPrune.map(() => '?').join(',');
+        const placeholders = userIdsToPrune.map((_, i) => `$${i + 1}`).join(',');
 
         await pool.query(
             `UPDATE users SET fcm_token = NULL WHERE id IN (${placeholders})`,
@@ -172,7 +172,7 @@ export async function sendChatNotification(jobId, recipientId, senderName, messa
 
     try {
         const pool = getPool();
-        const [users] = await pool.query('SELECT fcm_token FROM users WHERE id = ?', [recipientId]);
+        const [users] = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [recipientId]);
         if (!users.length || !users[0].fcm_token) return;
 
         const token = users[0].fcm_token;
@@ -210,7 +210,7 @@ export async function sendChatNotification(jobId, recipientId, senderName, messa
         console.error(`[FCM Service] Failed to send chat notification to user ${recipientId}:`, err);
         if (err.code === 'messaging/invalid-registration-token' || err.code === 'messaging/registration-token-not-registered') {
             const pool = getPool();
-            await pool.query('UPDATE users SET fcm_token = NULL WHERE id = ?', [recipientId]);
+            await pool.query('UPDATE users SET fcm_token = NULL WHERE id = $1', [recipientId]);
         }
     }
 }

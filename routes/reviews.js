@@ -38,10 +38,8 @@ router.post('/', async (req, res) => {
         const pool = getPool();
 
         // 2. Fetch job — guard completed + requester is customer/worker
-        const [jobs] = await pool.query(
-            `SELECT customer_id, worker_id, status, end_otp_verified_at
-             FROM jobs WHERE id = ?`,
-            [job_id]
+        const [jobs] = await pool.query(`SELECT customer_id, worker_id, status, work_ended_at
+             FROM jobs WHERE id = $1`, [job_id]
         );
         const job = jobs[0];
 
@@ -53,7 +51,7 @@ router.post('/', async (req, res) => {
         if (!isCustomer && !isWorker) return fail(res, 'Forbidden', 403, 'FORBIDDEN');
 
         // 3. Time window check
-        const completedAt = new Date(job.end_otp_verified_at);
+        const completedAt = new Date(job.work_ended_at);
         const windowMs = windowHours * 60 * 60 * 1000;
         if (Date.now() - completedAt.getTime() > windowMs) {
             return fail(res, 'Review window closed', 403, 'WINDOW_EXPIRED');
@@ -73,17 +71,15 @@ router.post('/', async (req, res) => {
         // 5. Auto-flag moderation
         const flagWords = reviewConf.moderation?.auto_flag_words || [];
         const commentLow = (comment || '').toLowerCase();
-        const is_flagged = flagWords.some(w => commentLow.includes(w.toLowerCase())) ? 1 : 0;
+        const is_flagged = flagWords.some(w => commentLow.includes(w.toLowerCase())) ? true : false;
 
         // 6. INSERT (UNIQUE KEY on job_id+reviewer_id enforces single review — catch 1062 → 409)
         try {
-            await pool.query(
-                `INSERT INTO reviews (job_id, reviewer_id, reviewee_id, reviewer_role, score, category_scores, comment, is_flagged)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [job_id, userId, reviewee_id, reviewer_role, score, JSON.stringify(category_scores), comment || null, is_flagged]
+            await pool.query(`INSERT INTO reviews (job_id, reviewer_id, reviewee_id, reviewer_role, score, category_scores, comment, is_flagged)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [job_id, userId, reviewee_id, reviewer_role, score, JSON.stringify(category_scores), comment || null, is_flagged]
             );
         } catch (insertErr) {
-            if (insertErr.code === 'ER_DUP_ENTRY') {
+            if (insertErr.code === 'ER_DUP_ENTRY' || insertErr.code === '23505') {
                 return fail(res, 'You have already reviewed this job', 409, 'DUPLICATE_REVIEW');
             }
             throw insertErr;
@@ -92,21 +88,17 @@ router.post('/', async (req, res) => {
         // 7. Recalculate average_rating + increment rating_count on reviewee profile
         if (reviewer_role === 'customer') {
             // Customer rated the worker
-            await pool.query(
-                `UPDATE worker_profiles
-                 SET average_rating = (SELECT AVG(score) FROM reviews WHERE reviewee_id = ?),
+            await pool.query(`UPDATE worker_profiles
+                 SET average_rating = (SELECT AVG(score) FROM reviews WHERE reviewee_id = $1),
                      rating_count = rating_count + 1
-                 WHERE user_id = ?`,
-                [reviewee_id, reviewee_id]
+                 WHERE user_id = $2`, [reviewee_id, reviewee_id]
             );
         } else {
             // Worker rated the customer
-            await pool.query(
-                `UPDATE customer_profiles
-                 SET average_rating = (SELECT AVG(score) FROM reviews WHERE reviewee_id = ?),
+            await pool.query(`UPDATE customer_profiles
+                 SET average_rating = (SELECT AVG(score) FROM reviews WHERE reviewee_id = $1),
                      rating_count = rating_count + 1
-                 WHERE user_id = ?`,
-                [reviewee_id, reviewee_id]
+                 WHERE user_id = $2`, [reviewee_id, reviewee_id]
             );
         }
 
@@ -127,14 +119,12 @@ router.post('/', async (req, res) => {
 router.get('/worker/:user_id', async (req, res) => {
     try {
         const pool = getPool();
-        const [rows] = await pool.query(
-            `SELECT r.id, r.score AS overall_score, r.category_scores, r.comment,
+        const [rows] = await pool.query(`SELECT r.id, r.score AS overall_score, r.category_scores, r.comment,
                     r.created_at, u.phone AS reviewer_phone
              FROM reviews r
              JOIN users u ON u.id = r.reviewer_id
-             WHERE r.reviewee_id = ? AND r.reviewer_role = 'customer'
-             ORDER BY r.created_at DESC`,
-            [req.params.user_id]
+             WHERE r.reviewee_id = $1 AND r.reviewer_role = 'customer'
+             ORDER BY r.created_at DESC`, [req.params.user_id]
         );
 
         // Mask phone — only show last 4 digits for privacy
@@ -166,17 +156,15 @@ router.get('/customer/:user_id', async (req, res) => {
         const pool = getPool();
 
         // Role guard — only workers can see customer reviews
-        const [callerRows] = await pool.query('SELECT role FROM users WHERE id = ?', [userId]);
+        const [callerRows] = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
         if (!callerRows[0] || callerRows[0].role !== 'worker') {
             return fail(res, 'Only workers can view customer reviews', 403, 'FORBIDDEN');
         }
 
-        const [rows] = await pool.query(
-            `SELECT r.id, r.score AS overall_score, r.category_scores, r.comment, r.created_at
+        const [rows] = await pool.query(`SELECT r.id, r.score AS overall_score, r.category_scores, r.comment, r.created_at
              FROM reviews r
-             WHERE r.reviewee_id = ? AND r.reviewer_role = 'worker'
-             ORDER BY r.created_at DESC`,
-            [req.params.user_id]
+             WHERE r.reviewee_id = $1 AND r.reviewer_role = 'worker'
+             ORDER BY r.created_at DESC`, [req.params.user_id]
         );
 
         const reviews = rows.map(r => ({

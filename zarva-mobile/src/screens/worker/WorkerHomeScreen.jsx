@@ -11,6 +11,7 @@ import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import StatusPill from '../../components/StatusPill';
 import MapPickerModal from '../../components/MapPickerModal';
+import MainBackground from '../../components/MainBackground';
 import { colors, radius, spacing, shadows } from '../../design-system/tokens';
 import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
@@ -57,16 +58,52 @@ export default function WorkerHomeScreen({ navigation }) {
     };
 
     const handleMapSelect = async (loc) => {
+        Alert.alert(
+            'Location Update',
+            'How would you like to use this location?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Set as Active',
+                    onPress: async () => {
+                        await updateLocationSync(loc, 'current');
+                    }
+                },
+                {
+                    text: 'Set as Base & Active',
+                    style: 'default',
+                    onPress: async () => {
+                        await updateLocationSync(loc, 'base');
+                    }
+                }
+            ]
+        );
+    };
+
+    const updateLocationSync = async (loc, type) => {
         const newLoc = { address: loc.address, lat: loc.latitude, lng: loc.longitude };
         setLocation(newLoc);
         setLocationOverride(newLoc);
         setIsMapVisible(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
         try {
-            await apiClient.put('/api/worker/location', { lat: loc.latitude, lng: loc.longitude });
-            Alert.alert('Location Updated', 'Your active location has been updated for better job matching.');
+            if (type === 'base') {
+                // Hits the service-area endpoint which updates home_location + service_center
+                await apiClient.post('/api/worker/onboarding/service-area', {
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                    radius_km: 20 // Default or fetch current
+                });
+                Alert.alert('Base Location Updated', 'Your permanent service area center has been updated.');
+            } else {
+                // Just updates current_location for live tracking
+                await apiClient.put('/api/worker/location', { lat: loc.latitude, lng: loc.longitude });
+                Alert.alert('Active Location Updated', 'Your current location for job matching is updated.');
+            }
         } catch (err) {
-            console.error('[WorkerHome] Map update sync failure:', err);
+            console.error('[WorkerHome] sync failure:', err);
+            Alert.alert('Sync Error', 'Failed to update location on server.');
         }
     };
 
@@ -112,8 +149,6 @@ export default function WorkerHomeScreen({ navigation }) {
         useCallback(() => {
             fetchProfile();
             captureAndSyncLocation();
-            const locationInterval = setInterval(() => captureAndSyncLocation(), 5 * 60 * 1000);
-            return () => clearInterval(locationInterval);
         }, [])
     );
 
@@ -127,9 +162,6 @@ export default function WorkerHomeScreen({ navigation }) {
             setOnline(online);
             if (online) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                await startBackgroundTracking();
-            } else {
-                await stopBackgroundTracking();
             }
         } catch (err) {
             Alert.alert('Error', err?.response?.data?.message || 'Failed to update status.');
@@ -138,34 +170,8 @@ export default function WorkerHomeScreen({ navigation }) {
         }
     };
 
-    const startBackgroundTracking = async () => {
-        try {
-            const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
-            if (fgStatus !== 'granted') return;
-            const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-            if (bgStatus !== 'granted') return;
-            await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-                accuracy: Location.Accuracy.Balanced,
-                timeInterval: 60000,
-                distanceInterval: 100,
-                foregroundService: {
-                    notificationTitle: "ZARVA Online",
-                    notificationBody: "Actively receiving job requests.",
-                    notificationColor: colors.accent.primary
-                }
-            });
-        } catch (e) { }
-    };
-
-    const stopBackgroundTracking = async () => {
-        try {
-            const started = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-            if (started) await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-        } catch (e) { }
-    };
-
     return (
-        <View style={styles.screen}>
+        <MainBackground>
             {/* Header / Profile Summary */}
             <View style={styles.header}>
                 <FadeInView delay={100} style={styles.headerTop}>
@@ -321,20 +327,17 @@ export default function WorkerHomeScreen({ navigation }) {
                 initialLocation={location.lat ? { latitude: location.lat, longitude: location.lng } : null}
                 onSelectLocation={handleMapSelect}
             />
-        </View>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+    screen: { flex: 1 },
     header: {
         paddingTop: 60,
         paddingHorizontal: spacing[24],
-        backgroundColor: colors.surface,
+        backgroundColor: 'transparent',
         paddingBottom: spacing[24],
-        borderBottomLeftRadius: radius.xxl,
-        borderBottomRightRadius: radius.xxl,
-        ...shadows.premium
     },
     headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[24] },
     profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

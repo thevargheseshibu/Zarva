@@ -19,6 +19,7 @@ LogBox.ignoreLogs([
   'setLayoutAnimationEnabledExperimental is currently a no-op in the New Architecture.',
   // RN Firebase legacy API deprecation warnings — safe to ignore until we migrate to v22
   'This method is deprecated (as well as all React Native Firebase namespaced API)',
+  'ng-to-v22. Method called was onNotificationOpenedApp',
 ]);
 import RootNavigator from './src/navigation/RootNavigator';
 import { useLanguageStore } from './src/i18n';
@@ -30,8 +31,15 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import { JobAlertService } from './src/services/JobAlertService';
+import GlobalLoader from './src/components/GlobalLoader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import messaging from '@react-native-firebase/messaging';
+import messaging, {
+  getToken,
+  onMessage,
+  onNotificationOpenedApp,
+  setBackgroundMessageHandler,
+  getMessaging
+} from '@react-native-firebase/messaging';
 
 // Define Background Location Task
 const LOCATION_TASK_NAME = 'background-location-task';
@@ -69,7 +77,7 @@ Notifications.setNotificationHandler({
 
 // Background/killed message handler — MUST be registered at module level (not inside a component)
 // This runs when the app is backgrounded or killed and receives a data-only FCM
-messaging().setBackgroundMessageHandler(async remoteMessage => {
+setBackgroundMessageHandler(getMessaging(), async remoteMessage => {
   console.log('[FCM Background] Message received in background/killed state', remoteMessage.data?.type);
   if (remoteMessage.data?.type === 'NEW_JOB_ALERT') {
     const data = remoteMessage.data;
@@ -181,8 +189,8 @@ export default function App() {
           });
         }
 
-        // Use RN Firebase to get the token for consistency with listeners
-        const token = await messaging().getToken();
+        // Use RN Firebase modular API to get the token for consistency with listeners
+        const token = await getToken(getMessaging());
         if (token) {
           console.log('[FCM] Syncing token with server:', token.slice(0, 10) + '...');
           await apiClient.put('/api/me/fcm-token', { fcm_token: token });
@@ -225,13 +233,13 @@ export default function App() {
       JobAlertService.startAlertLoop().catch(console.warn);
     };
 
-    const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
+    const unsubscribeForeground = onMessage(getMessaging(), async remoteMessage => {
       if (remoteMessage.data?.type === 'NEW_JOB_ALERT') {
         handleNewJob(remoteMessage);
       }
     });
 
-    const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(remoteMessage => {
+    const unsubscribeOpenedApp = onNotificationOpenedApp(getMessaging(), remoteMessage => {
       console.log('[FCM] 🔔 Tray tap detected');
       if (remoteMessage.data?.type === 'NEW_JOB_ALERT') {
         handleNewJob(remoteMessage);
@@ -258,6 +266,7 @@ export default function App() {
         <QueryClientProvider client={queryClient}>
           <StatusBar style="light" />
           <RootNavigator />
+          <GlobalLoader />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

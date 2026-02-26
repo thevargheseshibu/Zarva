@@ -154,3 +154,26 @@ export async function updateJobTyping(jobId, userId) {
     // Set timestamp, client can assume typing is true if timestamp is within last 3 seconds
     await ref.set(Date.now());
 }
+
+// ── Support Ticket Helpers ───────────────────────────────────────────────────
+
+export async function pushTicketMessage(ticketId, messageData) {
+    if (!isLiveTracking()) return;
+    const ref = await dbRef(`support_tickets/${ticketId}/messages`);
+    if (!ref) {
+        console.log(`[Firebase Mock] support_tickets/${ticketId}/messages pushed =`, JSON.stringify(messageData));
+        return;
+    }
+    // Push adds a new unique child node
+    const newMessageRef = ref.push();
+    await newMessageRef.set(messageData);
+
+    // Update last_activity directly on the ticket root in Firebase
+    const ticketRef = await dbRef(`support_tickets/${ticketId}`);
+    if (ticketRef) {
+        await ticketRef.update({
+            last_activity_at: Date.now(),
+            last_message_preview: messageData.message_text ? messageData.message_text.substring(0, 50) : 'Attachment'
+        });
+    }
+}

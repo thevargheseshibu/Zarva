@@ -6,6 +6,7 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useT } from '../../hooks/useT';
 import apiClient from '../../services/api/client';
+import coverageApi from '../../services/api/coverageApi';
 import { colors, spacing, radius, shadows } from '../../design-system/tokens';
 import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 import { useJobStore } from '../../stores/jobStore';
@@ -28,6 +29,44 @@ export default function LocationScheduleScreen({ route, navigation }) {
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [isEmergency, setIsEmergency] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [isServiceable, setIsServiceable] = useState(true); // Default to true until checked
+    const [coverageMsg, setCoverageMsg] = useState(null);
+
+    // Auto-check coverage when a valid location is entered
+    React.useEffect(() => {
+        let mounted = true;
+        const checkCoverage = async () => {
+            if (customerLocation?.isValid && customerLocation?.lat && customerLocation?.lng && category) {
+                try {
+                    const coverage = await coverageApi.checkServiceability(
+                        customerLocation.lat,
+                        customerLocation.lng,
+                        category
+                    );
+                    if (mounted) {
+                        setIsServiceable(coverage.is_serviceable);
+                        if (!coverage.is_serviceable) {
+                            setCoverageMsg(`Nearest professional is ${coverage.nearest_worker_distance_km ? coverage.nearest_worker_distance_km.toFixed(1) : 'unknown'} km away.`);
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        } else {
+                            setCoverageMsg(null);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Coverage check error:", err);
+                }
+            } else {
+                if (mounted) setIsServiceable(true); // Reset if incomplete
+            }
+        };
+
+        // Debounce slightly to avoid spamming as user types, though GPS is instant
+        const timer = setTimeout(checkCoverage, 500);
+        return () => {
+            mounted = false;
+            clearTimeout(timer);
+        };
+    }, [customerLocation, category]);
 
     const handleConfirm = async () => {
         if (scheduleType === 'later') {
@@ -41,6 +80,22 @@ export default function LocationScheduleScreen({ route, navigation }) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         try {
+            // STEP 1: Verify serviceability BEFORE attempting to create job
+            const coverage = await coverageApi.checkServiceability(
+                customerLocation.lat,
+                customerLocation.lng,
+                category
+            );
+
+            if (!coverage.is_serviceable) {
+                setLoading(false);
+                Alert.alert(
+                    'Area Not Covered',
+                    `We don't have ${category} professionals available in this area right now.\n\nNearest professional is ${coverage.nearest_worker_distance_km ? coverage.nearest_worker_distance_km.toFixed(1) : 'unknown'} km away.`
+                );
+                return;
+            }
+
             const payload = {
                 category,
                 description: structuredAnswers && structuredAnswers.length > 0
@@ -49,6 +104,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
                 customer_address: customerLocation.full_address,
                 customer_lat: customerLocation.lat,
                 customer_lng: customerLocation.lng,
+                pincode: customerLocation.pincode,
                 customer_address_detail: {
                     house: customerLocation.house,
                     street: customerLocation.street,
@@ -113,6 +169,17 @@ export default function LocationScheduleScreen({ route, navigation }) {
 
                 {/* Location Input Component */}
                 <LocationInput onChange={setCustomerLocation} />
+
+                {/* Inline Serviceability Warning */}
+                {!isServiceable && (
+                    <FadeInView delay={100} style={styles.warningBox}>
+                        <Text style={styles.warningTitle}>Area Not Covered</Text>
+                        <Text style={styles.warningText}>
+                            We don't have {category} professionals available in this area right now.
+                            {coverageMsg ? `\n${coverageMsg}` : ''}
+                        </Text>
+                    </FadeInView>
+                )}
 
                 {/* Schedule Section */}
                 <FadeInView delay={300} style={styles.section}>
@@ -188,7 +255,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
                     <PremiumButton
                         title={t('search_for_pro')}
                         loading={loading}
-                        isDisabled={!isReady}
+                        isDisabled={!isReady || !isServiceable}
                         onPress={handleConfirm}
                     />
                 </View>
@@ -264,7 +331,7 @@ const styles = StyleSheet.create({
     pickerCard: { padding: 0, overflow: 'hidden', marginTop: spacing[8] },
     pickerRow: { flexDirection: 'row', alignItems: 'center' },
     pickerBtn: { flex: 1, padding: spacing[20], alignItems: 'center', gap: 4 },
-    pickerLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    pickerLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     pickerValue: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.semibold },
     pickerDivider: { width: 1, height: '60%', backgroundColor: colors.accent.border + '22' },
 
@@ -280,5 +347,16 @@ const styles = StyleSheet.create({
     emergencyTitle: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, letterSpacing: tracking.cardTitle },
     emergencySub: { color: colors.text.secondary, fontSize: 10, marginTop: 4, lineHeight: 14 },
 
-    footer: { marginTop: spacing[48] }
+    footer: { marginTop: spacing[48] },
+
+    warningBox: {
+        marginTop: spacing[16],
+        backgroundColor: colors.warning + '11',
+        borderWidth: 1,
+        borderColor: colors.warning + '44',
+        borderRadius: radius.md,
+        padding: spacing[16],
+    },
+    warningTitle: { color: colors.warning, fontSize: fontSize.base, fontWeight: fontWeight.bold, marginBottom: 4 },
+    warningText: { color: colors.text.primary, fontSize: fontSize.sm, lineHeight: 20 }
 });

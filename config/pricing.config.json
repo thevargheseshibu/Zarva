@@ -1,0 +1,18 @@
+{
+    "inspection": {
+        "window_minutes": 15,
+        "free_km_radius": 5,
+        "per_km_rate": 15,
+        "fee_formula": "hourly_rate / 4 + travel_charge"
+    },
+    "billing": {
+        "minimum_block_minutes": 30,
+        "increment_block_minutes": 15,
+        "max_job_duration_hours": 4,
+        "estimate_is_billing_cap": true
+    },
+    "safety_flags": {
+        "flag_if_exceeds_category_average_multiplier": 2.0,
+        "flag_worker_if_consistently_exceeds_average": true
+    }
+}

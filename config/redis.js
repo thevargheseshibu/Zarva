@@ -25,7 +25,7 @@ function getRedisClient() {
             console.warn(`[Redis] Reconnect attempt #${times} in ${delay}ms`);
             return delay;
         },
-        maxRetriesPerRequest: 3,
+        maxRetriesPerRequest: null,
     };
 
     if (process.env.REDIS_PASSWORD) {

@@ -248,10 +248,10 @@ const styles = StyleSheet.create({
         borderColor: colors.accent.border + '22'
     },
     advanceInfo: { gap: 4 },
-    advanceLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    advanceLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     advanceValue: { color: colors.accent.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
     paidBadge: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-    paidBadgeTxt: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold },
+    paidBadgeTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold },
 
     totalBlock: {
         flexDirection: 'row',
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     },
     balanceLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
     totalValue: { color: colors.text.primary, fontSize: 32, fontWeight: '900', marginTop: 4 },
-    secureBadge: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.medium },
+    secureBadge: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
 
     footer: { marginTop: spacing[40], gap: spacing[16] },
     cashBtn: { paddingVertical: spacing[16], alignItems: 'center' },

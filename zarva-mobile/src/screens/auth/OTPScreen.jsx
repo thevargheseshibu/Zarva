@@ -22,11 +22,13 @@ import {
     StyleSheet, Platform, Alert,
 } from 'react-native';
 import { colors, spacing, radius } from '../../design-system/tokens';
-import GoldButton from '../../components/GoldButton';
+import PremiumButton from '../../components/PremiumButton';
 import { useAuthStore } from '../../stores/authStore';
 import { useOtpStore } from '../../stores/otpStore';
 import apiClient from '../../services/api/client';
 import { useT } from '../../hooks/useT';
+import MainBackground from '../../components/MainBackground';
+import auth, { getAuth, signInWithPhoneNumber } from '@react-native-firebase/auth';
 
 const BOX_COUNT = 6;
 const RESEND_SECONDS = 30;
@@ -36,6 +38,7 @@ export default function OTPScreen({ navigation, route }) {
     const [digits, setDigits] = useState(Array(BOX_COUNT).fill(''));
     const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
     const [loading, setLoading] = useState(false);
+    const [errorMsg, setErrorMsg] = useState(null);
     const inputs = useRef([]);
     const login = useAuthStore(s => s.login);
     const t = useT();
@@ -71,8 +74,8 @@ export default function OTPScreen({ navigation, route }) {
         // Calling login() with the user data is all that's needed — do NOT navigate manually.
     };
 
-    const showInvalidOtp = () => {
-        Alert.alert(t('wrong_otp'), t('error_otp_incorrect'));
+    const showInvalidOtp = (msg) => {
+        setErrorMsg(msg || t('error_otp_incorrect'));
         setDigits(Array(BOX_COUNT).fill(''));
         inputs.current[0]?.focus();
     };
@@ -81,6 +84,7 @@ export default function OTPScreen({ navigation, route }) {
         const code = codeOverride || digits.join('');
         if (code.length < BOX_COUNT) return;
         setLoading(true);
+        setErrorMsg(null);
 
         try {
             // ── WhatsApp path ──────────────────────────────────────────────────
@@ -116,7 +120,7 @@ export default function OTPScreen({ navigation, route }) {
                     if (serverCode === 'INVALID_OTP') {
                         showInvalidOtp();
                     } else {
-                        Alert.alert(t('error'), serverErr?.response?.data?.message || t('error_generic'));
+                        setErrorMsg(serverErr?.response?.data?.message || t('error_generic'));
                     }
                 }
                 return;
@@ -126,14 +130,14 @@ export default function OTPScreen({ navigation, route }) {
             let firebaseIdToken = null;
             try {
                 const credential = await confirmation.confirm(code);
-                firebaseIdToken = await credential.user.getIdToken();
+                firebaseIdToken = await credential.user.getIdToken(true);
             } catch (confirmErr) {
                 const isInvalid = confirmErr.code === 'auth/invalid-verification-code'
                     || confirmErr.message?.toLowerCase().includes('invalid');
                 if (isInvalid) {
                     showInvalidOtp();
                 } else {
-                    Alert.alert(t('error'), confirmErr.message || t('error_generic'));
+                    setErrorMsg(confirmErr.message || t('error_generic'));
                 }
                 return;
             }
@@ -149,7 +153,7 @@ export default function OTPScreen({ navigation, route }) {
 
         } catch (err) {
             console.error('[handleVerify error]', err?.response?.data || err.message);
-            Alert.alert(t('error'), err?.response?.data?.message || t('error_otp_invalid'));
+            setErrorMsg(err?.response?.data?.message || t('error_otp_invalid'));
             setDigits(Array(BOX_COUNT).fill(''));
             inputs.current[0]?.focus();
         } finally {
@@ -168,12 +172,11 @@ export default function OTPScreen({ navigation, route }) {
                 // Keep the same sentinel in the store
             } else {
                 // Real Firebase resend
-                const { getAuth, signInWithPhoneNumber } = require('@react-native-firebase/auth');
-                const auth = getAuth();
+                const authInstance = getAuth();
                 if (__DEV__) {
-                    try { auth.settings.appVerificationDisabledForTesting = true; } catch (_) { }
+                    try { authInstance.settings.appVerificationDisabledForTesting = true; } catch (_) { }
                 }
-                const newConfirmation = await signInWithPhoneNumber(auth, phone);
+                const newConfirmation = await signInWithPhoneNumber(authInstance, phone);
                 useOtpStore.getState().setConfirmationObj(newConfirmation);
             }
         } catch (e) {
@@ -189,7 +192,7 @@ export default function OTPScreen({ navigation, route }) {
     const maskedPhone = phone?.replace('+91', '').replace(/(\d{5})(\d{5})/, '+91 $1 $2');
 
     return (
-        <View style={styles.screen}>
+        <MainBackground>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
                 <Text style={styles.backArrow}>←</Text>
             </TouchableOpacity>
@@ -203,7 +206,7 @@ export default function OTPScreen({ navigation, route }) {
                         <TextInput
                             key={i}
                             ref={r => (inputs.current[i] = r)}
-                            style={[styles.box, d && styles.boxFilled]}
+                            style={[styles.box, d && styles.boxFilled, errorMsg && styles.boxError]}
                             value={d}
                             onChangeText={text => handleChange(text, i)}
                             onKeyPress={e => handleKeyPress(e, i)}
@@ -215,6 +218,10 @@ export default function OTPScreen({ navigation, route }) {
                     ))}
                 </View>
 
+                {errorMsg && (
+                    <Text style={styles.errorText}>{errorMsg}</Text>
+                )}
+
                 <View style={styles.resendRow}>
                     {secondsLeft > 0 ? (
                         <Text style={styles.timerText}>{t('resend_in')} <Text style={styles.timerNum}>{minuteStr}</Text></Text>
@@ -225,7 +232,7 @@ export default function OTPScreen({ navigation, route }) {
                     )}
                 </View>
 
-                <GoldButton
+                <PremiumButton
                     title={t('verify')}
                     loading={loading}
                     disabled={digits.join('').length < BOX_COUNT}
@@ -233,12 +240,12 @@ export default function OTPScreen({ navigation, route }) {
                     style={{ marginTop: spacing.lg }}
                 />
             </View>
-        </View>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: 'transparent' },
     back: { paddingTop: spacing.xl + 20, paddingLeft: spacing.lg },
     backArrow: { color: colors.text.primary, fontSize: 24 },
     content: {
@@ -250,16 +257,18 @@ const styles = StyleSheet.create({
     phone: { color: colors.text.primary, fontWeight: '600' },
     boxRow: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'center', marginVertical: spacing.md },
     box: {
-        width: 48, height: 58, backgroundColor: colors.bg.elevated,
-        borderRadius: radius.sm, borderBottomWidth: 2.5,
-        borderBottomColor: colors.text.muted,
+        width: 44, height: 58, backgroundColor: colors.surface,
+        borderRadius: radius.md, borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
         color: colors.text.primary, fontSize: 26,
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
         textAlign: 'center', fontWeight: '700',
     },
-    boxFilled: { borderBottomColor: colors.gold.primary },
+    boxFilled: { borderColor: colors.accent.primary + '66' },
+    boxError: { borderBottomColor: colors.danger, color: colors.danger },
+    errorText: { color: colors.danger, fontSize: 13, textAlign: 'center', marginTop: -spacing.sm, marginBottom: spacing.sm },
     resendRow: { alignItems: 'center', marginTop: spacing.xs },
     timerText: { color: colors.text.muted, fontSize: 14 },
     timerNum: { color: colors.text.secondary, fontWeight: '600' },
-    resendBtn: { color: colors.gold.primary, fontSize: 15, fontWeight: '600' },
+    resendBtn: { color: colors.accent.primary, fontSize: 15, fontWeight: '600' },
 });

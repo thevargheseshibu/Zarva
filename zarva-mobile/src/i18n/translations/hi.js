@@ -432,6 +432,8 @@ export default {
     // ── Worker Profile Screen ────────────────────────
     choose_language_title: 'अपनी भाषा चुनें',
     search_language: 'भाषा खोजें...',
+    featured_languages: 'प्रमुख भाषाएँ',
+    view_all_languages: 'अधिक भाषाएँ देखें...',
 
     // ── Auth & Onboarding ─────────────────────────────
     phone_entry_title: 'अपना नंबर दर्ज करें',
@@ -439,6 +441,10 @@ export default {
     get_otp_whatsapp: 'WhatsApp के माध्यम से OTP प्राप्त करें',
     get_otp_sms: 'SMS के माध्यम से OTP प्राप्त करें',
     sending: 'भेजा जा रहा है...',
+    fetching_competencies: 'कौशल (Skills) लोड किए जा रहे हैं...',
+    processing_payment: 'भुगतान की प्रक्रिया शुरू की जा रही है...',
+    initializing_agreement: 'अनुबंध (Agreement) तैयार किया जा रहा है...',
+    fetching_location: 'आपका स्थान खोजा जा रहा है...',
     terms_text_1: "जारी रखकर, आप ZARVA की",
     terms_text_2: 'सेवा की शर्तों',
     terms_text_3: 'और',
@@ -485,10 +491,10 @@ export default {
     // ── Job Searching / Radar ─────────────────────────
     finding_workers_nearby: 'आस-पास के वर्कर खोजे जा रहे हैं',
     please_wait: 'कृपया प्रतीक्षा करें...',
-    no_workers_desc: "हमें अभी आपके क्षेत्र में कोई उपलब्ध {{category}} नहीं मिला। अपना स्थान बदलने का प्रयास करें या कुछ मिनटों बाद वापस देखें।",
+    no_workers_desc: "हमें अभी आपके क्षेत्र में कोई उपलब्ध %{category} नहीं मिला। अपना स्थान बदलने का प्रयास करें या कुछ मिनटों बाद वापस देखें।",
     searching_sub: 'आपके स्थान के लिए प्रदाता मिलान (Provider Matching) को अनुकूलित किया जा रहा है',
     priority_matching: 'प्राथमिकता मिलान का अनुरोध किया जा रहा है...',
-    minimize_info: 'आप {{seconds}} सेकंड में इसे छोटा कर सकते हैं',
+    minimize_info: 'आप %{seconds} सेकंड में इसे छोटा कर सकते हैं',
     cancel_request_msg: 'क्या आपने अपना मन बदल लिया है? इससे आपका सेवा अनुरोध रद्द हो जाएगा।',
 
     // ── Job Status Labels ─────────────────────────────
@@ -573,4 +579,8 @@ export default {
     // ── Errors ────────────────────────────────────────
     error_network: 'नेटवर्क त्रुटि। अपने कनेक्शन की जांच करें।',
     error_upload: 'फ़ोटो अपलोड करने में विफल।',
+    not_available_yet: 'अभी इस क्षेत्र में उपलब्ध नहीं है',
+    not_available_desc: 'हम अभी {{location}} में उपलब्ध नहीं हैं। हम जल्द ही आपके पास पहुंचेंगे!',
+    try_another_location: 'दूसरा स्थान चुनें',
+    expanding_rapidly: '✨ तेजी से विस्तार हो रहा है',
 };

@@ -78,6 +78,16 @@ export default function RootNavigator() {
             if (jobId) {
                 if (pushData?.type === 'NEW_CHAT_MESSAGE') {
                     navigationRef.navigate('Chat', { jobId, userRole: role });
+                } else if (pushData?.type === 'NEW_JOB_ALERT' && role === 'worker') {
+                    // Route to Preview for unassigned alerts
+                    navigationRef.navigate('JobDetailPreview', {
+                        job: {
+                            id: jobId,
+                            category: pushData.category,
+                            dist: parseFloat(pushData.distance_km),
+                            total_amount: pushData.estimated_earnings
+                        }
+                    });
                 } else if (role === 'customer') {
                     navigationRef.navigate('JobStatusDetail', { jobId });
                 } else if (role === 'worker') {

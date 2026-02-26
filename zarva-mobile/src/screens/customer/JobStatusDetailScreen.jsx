@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     sectionHeader: { color: colors.text.muted, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5, marginBottom: spacing.sm },
     detailsCard: { gap: spacing.md },
     detailRow: { gap: 4 },
-    detailLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    detailLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     detailValue: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
 
     footerActions: { padding: spacing.lg, gap: spacing.md }

@@ -9,7 +9,9 @@ import {
     ActivityIndicator,
     StyleSheet,
     Pressable,
+    View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -34,18 +36,46 @@ export default function PremiumButton({
     haptic = Haptics.ImpactFeedbackStyle.Light,
 }) {
     const scale = useSharedValue(1);
+    const translateX = useSharedValue(0);
 
     const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
+        transform: [
+            { scale: scale.value },
+            { translateX: translateX.value }
+        ],
         opacity: withTiming(scale.value < 1 ? 0.92 : 1, { duration: 120 }),
     }));
 
+    const triggerShake = () => {
+        translateX.value = withTiming(-10, { duration: 50 }, () => {
+            translateX.value = withTiming(10, { duration: 50 }, () => {
+                translateX.value = withTiming(-6, { duration: 50 }, () => {
+                    translateX.value = withTiming(6, { duration: 50 }, () => {
+                        translateX.value = withSpring(0);
+                    });
+                });
+            });
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    };
+
+    const handlePress = () => {
+        if (loading) return;
+        if (disabled) {
+            triggerShake();
+            return;
+        }
+        if (onPress) onPress();
+    };
+
     const onPressIn = () => {
+        if (isDisabled) return;
         scale.value = withTiming(0.965, { duration: 120 });
         if (haptic) Haptics.impactAsync(haptic);
     };
 
     const onPressOut = () => {
+        if (isDisabled) return;
         scale.value = withSpring(1, springs.press);
     };
 
@@ -74,21 +104,30 @@ export default function PremiumButton({
 
     return (
         <AnimatedPressable
-            onPress={onPress}
+            onPress={handlePress}
             onPressIn={onPressIn}
             onPressOut={onPressOut}
-            disabled={isDisabled}
             style={[
                 styles.baseButton,
-                vStyles.button,
-                variant === 'primary' && !isDisabled && shadows.accentGlow,
                 isDisabled && styles.disabled,
+                variant === 'primary' && !isDisabled && shadows.accentGlow,
                 animatedStyle,
                 style,
             ]}
         >
+            {variant === 'primary' && !isDisabled ? (
+                <LinearGradient
+                    colors={colors.accent.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                />
+            ) : variant === 'primary' ? (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.accent.primary }]} />
+            ) : null}
+
             {loading ? (
-                <ActivityIndicator color={variant === 'primary' ? colors.background : colors.accent.primary} size="small" />
+                <ActivityIndicator color={variant === 'primary' ? colors.text.primary : colors.accent.primary} size="small" />
             ) : (
                 <Text style={[styles.baseLabel, vStyles.label, textStyle]}>{title}</Text>
             )}
@@ -111,10 +150,13 @@ const styles = StyleSheet.create({
         letterSpacing: tracking.body,
     },
     primaryButton: {
-        backgroundColor: colors.accent.primary,
+        overflow: 'hidden',
     },
     primaryLabel: {
-        color: colors.background,
+        color: '#FFFFFF',
+        textShadowColor: 'rgba(0,0,0,0.2)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
     },
     ghostButton: {
         backgroundColor: 'transparent',

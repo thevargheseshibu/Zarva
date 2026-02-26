@@ -59,27 +59,30 @@ export async function authenticate(rawToken, pool = null, features = null) {
     const db = pool ?? dbModule.getPool();
 
     const [tokenRows] = await db.query(
-        `SELECT id, user_id, expires_at, revoked_at FROM auth_tokens WHERE token_hash = ? LIMIT 1`,
+        `SELECT id, user_id, expires_at, revoked_at FROM auth_tokens WHERE token_hash = $1 LIMIT 1`,
         [tokenHash],
     );
 
     if (tokenRows.length === 0) {
+        console.warn(`[Auth] Token not found in DB for hash starting with ${tokenHash.slice(0, 8)}`);
         return { error: { status: 401, code: 'UNAUTHORIZED', message: 'Token not recognised.' } };
     }
 
     const dbToken = tokenRows[0];
 
     if (dbToken.revoked_at !== null) {
+        console.warn(`[Auth] Token revoked for user_id ${dbToken.user_id}`);
         return { error: { status: 401, code: 'UNAUTHORIZED', message: 'Token has been revoked.' } };
     }
 
     if (new Date(dbToken.expires_at) <= new Date()) {
+        console.warn(`[Auth] Token expired in DB for user_id ${dbToken.user_id} (Expires: ${dbToken.expires_at})`);
         return { error: { status: 401, code: 'UNAUTHORIZED', message: 'Token has expired.' } };
     }
 
     // 3. Load user
     const [userRows] = await db.query(
-        `SELECT id, phone, role, is_blocked FROM users WHERE id = ? LIMIT 1`,
+        `SELECT id, phone, role, is_blocked FROM users WHERE id = $1 LIMIT 1`,
         [dbToken.user_id],
     );
 
@@ -143,10 +146,14 @@ async function authenticateJWT(req, res, next) {
         const result = await authenticate(rawToken);
 
         if (result.error) {
+            // In dev mode, let's expose the message to help debugging
+            const code = result.error.code;
+            const message = process.env.NODE_ENV === 'development' ? result.error.message : (code === 'UNAUTHORIZED' ? 'Authentication required.' : 'Account suspended.');
+
             return res.status(result.error.status).json({
                 status: 'error',
                 code: result.error.code,
-                message: result.error.message,
+                message: message,
             });
         }
 

@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
 
     infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', borderBottomColor: colors.bg.surface, borderBottomWidth: 1, paddingBottom: spacing.sm },
     category: { color: colors.text.secondary, fontSize: 16, textTransform: 'uppercase', letterSpacing: 1 },
-    est: { color: colors.gold.primary, fontSize: 28, fontWeight: '800' },
+    est: { color: colors.accent.primary, fontSize: 28, fontWeight: '800' },
 
     distTxt: { color: colors.text.primary, fontSize: 16 },
 

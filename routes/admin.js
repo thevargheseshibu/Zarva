@@ -6,8 +6,11 @@
 
 import { Router } from 'express';
 import configLoader from '../config/loader.js';
+import ticketsRouter from './admin/tickets.js';
 
 const router = Router();
+
+router.use('/tickets', ticketsRouter);
 
 router.post('/config/reload', async (req, res) => {
     const { name } = req.query;

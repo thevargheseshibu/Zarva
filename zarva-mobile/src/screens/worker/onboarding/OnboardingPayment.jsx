@@ -8,6 +8,9 @@ import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
 import { useT } from '../../../hooks/useT';
+import { useUIStore } from '../../../stores/uiStore';
+import MainBackground from '../../../components/MainBackground';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function OnboardingPayment({ data, onNext }) {
     const t = useT();
@@ -35,111 +38,127 @@ export default function OnboardingPayment({ data, onNext }) {
     };
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            <FadeInView delay={50}>
-                <Text style={styles.headerSub}>{t('step_04')}</Text>
-                <Text style={styles.title}>{t('settlement_link')}</Text>
-                <Text style={styles.sub}>{t('settlement_link_desc')}</Text>
-            </FadeInView>
-
-            <FadeInView delay={150} style={styles.section}>
-                <Text style={styles.label}>{t('settlement_mode')}</Text>
-                <View style={styles.tabContainer}>
-                    {['upi', 'bank'].map(m => {
-                        const active = method === m;
-                        return (
-                            <TouchableOpacity
-                                key={m}
-                                style={[styles.tab, active && styles.tabActive]}
-                                onPress={() => handleMethodChange(m)}
-                            >
-                                <Text style={[styles.tabTxt, active && styles.tabTxtActive]}>
-                                    {m === 'upi' ? t('upi_interface') : t('bank_transfer')}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            </FadeInView>
-
-            {method === 'upi' ? (
-                <FadeInView delay={250} style={styles.section}>
-                    <Text style={styles.label}>{t('vpa')}</Text>
-                    <Card style={styles.inputCard}>
-                        <TextInput
-                            style={styles.input}
-                            value={upi}
-                            onChangeText={setUpi}
-                            placeholder={t('username_upi')}
-                            placeholderTextColor={colors.text.muted}
-                            autoCapitalize="none"
-                            keyboardType="email-address"
-                        />
-                    </Card>
-                    <Text style={styles.hintTxt}>{t('upi_hint')}</Text>
+        <MainBackground>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                <FadeInView delay={50}>
+                    <Text style={styles.headerSub}>{t('step_04')}</Text>
+                    <Text style={styles.title}>{t('settlement_link')}</Text>
+                    <Text style={styles.sub}>{t('settlement_link_desc')}</Text>
                 </FadeInView>
-            ) : (
-                <FadeInView delay={250} style={styles.section}>
-                    <Text style={styles.label}>{t('banking_coordinates')}</Text>
-                    <View style={styles.bankForm}>
-                        <Card style={styles.inputCard}>
-                            <TextInput
-                                style={styles.input}
-                                value={holderName}
-                                onChangeText={setHolderName}
-                                placeholder={t('beneficiary_name')}
-                                placeholderTextColor={colors.text.muted}
-                                autoCapitalize="words"
-                            />
-                        </Card>
-                        <Card style={styles.inputCard}>
-                            <TextInput
-                                style={styles.input}
-                                value={accountNo}
-                                onChangeText={setAccountNo}
-                                placeholder={t('account_number')}
-                                placeholderTextColor={colors.text.muted}
-                                keyboardType="number-pad"
-                            />
-                        </Card>
-                        <Card style={styles.inputCard}>
-                            <TextInput
-                                style={styles.input}
-                                value={ifsc}
-                                onChangeText={t => setIfsc(t.toUpperCase().slice(0, 11))}
-                                placeholder={t('ifsc_code')}
-                                placeholderTextColor={colors.text.muted}
-                                autoCapitalize="characters"
-                            />
-                        </Card>
+
+                <FadeInView delay={150} style={styles.section}>
+                    <Text style={styles.label}>{t('settlement_mode')}</Text>
+                    <View style={styles.tabContainer}>
+                        {['upi', 'bank'].map(m => {
+                            const active = method === m;
+                            return (
+                                <TouchableOpacity
+                                    key={m}
+                                    style={[styles.tab, active && styles.tabActive]}
+                                    onPress={() => handleMethodChange(m)}
+                                >
+                                    {active && (
+                                        <LinearGradient
+                                            colors={['#FF4FA3', '#A855F7']}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                            style={StyleSheet.absoluteFill}
+                                        />
+                                    )}
+                                    <Text style={[styles.tabTxt, active && styles.tabTxtActive]}>
+                                        {m === 'upi' ? t('upi_interface') : t('bank_transfer')}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
-                    <Text style={styles.hintTxt}>{t('bank_hint')}</Text>
                 </FadeInView>
-            )}
 
-            <FadeInView delay={450} style={styles.secureBadge}>
-                <Text style={styles.secureTxt}>{t('encrypted_link')}</Text>
-            </FadeInView>
+                {method === 'upi' ? (
+                    <FadeInView delay={250} style={styles.section}>
+                        <Text style={styles.label}>{t('vpa')}</Text>
+                        <Card style={styles.inputCard}>
+                            <TextInput
+                                style={styles.input}
+                                value={upi}
+                                onChangeText={setUpi}
+                                placeholder={t('username_upi')}
+                                placeholderTextColor={colors.text.muted}
+                                autoCapitalize="none"
+                                keyboardType="email-address"
+                            />
+                        </Card>
+                        <Text style={styles.hintTxt}>{t('upi_hint')}</Text>
+                    </FadeInView>
+                ) : (
+                    <FadeInView delay={250} style={styles.section}>
+                        <Text style={styles.label}>{t('banking_coordinates')}</Text>
+                        <View style={styles.bankForm}>
+                            <Card style={styles.inputCard}>
+                                <TextInput
+                                    style={styles.input}
+                                    value={holderName}
+                                    onChangeText={setHolderName}
+                                    placeholder={t('beneficiary_name')}
+                                    placeholderTextColor={colors.text.muted}
+                                    autoCapitalize="words"
+                                />
+                            </Card>
+                            <Card style={styles.inputCard}>
+                                <TextInput
+                                    style={styles.input}
+                                    value={accountNo}
+                                    onChangeText={setAccountNo}
+                                    placeholder={t('account_number')}
+                                    placeholderTextColor={colors.text.muted}
+                                    keyboardType="number-pad"
+                                />
+                            </Card>
+                            <Card style={styles.inputCard}>
+                                <TextInput
+                                    style={styles.input}
+                                    value={ifsc}
+                                    onChangeText={t => setIfsc(t.toUpperCase().slice(0, 11))}
+                                    placeholder={t('ifsc_code')}
+                                    placeholderTextColor={colors.text.muted}
+                                    autoCapitalize="characters"
+                                />
+                            </Card>
+                        </View>
+                        <Text style={styles.hintTxt}>{t('bank_hint')}</Text>
+                    </FadeInView>
+                )}
 
-            <FadeInView delay={550} style={styles.footer}>
-                <PremiumButton
-                    title={t('initialize_settlement')}
-                    disabled={!isValid}
-                    onPress={handleNext}
-                />
-            </FadeInView>
-        </ScrollView>
+                <FadeInView delay={450} style={styles.secureBadge}>
+                    <Text style={styles.secureTxt}>{t('encrypted_link')}</Text>
+                </FadeInView>
+
+                <FadeInView delay={550} style={styles.footer}>
+                    <PremiumButton
+                        title={t('initialize_settlement')}
+                        disabled={!isValid}
+                        onPress={() => {
+                            if (!isValid) {
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                                return;
+                            }
+                            handleNext();
+                        }}
+                    />
+                </FadeInView>
+            </ScrollView>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
     scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
-    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    headerSub: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
     title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
     sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
 
     section: { gap: 12 },
-    label: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    label: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
 
     tabContainer: {
         flexDirection: 'row',
@@ -149,10 +168,15 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.surface
     },
-    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: radius.md },
-    tabActive: { backgroundColor: colors.elevated, ...shadows.premium },
-    tabTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    tabTxtActive: { color: colors.accent.primary },
+    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: radius.md, overflow: 'hidden' },
+    tabActive: { backgroundColor: 'transparent', ...shadows.premium },
+    tabTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    tabTxtActive: {
+        color: '#FFFFFF',
+        textShadowColor: 'rgba(0,0,0,0.2)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4
+    },
 
     inputCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface },
     input: {
@@ -171,7 +195,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.accent.primary + '11'
     },
-    secureTxt: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    secureTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
 
     footer: { marginTop: spacing[16] }
 });

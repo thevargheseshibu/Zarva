@@ -1,20 +1,25 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, BackHandler, ActivityIndicator } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { colors, spacing, radius, shadows } from '../../design-system/tokens';
 import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+import { useAuthStore } from '../../stores/authStore';
+import apiClient from '../../services/api/client';
+import MainBackground from '../../components/MainBackground';
 import OnboardingBasicInfo from './onboarding/OnboardingBasicInfo';
 import OnboardingSkills from './onboarding/OnboardingSkills';
+import ServiceAreaSetupScreen from './onboarding/ServiceAreaSetupScreen';
 import OnboardingPayment from './onboarding/OnboardingPayment';
 import OnboardingDocuments from './onboarding/OnboardingDocuments';
 import OnboardingAgreement from './onboarding/OnboardingAgreement';
 import PendingApproval from './onboarding/PendingApproval';
 
-const STEPS = 5;
+const STEPS = 6;
 const SCREEN_MAP = [
     OnboardingBasicInfo,
     OnboardingSkills,
+    ServiceAreaSetupScreen,
     OnboardingPayment,
     OnboardingDocuments,
     OnboardingAgreement,
@@ -29,9 +34,11 @@ export default function OnboardingWelcome() {
 
     const blockBackAndGoHome = useCallback(() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        navigation.replace('WorkerStack', { screen: 'WorkerHome' });
+        // Reset role to null to go back to RoleSelection in RootNavigator
+        const { user, setUser } = useAuthStore.getState();
+        setUser({ ...user, active_role: null });
         return true;
-    }, [navigation]);
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
@@ -39,6 +46,36 @@ export default function OnboardingWelcome() {
             return () => subscription.remove();
         }, [blockBackAndGoHome])
     );
+
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const checkStatus = async () => {
+            try {
+                const res = await apiClient.get('/api/worker/onboard/status');
+                const { kyc_status, steps_complete, data: savedData } = res.data;
+                if (['pending_review', 'approved', 'rejected'].includes(kyc_status)) {
+                    setDone(true);
+                } else if (steps_complete > 0) {
+                    setStep(steps_complete);
+                    if (savedData) setData(savedData);
+                }
+            } catch (err) {
+                console.error("Failed to check onboarding status", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        checkStatus();
+    }, []);
+
+    if (isLoading) {
+        return (
+            <MainBackground style={{ justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={colors.accent.primary} />
+            </MainBackground>
+        );
+    }
 
     if (done) return <PendingApproval />;
 
@@ -62,7 +99,7 @@ export default function OnboardingWelcome() {
     };
 
     return (
-        <View style={styles.screen}>
+        <MainBackground style={styles.screen}>
             {/* Progress Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={goBack} style={styles.backBtn}>
@@ -83,12 +120,12 @@ export default function OnboardingWelcome() {
             </View>
 
             <CurrentScreen data={data} onNext={goNext} />
-        </View>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+    screen: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',

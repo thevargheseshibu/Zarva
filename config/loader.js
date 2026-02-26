@@ -73,7 +73,7 @@ class ConfigLoader {
     if (this._pool) {
       try {
         const [rows] = await this._pool.query(
-          'SELECT `key`, `value` FROM system_config WHERE namespace = ? AND is_active = 1',
+          'SELECT "key", "value" FROM system_config WHERE namespace = $1 AND is_active = true',
           [name]
         );
         for (const row of rows) {

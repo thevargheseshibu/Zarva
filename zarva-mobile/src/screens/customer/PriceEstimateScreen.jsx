@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
         borderColor: colors.accent.primary + '22'
     },
     totalLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
-    totalHint: { color: colors.text.muted, fontSize: 8, marginTop: 2 },
+    totalHint: { color: colors.text.muted, fontSize: 10, marginTop: 2 },
     totalValue: { color: colors.text.primary, fontSize: 28, fontWeight: '900' },
 
     paymentCard: { padding: spacing[24], marginTop: spacing[24], backgroundColor: colors.surface },

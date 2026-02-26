@@ -10,6 +10,8 @@ import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
 import { useT } from '../../../hooks/useT';
+import { useUIStore } from '../../../stores/uiStore';
+import MainBackground from '../../../components/MainBackground';
 
 async function uploadImage(uri, docKey) {
     try {
@@ -39,12 +41,12 @@ export default function OnboardingDocuments({ data, onNext }) {
         { key: 'aadhaar_front', label: t('aadhaar_front'), icon: '🪪' },
         { key: 'aadhaar_back', label: t('aadhaar_back'), icon: '🪪' },
         { key: 'selfie', label: t('selfie_eportrait'), icon: '🤳' },
-        { key: 'agreement_signature', label: t('signature_scan'), icon: '📝' },
     ];
 
     const [uploads, setUploads] = useState(data.documents || {});
     const [aadhaarNumber, setAadhaarNumber] = useState(data.aadhaar_number || '');
-    const [loading, setLoading] = useState({});
+    const [globalLoading, setGlobalLoading] = useState(false);
+    const [loadingKey, setLoadingKey] = useState(null);
     const [errors, setErrors] = useState({});
 
     const isValidAadhaar = /^\d{12}$/.test(aadhaarNumber);
@@ -68,7 +70,10 @@ export default function OnboardingDocuments({ data, onNext }) {
         if (result.canceled) return;
 
         const uri = result.assets[0].uri;
-        setLoading(l => ({ ...l, [docKey]: true }));
+
+        const { showLoader, hideLoader } = useUIStore.getState();
+        showLoader(t('uploading_documents') || "Uploading Securely...");
+        setLoadingKey(docKey);
         setErrors(e => ({ ...e, [docKey]: false }));
 
         try {
@@ -76,18 +81,22 @@ export default function OnboardingDocuments({ data, onNext }) {
             setUploads(u => ({ ...u, [docKey]: url }));
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (e) {
+            console.error("Upload error:", e);
             setUploads(u => ({ ...u, [docKey]: uri }));
             setErrors(e => ({ ...e, [docKey]: true }));
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         } finally {
-            setLoading(l => ({ ...l, [docKey]: false }));
+            hideLoader();
+            setLoadingKey(null);
         }
     };
 
     const retryUpload = async (docKey) => {
         const uri = uploads[docKey];
         if (!uri) return;
-        setLoading(l => ({ ...l, [docKey]: true }));
+        const { showLoader, hideLoader } = useUIStore.getState();
+        showLoader(t('uploading_documents') || "Uploading Securely...");
+        setLoadingKey(docKey);
         setErrors(e => ({ ...e, [docKey]: false }));
         try {
             const url = await uploadImage(uri, docKey);
@@ -96,7 +105,8 @@ export default function OnboardingDocuments({ data, onNext }) {
         } catch (e) {
             setErrors(e => ({ ...e, [docKey]: true }));
         } finally {
-            setLoading(l => ({ ...l, [docKey]: false }));
+            hideLoader();
+            setLoadingKey(null);
         }
     };
 
@@ -104,91 +114,93 @@ export default function OnboardingDocuments({ data, onNext }) {
     const isComplete = allUploaded && isValidAadhaar;
 
     return (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            <FadeInView delay={50}>
-                <Text style={styles.headerSub}>{t('step_03')}</Text>
-                <Text style={styles.title}>{t('credentialing')}</Text>
-                <Text style={styles.sub}>{t('credentialing_desc')}</Text>
-            </FadeInView>
+        <MainBackground>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                <FadeInView delay={50}>
+                    <Text style={styles.headerSub}>{t('step_03')}</Text>
+                    <Text style={styles.title}>{t('credentialing')}</Text>
+                    <Text style={styles.sub}>{t('credentialing_desc')}</Text>
+                </FadeInView>
 
-            <FadeInView delay={150} style={styles.section}>
-                <Text style={styles.label}>{t('national_identifier')}</Text>
-                <Card style={styles.inputCard}>
-                    <TextInput
-                        style={styles.input}
-                        value={aadhaarNumber}
-                        onChangeText={t => setAadhaarNumber(t.replace(/[^0-9]/g, ''))}
-                        placeholder="0000 0000 0000"
-                        placeholderTextColor={colors.text.muted}
-                        keyboardType="number-pad"
-                        maxLength={12}
+                <FadeInView delay={150} style={styles.section}>
+                    <Text style={styles.label}>{t('national_identifier')}</Text>
+                    <Card style={styles.inputCard}>
+                        <TextInput
+                            style={styles.input}
+                            value={aadhaarNumber}
+                            onChangeText={t => setAadhaarNumber(t.replace(/[^0-9]/g, ''))}
+                            placeholder="0000 0000 0000"
+                            placeholderTextColor={colors.text.muted}
+                            keyboardType="number-pad"
+                            maxLength={12}
+                        />
+                    </Card>
+                </FadeInView>
+
+                <View style={styles.docGrid}>
+                    {DOCS.map((doc, index) => {
+                        const uri = uploads[doc.key];
+                        const isLoading = loadingKey === doc.key;
+                        const isFailed = errors[doc.key];
+                        const isSuccess = uri && !isFailed && !isLoading;
+
+                        return (
+                            <FadeInView delay={250 + index * 100} key={doc.key} style={styles.docItem}>
+                                <PressableAnimated
+                                    style={[styles.docCard, isSuccess && styles.docCardActive, isFailed && styles.docCardError]}
+                                    onPress={() => isFailed ? retryUpload(doc.key) : pickImage(doc.key)}
+                                >
+                                    <View style={styles.docPreviewWrap}>
+                                        {uri ? (
+                                            <Image source={{ uri }} style={styles.docPreview} />
+                                        ) : (
+                                            <View style={styles.docPlaceholder}>
+                                                <Text style={styles.docIcon}>{doc.icon}</Text>
+                                            </View>
+                                        )}
+                                        {isSuccess && <View style={styles.successDot} />}
+                                        {isFailed && <View style={styles.errorDot} />}
+                                    </View>
+                                    <View style={styles.docInfo}>
+                                        <Text style={styles.docLabel}>{doc.label}</Text>
+                                        <Text style={[styles.docStatus, isFailed && styles.statusError]}>
+                                            {isLoading ? t('uploading') : isFailed ? t('failed_retry') : isSuccess ? t('verified') : t('pending_upload')}
+                                        </Text>
+                                    </View>
+                                </PressableAnimated>
+                            </FadeInView>
+                        );
+                    })}
+                </View>
+
+                <FadeInView delay={650} style={styles.footer}>
+                    <PremiumButton
+                        title={t('validate_credentials')}
+                        disabled={!isComplete}
+                        onPress={() => {
+                            if (!isComplete) {
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                                Alert.alert(t('incomplete_info'), t('please_upload_all_docs'));
+                                return;
+                            }
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            onNext({ documents: uploads, aadhaar_number: aadhaarNumber });
+                        }}
                     />
-                </Card>
-            </FadeInView>
-
-            <View style={styles.docGrid}>
-                {DOCS.map((doc, index) => {
-                    const uri = uploads[doc.key];
-                    const isLoading = loading[doc.key];
-                    const isFailed = errors[doc.key];
-                    const isSuccess = uri && !isFailed && !isLoading;
-
-                    return (
-                        <FadeInView delay={250 + index * 100} key={doc.key} style={styles.docItem}>
-                            <PressableAnimated
-                                style={[styles.docCard, isSuccess && styles.docCardActive, isFailed && styles.docCardError]}
-                                onPress={() => isFailed ? retryUpload(doc.key) : pickImage(doc.key)}
-                            >
-                                <View style={styles.docPreviewWrap}>
-                                    {uri ? (
-                                        <Image source={{ uri }} style={styles.docPreview} />
-                                    ) : (
-                                        <View style={styles.docPlaceholder}>
-                                            <Text style={styles.docIcon}>{doc.icon}</Text>
-                                        </View>
-                                    )}
-                                    {isLoading && (
-                                        <View style={styles.loaderOverlay}>
-                                            <ActivityIndicator size="small" color={colors.accent.primary} />
-                                        </View>
-                                    )}
-                                    {isSuccess && <View style={styles.successDot} />}
-                                    {isFailed && <View style={styles.errorDot} />}
-                                </View>
-                                <View style={styles.docInfo}>
-                                    <Text style={styles.docLabel}>{doc.label}</Text>
-                                    <Text style={[styles.docStatus, isFailed && styles.statusError]}>
-                                        {isLoading ? t('uploading') : isFailed ? t('failed_retry') : isSuccess ? t('verified') : t('pending_upload')}
-                                    </Text>
-                                </View>
-                            </PressableAnimated>
-                        </FadeInView>
-                    );
-                })}
-            </View>
-
-            <FadeInView delay={650} style={styles.footer}>
-                <PremiumButton
-                    title={t('validate_credentials')}
-                    disabled={!isComplete}
-                    onPress={() => {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        onNext({ documents: uploads, aadhaar_number: aadhaarNumber });
-                    }}
-                />
-            </FadeInView>
-        </ScrollView>
+                </FadeInView>
+            </ScrollView>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
     scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
-    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    headerSub: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
     title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
     sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
 
     section: { gap: 12 },
-    label: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    label: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
 
     inputCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface },
     input: {
@@ -219,7 +231,7 @@ const styles = StyleSheet.create({
     errorDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
 
     docInfo: { gap: 2 },
-    docLabel: { color: colors.text.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    docLabel: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     docStatus: { color: colors.text.muted, fontSize: 7, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
     statusError: { color: colors.danger },
 

@@ -22,6 +22,6 @@ export default function SplashScreen({ navigation }) {
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bg.primary, justifyContent: 'center', alignItems: 'center', gap: 20 },
-    brand: { color: colors.gold.primary, fontSize: 42, fontWeight: '800', letterSpacing: 6 },
+    brand: { color: colors.accent.primary, fontSize: 42, fontWeight: '800', letterSpacing: 6 },
     tagline: { color: colors.text.secondary, fontSize: 13, letterSpacing: 1 },
 });

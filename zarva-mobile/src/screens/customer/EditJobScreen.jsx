@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
     pickerCard: { padding: 0, overflow: 'hidden', marginTop: spacing[8] },
     pickerRow: { flexDirection: 'row', alignItems: 'center' },
     pickerBtn: { flex: 1, padding: spacing[20], alignItems: 'center', gap: 4 },
-    pickerLabel: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    pickerLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     pickerValue: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.semibold },
     pickerDivider: { width: 1, height: '60%', backgroundColor: colors.accent.border + '22' },
 

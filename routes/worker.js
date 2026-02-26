@@ -94,11 +94,52 @@ router.get('/onboard/status', (req, res) =>
 );
 
 /**
- * 7. POST /onboard (Unified submission from monolithic mobile frontend)
+ * 7. POST /onboarding/service-area
+ */
+router.post('/onboarding/service-area', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const { latitude, longitude, radius_km, service_types } = req.body;
+
+        if (latitude == null || longitude == null || radius_km == null) {
+            throw Object.assign(new Error('latitude, longitude, and radius_km are required'), { status: 400 });
+        }
+
+        if (radius_km < 1 || radius_km > 50) {
+            throw Object.assign(new Error('Radius must be between 1 and 50 km'), { status: 400 });
+        }
+
+        // Ensure coverageService is imported dynamically since it's only needed here
+        const coverageService = (await import('../services/coverage.service.js')).default;
+
+        const result = await coverageService.updateWorkerServiceArea(
+            userId,
+            latitude,
+            longitude,
+            radius_km
+        );
+
+        // Also update service types if provided
+        if (service_types && Array.isArray(service_types)) {
+            await pool.query(
+                'UPDATE worker_profiles SET service_types = $1 WHERE user_id = $2',
+                [service_types, userId]
+            );
+        }
+
+        return {
+            message: 'Service area updated successfully',
+            service_area: result.service_area_geojson,
+            estimated_coverage_area_km2: Math.PI * Math.pow(radius_km, 2)
+        };
+    })
+);
+
+/**
+ * 8. POST /onboard (Unified submission from monolithic mobile frontend)
  */
 router.post('/onboard', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const { gender, location, categories, experience, payment, documents, agreement_signature, aadhaar_number } = req.body;
+        const { gender, location, categories, experience, payment, documents, agreement_signature, aadhaar_number: aadhar_number } = req.body;
         const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
 
         // Boot role if needed safely
@@ -116,11 +157,9 @@ router.post('/onboard', (req, res) =>
 
         // Location Injection
         if (location && location.isValid) {
-            await pool.query(
-                `UPDATE worker_profiles 
-                 SET home_address=?, home_lat=?, home_lng=?, home_pincode=?, city=? 
-                 WHERE user_id=?`,
-                [JSON.stringify(location), location.lat, location.lng, location.pincode, location.city, userId]
+            await pool.query(`UPDATE worker_profiles 
+                 SET home_address=$1, home_location=ST_SetSRID(ST_MakePoint($3, $2), 4326), home_pincode=$4, city=$5 
+                 WHERE user_id=$6`, [JSON.stringify(location), location.lat, location.lng, location.pincode, location.city, userId]
             );
         }
 
@@ -150,18 +189,17 @@ router.post('/onboard', (req, res) =>
 router.get('/jobs/:id', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
-        const [jobs] = await pool.query(
-            `SELECT j.id, j.status, j.category, j.address, j.description, j.total_amount as amount,
-                    j.start_otp_generated_at,
-                    c.name as customer_name, u.phone as customer_phone
+        const [jobs] = await pool.query(`SELECT j.id, j.status, j.category, j.address, j.description, j.total_amount as amount,
+                    j.arrived_at, j.worker_id, j.customer_id,
+                    c.name as customer_name, 
+                    CASE WHEN j.worker_id = $2 THEN u.phone ELSE NULL END as customer_phone
              FROM jobs j
              LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
              LEFT JOIN users u ON j.customer_id = u.id
-             WHERE j.id = ? AND j.worker_id = ?`,
-            [jobId, userId]
+             WHERE j.id = $1 AND (j.worker_id = $2 OR j.status IN ('open', 'searching'))`, [jobId, userId]
         );
         const job = jobs[0];
-        if (!job) throw Object.assign(new Error('Job not found or not assigned to you'), { status: 404 });
+        if (!job) throw Object.assign(new Error('Job not found or not accessible at this time'), { status: 404 });
 
         // If job is in pending_completion, fetch the END OTP from Redis to show to the customer
         if (job.status === 'pending_completion') {
@@ -183,13 +221,11 @@ router.post('/jobs/:id/accept', (req, res) =>
         await MatchingEngine.acceptJob(jobId, userId, pool);
 
         // Fetch worker profile with fallback
-        const [workerProfiles] = await pool.query(
-            `SELECT COALESCE(name, 'Worker') as name, 
+        const [workerProfiles] = await pool.query(`SELECT COALESCE(name, 'Worker') as name, 
                     average_rating, 
                     profile_s3_key 
              FROM worker_profiles
-             WHERE user_id = ?`,
-            [userId]
+             WHERE user_id = $1`, [userId]
         );
         const wp = workerProfiles[0];
         const workerData = wp ? {
@@ -199,8 +235,7 @@ router.post('/jobs/:id/accept', (req, res) =>
         } : null;
 
         // Hook: create Firebase active_jobs node with the full structure
-        const [jobs] = await pool.query(
-            'SELECT customer_id, latitude, longitude FROM jobs WHERE id=?', [jobId]
+        const [jobs] = await pool.query('SELECT customer_id, latitude, longitude FROM jobs WHERE id=$1', [jobId]
         );
         if (jobs[0]) {
             await createJobNode(jobId, userId, jobs[0].latitude, jobs[0].longitude, workerData);
@@ -233,10 +268,10 @@ router.post('/jobs/:id/arrived', (req, res) =>
         const jobId = req.params.id;
 
         // 1. Guard State
-        const [jobs] = await pool.query('SELECT id, status, worker_id FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+        const [jobs] = await pool.query('SELECT id, status, worker_id FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
         const job = jobs[0];
 
-        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Job not associated with you'), { status: 403 });
+        if (!job || job.worker_id != userId) throw Object.assign(new Error('Job not associated with you'), { status: 403 });
         if (job.status !== 'worker_en_route' && job.status !== 'assigned') throw Object.assign(new Error(`Invalid job state: ${job.status}`), { status: 400 });
 
         // 2. Generate Physical Start OTP
@@ -244,9 +279,7 @@ router.post('/jobs/:id/arrived', (req, res) =>
         const hash = await bcrypt.hash(otp, 10);
 
         // 3. MySQL Storage (Hash)
-        await pool.query(
-            `UPDATE jobs SET start_otp_hash=?, start_otp_generated_at=NOW(), status='worker_arrived', arrived_at=NOW() WHERE id=?`,
-            [hash, jobId]
+        await pool.query(`UPDATE jobs SET start_otp_hash=$1, status='worker_arrived', arrived_at=NOW() WHERE id=$2`, [hash, jobId]
         );
 
         // 4. Redis Storage (Plaintext Relayed to Customer) -> 60 min TTL (3600s)
@@ -272,10 +305,10 @@ router.post('/jobs/:id/resend-start-otp', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
 
-        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = ?', [jobId]);
+        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1', [jobId]);
         const job = jobs[0];
 
-        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (!job || job.worker_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
         if (job.status !== 'worker_arrived') throw Object.assign(new Error('Invalid job state'), { status: 400 });
 
         const redisClient = getRedisClient();
@@ -287,9 +320,7 @@ router.post('/jobs/:id/resend-start-otp', (req, res) =>
             otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
             const hash = await bcrypt.hash(otp, 10);
 
-            await pool.query(
-                `UPDATE jobs SET start_otp_hash=?, start_otp_generated_at=NOW() WHERE id=?`,
-                [hash, jobId]
+            await pool.query(`UPDATE jobs SET start_otp_hash=$1, arrived_at=NOW() WHERE id=$2`, [hash, jobId]
             );
             await redisClient.set(`zarva:otp:start:${jobId}`, otp, 'EX', 3600);
         }
@@ -312,32 +343,30 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         const { otp, code } = req.body;
         const inputOtp = otp || code; // Support both for mobile compatibility
 
-        const [jobs] = await pool.query('SELECT id, status, worker_id, start_otp_hash, start_otp_generated_at, start_otp_attempts FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+        const [jobs] = await pool.query('SELECT id, status, worker_id, start_otp_hash, arrived_at, start_otp_attempts FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
         const job = jobs[0];
 
-        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (!job || job.worker_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
         if (job.status !== 'worker_arrived') throw Object.assign(new Error('Invalid job state'), { status: 400 });
 
         const features = configLoader.get('features');
         if (!features?.otp?.start_otp_enabled) {
             // Bypass logic
-            await pool.query(
-                `UPDATE jobs SET status='in_progress', work_started_at=NOW(), otp_bypass_reason='Feature Flag Disabled' WHERE id=?`,
-                [jobId]
+            await pool.query(`UPDATE jobs SET status='in_progress', work_started_at=NOW(), otp_bypass_reason='Feature Flag Disabled' WHERE id=$1`, [jobId]
             );
             return { verified: true, bypassed: true };
         }
 
         // Validity Checks
         if (!job.start_otp_hash) throw new Error('OTP was never generated');
-        const generatedAt = new Date(job.start_otp_generated_at);
+        const generatedAt = new Date(job.arrived_at);
         if ((Date.now() - generatedAt.getTime()) > 3600000) throw Object.assign(new Error('OTP Expired. Please tap "Ask for code" to refresh.'), { status: 400 });
 
         // Evaluate Bcrypt Hash
         const match = await bcrypt.compare(String(inputOtp), job.start_otp_hash);
 
         if (match) {
-            await pool.query(`UPDATE jobs SET status='in_progress', work_started_at=NOW() WHERE id=?`, [jobId]);
+            await pool.query(`UPDATE jobs SET status='in_progress', work_started_at=NOW() WHERE id=$1`, [jobId]);
             await updateJobNode(jobId, { status: 'in_progress' });
 
             const redisClient = getRedisClient();
@@ -347,14 +376,12 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
             const attempts = job.start_otp_attempts + 1;
             if (attempts >= 5) {
                 // Dispute cascade
-                await pool.query(
-                    `UPDATE jobs SET status='disputed', start_otp_attempts=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
-                    [attempts, jobId]
+                await pool.query(`UPDATE jobs SET status='disputed', start_otp_attempts=$1, dispute_raised_at=NOW(), auto_escalate_at=NOW() + INTERVAL '48 hours' WHERE id=$2`, [attempts, jobId]
                 );
                 await updateJobNode(jobId, { status: 'disputed' });
                 throw Object.assign(new Error('Too many failed attempts. Job disputed.'), { status: 403 });
             } else {
-                await pool.query(`UPDATE jobs SET start_otp_attempts=? WHERE id=?`, [attempts, jobId]);
+                await pool.query(`UPDATE jobs SET start_otp_attempts=$1 WHERE id=$2`, [attempts, jobId]);
                 throw Object.assign(new Error('Incorrect OTP'), { status: 400 });
             }
         }
@@ -369,18 +396,16 @@ router.post('/jobs/:id/complete', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
 
-        const [jobs] = await pool.query('SELECT id, status, worker_id FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+        const [jobs] = await pool.query('SELECT id, status, worker_id FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
         const job = jobs[0];
 
-        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (!job || job.worker_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
         if (job.status !== 'in_progress') throw Object.assign(new Error('Invalid job state'), { status: 400 });
 
         const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
         const hash = await bcrypt.hash(otp, 10);
 
-        await pool.query(
-            `UPDATE jobs SET end_otp_hash=?, end_otp_generated_at=NOW(), status='pending_completion', work_ended_at=NOW() WHERE id=?`,
-            [hash, jobId]
+        await pool.query(`UPDATE jobs SET end_otp_hash=$1, status='pending_completion', work_ended_at=NOW() WHERE id=$2`, [hash, jobId]
         );
 
         // Redis Storage (Relayed to Worker to SHOW Customer) 180m TTL (10800s)
@@ -408,10 +433,10 @@ router.post('/jobs/:id/cancel', (req, res) =>
         await conn.beginTransaction();
 
         try {
-            const [jobs] = await conn.query('SELECT status, customer_id, worker_id, cancellation_locked_at FROM jobs WHERE id = ? FOR UPDATE', [jobId]);
+            const [jobs] = await conn.query('SELECT status, customer_id, worker_id, cancellation_locked_at FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
             const job = jobs[0];
 
-            if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (!job || job.worker_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
 
             if (['in_progress', 'pending_completion', 'completed', 'disputed', 'cancelled', 'searching', 'open'].includes(job.status)) {
                 throw Object.assign(new Error('Cannot cancel at this stage. Raise a dispute.'), { status: 403, code: 'CANNOT_CANCEL' });
@@ -429,15 +454,15 @@ router.post('/jobs/:id/cancel', (req, res) =>
             }
 
             // Valid Cancellation Process
-            await conn.query(`UPDATE jobs SET status='cancelled', cancelled_by='worker', cancel_reason='Worker requested cancellation' WHERE id=?`, [jobId]);
-            await conn.query(`UPDATE worker_profiles SET current_job_id = NULL ${applyPenalty ? ', worker_cancel_penalty = 1' : ''} WHERE user_id=?`, [userId]);
+            await conn.query(`UPDATE jobs SET status='cancelled', cancelled_by='worker', cancel_reason='Worker requested cancellation' WHERE id=$1`, [jobId]);
+            await conn.query(`UPDATE worker_profiles SET current_job_id = NULL ${applyPenalty ? ', worker_cancel_penalty = true' : ''} WHERE user_id=$1`, [userId]);
 
             await updateJobNode(jobId, { status: 'cancelled' });
 
             // Trigger full refund sweep for Customer
-            const [payments] = await conn.query(`SELECT id, amount FROM payments WHERE job_id=? AND status='captured'`, [jobId]);
+            const [payments] = await conn.query(`SELECT id, amount FROM payments WHERE job_id=$1 AND status='captured'`, [jobId]);
             for (let payment of payments) {
-                await conn.query(`INSERT INTO refund_queue (payment_id, job_id, amount, status) VALUES (?, ?, ?, 'pending')`, [payment.id, jobId, payment.amount]);
+                await conn.query(`INSERT INTO refund_queue (payment_id, job_id, amount, status) VALUES ($1, $2, $3, 'pending')`, [payment.id, jobId, payment.amount]);
             }
 
             await conn.commit();
@@ -461,18 +486,16 @@ router.post('/jobs/:id/dispute', (req, res) =>
 
         if (!reason) throw Object.assign(new Error('reason field is required for dispute'), { status: 400 });
 
-        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = ?', [jobId]);
+        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1', [jobId]);
         const job = jobs[0];
 
-        if (!job || job.worker_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (!job || job.worker_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
 
         if (job.status === 'completed' || job.status === 'cancelled') {
             throw Object.assign(new Error('Job is finalized.'), { status: 400 });
         }
 
-        await pool.query(
-            `UPDATE jobs SET status='disputed', dispute_reason=?, dispute_raised_at=NOW(), auto_escalate_at=DATE_ADD(NOW(), INTERVAL 48 HOUR) WHERE id=?`,
-            [reason, jobId]
+        await pool.query(`UPDATE jobs SET status='disputed', dispute_reason=$1, dispute_raised_at=NOW(), auto_escalate_at=NOW() + INTERVAL '48 hours' WHERE id=$2`, [reason, jobId]
         );
 
         await updateJobNode(jobId, { status: 'disputed' });
@@ -488,9 +511,7 @@ router.put('/location', (req, res) =>
         if (lat == null || lng == null) throw Object.assign(new Error('lat and lng required'), { status: 400 });
 
         // Guard: must be verified and online
-        const [profiles] = await pool.query(
-            'SELECT kyc_status, is_online, current_job_id FROM worker_profiles WHERE user_id=?',
-            [userId]
+        const [profiles] = await pool.query('SELECT kyc_status, is_online, current_job_id FROM worker_profiles WHERE user_id=$1', [userId]
         );
         const profile = profiles[0] || {};
 
@@ -498,10 +519,12 @@ router.put('/location', (req, res) =>
         if (!profile.is_online) throw Object.assign(new Error('Worker must be online to update location'), { status: 403 });
 
         // 1. Update DB
-        await pool.query(
-            'UPDATE worker_profiles SET last_location_lat=?, last_location_lng=?, last_location_at=NOW() WHERE user_id=?',
-            [lat, lng, userId]
-        );
+        await pool.query(`
+            UPDATE worker_profiles 
+            SET current_location=ST_SetSRID(ST_MakePoint($2, $1), 4326),
+                location_updated_at=NOW()
+            WHERE user_id=$3
+        `, [lat, lng, userId]);
 
         // 2. Sync Firebase worker_presence
         await updateWorkerPresence(userId, {
@@ -515,15 +538,11 @@ router.put('/location', (req, res) =>
         if (profile.current_job_id) {
             await updateJobNode(profile.current_job_id, { worker_lat: lat, worker_lng: lng });
 
-            await pool.query(
-                'INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude) VALUES (?, ?, ?, ?)',
-                [userId, profile.current_job_id, lat, lng]
+            await pool.query('INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude, location) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4, $3), 4326))', [userId, profile.current_job_id, lat, lng]
             );
         } else {
             // Idle ping — still log to history (job_id = NULL)
-            await pool.query(
-                'INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude) VALUES (?, NULL, ?, ?)',
-                [userId, lat, lng]
+            await pool.query('INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude, location) VALUES ($1, NULL, $2, $3, ST_SetSRID(ST_MakePoint($3, $2), 4326))', [userId, lat, lng]
             );
         }
 
@@ -540,15 +559,16 @@ router.put('/availability', (req, res) =>
         let updateQuery = [];
         let params = [];
         let firebaseSync = {};
+        let paramIndex = 1;
 
         if (is_online !== undefined) {
-            updateQuery.push('is_online=?');
-            params.push(is_online ? 1 : 0);
+            updateQuery.push(`is_online=$${paramIndex++}`);
+            params.push(Boolean(is_online));
             firebaseSync.is_online = Boolean(is_online);
         }
         if (is_available !== undefined) {
-            updateQuery.push('is_available=?');
-            params.push(is_available ? 1 : 0);
+            updateQuery.push(`is_available=$${paramIndex++}`);
+            params.push(Boolean(is_available));
             firebaseSync.is_available = Boolean(is_available);
         }
 
@@ -556,17 +576,14 @@ router.put('/availability', (req, res) =>
             throw Object.assign(new Error('is_online or is_available required'), { status: 400 });
         }
 
-        const [wp] = await pool.query(
-            'SELECT current_job_id FROM worker_profiles WHERE user_id=?',
-            [userId]
+        const [wp] = await pool.query('SELECT current_job_id FROM worker_profiles WHERE user_id=$1', [userId]
         );
         const profile = wp[0];
         if (!profile) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
 
         // Update DB
         params.push(userId);
-        await pool.query(
-            `UPDATE worker_profiles SET ${updateQuery.join(', ')} WHERE user_id=?`,
+        await pool.query(`UPDATE worker_profiles SET ${updateQuery.join(', ')} WHERE user_id=$${paramIndex}`,
             params
         );
 
@@ -588,9 +605,7 @@ router.put('/availability', (req, res) =>
 // Get nearby open jobs for worker
 router.get('/available-jobs', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const [profiles] = await pool.query(
-            'SELECT kyc_status, is_online, category, last_location_lat, last_location_lng FROM worker_profiles WHERE user_id=?',
-            [userId]
+        const [profiles] = await pool.query('SELECT kyc_status, is_online, category, last_location_lat, last_location_lng FROM worker_profiles WHERE user_id=$1', [userId]
         );
         const profile = profiles[0] || {};
 
@@ -605,25 +620,20 @@ router.get('/available-jobs', (req, res) =>
         let jobs;
         if (hasLocation) {
             // Geo-sorted with Haversine
-            [jobs] = await pool.query(
-                `SELECT j.id, j.category, j.status, j.created_at, j.address,
+            [jobs] = await pool.query(`SELECT j.id, j.category, j.status, j.created_at, j.address,
                         j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
                         j.travel_charge, j.scheduled_at,
                         j.latitude, j.longitude,
                         c.name as customer_name,
                         ROUND(
-                            6371 * acos(
-                                cos(radians(?)) * cos(radians(j.latitude)) 
-                                * cos(radians(j.longitude) - radians(?)) 
-                                + sin(radians(?)) * sin(radians(j.latitude))
-                            ), 1
+                            (ST_Distance(ST_SetSRID(ST_MakePoint($2, $1), 4326), j.job_location) / 1000.0)::numeric,
+                            1
                         ) AS distance_km
                  FROM jobs j
                  LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
                  WHERE j.status IN ('open', 'searching', 'no_worker_found')
-                 HAVING distance_km IS NULL OR distance_km <= 100
-                 ORDER BY distance_km ASC, j.created_at DESC LIMIT 50`,
-                [profile.last_location_lat, profile.last_location_lng, profile.last_location_lat]
+                 AND ST_DWithin(ST_SetSRID(ST_MakePoint($2, $1), 4326), j.job_location, 100 * 1000)
+                 ORDER BY distance_km ASC, j.created_at DESC LIMIT 50`, [profile.last_location_lat, profile.last_location_lng]
             );
         } else {
             // No location set — return all open jobs by date
@@ -674,13 +684,11 @@ router.get('/available-jobs', (req, res) =>
 // Get worker work history
 router.get('/history', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const [jobs] = await pool.query(
-            `SELECT j.id, j.category, j.status, j.created_at, j.address,
+        const [jobs] = await pool.query(`SELECT j.id, j.category, j.status, j.created_at, j.address,
                     (SELECT total FROM job_invoices WHERE job_id = j.id LIMIT 1) as amount
              FROM jobs j
-             WHERE j.worker_id = ? AND j.status IN ('assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion', 'completed', 'cancelled', 'disputed')
-             ORDER BY j.created_at DESC LIMIT 50`,
-            [userId]
+             WHERE j.worker_id = $1 AND j.status IN ('assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion', 'completed', 'cancelled', 'disputed')
+             ORDER BY j.created_at DESC LIMIT 50`, [userId]
         );
 
         const mappedHistory = jobs.map(j => {
@@ -705,15 +713,13 @@ router.get('/history', (req, res) =>
 // Get worker earnings overview and transaction list
 router.get('/earnings', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const [overviewRows] = await pool.query(
-            `SELECT 
-                SUM(CASE WHEN DATE(ji.created_at) = CURDATE() THEN ji.subtotal ELSE 0 END) as today,
-                SUM(CASE WHEN YEARWEEK(ji.created_at, 1) = YEARWEEK(CURDATE(), 1) THEN ji.subtotal ELSE 0 END) as week,
-                SUM(CASE WHEN MONTH(ji.created_at) = MONTH(CURDATE()) AND YEAR(ji.created_at) = YEAR(CURDATE()) THEN ji.subtotal ELSE 0 END) as month
+        const [overviewRows] = await pool.query(`SELECT 
+                SUM(CASE WHEN DATE(ji.created_at) = CURRENT_DATE THEN ji.subtotal ELSE 0 END) as today,
+                SUM(CASE WHEN DATE_TRUNC('week', ji.created_at) = DATE_TRUNC('week', CURRENT_DATE) THEN ji.subtotal ELSE 0 END) as week,
+                SUM(CASE WHEN DATE_TRUNC('month', ji.created_at) = DATE_TRUNC('month', CURRENT_DATE) THEN ji.subtotal ELSE 0 END) as month
              FROM job_invoices ji
              JOIN jobs j ON j.id = ji.job_id
-             WHERE j.worker_id = ? AND j.status = 'completed'`,
-            [userId]
+             WHERE j.worker_id = $1 AND j.status = 'completed'`, [userId]
         );
 
         const overview = {
@@ -722,13 +728,11 @@ router.get('/earnings', (req, res) =>
             'This Month': parseFloat(overviewRows[0]?.month || 0)
         };
 
-        const [txRows] = await pool.query(
-            `SELECT ji.id, j.category as title, ji.subtotal as amt, ji.created_at as time
+        const [txRows] = await pool.query(`SELECT ji.id, j.category as title, ji.subtotal as amt, ji.created_at as time
              FROM job_invoices ji
              JOIN jobs j ON j.id = ji.job_id
-             WHERE j.worker_id = ? AND j.status = 'completed'
-             ORDER BY ji.created_at DESC LIMIT 50`,
-            [userId]
+             WHERE j.worker_id = $1 AND j.status = 'completed'
+             ORDER BY ji.created_at DESC LIMIT 50`, [userId]
         );
 
         const transactions = txRows.map(tx => ({

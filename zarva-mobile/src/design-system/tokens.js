@@ -1,45 +1,56 @@
 /**
  * src/design-system/tokens.js
- * ZARVA Design Tokens — CRED-inspired dark luxury palette
+ * ZARVA Design Tokens — Premium Gradient Purple Theme
  */
 
 export const colors = {
-    background: '#0B0B0F',   // soft black
-    surface: '#14141B',
-    elevated: '#1C1C25',
-    overlay: 'rgba(20, 20, 27, 0.92)',
+    // 🌑 Background System (Zarva Premium Web Theme)
+    background: '#0A0118',   // Deep space purple/black
+    surface: '#140828',      // Card background
+    elevated: '#1A0B3B',     // Highest elevation
+    overlay: 'rgba(10, 1, 24, 0.85)', // Deep shadow overlay
 
+    // 🌈 Accent System (Neon pops against the dark)
     accent: {
-        primary: '#6F5BDD',  // Electric Violet
-        glow: 'rgba(123, 92, 255, 0.18)',
-        border: '#7B5CFF', // Base color for concatenation
+        primary: '#7C3AED',        // Vivid Purple
+        secondary: '#EC4899',      // Hot Pink
+        tertiary: '#06B6D4',       // Electric Cyan
+        glow: 'rgba(124, 58, 237, 0.35)', // Purple glow
+        border: 'rgba(124, 58, 237, 0.2)', // Subtle border
+        gradient: ['#7C3AED', '#EC4899', '#06B6D4'],
     },
 
-    success: '#3D9042',
-    warning: '#FF9F0A',
-    danger: '#FF453A',
+    // Status
+    success: '#10B981', // Crisp green
+    warning: '#F59E0B',
+    danger: '#EF4444',
 
+    // ✍️ Text System (High Contrast Readability)
     text: {
-        primary: '#F2F2F7',
-        secondary: '#8E8E9A',
-        muted: '#8E8C73',
+        primary: '#F8FAFC',
+        secondary: '#CBD5E1',
+        muted: '#94A3B8',
     },
 
-    // Compatibility mapping
+    // Legacy Compatibility mapping
     bg: {
-        primary: '#0B0B0F',
-        surface: '#14141B',
-        elevated: '#1C1C25',
+        primary: '#0A0118',
+        surface: '#140828',
+        elevated: '#1A0B3B',
     },
-    gold: {
-        primary: '#7B5CFF',
-        glow: 'rgba(123, 92, 255, 0.18)',
+
+    // Brand specifics
+    brand: {
+        primary: '#7C3AED',
+        glow: 'rgba(124, 58, 237, 0.35)',
     }
 };
 
+
 export const spacing = {
     4: 4, 8: 8, 12: 12, 16: 16, 20: 20, 24: 24, 32: 32, 40: 40, 48: 48, 64: 64,
-    // Alias for existing usage - scaled up for "bigger" feel
+
+    // Premium breathing feel
     xxs: 6, xs: 10, sm: 14, md: 20, lg: 30, xl: 38, xxl: 48,
 };
 
@@ -54,16 +65,16 @@ export const radius = {
 export const shadows = {
     premium: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.45,
-        shadowRadius: 32,
-        elevation: 12,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.55,
+        shadowRadius: 40,
+        elevation: 14,
     },
     accentGlow: {
-        shadowColor: '#7B5CFF',
+        shadowColor: '#A855F7',
         shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.45,
-        shadowRadius: 12,
-        elevation: 8,
+        shadowOpacity: 0.85,
+        shadowRadius: 24,
+        elevation: 12,
     }
 };

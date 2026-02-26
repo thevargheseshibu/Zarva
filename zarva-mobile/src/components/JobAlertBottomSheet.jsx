@@ -141,7 +141,7 @@ export default function JobAlertBottomSheet({ navigation }) {
     };
 
     // Derived UI Colors
-    let ringColor = colors.gold.primary;
+    let ringColor = colors.accent.primary;
     if (timeLeft <= 10 && timeLeft > 5) ringColor = '#FFB830'; // Amber
     if (timeLeft <= 5) ringColor = '#FF3D5E'; // Red
 
@@ -274,8 +274,8 @@ export default function JobAlertBottomSheet({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    sheetBackground: { backgroundColor: '#0F0F1A', borderTopWidth: 2, borderTopColor: colors.gold.primary },
-    handle: { backgroundColor: colors.gold.primary, width: 40 },
+    sheetBackground: { backgroundColor: '#0F0F1A', borderTopWidth: 2, borderTopColor: colors.accent.primary },
+    handle: { backgroundColor: colors.accent.primary, width: 40 },
     container: { flex: 1, padding: 24, justifyContent: 'space-between' },
 
     headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
@@ -292,9 +292,9 @@ const styles = StyleSheet.create({
     detailsBlock: { backgroundColor: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 16, gap: 16, marginBottom: 20 },
     detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     detailLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' },
-    distValue: { color: colors.gold.primary, fontSize: 15, fontFamily: 'Courier', fontWeight: '700' },
+    distValue: { color: colors.accent.primary, fontSize: 15, fontFamily: 'Courier', fontWeight: '700' },
     areaValue: { color: '#FFF', fontSize: 15, fontWeight: '600' },
-    earningsValue: { color: colors.gold.primary, fontSize: 22, fontFamily: 'Courier', fontWeight: '800' },
+    earningsValue: { color: colors.accent.primary, fontSize: 22, fontFamily: 'Courier', fontWeight: '800' },
 
     emergencyPill: { alignSelf: 'flex-start', backgroundColor: '#FF3D5E22', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginTop: 4 },
     emergencyTxt: { color: '#FF3D5E', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     declineBtn: { flex: 1, backgroundColor: 'rgba(255,61,94,0.1)', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
     declineTxt: { color: '#FF3D5E', fontSize: 16, fontWeight: '700' },
 
-    acceptBtn: { flex: 1, backgroundColor: colors.gold.primary, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    acceptBtn: { flex: 1, backgroundColor: colors.accent.primary, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
     acceptLoading: { flex: undefined, width: 60, alignSelf: 'center', marginLeft: 'auto', marginRight: 'auto' }, // Compress to pill
     acceptTxt: { color: '#0F0F1A', fontSize: 17, fontWeight: '800', letterSpacing: 0.5 },
 
@@ -317,5 +317,5 @@ const styles = StyleSheet.create({
     takenTxt: { color: 'rgba(255,255,255,0.5)', fontSize: 14, fontWeight: '600' },
 
     checkWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#0F0F1A', justifyContent: 'center', alignItems: 'center' },
-    checkIcon: { color: colors.gold.primary, fontSize: 18, fontWeight: '900' }
+    checkIcon: { color: colors.accent.primary, fontSize: 18, fontWeight: '900' }
 });

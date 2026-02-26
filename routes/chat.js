@@ -17,7 +17,7 @@ const fail = (res, message, status = 400, code = 'BAD_REQUEST') =>
  * Assumes req.user is populated by authenticateJWT.
  */
 const getRoleContext = async (jobId, userId, pool) => {
-    const [jobs] = await pool.query('SELECT customer_id, worker_id FROM jobs WHERE id = ?', [jobId]);
+    const [jobs] = await pool.query('SELECT customer_id, worker_id FROM jobs WHERE id = $1', [jobId]);
     if (!jobs.length) return null;
     const j = jobs[0];
     if (j.customer_id == userId) return 'customer';

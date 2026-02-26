@@ -9,6 +9,7 @@ import FadeInView from '../../components/FadeInView';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import StatusPill from '../../components/StatusPill';
+import MainBackground from '../../components/MainBackground';
 import { colors, radius, spacing, shadows } from '../../design-system/tokens';
 import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
@@ -115,7 +116,7 @@ export default function MyWorkScreen({ navigation }) {
     );
 
     return (
-        <View style={styles.screen}>
+        <MainBackground>
             {/* Header */}
             <View style={styles.header}>
                 <View>
@@ -212,18 +213,18 @@ export default function MyWorkScreen({ navigation }) {
                     );
                 }}
             />
-        </View>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+    screen: { flex: 1 },
     header: {
         paddingTop: 60,
         paddingHorizontal: spacing[24],
         paddingBottom: spacing[16]
     },
-    headerSub: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    headerSub: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
     headerTitle: { color: colors.text.primary, fontSize: 24, fontWeight: '900', letterSpacing: tracking.title },
 
     statsBar: {
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
     },
     statBox: { flex: 1, alignItems: 'center', gap: 4 },
     statVal: { color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold },
-    statLbl: { color: colors.accent.primary, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    statLbl: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     statDivider: { width: 1, height: 24, backgroundColor: colors.elevated, opacity: 0.5 },
 
     filterSection: { gap: spacing[12], marginBottom: spacing[16] },
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
     },
     sortChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.md },
     sortChipActive: { backgroundColor: colors.elevated },
-    sortTxt: { color: colors.text.muted, fontSize: 8, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    sortTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
     sortTxtActive: { color: colors.accent.primary },
 
     listContent: { padding: spacing[24], paddingBottom: 120, gap: spacing[16] },

@@ -20,19 +20,20 @@ import {
     StyleSheet, KeyboardAvoidingView, Platform, Alert
 } from 'react-native';
 import { colors, spacing, radius } from '../../design-system/tokens';
-import GoldButton from '../../components/GoldButton';
+import PremiumButton from '../../components/PremiumButton';
 import apiClient from '../../services/api/client';
 import { useAuthStore } from '../../stores/authStore';
 import { useOtpStore } from '../../stores/otpStore';
 import { useT } from '../../hooks/useT';
+import MainBackground from '../../components/MainBackground';
+import auth, { getAuth, signInWithPhoneNumber } from '@react-native-firebase/auth';
 
 // --- FIREBASE SETUP ---
 // Initialized once at module-level.
 let _firebaseAuth = null;
 function getFirebaseAuth() {
     if (!_firebaseAuth) {
-        const fb = require('@react-native-firebase/auth');
-        _firebaseAuth = fb.getAuth();
+        _firebaseAuth = getAuth();
         // NOTE: Do NOT set appVerificationDisabledForTesting on real devices.
         // That flag disables SafetyNet/Play Integrity and causes auth/missing-client-identifier.
         // Real device auth is handled by the SHA-1 certificate in google-services.json.
@@ -80,10 +81,9 @@ export default function PhoneScreen({ navigation }) {
                 let confirmationObj = null;
 
                 try {
-                    const auth = getFirebaseAuth();
-                    const { signInWithPhoneNumber } = require('@react-native-firebase/auth');
+                    const authInstance = getFirebaseAuth();
                     console.log('[Firebase] Requesting OTP for', `+91${phone}`);
-                    confirmationObj = await signInWithPhoneNumber(auth, `+91${phone}`);
+                    confirmationObj = await signInWithPhoneNumber(authInstance, `+91${phone}`);
                     console.log('[Firebase] OTP sent successfullys', confirmationObj);
                 } catch (firebaseErr) {
                     console.error('[Firebase OTP Error]', firebaseErr.code);
@@ -141,65 +141,67 @@ export default function PhoneScreen({ navigation }) {
     };
 
     return (
-        <KeyboardAvoidingView
-            style={styles.screen}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
-                <Text style={styles.backArrow}>←</Text>
-            </TouchableOpacity>
-
-            <View style={styles.content}>
-                <Text style={styles.title}>{t('phone_entry_title')}</Text>
-                <Text style={styles.sub}>{t('phone_entry_sub')}</Text>
-
-                <View style={styles.inputRow}>
-                    <View style={styles.countryChip}>
-                        <Text style={styles.countryFlag}>🇮🇳</Text>
-                        <Text style={styles.countryCode}>+91</Text>
-                    </View>
-                    <TextInput
-                        style={styles.input}
-                        value={formatted}
-                        onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-                        keyboardType="phone-pad"
-                        placeholder="XXX-XXX-XXXX"
-                        placeholderTextColor={colors.text.muted}
-                        maxLength={12}
-                        autoFocus
-                    />
-                </View>
-
-                <GoldButton
-                    title={t('get_otp_whatsapp')}
-                    disabled={!isReady || !!loading}
-                    loading={loading === 'whatsapp'}
-                    onPress={() => handleSend('whatsapp')}
-                    style={{ marginTop: spacing.xl }}
-                />
-
-                <TouchableOpacity
-                    style={[styles.smsBtn, (!isReady || !!loading) && styles.smsBtnDisabled]}
-                    disabled={!isReady || !!loading}
-                    onPress={() => handleSend('sms')}
-                >
-                    <Text style={[styles.smsBtnText, (!isReady || !!loading) && styles.smsBtnTextDisabled]}>
-                        {loading === 'sms' ? t('sending') : t('get_otp_sms')}
-                    </Text>
+        <MainBackground>
+            <KeyboardAvoidingView
+                style={styles.screen}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+                    <Text style={styles.backArrow}>←</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.terms}>
-                    {t('terms_text_1')}{' '}
-                    <Text style={styles.termsLink}>{t('terms_text_2')}</Text> {t('terms_text_3')}{' '}
-                    <Text style={styles.termsLink}>{t('terms_text_4')}</Text>
-                </Text>
-            </View>
-        </KeyboardAvoidingView>
+                <View style={styles.content}>
+                    <Text style={styles.title}>{t('phone_entry_title')}</Text>
+                    <Text style={styles.sub}>{t('phone_entry_sub')}</Text>
+
+                    <View style={styles.inputRow}>
+                        <View style={styles.countryChip}>
+                            <Text style={styles.countryFlag}>🇮🇳</Text>
+                            <Text style={styles.countryCode}>+91</Text>
+                        </View>
+                        <TextInput
+                            style={styles.input}
+                            value={formatted}
+                            onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
+                            keyboardType="phone-pad"
+                            placeholder="XXX-XXX-XXXX"
+                            placeholderTextColor={colors.text.muted}
+                            maxLength={12}
+                            autoFocus
+                        />
+                    </View>
+
+                    <PremiumButton
+                        title={t('get_otp_whatsapp')}
+                        disabled={!isReady || !!loading}
+                        loading={loading === 'whatsapp'}
+                        onPress={() => handleSend('whatsapp')}
+                        style={{ marginTop: spacing.xl }}
+                    />
+
+                    <TouchableOpacity
+                        style={[styles.smsBtn, (!isReady || !!loading) && styles.smsBtnDisabled]}
+                        disabled={!isReady || !!loading}
+                        onPress={() => handleSend('sms')}
+                    >
+                        <Text style={[styles.smsBtnText, (!isReady || !!loading) && styles.smsBtnTextDisabled]}>
+                            {loading === 'sms' ? t('sending') : t('get_otp_sms')}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <Text style={styles.terms}>
+                        {t('terms_text_1')}{' '}
+                        <Text style={styles.termsLink}>{t('terms_text_2')}</Text> {t('terms_text_3')}{' '}
+                        <Text style={styles.termsLink}>{t('terms_text_4')}</Text>
+                    </Text>
+                </View>
+            </KeyboardAvoidingView>
+        </MainBackground>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary },
+    screen: { flex: 1, backgroundColor: 'transparent' },
     back: { paddingTop: spacing.xl + 20, paddingLeft: spacing.lg },
     backArrow: { color: colors.text.primary, fontSize: 24 },
     content: { flex: 1, padding: spacing.lg, justifyContent: 'center', gap: spacing.md },
@@ -207,14 +209,14 @@ const styles = StyleSheet.create({
     sub: { color: colors.text.secondary, fontSize: 14, marginBottom: spacing.sm },
     inputRow: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: colors.bg.elevated, borderRadius: radius.lg,
-        borderWidth: 1, borderColor: colors.bg.surface, overflow: 'hidden',
+        backgroundColor: colors.surface, borderRadius: radius.lg,
+        borderWidth: 1, borderColor: colors.surface, overflow: 'hidden',
     },
     countryChip: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
         paddingHorizontal: spacing.md, paddingVertical: spacing.md,
-        backgroundColor: colors.bg.surface, borderRightWidth: 1,
-        borderRightColor: colors.bg.overlay,
+        backgroundColor: colors.elevated, borderRightWidth: 1,
+        borderRightColor: 'rgba(255,255,255,0.05)',
     },
     countryFlag: { fontSize: 18 },
     countryCode: { color: colors.text.primary, fontSize: 16, fontWeight: '600' },
@@ -228,11 +230,11 @@ const styles = StyleSheet.create({
         color: colors.text.muted, fontSize: 11,
         textAlign: 'center', lineHeight: 18, marginTop: spacing.lg,
     },
-    termsLink: { color: colors.gold.muted },
+    termsLink: { color: colors.accent.muted },
     smsBtn: {
         paddingVertical: spacing.md, alignItems: 'center',
         marginTop: spacing.sm, borderRadius: radius.md,
-        borderWidth: 1, borderColor: colors.bg.surface,
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
     },
     smsBtnDisabled: { borderColor: colors.bg.overlay, opacity: 0.6 },
     smsBtnText: { color: colors.text.primary, fontSize: 15, fontWeight: '600' },

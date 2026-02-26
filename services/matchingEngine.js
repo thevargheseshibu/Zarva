@@ -10,6 +10,7 @@ import { getRedisClient } from '../config/redis.js';
 import configLoader from '../config/loader.js';
 import * as fcmService from './fcmService.js';
 import { updateJobNode, updateJobLastMessage } from '../services/firebase.service.js';
+import supportService from './supportService.js';
 
 // Helper: Sleep for wave delays
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -17,13 +18,21 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
     const { category, latitude, longitude, id: jobId } = job;
 
+    const pointWkt = `POINT(${longitude} ${latitude})`;
+    const params = [pointWkt, category, category, pointWkt, radiusKm];
+
     let excludeClause = '';
+    let paramIndex = 6;
+
     if (excludeIds.length > 0) {
-        const placeholders = excludeIds.map(() => '?').join(',');
+        const placeholders = excludeIds.map(() => `$${paramIndex++}`).join(',');
         excludeClause = `AND wp.user_id NOT IN (${placeholders})`;
+        params.push(...excludeIds);
     }
 
-    // Refined SQL with Haversine formula and staleness check
+    params.push(limit); // The final LIMIT parameter
+
+    // Refined SQL with PostGIS ST_Distance and ST_DWithin
     const query = `
         SELECT
             wp.user_id,
@@ -32,43 +41,22 @@ async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
             wp.average_rating,
             wp.last_location_lat,
             wp.last_location_lng,
-            (
-                6371 * ACOS(
-                    COS(RADIANS(?)) * COS(RADIANS(wp.last_location_lat)) *
-                    COS(RADIANS(wp.last_location_lng) - RADIANS(?)) +
-                    SIN(RADIANS(?)) * SIN(RADIANS(wp.last_location_lat))
-                )
-            ) AS distance_km
+            ST_Distance(wp.current_location, ST_GeogFromText($1)) / 1000.0 AS distance_km
         FROM worker_profiles wp
         JOIN users u ON u.id = wp.user_id
         WHERE
-            wp.is_verified = 1
-            AND wp.is_online = 1
-            AND wp.is_available = 1
+            wp.kyc_status = 'approved'
+            AND wp.is_online = true
+            AND wp.is_available = true
             AND wp.current_job_id IS NULL
             AND u.fcm_token IS NOT NULL
-            AND u.is_blocked = 0
-            AND (wp.category = ? OR JSON_CONTAINS(wp.skills, JSON_QUOTE(?)))
-            AND (
-                6371 * ACOS(
-                    COS(RADIANS(?)) * COS(RADIANS(wp.last_location_lat)) *
-                    COS(RADIANS(wp.last_location_lng) - RADIANS(?)) +
-                    SIN(RADIANS(?)) * SIN(RADIANS(wp.last_location_lat))
-                )
-            ) <= ?
+            AND u.is_blocked = false
+            AND (wp.category = $2 OR (wp.skills IS NOT NULL AND wp.skills::jsonb @> jsonb_build_array($3::text)))
+            AND ST_DWithin(wp.current_location, ST_GeogFromText($4), $5 * 1000)
             ${excludeClause}
         ORDER BY distance_km ASC
-        LIMIT ?
+        LIMIT $${paramIndex}
     `;
-
-    const params = [
-        latitude, longitude, latitude, // SELECT Haversine
-        category, category,            // Primary category and JSON skills
-        latitude, longitude, latitude, // WHERE Haversine
-        radiusKm,                      // Radius
-        ...excludeIds,                 // Exclusions
-        limit                          // Limit
-    ];
 
     const [workers] = await pool.query(query, params);
     return workers;
@@ -81,7 +69,11 @@ async function bulkInsertNotifications(jobId, workers, waveNum, pool) {
     if (!workers || workers.length === 0) return;
 
     const values = workers.map(w => [jobId, w.user_id, 'sent', w.distance_km || 0]);
-    const placeholders = values.map(() => '(?, ?, ?, ?)').join(', ');
+    // Postgres insert param building: ($1, $2, $3, $4), ($5, $6, $7, $8)
+    const placeholders = values.map((_, i) => {
+        const offset = i * 4;
+        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`;
+    }).join(', ');
     const flatParams = values.flat();
 
     await pool.query(
@@ -106,14 +98,14 @@ async function triggerAutoRefund(jobId, pool) {
 
     // Check if advance payment exists captured.
     const [payments] = await pool.query(
-        `SELECT id, amount FROM payments WHERE job_id = ? AND type = 'advance' AND status = 'captured'`,
+        `SELECT id, amount FROM payments WHERE job_id = $1 AND type = 'advance' AND status = 'captured'`,
         [jobId]
     );
 
     if (payments.length > 0) {
         const payment = payments[0];
         await pool.query(
-            `INSERT INTO refund_queue (payment_id, job_id, amount, status) VALUES (?, ?, ?, 'pending')`,
+            `INSERT INTO refund_queue (payment_id, job_id, amount, status) VALUES ($1, $2, $3, 'pending')`,
             [payment.id, jobId, payment.amount]
         );
         console.log(`[MatchingEngine] Advance payment found. Refund queued for Payment ${payment.id}.`);
@@ -143,7 +135,7 @@ export async function startMatching(jobId) {
                 await updateJobNode(jobId, { wave_number: waveNum + 1 }).catch(() => { });
 
                 // 1. Refresh Job state
-                const [jobs] = await pool.query('SELECT status, category, latitude, longitude FROM jobs WHERE id = ?', [jobId]);
+                const [jobs] = await pool.query('SELECT status, category, latitude, longitude FROM jobs WHERE id = $1', [jobId]);
                 const job = jobs[0];
                 if (!job) {
                     console.warn(`[MatchingEngine] Job ${jobId} not found. Aborting.`);
@@ -157,7 +149,7 @@ export async function startMatching(jobId) {
                 console.log(`[MatchingEngine] Wave ${waveNum + 1} for Job ${jobId} (${job.category}) at ${job.latitude}, ${job.longitude} (Radius: ${wave.radius_km}km)`);
 
                 // 2. Extrapolate Exclusion lists
-                const [notified] = await pool.query('SELECT worker_id FROM job_worker_notifications WHERE job_id = ?', [jobId]);
+                const [notified] = await pool.query('SELECT worker_id FROM job_worker_notifications WHERE job_id = $1', [jobId]);
                 const excludeIds = notified.map(r => r.worker_id);
 
                 // 3. Find Proximate Workers
@@ -187,7 +179,7 @@ export async function startMatching(jobId) {
                 await sleep(wave.wait_seconds * 1000);
 
                 // 6. Check Post-Sleep Status
-                const [updated] = await pool.query('SELECT status FROM jobs WHERE id = ?', [jobId]);
+                const [updated] = await pool.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
                 if (updated[0].status === 'assigned') return; // Accepted by worker in meantime
             } catch (waveErr) {
                 console.error(`[MatchingEngine] Error in Wave ${waveNum + 1} for Job ${jobId}:`, waveErr);
@@ -196,7 +188,7 @@ export async function startMatching(jobId) {
         }
 
         // Exhausted fully
-        await pool.query("UPDATE jobs SET status='no_worker_found' WHERE id=?", [jobId]);
+        await pool.query("UPDATE jobs SET status='no_worker_found' WHERE id=$1", [jobId]);
         await triggerAutoRefund(jobId, pool);
 
     } catch (err) {
@@ -226,24 +218,32 @@ export async function acceptJob(jobId, workerId) {
         await conn.beginTransaction();
 
         try {
-            // FOR UPDATE physical lock on MySQL record
+            // FOR UPDATE physical lock on postgres record
             const [rows] = await conn.query(`
-                SELECT j.id, j.status, wp.is_online 
+                SELECT j.id, j.status, wp.is_online, wp.current_job_id 
                 FROM jobs j
-                JOIN worker_profiles wp ON wp.user_id = ?
-                WHERE j.id = ? 
+                JOIN worker_profiles wp ON wp.user_id = $1
+                WHERE j.id = $2 
                 FOR UPDATE
             `, [workerId, jobId]);
 
             const jobData = rows[0];
             const currentStatus = jobData?.status;
             const isOnline = jobData?.is_online;
+            const currentJobId = jobData?.current_job_id;
 
-            console.log(`[MatchingEngine] Job ${jobId} status: ${currentStatus}, Worker ${workerId} online: ${isOnline}`);
+            console.log(`[MatchingEngine] Job ${jobId} status: ${currentStatus}, Worker ${workerId} online: ${isOnline}, CurrentJob: ${currentJobId}`);
 
-            if (!jobData || isOnline === 0) {
+            if (!jobData || !isOnline) {
                 await conn.rollback();
                 throw Object.assign(new Error('You are offline (NET: OFF). Please go online to accept jobs.'), { code: 'WORKER_OFFLINE', status: 403 });
+            }
+
+            // ENFORCE NEW CONCURRENCY LIMITS (Max 2 if 1 is disputed)
+            const concurrencyCheck = await supportService.canUserTakeNewJob(workerId);
+            if (!concurrencyCheck.can_take) {
+                await conn.rollback();
+                throw Object.assign(new Error(concurrencyCheck.reason), { code: 'ACTIVE_JOB_LIMIT_REACHED', status: 403 });
             }
 
             const ACCEPTABLE_STATUSES = ['open', 'searching', 'no_worker_found'];
@@ -256,17 +256,17 @@ export async function acceptJob(jobId, workerId) {
             const matchingConfig = configLoader.get('zarva')?.matching || { cancellation_lock_minutes: 15 };
 
             await conn.query(
-                'UPDATE jobs SET status="assigned", worker_id=?, accepted_at=NOW(), chat_enabled=1, cancellation_locked_at=DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id=?',
-                [workerId, matchingConfig.cancellation_lock_minutes, jobId]
+                `UPDATE jobs SET status='assigned', worker_id=$1, accepted_at=NOW(), chat_enabled=true, cancellation_locked_at=NOW() + INTERVAL '${matchingConfig.cancellation_lock_minutes} MINUTE' WHERE id=$2`,
+                [workerId, jobId]
             );
 
             await conn.query(
-                'UPDATE worker_profiles SET current_job_id=? WHERE user_id=?',
+                'UPDATE worker_profiles SET current_job_id=$1 WHERE user_id=$2',
                 [jobId, workerId]
             );
 
             await conn.query(
-                'UPDATE job_worker_notifications SET status="accepted", responded_at=NOW() WHERE job_id=? AND worker_id=?',
+                `UPDATE job_worker_notifications SET status='accepted', responded_at=NOW() WHERE job_id=$1 AND worker_id=$2`,
                 [jobId, workerId]
             );
 
@@ -301,7 +301,7 @@ export async function acceptJob(jobId, workerId) {
 export async function declineJob(jobId, workerId) {
     const pool = getPool();
     await pool.query(
-        'UPDATE job_worker_notifications SET status="rejected", responded_at=NOW() WHERE job_id=? AND worker_id=?',
+        `UPDATE job_worker_notifications SET status='rejected', responded_at=NOW() WHERE job_id=$1 AND worker_id=$2`,
         [jobId, workerId]
     );
 }

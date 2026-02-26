@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -22,6 +22,7 @@ import StatusPill from '../../components/StatusPill';
 import RadarAnimation from '../../components/RadarAnimation';
 import Card from '../../components/Card';
 import MapPickerModal from '../../components/MapPickerModal';
+import NotCoveredView from '../../components/NotCoveredView';
 
 export default function HomeScreen({ navigation }) {
     const t = useT();
@@ -33,6 +34,7 @@ export default function HomeScreen({ navigation }) {
     const { activeJob, searchPhase, locationOverride, setLocationOverride, setLastKnownLocation } = useJobStore();
     const [location, setLocation] = useState(locationOverride || { address: 'Fetching location...', lat: null, lng: null });
     const [isMapVisible, setIsMapVisible] = useState(false);
+    const [isServiceable, setIsServiceable] = useState(true);
 
     const scrollY = useSharedValue(0);
 
@@ -76,7 +78,11 @@ export default function HomeScreen({ navigation }) {
 
     useEffect(() => {
         (async () => {
-            if (locationOverride) { setLocation(locationOverride); return; }
+            if (locationOverride) {
+                setLocation(locationOverride);
+                checkServiceability(locationOverride.lat, locationOverride.lng);
+                return;
+            }
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') return;
             try {
@@ -89,9 +95,25 @@ export default function HomeScreen({ navigation }) {
                 const newLoc = { address: addressText, lat: loc.coords.latitude, lng: loc.coords.longitude };
                 setLocation(newLoc);
                 setLastKnownLocation(newLoc);
+                checkServiceability(newLoc.lat, newLoc.lng);
             } catch (error) { }
         })();
     }, [locationOverride]);
+
+    const checkServiceability = async (lat, lng) => {
+        if (lat == null || lng == null) return;
+        try {
+            const coverage = await apiClient.post('/api/coverage/check', {
+                latitude: lat,
+                longitude: lng
+            });
+            setIsServiceable(coverage.data.is_serviceable === true);
+        } catch (err) {
+            console.error('[HomeScreen] Coverage check failed', err);
+            // Default to serviceable on error to not block users unnecessarily
+            setIsServiceable(true);
+        }
+    };
 
     return (
         <View style={styles.screen}>
@@ -114,113 +136,157 @@ export default function HomeScreen({ navigation }) {
                     </PressableAnimated>
                 </View>
 
-                <FadeInView delay={100}>
-                    <Text style={styles.greeting}>{t('customer_home_greeting')}</Text>
-                    <Text style={styles.subGreeting}>{t('premium_services_desc')}</Text>
-                </FadeInView>
+                {!isServiceable ? (
+                    <NotCoveredView
+                        locationName={location.address}
+                        onRetry={() => setIsMapVisible(true)}
+                    />
+                ) : (
+                    <>
+                        <FadeInView delay={100}>
+                            <Text style={styles.greeting}>{t('customer_home_greeting')}</Text>
+                            <Text style={styles.subGreeting}>{t('premium_services_desc')}</Text>
+                        </FadeInView>
 
-                {activeJob && searchPhase && (
-                    <FadeInView delay={200}>
-                        <Card glow style={styles.activeJobCard}>
-                            <View style={styles.activeHeader}>
-                                <Text style={styles.activeLabel}>{t('active_request')}</Text>
-                                <StatusPill status={searchPhase} />
-                            </View>
-                            <View style={styles.activeBody}>
-                                <View style={styles.serviceIconWrap}>
-                                    <RadarAnimation size={40} />
-                                </View>
-                                <View style={styles.activeInfo}>
-                                    <Text style={styles.activeName}>{t(`cat_${activeJob.category}`) || activeJob.category}</Text>
-                                    <Text style={styles.activeStatusDesc}>
-                                        {searchPhase === 'searching' ? t('finding_best_worker') : t('service_in_progress')}
-                                    </Text>
-                                </View>
-                            </View>
-                            <PremiumButton
-                                title={t('track_status')}
-                                onPress={() => searchPhase === 'searching' ? navigation.navigate('Searching', { category: activeJob.category, jobId: activeJob.id }) : navigation.navigate('JobStatusDetail', { jobId: activeJob.id })}
-                            />
-                        </Card>
-                    </FadeInView>
-                )}
-
-                <FadeInView delay={300} style={styles.searchSection}>
-                    <View style={styles.searchBar}>
-                        <Text style={styles.searchIcon}>🔍</Text>
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder={t('what_need_help_with')}
-                            placeholderTextColor={colors.text.secondary}
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                        />
-                    </View>
-                </FadeInView>
-
-                <View style={styles.gridSection}>
-                    <Text style={styles.sectionTitle}>{t('categories')}</Text>
-                    <View style={styles.grid}>
-                        {isLoadingServices ? (
-                            [1, 2, 3, 4, 5, 6].map((i) => (
-                                <SkeletonCard key={i} width={'47%'} height={120} />
-                            ))
-                        ) : (
-                            displayedServices.map((s, i) => (
-                                <FadeInView key={s.id} delay={100 + (i * 50)} style={styles.gridItem}>
-                                    <PressableAnimated
-                                        style={styles.serviceCard}
-                                        onPress={() => navigation.navigate('DynamicQuestions', { category: s.id, label: s.label })}
-                                    >
-                                        <View style={styles.iconCircle}>
-                                            <Text style={styles.gridIcon}>{s.icon || '🛠️'}</Text>
+                        {activeJob && searchPhase && (
+                            <FadeInView delay={200}>
+                                <Card glow style={styles.activeJobCard}>
+                                    <View style={styles.activeHeader}>
+                                        <Text style={styles.activeLabel}>{t('active_request')}</Text>
+                                        <StatusPill status={searchPhase} />
+                                    </View>
+                                    <View style={styles.activeBody}>
+                                        <View style={styles.serviceIconWrap}>
+                                            <RadarAnimation size={40} />
                                         </View>
-                                        <Text style={styles.gridLabel}>{s.label}</Text>
-                                    </PressableAnimated>
-                                </FadeInView>
-                            ))
-                        )}
-                    </View>
-                </View>
-
-                {recentJobs.length > 0 && (
-                    <View style={styles.recentSection}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>{t('recent_activity')}</Text>
-                            <PressableAnimated onPress={() => navigation.navigate('MyJobs')}>
-                                <Text style={styles.viewAllTxt}>{t('view_all')}</Text>
-                            </PressableAnimated>
-                        </View>
-                        {recentJobs.map((job, i) => (
-                            <FadeInView key={job.id} delay={200 + (i * 60)}>
-                                <PressableAnimated
-                                    onPress={() => navigation.navigate('JobStatusDetail', { jobId: job.id })}
-                                    style={styles.recentRow}
-                                >
-                                    <View style={styles.recentIconBox}>
-                                        <Text style={styles.recentIcon}>
-                                            {services.find(s => s.id === job.category)?.icon || '🛠️'}
-                                        </Text>
+                                        <View style={styles.activeInfo}>
+                                            <Text style={styles.activeName}>{t(`cat_${activeJob.category}`) || activeJob.category}</Text>
+                                            <Text style={styles.activeStatusDesc}>
+                                                {searchPhase === 'searching' ? t('finding_best_worker') : t('service_in_progress')}
+                                            </Text>
+                                        </View>
                                     </View>
-                                    <View style={styles.recentInfo}>
-                                        <Text style={styles.recentTitle}>{t(`cat_${job.category}`) || job.category}</Text>
-                                        <Text style={styles.recentDate}>{new Date(job.created_at).toLocaleDateString()}</Text>
-                                    </View>
-                                    <StatusPill status={job.status} />
-                                </PressableAnimated>
+                                    <PremiumButton
+                                        title={t('track_status')}
+                                        onPress={() => searchPhase === 'searching' ? navigation.navigate('Searching', { category: activeJob.category, jobId: activeJob.id }) : navigation.navigate('JobStatusDetail', { jobId: activeJob.id })}
+                                    />
+                                </Card>
                             </FadeInView>
-                        ))}
-                    </View>
+                        )}
+
+                        <FadeInView delay={300} style={styles.searchSection}>
+                            <View style={styles.searchBar}>
+                                <Text style={styles.searchIcon}>🔍</Text>
+                                <TextInput
+                                    style={styles.searchInput}
+                                    placeholder={t('what_need_help_with')}
+                                    placeholderTextColor={colors.text.secondary}
+                                    value={searchQuery}
+                                    onChangeText={setSearchQuery}
+                                />
+                            </View>
+                        </FadeInView>
+
+                        <View style={styles.gridSection}>
+                            <Text style={styles.sectionTitle}>{t('categories')}</Text>
+                            <View style={styles.grid}>
+                                {isLoadingServices ? (
+                                    [1, 2, 3, 4, 5, 6].map((i) => (
+                                        <SkeletonCard key={i} width={'47%'} height={120} />
+                                    ))
+                                ) : (
+                                    displayedServices.map((s, i) => (
+                                        <FadeInView key={s.id} delay={100 + (i * 50)} style={styles.gridItem}>
+                                            <PressableAnimated
+                                                style={styles.serviceCard}
+                                                onPress={() => navigation.navigate('DynamicQuestions', { category: s.id, label: s.label })}
+                                            >
+                                                <View style={styles.iconCircle}>
+                                                    <Text style={styles.gridIcon}>{s.icon || '🛠️'}</Text>
+                                                </View>
+                                                <Text style={styles.gridLabel}>{s.label}</Text>
+                                            </PressableAnimated>
+                                        </FadeInView>
+                                    ))
+                                )}
+                            </View>
+                        </View>
+
+                        {recentJobs.length > 0 && (
+                            <View style={styles.recentSection}>
+                                <View style={styles.sectionHeader}>
+                                    <Text style={styles.sectionTitle}>{t('recent_activity')}</Text>
+                                    <PressableAnimated onPress={() => navigation.navigate('MyJobs')}>
+                                        <Text style={styles.viewAllTxt}>{t('view_all')}</Text>
+                                    </PressableAnimated>
+                                </View>
+                                {recentJobs.map((job, i) => (
+                                    <FadeInView key={job.id} delay={200 + (i * 60)}>
+                                        <PressableAnimated
+                                            onPress={() => navigation.navigate('JobStatusDetail', { jobId: job.id })}
+                                            style={styles.recentRow}
+                                        >
+                                            <View style={styles.recentIconBox}>
+                                                <Text style={styles.recentIcon}>
+                                                    {services.find(s => s.id === job.category)?.icon || '🛠️'}
+                                                </Text>
+                                            </View>
+                                            <View style={styles.recentInfo}>
+                                                <Text style={styles.recentTitle}>{t(`cat_${job.category}`) || job.category}</Text>
+                                                <Text style={styles.recentDate}>{new Date(job.created_at).toLocaleDateString()}</Text>
+                                            </View>
+                                            <StatusPill status={job.status} />
+                                        </PressableAnimated>
+                                    </FadeInView>
+                                ))}
+                            </View>
+                        )}
+                    </>
                 )}
 
                 <MapPickerModal
                     visible={isMapVisible}
                     onClose={() => setIsMapVisible(false)}
-                    onSelectLocation={(loc) => {
-                        const newLoc = { address: loc.address, lat: loc.latitude, lng: loc.longitude };
-                        setLocation(newLoc);
-                        setLocationOverride(newLoc);
-                        setIsMapVisible(false);
+                    onSelectLocation={async (loc) => {
+                        Alert.alert(
+                            'Update Location',
+                            'Would you like to set this as your primary service location?',
+                            [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                    text: 'Set Primary',
+                                    onPress: async () => {
+                                        const newLoc = { address: loc.address, lat: loc.latitude, lng: loc.longitude };
+                                        setLocation(newLoc);
+                                        setLocationOverride(newLoc);
+                                        setIsMapVisible(false);
+
+                                        try {
+                                            // 1. Persist to customer profile
+                                            await apiClient.post('/api/me/location', newLoc);
+
+                                            // 2. Proactively check if anyone at all is serving this area
+                                            const coverage = await apiClient.post('/api/coverage/check', {
+                                                latitude: loc.latitude,
+                                                longitude: loc.longitude
+                                            });
+
+                                            if (!coverage.data.is_serviceable) {
+                                                setIsServiceable(false);
+                                                Alert.alert(
+                                                    'Area Not Covered',
+                                                    `We don't currently have professionals available in ${loc.address}. We hope to expand here soon!`
+                                                );
+                                            } else {
+                                                setIsServiceable(true);
+                                            }
+                                        } catch (err) {
+                                            console.error('[HomeScreen] Location Sync / Coverage check failed', err);
+                                        }
+                                    }
+                                }
+                            ]
+                        );
                     }}
                 />
             </Animated.ScrollView>
@@ -231,7 +297,7 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.background },
     scrollView: { flex: 1 },
-    content: { padding: spacing[24], paddingTop: 100, paddingBottom: 100 },
+    content: { padding: spacing[24], paddingTop: 100, paddingBottom: 120 },
 
     headerFloating: {
         position: 'absolute',

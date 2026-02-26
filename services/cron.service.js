@@ -36,7 +36,7 @@ async function handleDisputeEscalations(pool) {
     const [jobs] = await pool.query(
         `SELECT id, customer_id, worker_id, dispute_reason 
          FROM jobs 
-         WHERE status = 'disputed' AND auto_escalate_at <= NOW() AND escalated = 0`
+         WHERE status = 'disputed' AND auto_escalate_at <= NOW() AND escalated = false`
     );
 
     if (jobs.length === 0) return;
@@ -52,7 +52,7 @@ async function handleDisputeEscalations(pool) {
 
     if (escalatedIds.length > 0) {
         await pool.query(
-            `UPDATE jobs SET escalated = 1 WHERE id IN (?)`,
+            `UPDATE jobs SET escalated = true WHERE id = ANY($1)`,
             [escalatedIds]
         );
         console.log(`[Cron] Successfully marked ${escalatedIds.length} disputes as escalated.`);
@@ -81,7 +81,7 @@ async function handleRefundRetries(pool) {
 
             // Success Transition
             await pool.query(
-                `UPDATE refund_queue SET status='completed', razorpay_refund_id=?, updated_at=NOW() WHERE id=?`,
+                `UPDATE refund_queue SET status='completed', razorpay_refund_id=$1, updated_at=NOW() WHERE id=$2`,
                 [`rfnd_mock_${Date.now()}`, refund.id]
             );
             console.log(`[Cron] Refund ${refund.id} processed successfully via Razorpay.`);
@@ -92,13 +92,13 @@ async function handleRefundRetries(pool) {
 
             if (newAttempts >= refund.max_attempts) {
                 await pool.query(
-                    `UPDATE refund_queue SET status='failed', attempts=?, last_error=?, updated_at=NOW() WHERE id=?`,
+                    `UPDATE refund_queue SET status='failed', attempts=$1, last_error=$2, updated_at=NOW() WHERE id=$3`,
                     [newAttempts, err.message, refund.id]
                 );
                 console.log(`[Cron] Refund ${refund.id} FAILED permanently after ${newAttempts} attempts.`);
             } else {
                 await pool.query(
-                    `UPDATE refund_queue SET attempts=?, last_error=?, next_attempt_at=DATE_ADD(NOW(), INTERVAL ? MINUTE), updated_at=NOW() WHERE id=?`,
+                    `UPDATE refund_queue SET attempts=$1, last_error=$2, next_attempt_at=NOW() + INTERVAL '1 minute' * $3, updated_at=NOW() WHERE id=$4`,
                     [newAttempts, err.message, backoffMinutes, refund.id]
                 );
                 console.log(`[Cron] Refund ${refund.id} failed natively. Backing off for ${backoffMinutes} minutes.`);
