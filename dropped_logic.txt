@@ -1,0 +1,63 @@
+
+--- zarva-mobile/src/components/JobAlertBottomSheet.jsx ---
+- const [status, setStatus] = useState('idle'); // 'idle' | 'accepting' | 'success' | 'taken'
+- // When alert is injected, reset states and open sheet
+- onClose={() => {
+- <TouchableOpacity
+- onPress={() => handleDecline(false)}
+- <TouchableOpacity
+- onPress={handleAccept}
+
+--- zarva-mobile/src/components/RadarAnimation.jsx ---
+- function Ring({ delay }) {
+
+--- zarva-mobile/src/screens/auth/LanguageScreen.jsx ---
+- onChangeText={t => {
+- setSearchQuery(t);
+
+--- zarva-mobile/src/screens/worker/WorkerHomeScreen.jsx ---
+- const { isOnline, setOnline, isAvailable, setAvailable, activeJob, setActiveJob, locationOverride, setLocationOverride } = useWorkerStore();
+- const fetchProfile = async () => {
+- const res = await apiClient.get('/api/me');
+- setOnline(!!p.is_online);
+- setAvailable(!!p.is_available);
+- setEarningsToday(p.earnings_today || 0);
+- setStats({ today: p.jobs_today || 0, week: p.jobs_week || 0 });
+- else setActiveJob(null);
+- const revRes = await apiClient.get(`/api/reviews/worker/${user.id}`);
+- setReviews(revRes.data?.data?.reviews || revRes.data?.reviews || []);
+- const onRefresh = useCallback(() => {
+- <PressableAnimated style={styles.locationBar} onPress={() => setIsMapVisible(true)}>
+- onPress={() => navigation.navigate('ActiveJob', { jobId: activeJob.id })}
+- <TouchableOpacity onPress={() => navigation.navigate('WorkerReputation', { workerId: worker.id, workerName: worker.name })}>
+- reviews?.slice(0, 3).map((review, index) => (
+
+--- zarva-mobile/src/screens/worker/WorkerProfileScreen.jsx ---
+- const [skills, setSkills] = useState(() => {
+- useEffect(() => {
+- (async () => {
+- setLocation(locationOverride);
+- const [addressArr] = await Location.reverseGeocodeAsync({
+- setLocation({ address: addressText, lat: loc.coords.latitude, lng: loc.coords.longitude });
+- apiClient.get('/api/jobs/config').then(res => {
+- if (res.data?.categories) setAvailableSkills(res.data.categories);
+- setUser({ ...user, language_preference: code });
+- try { await apiClient.post('/api/me/profile', { language_preference: code }); } catch (err) { }
+- setSkills(updated);
+- await apiClient.put('/api/worker/onboard/profile', { skills: updated });
+- setUser({ ...user, profile: { ...user.profile, skills: updated } });
+- setSkills(skills);
+- setSkills(updated);
+- await apiClient.put('/api/worker/onboard/profile', { skills: updated });
+- setUser({ ...user, profile: { ...user.profile, skills: updated } });
+- } catch (e) { setSkills(skills); }
+- const handleToggleOnline = async (val) => {
+- setOnline(val);
+- await apiClient.put('/api/worker/availability', { is_online: val });
+- catch (e) { setOnline(!val); }
+- skills.map((k, index) => {
+- // Extreme safety: never render an object inside <Text>
+- <TouchableOpacity onPress={() => handleRemoveSkill(skillKey)} style={styles.skillClose}>
+- <PressableAnimated style={styles.settingRow} onPress={() => navigation.navigate('AlertPreferences')}>
+- <PressableAnimated style={styles.settingRow} onPress={() => navigation.navigate('Support')}>
+- <PremiumButton variant="ghost" title={t('logout')} onPress={logout} />

@@ -9,9 +9,10 @@
 import cron from 'node-cron';
 import { getPool } from '../config/database.js';
 import { startLiveBillingSync } from './liveBilling.js';
+import * as reconciliationService from './reconciliation.service.js';
 
 export function initCronJobs() {
-    console.log('[Cron] Initializing 15-minute scheduled sweeps...');
+    console.log('[Cron] Initializing scheduled sweeps...');
 
     // Run every 15 minutes
     cron.schedule('*/15 * * * *', async () => {
@@ -25,6 +26,21 @@ export function initCronJobs() {
             await handleRefundRetries(pool);
         } catch (err) {
             console.error('[Cron] Sweep Error:', err);
+        }
+    });
+
+    // Daily reconciliation (2:00 AM)
+    cron.schedule('0 2 * * *', async () => {
+        try {
+            const { report, hasError } = await reconciliationService.runDailyReconciliation();
+            if (hasError) {
+                console.error('[Cron] Reconciliation FAILED:', JSON.stringify(report, null, 2));
+                // TODO: Send alert to engineering + finance
+            } else {
+                console.log('[Cron] Daily reconciliation passed.');
+            }
+        } catch (err) {
+            console.error('[Cron] Reconciliation error:', err);
         }
     });
 

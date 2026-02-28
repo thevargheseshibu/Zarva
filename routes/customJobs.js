@@ -1,17 +1,32 @@
 import express from 'express';
 import { authenticateJWT as authenticateToken } from '../middleware/index.js';
 import CustomJobService from '../services/customJob.service.js';
+import multer from 'multer';
+import { uploadToS3 } from '../utils/s3.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 /**
  * POST /api/custom-jobs/templates
  * Create a new custom job template
  */
-router.post('/templates', authenticateToken, async (req, res) => {
+router.post('/templates', authenticateToken, upload.array('photos', 3), async (req, res) => {
     try {
         const customerId = req.user.id;
-        const result = await CustomJobService.createTemplate(customerId, req.body);
+        let payload = { ...req.body };
+
+        if (req.files && req.files.length > 0) {
+            const photoUrls = [];
+            for (const file of req.files) {
+                const s3Key = `custom_jobs/${customerId}/${Date.now()}_${file.originalname}`;
+                const url = await uploadToS3(file.buffer, s3Key, file.mimetype);
+                photoUrls.push(url);
+            }
+            payload.photos = photoUrls;
+        }
+
+        const result = await CustomJobService.createTemplate(customerId, payload);
         res.status(201).json(result);
     } catch (error) {
         console.error('Create Custom Template Error:', error);

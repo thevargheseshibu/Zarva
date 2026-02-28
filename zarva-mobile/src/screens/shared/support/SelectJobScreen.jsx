@@ -1,14 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { useTokens } from '../../../design-system';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SectionList, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-
+import * as Haptics from 'expo-haptics';
 
 import { useT } from '../../../hooks/useT';
 import apiClient from '../../../services/api/client';
 import PremiumHeader from '../../../components/PremiumHeader';
 import MainBackground from '../../../components/MainBackground';
-import PressableAnimated from '../../../design-system/components/PressableAnimated';
+import FadeInView from '../../../components/FadeInView';
+
+const STATUS_COLORS = {
+    assigned: '#3B82F6',
+    worker_en_route: '#8B5CF6',
+    in_progress: '#10B981',
+    completed: '#6B7280',
+    cancelled: '#EF4444',
+    disputed: '#F59E0B',
+    default: '#6B7280',
+};
+
+function JobCard({ job, onPress }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
+    const statusColor = STATUS_COLORS[job.status] || STATUS_COLORS.default;
+    const date = job.created_at ? new Date(job.created_at).toLocaleDateString() : '';
+
+    return (
+        <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
+            <View style={styles.cardLeft}>
+                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+                <View>
+                    <Text style={styles.cardCategory}>{job.category?.toUpperCase() || 'SERVICE'}</Text>
+                    <Text style={styles.cardDate}>{date}</Text>
+                    {job.customer_address ? (
+                        <Text style={styles.cardAddr} numberOfLines={1}>{job.customer_address}</Text>
+                    ) : null}
+                </View>
+            </View>
+            <View style={styles.cardRight}>
+                <Text style={[styles.statusBadge, { color: statusColor }]}>
+                    {job.status?.replace(/_/g, ' ').toUpperCase()}
+                </Text>
+                <Text style={styles.chevron}>›</Text>
+            </View>
+        </TouchableOpacity>
+    );
+}
 
 export default function SelectJobScreen() {
     const tTheme = useTokens();
@@ -16,18 +54,23 @@ export default function SelectJobScreen() {
     const navigation = useNavigation();
     const t = useT();
 
-    const [jobs, setJobs] = useState([]);
+    const [sections, setSections] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         const fetchJobs = async () => {
             try {
-                // Fetch user's job history
-                const res = await apiClient.get('/api/jobs');
-                setJobs(res.data.data || []);
+                const res = await apiClient.get('/api/support/eligible-jobs');
+                const current = res.data?.current || [];
+                const history = res.data?.history || [];
+
+                const newSections = [];
+                if (current.length > 0) newSections.push({ title: 'Current Jobs', data: current });
+                if (history.length > 0) newSections.push({ title: 'Past Jobs', data: history });
+                setSections(newSections);
             } catch (err) {
-                setError(t('failed_to_load_jobs', { defaultValue: 'Failed to load jobs.' }));
+                setError('Failed to load jobs. Please try again.');
             } finally {
                 setLoading(false);
             }
@@ -35,18 +78,17 @@ export default function SelectJobScreen() {
         fetchJobs();
     }, []);
 
-    const parseShortDate = (d) => {
-        if (!d) return '';
-        const dt = new Date(d);
-        return dt.toLocaleDateString();
+    const handleSelectJob = (job) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        navigation.navigate('CreateTicket', { job });
     };
 
     if (loading) {
         return (
             <MainBackground>
-                <PremiumHeader title={t('select_job', { defaultValue: 'Select a Job' })} onBack={() => navigation.goBack()} />
+                <PremiumHeader title="Select a Job" onBack={() => navigation.goBack()} />
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color={t.brand.primary} />
+                    <ActivityIndicator size="large" color={tTheme.brand.primary} />
                 </View>
             </MainBackground>
         );
@@ -54,123 +96,92 @@ export default function SelectJobScreen() {
 
     return (
         <MainBackground>
-            <PremiumHeader title={t('select_job', { defaultValue: 'Select a Job' })} onBack={() => navigation.goBack()} />
+            <PremiumHeader title="Select a Job" onBack={() => navigation.goBack()} />
 
-            <View style={styles.content}>
-                <Text style={styles.prompt}>
-                    {t('which_job_issue', { defaultValue: 'Which job did you experience an issue with?' })}
-                </Text>
-
-                <FlatList
-                    data={jobs}
+            {error ? (
+                <View style={styles.center}>
+                    <Text style={styles.errorTxt}>{error}</Text>
+                </View>
+            ) : sections.length === 0 ? (
+                <FadeInView style={styles.empty}>
+                    <Text style={styles.emptyIcon}>📋</Text>
+                    <Text style={styles.emptyTitle}>No Jobs Found</Text>
+                    <Text style={styles.emptyDesc}>You don't have any job history yet. For general inquiries, use General Support.</Text>
+                    <TouchableOpacity
+                        style={styles.generalBtn}
+                        onPress={() => navigation.navigate('CreateTicket', { ticket_type: 'general_chat' })}
+                    >
+                        <Text style={styles.generalBtnTxt}>Go to General Support →</Text>
+                    </TouchableOpacity>
+                </FadeInView>
+            ) : (
+                <SectionList
+                    sections={sections}
                     keyExtractor={item => item.id}
                     contentContainerStyle={styles.list}
-                    ListEmptyComponent={() => (
-                        <View style={styles.empty}>
-                            <Text style={styles.emptyIcon}>📋</Text>
-                            <Text style={styles.emptyTxt}>{t('no_job_history', { defaultValue: 'You have no job history.' })}</Text>
-
-                            <PressableAnimated
-                                style={[styles.card, { marginTop: 24, padding: 16 }]}
-                                onPress={() => navigation.replace('CreateTicket')}
-                            >
-                                <Text style={[styles.cardTitle, { textAlign: 'center' }]}>
-                                    {t('go_to_general_chat', { defaultValue: 'Go to General Chat instead' })}
-                                </Text>
-                            </PressableAnimated>
-                        </View>
+                    renderSectionHeader={({ section: { title } }) => (
+                        <Text style={styles.sectionHeader}>{title.toUpperCase()}</Text>
                     )}
                     renderItem={({ item }) => (
-                        <PressableAnimated
-                            style={styles.card}
-                            onPress={() => navigation.navigate('CreateTicket', { job: item })}
-                        >
-                            <View style={styles.cardTop}>
-                                <Text style={styles.cardTitle}>{item.category?.toUpperCase() || 'JOB'}</Text>
-                                <Text style={styles.cardStatus}>{item.status?.toUpperCase()}</Text>
-                            </View>
-                            <View style={styles.cardBottom}>
-                                <Text style={styles.cardId}>ID: {item.id}</Text>
-                                <Text style={styles.cardDate}>{parseShortDate(item.created_at)}</Text>
-                            </View>
-                            <Text style={styles.chevron}>›</Text>
-                        </PressableAnimated>
+                        <JobCard job={item} onPress={() => handleSelectJob(item)} />
                     )}
                 />
-            </View>
+            )}
         </MainBackground>
     );
 }
 
 const createStyles = (t) => StyleSheet.create({
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    content: { flex: 1 },
-    prompt: {
-        color: t.text.secondary,
-        fontSize: t.typography.size.body,
-        marginHorizontal: t.spacing['2xl'],
-        marginTop: t.spacing['2xl'],
-        marginBottom: t.spacing.lg,
-    },
-    list: {
-        paddingHorizontal: t.spacing['2xl'],
-        paddingBottom: t.spacing[40],
-        gap: t.spacing.md,
-    },
+    errorTxt: { color: t.status?.error?.base || '#EF4444', fontSize: 14 },
 
-    empty: {
-        alignItems: 'center',
-        paddingTop: 60,
+    list: { padding: t.spacing['2xl'], paddingBottom: 60, gap: t.spacing.md },
+    sectionHeader: {
+        color: t.text.tertiary,
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 2,
+        marginTop: t.spacing.lg,
+        marginBottom: t.spacing.sm,
+        marginLeft: 4,
     },
-    emptyIcon: { fontSize: 40, marginBottom: t.spacing.lg },
-    emptyTxt: { color: t.text.tertiary, fontSize: t.typography.size.body, textAlign: 'center' },
 
     card: {
         backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
         padding: t.spacing.lg,
-        borderRadius: 16,
         borderWidth: 1,
         borderColor: t.border.default + '22',
-        position: 'relative'
-    },
-    cardTop: {
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 8,
-        paddingRight: 24
+        ...t.shadows?.small,
     },
-    cardTitle: {
+    cardLeft: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, flex: 1 },
+    statusDot: { width: 10, height: 10, borderRadius: 5 },
+    cardCategory: {
         color: t.text.primary,
         fontSize: t.typography.size.body,
         fontWeight: t.typography.weight.bold,
-        letterSpacing: 1
+        letterSpacing: 0.5,
     },
-    cardStatus: {
-        color: t.brand.primary,
-        fontSize: t.typography.size.micro,
-        fontWeight: t.typography.weight.bold,
-        letterSpacing: 1
+    cardDate: { color: t.text.tertiary, fontSize: 11, marginTop: 2 },
+    cardAddr: { color: t.text.secondary, fontSize: 11, marginTop: 2, maxWidth: 200 },
+
+    cardRight: { alignItems: 'flex-end', gap: 4 },
+    statusBadge: { fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+    chevron: { color: t.brand.primary, fontSize: 24, fontWeight: '200' },
+
+    empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: t.spacing['2xl'] },
+    emptyIcon: { fontSize: 48, marginBottom: t.spacing.lg },
+    emptyTitle: { color: t.text.primary, fontSize: 20, fontWeight: '900', marginBottom: 8 },
+    emptyDesc: { color: t.text.secondary, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: t.spacing['2xl'] },
+    generalBtn: {
+        paddingVertical: 14,
+        paddingHorizontal: t.spacing['2xl'],
+        borderRadius: t.radius.full,
+        borderWidth: 1.5,
+        borderColor: t.brand.primary,
     },
-    cardBottom: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingRight: 24
-    },
-    cardId: {
-        color: t.text.tertiary,
-        fontSize: t.typography.size.small
-    },
-    cardDate: {
-        color: t.text.tertiary,
-        fontSize: t.typography.size.small
-    },
-    chevron: {
-        position: 'absolute',
-        right: 16,
-        top: '50%',
-        color: t.brand.primary,
-        fontSize: 24,
-        fontWeight: '200',
-        transform: [{ translateY: -12 }]
-    }
+    generalBtnTxt: { color: t.brand.primary, fontWeight: '800', fontSize: 14 },
 });

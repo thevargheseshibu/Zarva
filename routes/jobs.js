@@ -241,6 +241,9 @@ router.get('/:id', async (req, res) => {
                 wp.category as worker_category,
                 wp.average_rating as worker_rating,
                 wp.profile_s3_key as worker_photo,
+                wp.total_jobs as worker_jobs,
+                wp.last_location_lat as worker_lat,
+                wp.last_location_lng as worker_lng,
                 (wp.kyc_status = 'approved') as worker_verified,
                 (SELECT COUNT(*)::INT FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
                 (SELECT json_build_object('score', score, 'category_scores', category_scores, 'comment', comment) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as review_details
@@ -275,6 +278,9 @@ router.get('/:id', async (req, res) => {
                 category: job.worker_category || 'Service',
                 rating: job.worker_rating, // raw rating
                 photo: photoUrl,
+                completed_jobs: job.worker_jobs || 0,
+                lat: job.worker_lat,
+                lng: job.worker_lng,
                 is_verified: !!job.worker_verified
             };
         }
@@ -404,30 +410,30 @@ router.post('/:id/verify-end-otp', async (req, res) => {
 
             if (match) {
                 // SUCCESS - INVOICE GENERATION
-                const billingService = (await import('../services/billing.service.js')).default;
+                const { default: billingService } = await import('../services/billing.service.js');
 
-                // This implicitly ends the job timer, sets pending_completion, and calculates the exact bill
+                // Advance to completed
+                await conn.query(`UPDATE jobs SET status='completed', chat_enabled=false WHERE id=$1`, [jobId]);
+
+                // Finalize exact times and pricing 
                 const billDetails = await billingService.stopJobAndBill(jobId, 'customer', conn);
 
-                // 1. Finalize Job Record is already done inside stopJobAndBill (sets status='pending_completion')
-                // We advance it to 'completed' here since OTP is verified live by the customer
-                await conn.query(`UPDATE jobs SET status='completed', chat_enabled=false WHERE id=$1`, [jobId]
-                );
-
-                // 2. Draft Invoice Row (Using the BillingService breakdown)
+                // Draft Invoice Row (Using the BillingService breakdown)
                 const invNo = `INV-${Date.now()}-${jobId}`;
-                await conn.query(`INSERT INTO job_invoices (job_id, invoice_number, subtotal, platform_fee, travel_charge, discount, tax, total) VALUES ($1, $2, $3, $4, $5, 0, 0, $6)`, [jobId, invNo, billDetails.jobAmount, 0, billDetails.travelCharge, billDetails.totalAmount]
+                await conn.query(`INSERT INTO job_invoices (job_id, invoice_number, subtotal, platform_fee, travel_charge, discount, tax, total) VALUES ($1, $2, $3, $4, $5, 0, 0, $6)`,
+                    [jobId, invNo, billDetails.jobAmount, 0, billDetails.travelCharge, billDetails.totalAmount]
                 );
 
-                // 3. Worker Aggregations
-                await conn.query(`UPDATE worker_profiles SET total_jobs = total_jobs + 1, current_job_id = NULL WHERE user_id=$1`, [job.worker_id]
-                );
+                // Worker Aggregations
+                await conn.query(`UPDATE worker_profiles SET total_jobs = total_jobs + 1, current_job_id = NULL WHERE user_id=$1`, [job.worker_id]);
 
-                // Note: The task states `total_earnings+=worker_payout`, but `total_earnings` doesn't exist on schema. 
-                // Omitting earnings modification natively to avoid schema errors as we didn't migrate it, just handling `total_jobs` mapping.
-
-                // 4. Customer Aggregation
+                // Customer Aggregation
                 await conn.query(`UPDATE customer_profiles SET total_jobs = total_jobs + 1 WHERE user_id=$1`, [job.customer_id]);
+
+                // Wallet: post job complete entries
+                const finalAmountPaise = Math.ceil(billDetails.totalAmount * 100);
+                const walletService = await import('../services/wallet.service.js');
+                await walletService.postJobCompleteEntries(jobId, finalAmountPaise, job.customer_id, job.worker_id, conn);
 
                 // Cleanup Redis
                 const redisClient = getRedisClient();
@@ -444,8 +450,7 @@ router.post('/:id/verify-end-otp', async (req, res) => {
             } else {
                 const attempts = job.end_otp_attempts + 1;
                 if (attempts >= 5) {
-                    await conn.query(`UPDATE jobs SET status='disputed', end_otp_attempts=$1, dispute_raised_at=NOW(), auto_escalate_at=NOW() + INTERVAL '48 hours' WHERE id=$2`, [attempts, jobId]
-                    );
+                    await conn.query(`UPDATE jobs SET status='disputed', end_otp_attempts=$1, dispute_raised_at=NOW(), auto_escalate_at=NOW() + INTERVAL '48 hours' WHERE id=$2`, [attempts, jobId]);
                     await conn.commit();
                     throw Object.assign(new Error('Job disputed due to max attempts'), { status: 403 });
                 } else {
@@ -626,16 +631,10 @@ router.post('/:id/stop', async (req, res) => {
         if (!job || job.customer_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
         if (job.status !== 'in_progress') throw Object.assign(new Error('Job is not in progress'), { status: 400 });
 
-        const billingService = (await import('../services/billing.service.js')).default;
-        await billingService.stopJobAndBill(jobId, 'customer');
+        const { default: billingService } = await import('../services/billing.service.js');
+        const billInfo = await billingService.stopJobAndBill(jobId, 'customer');
 
-        // Customer stopping early still generates an invoice, handled similar to verify-end-otp without the OTP requirement
-        // Actually to keep it simple, stopJobAndBill moves it to `pending_completion`. The customer then proceeds to payment screen.
-        // Wait, if customer stopped it, they don't need to verify End OTP. We should just finalize it.
-        // I will let ZARVA UI handle it: stop -> pending_completion -> immediately process payment?
-        // Yes, the mobile app can just transition them to Payment screen directly.
-
-        return ok(res, { stopped: true });
+        return ok(res, { stopped: true, billInfo });
     } catch (err) {
         return fail(res, err.message, err.status || 500);
     }

@@ -26,7 +26,7 @@ export class CustomJobService {
         customer_id, title, description, photos, hourly_rate, fee_negotiable,
         city, state, pincode, approval_status
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending') RETURNING id`,
-            [customerId, title, description, photos, hourly_rate, fee_negotiable, city, state, pincode]
+            [customerId, title, description, JSON.stringify(photos), hourly_rate, fee_negotiable, city, state, pincode]
         );
 
         const templateId = result[0].id;

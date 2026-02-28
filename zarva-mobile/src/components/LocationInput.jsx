@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics';
 import PressableAnimated from '../design-system/components/PressableAnimated';
 import Card from './Card';
 import FadeInView from './FadeInView';
+import ZLoader from './ZLoader';
 
 export default function LocationInput({ onChange, onLoading, initialData = {} }) {
     const tTheme = useTokens();
@@ -72,16 +73,23 @@ export default function LocationInput({ onChange, onLoading, initialData = {} })
             });
 
             if (place) {
-                const generatedGpsText = [place.name, place.street, place.district, place.city, place.region]
-                    .filter(Boolean).join(', ');
+                // expo-location has varying accuracy by region.
+                // subregion usually matches District in India. city matches City/Town.
+                const cityVal = place.city || place.subregion || place.region || '';
+                const districtVal = place.subregion || place.district || place.city || '';
+
+                const generatedGpsText = [place.name, place.street, districtVal, cityVal, place.region]
+                    .filter(Boolean)
+                    .filter((v, i, a) => a.indexOf(v) === i) // Remove duplicates (e.g if city == district)
+                    .join(', ');
                 setGpsText(generatedGpsText);
 
                 setFields(prev => ({
                     ...prev,
                     house: place.name && place.name !== place.street ? place.name : prev.house,
                     street: place.street || prev.street,
-                    district: place.district || place.subregion || place.city || prev.district,
-                    city: place.city || place.subregion || prev.city,
+                    district: districtVal || prev.district,
+                    city: cityVal || prev.city,
                     state: place.region || prev.state,
                     pincode: place.postalCode || prev.pincode
                 }));
@@ -99,6 +107,7 @@ export default function LocationInput({ onChange, onLoading, initialData = {} })
 
     return (
         <View style={styles.container}>
+            <ZLoader visible={loading} text="Fetching Location..." />
             <FadeInView delay={100}>
                 <PressableAnimated style={styles.gpsBtn} onPress={handleGpsPress} disabled={loading}>
                     <View style={styles.gpsBtnContent}>

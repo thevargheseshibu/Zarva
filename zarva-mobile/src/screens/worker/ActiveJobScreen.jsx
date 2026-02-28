@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTokens } from '../../design-system';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { ref, onValue, off } from 'firebase/database';
@@ -26,6 +26,9 @@ export default function ActiveJobScreen({ route, navigation }) {
     const [actionLoading, setActionLoading] = useState(false);
     const [job, setJob] = useState(null);
     const [startOtp, setStartOtp] = useState(['', '', '', '']);
+    const [inspectionOtp, setInspectionOtp] = useState(['', '', '', '']);
+    const [showingEstimate, setShowingEstimate] = useState(false);
+    const [estimateData, setEstimateData] = useState({ minutes: '', notes: '' });
     const [timerActive, setTimerActive] = useState(false);
     const [timeElapsed, setTimeElapsed] = useState(0);
     const [endOtp, setEndOtp] = useState('----');
@@ -122,13 +125,53 @@ export default function ActiveJobScreen({ route, navigation }) {
         setActionLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         try {
-            await apiClient.post(`/api/worker/jobs/${jobId}/verify-start-otp`, { code });
+            const res = await apiClient.post(`/api/worker/jobs/${jobId}/verify-start-otp`, { code });
+
             setStatus('in_progress');
             setTimerActive(true);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
         } catch (err) {
             Alert.alert('Invalid Code', err.response?.data?.message || 'Incorrect start code.');
             setStartOtp(['', '', '', '']);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleVerifyInspectionOtp = async () => {
+        const code = inspectionOtp.join('');
+        if (code.length !== 4) return;
+        setActionLoading(true);
+        try {
+            const res = await apiClient.post(`/api/worker/jobs/${jobId}/verify-inspection-otp`, { otp: code });
+            if (res.data?.verified) {
+                setShowingEstimate(true);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Invalid Inspection Code.');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleSubmitEstimate = async () => {
+        if (!estimateData.minutes || isNaN(estimateData.minutes)) {
+            return Alert.alert('Invalid Input', 'Please enter a valid number of minutes.');
+        }
+        setActionLoading(true);
+        try {
+            await apiClient.post(`/api/worker/jobs/${jobId}/inspection/estimate`, {
+                estimated_minutes: parseInt(estimateData.minutes, 10),
+                notes: estimateData.notes,
+            });
+            setShowingEstimate(false);
+            setStatus('estimate_submitted');
+            setStartOtp(['', '', '', '']);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Failed to submit estimate.');
         } finally {
             setActionLoading(false);
         }
@@ -159,6 +202,7 @@ export default function ActiveJobScreen({ route, navigation }) {
     const renderActionView = () => {
         const isAssigned = status === 'assigned' || status === 'worker_en_route';
         const isArrived = status === 'worker_arrived';
+        const isEstimateSubmitted = status === 'estimate_submitted';
         const isInProgress = status === 'in_progress';
         const isPending = status === 'pending_completion';
 
@@ -180,12 +224,74 @@ export default function ActiveJobScreen({ route, navigation }) {
         }
 
         if (isArrived) {
+            if (showingEstimate) {
+                return (
+                    <FadeInView delay={200} style={styles.actionSection}>
+                        <Card style={styles.actionCard}>
+                            <Text style={styles.actionLabel}>{t('inspection') || 'INSPECTION'}</Text>
+                            <Text style={styles.actionTitle}>Service Estimate</Text>
+                            <Text style={styles.actionSub}>Provide an estimated duration and initial findings to the client.</Text>
+
+                            <View style={styles.estimateInputWrap}>
+                                <Text style={styles.inputLabel}>Estimated Minutes</Text>
+                                <TextInput
+                                    style={styles.textInput}
+                                    keyboardType="numeric"
+                                    placeholder="e.g. 60"
+                                    placeholderTextColor={tTheme.text.tertiary}
+                                    value={estimateData.minutes}
+                                    onChangeText={(val) => setEstimateData(prev => ({ ...prev, minutes: val }))}
+                                />
+                                <Text style={styles.inputLabel}>Notes / Findings (Optional)</Text>
+                                <TextInput
+                                    style={styles.textInputArea}
+                                    multiline
+                                    placeholder="What needs to be fixed?"
+                                    placeholderTextColor={tTheme.text.tertiary}
+                                    value={estimateData.notes}
+                                    onChangeText={(val) => setEstimateData(prev => ({ ...prev, notes: val }))}
+                                />
+                            </View>
+                            <PremiumButton
+                                title="Submit Estimate"
+                                onPress={handleSubmitEstimate}
+                                loading={actionLoading}
+                            />
+                        </Card>
+                    </FadeInView>
+                );
+            }
+
+            return (
+                <FadeInView delay={200} style={styles.actionSection}>
+                    <Card style={styles.actionCard}>
+                        <Text style={styles.actionLabel}>{t('authentication')}</Text>
+                        <Text style={styles.actionTitle}>Verify Arrival</Text>
+                        <Text style={styles.actionSub}>Ask the customer for their Inspection Code to begin your assessment.</Text>
+                        <View style={styles.otpWrap}>
+                            <OTPInput
+                                disabled={actionLoading}
+                                onChange={(code) => setInspectionOtp(code.split('').concat(Array(4).fill('')).slice(0, 4))}
+                            />
+                        </View>
+                        <PremiumButton
+                            title="Verify Arrival"
+                            onPress={handleVerifyInspectionOtp}
+                            loading={actionLoading}
+                            disabled={inspectionOtp.join('').length < 4}
+                        />
+                    </Card>
+                </FadeInView>
+            );
+        }
+
+        if (isEstimateSubmitted) {
             return (
                 <FadeInView delay={200} style={styles.actionSection}>
                     <Card style={styles.actionCard}>
                         <Text style={styles.actionLabel}>{t('authentication')}</Text>
                         <Text style={styles.actionTitle}>{t('enter_start_code')}</Text>
-                        <Text style={styles.actionSub}>{t('enter_start_code_desc')}</Text>
+                        <Text style={styles.actionSub}>Waiting for client to approve estimate. Enter their start code once provided.</Text>
                         <View style={styles.otpWrap}>
                             <OTPInput
                                 disabled={actionLoading}
@@ -220,6 +326,13 @@ export default function ActiveJobScreen({ route, navigation }) {
                         </View>
                         <Text style={styles.actionSub}>{t('active_session_desc')}</Text>
                         <PremiumButton
+                            title="Request Time Extension"
+                            variant="secondary"
+                            onPress={() => navigation.navigate('ExtensionRequest', { jobId })}
+                            disabled={actionLoading}
+                            style={{ marginBottom: 12 }}
+                        />
+                        <PremiumButton
                             title={t('terminate_complete')}
                             onPress={handleMarkComplete}
                             loading={actionLoading}
@@ -240,7 +353,7 @@ export default function ActiveJobScreen({ route, navigation }) {
                             <Text style={styles.endOtpCode}>{endOtp}</Text>
                         </View>
                         <View style={styles.waitingIconBox}>
-                            <ActivityIndicator size="small" color={t.brand.primary} />
+                            <ActivityIndicator size="small" color={tTheme.brand.primary} />
                             <Text style={styles.waitingTxt}>{t('awaiting_confirmation')}</Text>
                         </View>
                     </Card>
@@ -263,7 +376,7 @@ export default function ActiveJobScreen({ route, navigation }) {
 
     if (loading) return (
         <View style={styles.loadingScreen}>
-            <ActivityIndicator size="large" color={t.brand.primary} />
+            <ActivityIndicator size="large" color={tTheme.brand.primary} />
             <Text style={styles.loadingTxt}>{t('syncing_session')}</Text>
         </View>
     );
@@ -281,7 +394,7 @@ export default function ActiveJobScreen({ route, navigation }) {
                         <StatusPill status={status} />
                     </View>
                 </View>
-                {['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(status) && job ? (
+                {['assigned', 'worker_en_route', 'worker_arrived', 'estimate_submitted', 'in_progress', 'pending_completion'].includes(status) && job ? (
                     <PressableAnimated
                         style={styles.headerChatBtn}
                         onPress={() => navigation.navigate('Chat', { jobId, userRole: 'worker', otherUserId: job.customer_id })}
@@ -408,7 +521,12 @@ const createStyles = (t) => StyleSheet.create({
     actionTitle: { color: t.text.primary, fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
     actionSub: { color: t.text.tertiary, fontSize: t.typography.size.caption, textAlign: 'center', lineHeight: 20, marginBottom: t.spacing['2xl'] },
 
-    otpWrap: { width: '100%', marginBottom: t.spacing['2xl'] },
+    estimateInputWrap: { width: '100%', gap: 8, marginBottom: t.spacing['2xl'] },
+    inputLabel: { color: t.text.secondary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold, marginTop: t.spacing.sm, letterSpacing: t.typography.tracking.caption },
+    textInput: { backgroundColor: t.background.app, color: t.text.primary, padding: t.spacing.lg, borderRadius: t.radius.md, borderWidth: 1, borderColor: t.border.default, fontSize: 16 },
+    textInputArea: { backgroundColor: t.background.app, color: t.text.primary, padding: t.spacing.lg, borderRadius: t.radius.md, borderWidth: 1, borderColor: t.border.default, fontSize: 16, minHeight: 100, textAlignVertical: 'top' },
+
+    otpWrap: { width: '100%', alignItems: 'center', marginBottom: t.spacing['2xl'] },
     expiryTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, marginTop: 16, letterSpacing: 1 },
 
     timerBox: { alignItems: 'center', gap: 12, marginBottom: t.spacing['2xl'] },

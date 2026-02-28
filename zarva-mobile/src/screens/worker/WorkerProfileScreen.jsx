@@ -79,7 +79,7 @@ export default function WorkerProfileScreen({ navigation }) {
         if (user) {
             try {
                 await apiClient.post('/api/me/profile', { language_preference: code });
-            } catch (err) {}
+            } catch (err) { }
         }
     };
 
@@ -100,7 +100,19 @@ export default function WorkerProfileScreen({ navigation }) {
         setSkills(newSkills);
         try {
             await apiClient.post('/api/worker/onboarding/skills', { skills: newSkills });
-        } catch (err) {}
+        } catch (err) { }
+    };
+
+    const handleToggleOnline = async (val) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        setOnline(val);
+        try {
+            await apiClient.put('/api/worker/availability', { is_online: val });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (e) {
+            setOnline(!val);
+            Alert.alert('Error', 'Failed to update visibility status.');
+        }
     };
 
     const onRefresh = () => {
@@ -114,15 +126,15 @@ export default function WorkerProfileScreen({ navigation }) {
                 <Text style={styles.headerTitle}>{t('profile_caps')}</Text>
             </View>
 
-            <ScrollView 
-                showsVerticalScrollIndicator={false} 
+            <ScrollView
+                showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tTheme.brand.primary} />}
             >
                 <FadeInView delay={100} style={styles.heroSection}>
                     <View style={styles.avatarWrap}>
                         <View style={styles.avatarMain}>
-                            <Image 
+                            <Image
                                 source={{ uri: user?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'W')}&background=101014&color=BD00FF` }}
                                 style={{ width: 100, height: 100, borderRadius: 50 }}
                             />
@@ -154,6 +166,22 @@ export default function WorkerProfileScreen({ navigation }) {
                 <FadeInView delay={300} style={styles.section}>
                     <Text style={styles.sectionHeader}>{t('account_settings_caps')}</Text>
                     <Card style={styles.settingsCard}>
+                        <View style={styles.settingRow}>
+                            <View style={styles.rowIcon}><Text style={styles.iconTxt}>🔄</Text></View>
+                            <View style={styles.rowInfo}>
+                                <Text style={styles.rowTitle}>{t('visibility_status')}</Text>
+                                <Text style={styles.rowSub}>{isOnline ? t('online') : t('offline')}</Text>
+                            </View>
+                            <Switch
+                                value={isOnline}
+                                onValueChange={handleToggleOnline}
+                                trackColor={{ false: tTheme.background.surfaceRaised, true: tTheme.status.success.base }}
+                                thumbColor="#FFF"
+                            />
+                        </View>
+
+                        <View style={styles.innerDivider} />
+
                         <PressableAnimated style={styles.settingRow} onPress={() => setIsLangModalOpen(true)}>
                             <View style={styles.rowIcon}><Text style={styles.iconTxt}>🌐</Text></View>
                             <View style={styles.rowInfo}>
@@ -162,14 +190,40 @@ export default function WorkerProfileScreen({ navigation }) {
                             </View>
                             <Text style={styles.rowChevron}>›</Text>
                         </PressableAnimated>
-                        
+
                         <View style={styles.innerDivider} />
-                        
+
                         <PressableAnimated style={styles.settingRow} onPress={() => setIsMapVisible(true)}>
                             <View style={styles.rowIcon}><Text style={styles.iconTxt}>📍</Text></View>
                             <View style={styles.rowInfo}>
                                 <Text style={styles.rowTitle}>{t('service_area')}</Text>
                                 <Text style={styles.rowSub} numberOfLines={1}>{location.address}</Text>
+                            </View>
+                            <Text style={styles.rowChevron}>›</Text>
+                        </PressableAnimated>
+
+                        <View style={styles.innerDivider} />
+
+                        <PressableAnimated style={styles.settingRow} onPress={() => navigation.navigate('AlertPreferences')}>
+                            <View style={styles.rowIcon}>
+                                <Text style={styles.iconTxt}>🔔</Text>
+                            </View>
+                            <View style={styles.rowInfo}>
+                                <Text style={styles.rowTitle}>{t('mission_notifications', { defaultValue: 'Alert Preferences' })}</Text>
+                                <Text style={styles.rowSub}>Manage job alerts</Text>
+                            </View>
+                            <Text style={styles.rowChevron}>›</Text>
+                        </PressableAnimated>
+
+                        <View style={styles.innerDivider} />
+
+                        <PressableAnimated style={styles.settingRow} onPress={() => navigation.navigate('Support')}>
+                            <View style={styles.rowIcon}>
+                                <Text style={styles.iconTxt}>💬</Text>
+                            </View>
+                            <View style={styles.rowInfo}>
+                                <Text style={styles.rowTitle}>{t('help_center', { defaultValue: 'Help & Support' })}</Text>
+                                <Text style={styles.rowSub}>Contact admin</Text>
                             </View>
                             <Text style={styles.rowChevron}>›</Text>
                         </PressableAnimated>
@@ -204,13 +258,13 @@ export default function WorkerProfileScreen({ navigation }) {
 
                 {/* Footer */}
                 <FadeInView delay={500} style={styles.authFooter}>
-                    <PremiumButton 
-                        title={t('logout')} 
-                        variant="danger" 
+                    <PremiumButton
+                        title={t('logout')}
+                        variant="danger"
                         onPress={() => {
                             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
                             logout();
-                        }} 
+                        }}
                     />
                     <Text style={styles.appMetadata}>ZARVA PRO • V2.4.0 • KERALA</Text>
                 </FadeInView>

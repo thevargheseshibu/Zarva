@@ -122,15 +122,15 @@ router.post('/onboarding/service-area', (req, res) =>
         if (service_types && Array.isArray(service_types)) {
             await pool.query(
                 'UPDATE worker_profiles SET service_types = $1 WHERE user_id = $2',
-                 [service_types, userId]
-             );
-         }
- 
-         // Update location_updated_at timestamp
-         await pool.query('UPDATE worker_profiles SET location_updated_at = NOW() WHERE user_id = $1', [userId]);
- 
-         return {
-             message: 'Service area updated successfully',
+                [service_types, userId]
+            );
+        }
+
+        // Update location_updated_at timestamp
+        await pool.query('UPDATE worker_profiles SET location_updated_at = NOW() WHERE user_id = $1', [userId]);
+
+        return {
+            message: 'Service area updated successfully',
             service_area: result.service_area_geojson,
             estimated_coverage_area_km2: Math.PI * Math.pow(radius_km, 2)
         };
@@ -157,10 +157,10 @@ router.post('/onboard', (req, res) =>
             } else if (pm === 'bank') {
                 payment = {
                     method: 'bank',
-                    details: { 
+                    details: {
                         account_no: req.body.account_number || req.body.payment_details?.account_no,
                         ifsc: req.body.ifsc || req.body.payment_details?.ifsc,
-                        holder_name: req.body.holder_name || req.body.beneficiary_name || req.body.payment_details?.holder_name 
+                        holder_name: req.body.holder_name || req.body.beneficiary_name || req.body.payment_details?.holder_name
                     }
                 };
             }
@@ -168,7 +168,7 @@ router.post('/onboard', (req, res) =>
 
         // Experience Mapping: Primary Numeric Input starts here
         const fromBodyYears = parseFloat(req.body.experience_years);
-        
+
         // Categorical -> Numeric Fallback (if numeric input is empty)
         const expMap = {
             '0-1': 1.0,
@@ -198,23 +198,23 @@ router.post('/onboard', (req, res) =>
         if (location && location.lat && location.lng) {
             await pool.query(`UPDATE worker_profiles 
                  SET home_address=$1, 
-                     home_location=ST_SetSRID(ST_MakePoint($3, $2), 4326), 
+                     home_location=ST_SetSRID(ST_MakePoint($3::numeric, $2::numeric), 4326), 
                      home_pincode=$4, 
                      city=$5,
                      district=$6,
-                     current_location=ST_SetSRID(ST_MakePoint($3, $2), 4326),
+                     current_location=ST_SetSRID(ST_MakePoint($3::numeric, $2::numeric), 4326),
                      last_location_lat=$2,
                      last_location_lng=$3,
                      location_updated_at=NOW()
                  WHERE user_id=$7`, [
-                     JSON.stringify(location), 
-                     location.lat, 
-                     location.lng, 
-                     location.pincode, 
-                     location.city || 'Kochi', 
-                     location.district,
-                     userId
-                 ]
+                JSON.stringify(location),
+                location.lat,
+                location.lng,
+                location.pincode,
+                location.city || 'Kochi',
+                location.district,
+                userId
+            ]
             );
         }
 
@@ -448,52 +448,21 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         const { otp, code } = req.body;
         const inputOtp = otp || code;
 
-        const [jobs] = await pool.query('SELECT id, status, worker_id, start_otp_hash, arrived_at, start_otp_attempts FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
+        const [jobs] = await pool.query('SELECT status, customer_id FROM jobs WHERE id = $1', [jobId]);
         const job = jobs[0];
 
-        if (!job || job.worker_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
-        if (job.status !== 'estimate_submitted') throw Object.assign(new Error('Invalid job state'), { status: 400 });
+        if (!job) throw Object.assign(new Error('Job not found'), { status: 404 });
 
-        const features = configLoader.get('features');
-        if (!features?.otp?.start_otp_enabled) {
-            // Bypass logic
-            await pool.query(`UPDATE jobs SET status='in_progress', work_started_at=NOW(), otp_bypass_reason='Feature Flag Disabled' WHERE id=$1`, [jobId]
-            );
-            return { verified: true, bypassed: true };
-        }
+        // Pipe verifying directly to billing service matching Customer ID logic
+        const billingService = (await import('../services/billing.service.js')).default;
 
-        // Validity Checks
-        if (!job.start_otp_hash) throw new Error('OTP was never generated');
-        const generatedAt = new Date(job.arrived_at);
-        if ((Date.now() - generatedAt.getTime()) > 3600000) throw Object.assign(new Error('OTP Expired. Please tap "Ask for code" to refresh.'), { status: 400 });
+        // The service internally checks if the OTP matches, so we pass the customerId
+        await billingService.startJob(jobId, inputOtp, job.customer_id);
 
-        // Evaluate Bcrypt Hash
-        const match = await bcrypt.compare(String(inputOtp), job.start_otp_hash);
+        const redisClient = getRedisClient();
+        await redisClient.del(`zarva:otp:start:${jobId}`); // Clean cache natively
 
-        if (match) {
-            // Rely on billing handler for Timer initialization
-            const billingService = (await import('../services/billing.service.js')).default;
-            await billingService._recordTimerEvent(pool, jobId, 'job_start', 'worker', 'Job active');
-
-            await pool.query(`UPDATE jobs SET status='in_progress', work_started_at=NOW() WHERE id=$1`, [jobId]);
-            await updateJobNode(jobId, { status: 'in_progress', timer_status: 'active' });
-
-            const redisClient = getRedisClient();
-            await redisClient.del(`zarva:otp:start:${jobId}`); // Clean cache natively
-            return { verified: true };
-        } else {
-            const attempts = job.start_otp_attempts + 1;
-            if (attempts >= 5) {
-                // Dispute cascade
-                await pool.query(`UPDATE jobs SET status='disputed', start_otp_attempts=$1, dispute_raised_at=NOW(), auto_escalate_at=NOW() + INTERVAL '48 hours' WHERE id=$2`, [attempts, jobId]
-                );
-                await updateJobNode(jobId, { status: 'disputed' });
-                throw Object.assign(new Error('Too many failed attempts. Job disputed.'), { status: 403 });
-            } else {
-                await pool.query(`UPDATE jobs SET start_otp_attempts=$1 WHERE id=$2`, [attempts, jobId]);
-                throw Object.assign(new Error('Incorrect OTP'), { status: 400 });
-            }
-        }
+        return { verified: true };
     })
 );
 
@@ -659,7 +628,7 @@ router.put('/location', (req, res) =>
         // 1. Update DB
         await pool.query(`
             UPDATE worker_profiles 
-            SET current_location=ST_SetSRID(ST_MakePoint($2, $1), 4326),
+            SET current_location=ST_SetSRID(ST_MakePoint($2::float8, $1::float8), 4326),
                 location_updated_at=NOW()
             WHERE user_id=$3
         `, [lat, lng, userId]);
@@ -676,11 +645,11 @@ router.put('/location', (req, res) =>
         if (profile.current_job_id) {
             await updateJobNode(profile.current_job_id, { worker_lat: lat, worker_lng: lng });
 
-            await pool.query('INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude, location) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4, $3), 4326))', [userId, profile.current_job_id, lat, lng]
+            await pool.query('INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude, location) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4::numeric, $3::numeric), 4326))', [userId, profile.current_job_id, lat, lng]
             );
         } else {
             // Idle ping — still log to history (job_id = NULL)
-            await pool.query('INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude, location) VALUES ($1, NULL, $2, $3, ST_SetSRID(ST_MakePoint($3, $2), 4326))', [userId, lat, lng]
+            await pool.query('INSERT INTO worker_location_history (worker_id, job_id, latitude, longitude, location) VALUES ($1, NULL, $2, $3, ST_SetSRID(ST_MakePoint($3::numeric, $2::numeric), 4326))', [userId, lat, lng]
             );
         }
 
@@ -769,7 +738,7 @@ router.get('/available-jobs', (req, res) =>
         } catch (e) {
             console.error("Failed to parse skills for available-jobs", e);
         }
-        
+
         // Pass skills as a JSON string to the query for Postgres JSONB containment check
         const skillsParam = JSON.stringify(secondarySkills);
 
@@ -906,6 +875,28 @@ router.get('/earnings', (req, res) =>
         }));
 
         return { overview, transactions };
+    })
+);
+
+// ─── GET /api/worker/stats ────────────────────────────────────────────────
+// Get worker basic stats for home screen
+router.get('/stats', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const [statsRows] = await pool.query(`SELECT 
+                COUNT(CASE WHEN DATE(work_ended_at) = CURRENT_DATE THEN 1 END) as today,
+                COUNT(CASE WHEN DATE_TRUNC('week', work_ended_at) = DATE_TRUNC('week', CURRENT_DATE) THEN 1 END) as week,
+                (SELECT COALESCE(SUM(ji.subtotal), 0) FROM job_invoices ji JOIN jobs j ON j.id = ji.job_id WHERE j.worker_id = $1 AND j.status = 'completed' AND DATE(ji.created_at) = CURRENT_DATE) as earnings_today
+             FROM jobs
+             WHERE worker_id = $1 AND status = 'completed'`, [userId]
+        );
+
+        const stats = {
+            today: parseInt(statsRows[0]?.today || 0, 10),
+            week: parseInt(statsRows[0]?.week || 0, 10),
+            earnings_today: parseFloat(statsRows[0]?.earnings_today || 0)
+        };
+
+        return { stats };
     })
 );
 

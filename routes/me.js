@@ -47,7 +47,7 @@ router.post('/profile', async (req, res) => {
         });
     }
 
-    const { language_preference, name, email, city, district, dob } = req.body;
+    const { language_preference, name, email, phone, city, district, dob } = req.body;
 
     try {
         const pool = getPool();
@@ -64,6 +64,9 @@ router.post('/profile', async (req, res) => {
             }
             if (dob) {
                 await conn.query(`UPDATE users SET date_of_birth = $1 WHERE id = $2`, [dob, req.user.id]);
+            }
+            if (phone) {
+                await conn.query(`UPDATE users SET phone = $1 WHERE id = $2`, [phone, req.user.id]);
             }
 
             // 2. Update/Insert Customer Profile (UPSERT)

@@ -30,7 +30,9 @@ import reviewsRouter from './routes/reviews.js';
 import chatRouter from './routes/chat.js';
 import customJobsRouter from './routes/customJobs.js';
 import adminCustomJobsRouter from './routes/admin/customJobs.js';
+import adminTicketsRouter from './routes/admin/tickets.js';
 import supportRouter from './routes/support/index.js';
+import walletRouter from './routes/wallet.js';
 import {
     generalLimiter,
     authenticateJWT,
@@ -105,6 +107,8 @@ async function bootstrap() {
     app.use('/api/jobs', jobsRouter);       // General route second
     app.use('/api/custom-jobs', customJobsRouter); // Custom jobs
     app.use('/api/admin/custom-jobs', adminCustomJobsRouter); // Admin custom jobs
+    app.use('/api/admin/tickets', adminTicketsRouter);        // Admin support tickets
+    app.use('/api/wallet', walletRouter);                     // Wallet & ledger
 
     // Serve static admin files
     const __filename = fileURLToPath(import.meta.url);

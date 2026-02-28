@@ -11,6 +11,7 @@ import coverageApi from '../../services/api/coverageApi';
 
 
 import { useJobStore } from '../../stores/jobStore';
+import { useUIStore } from '../../stores/uiStore';
 import LocationInput from '../../components/LocationInput';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
@@ -31,7 +32,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [isEmergency, setIsEmergency] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const { setGlobalLoading } = useUIStore();
     const [isServiceable, setIsServiceable] = useState(true); // Default to true until checked
     const [coverageMsg, setCoverageMsg] = useState(null);
 
@@ -79,7 +80,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
             }
         }
 
-        setLoading(true);
+        setGlobalLoading(true, `Finding nearby ${category} professionals...`);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         try {
@@ -91,7 +92,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
             );
 
             if (!coverage.is_serviceable) {
-                setLoading(false);
+                setGlobalLoading(false);
                 Alert.alert(
                     'Area Not Covered',
                     `We don't have ${category} professionals available in this area right now.\n\nNearest professional is ${coverage.nearest_worker_distance_km ? coverage.nearest_worker_distance_km.toFixed(1) : 'unknown'} km away.`
@@ -138,6 +139,8 @@ export default function LocationScheduleScreen({ route, navigation }) {
                 console.error('[LocationSchedule] Firebase listener failed:', fbErr);
             }
 
+            setGlobalLoading(false);
+
             navigation.reset({
                 index: 0,
                 routes: [{ name: 'Searching', params: { category, jobId: newJobId } }],
@@ -146,7 +149,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
             console.error('Job dispatch error', e);
             Alert.alert('Error', 'Failed to dispatch request. Please try again.');
         } finally {
-            setLoading(false);
+            setGlobalLoading(false);
         }
     };
 

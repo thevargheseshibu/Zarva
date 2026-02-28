@@ -17,9 +17,7 @@ import PremiumButton from '../../components/PremiumButton';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 
-
-
-const STAGES = ['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
+const STAGES = ['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'estimate_submitted', 'in_progress', 'pending_completion'];
 
 export default function JobStatusDetailScreen({ route, navigation }) {
     const tTheme = useTokens();
@@ -64,7 +62,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
     // Auto-refresh details specifically when worker arrives or starts work to get OTP/timestamps
     useEffect(() => {
-        if (['worker_arrived', 'in_progress'].includes(status)) {
+        if (['worker_arrived', 'estimate_submitted', 'in_progress'].includes(status)) {
             fetchJobDetails();
         }
     }, [status]);
@@ -72,8 +70,9 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     // Live Timer for In Progress
     useEffect(() => {
         let int;
-        if (status === 'in_progress' && job?.work_started_at) {
-            const startMs = new Date(job.work_started_at).getTime();
+        let startTime = job?.job_started_at || job?.work_started_at;
+        if (status === 'in_progress' && startTime) {
+            const startMs = new Date(startTime).getTime();
             const updateTimer = () => {
                 setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
             };
@@ -164,7 +163,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 </PressableAnimated>
                 <Text style={styles.headerTitle}>{t('status')}</Text>
 
-                {['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(status) && job ? (
+                {['assigned', 'worker_en_route', 'worker_arrived', 'estimate_submitted', 'in_progress', 'pending_completion'].includes(status) && job ? (
                     <PressableAnimated
                         style={styles.headerChatBtn}
                         onPress={() => navigation.navigate('Chat', { jobId, userRole: 'customer', otherUserId: job.worker_id })}
@@ -186,7 +185,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 {['assigned', 'worker_en_route', 'worker_arrived'].includes(status) && (
                     <View style={styles.mapContainer}>
                         <WebView
-                            source={{ html: generateMapHTML(assignedWorker?.lat, assignedWorker?.lng, job?.lat, job?.lng) }}
+                            source={{ html: generateMapHTML((status === 'worker_arrived' && job?.worker?.lat) ? job.worker.lat : assignedWorker?.lat, (status === 'worker_arrived' && job?.worker?.lng) ? job.worker.lng : assignedWorker?.lng, job?.lat, job?.lng) }}
                             style={styles.map}
                             scrollEnabled={false}
                         />
@@ -206,6 +205,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                 {status === 'assigned' && t('status_prof_matched')}
                                 {status === 'worker_en_route' && t('status_en_route')}
                                 {status === 'worker_arrived' && t('status_at_doorstep')}
+                                {status === 'estimate_submitted' && 'Review Estimate'}
                                 {status === 'in_progress' && t('status_in_progress')}
                                 {status === 'pending_completion' && t('status_reviewing')}
                                 {status === 'completed' && t('status_complete')}
@@ -242,10 +242,50 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 {status === 'worker_arrived' && (
                     <FadeInView delay={200}>
                         <Card glow style={styles.actionCard}>
-                            <Text style={styles.actionTitle}>{t('share_start_code')}</Text>
-                            <Text style={styles.actionSub}>{t('share_start_code_desc')}</Text>
+                            <Text style={styles.actionTitle}>{t('share_service_code') || 'Share Inspection Code'}</Text>
+                            <Text style={styles.actionSub}>{t('share_service_code_desc') || 'Share this code with the worker to confirm their arrival so they can create an estimate.'}</Text>
                             <View style={styles.otpDisplay}>
-                                <Text style={styles.otpTxt}>{job?.start_otp || '----'}</Text>
+                                <Text style={styles.otpTxt}>{job?.inspection_otp || '----'}</Text>
+                            </View>
+                        </Card>
+                    </FadeInView>
+                )}
+
+                {status === 'estimate_submitted' && (
+                    <FadeInView delay={200}>
+                        <Card glow style={styles.actionCard}>
+                            <Text style={styles.actionTitle}>Review Estimate</Text>
+                            <Text style={styles.actionSub}>The professional has submitted their service estimate. Review the details below. If approved, provide the Start Code to begin the billable session.</Text>
+
+                            <View style={styles.estimateBox}>
+                                <View style={styles.estimateRow}>
+                                    <View style={styles.estIconBox}>
+                                        <Text style={styles.estIcon}>⏱️</Text>
+                                    </View>
+                                    <View style={styles.estInfoBlock}>
+                                        <Text style={styles.estimateLabel}>Estimated Time</Text>
+                                        <Text style={styles.estimateVal}>{job?.estimated_duration_minutes || 0} Minutes</Text>
+                                    </View>
+                                </View>
+                                {job?.issue_notes ? (
+                                    <View style={[styles.estimateRow, { marginTop: 16, alignItems: 'flex-start' }]}>
+                                        <View style={[styles.estIconBox, { backgroundColor: tTheme.brand.primary + '11' }]}>
+                                            <Text style={styles.estIcon}>📝</Text>
+                                        </View>
+                                        <View style={styles.estInfoBlock}>
+                                            <Text style={styles.estimateLabel}>Pro Notes</Text>
+                                            <Text style={[styles.estimateVal, { marginTop: 4, lineHeight: 20 }]}>{job.issue_notes}</Text>
+                                        </View>
+                                    </View>
+                                ) : null}
+                            </View>
+
+                            <View style={styles.startCodeWrapper}>
+                                <Text style={styles.startCodeHeader}>Confirm & Start</Text>
+                                <Text style={styles.startCodeSub}>Share this code with the pro to begin work:</Text>
+                                <View style={styles.otpDisplay}>
+                                    <Text style={styles.otpTxt}>{job?.start_otp || '----'}</Text>
+                                </View>
                             </View>
                         </Card>
                     </FadeInView>
@@ -256,22 +296,20 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                         <Card glow style={styles.actionCard}>
                             <Text style={styles.actionTitle}>{t('verify_completion')}</Text>
                             <Text style={styles.actionSub}>{t('verify_completion_desc')}</Text>
-                            <View style={styles.otpInputWrap}>
-                                <OTPInput
-                                    disabled={verifyingEndOtp}
-                                    onComplete={async (code) => {
-                                        setVerifyingEndOtp(true);
-                                        try {
-                                            await apiClient.post(`/api/jobs/${jobId}/verify-end-otp`, { otp: code });
-                                            navigation.replace('Payment', { jobId });
-                                        } catch (err) {
-                                            Alert.alert('Error', t('invalid_code'));
-                                        } finally {
-                                            setVerifyingEndOtp(false);
-                                        }
-                                    }}
-                                />
-                            </View>
+                            <OTPInput
+                                disabled={verifyingEndOtp}
+                                onComplete={async (code) => {
+                                    setVerifyingEndOtp(true);
+                                    try {
+                                        await apiClient.post(`/api/jobs/${jobId}/verify-end-otp`, { otp: code });
+                                        navigation.replace('Payment', { jobId });
+                                    } catch (err) {
+                                        Alert.alert('Error', t('invalid_code'));
+                                    } finally {
+                                        setVerifyingEndOtp(false);
+                                    }
+                                }}
+                            />
                         </Card>
                     </FadeInView>
                 )}
@@ -287,9 +325,9 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                             <View style={styles.workerInfo}>
                                 <Text style={styles.workerName}>{assignedWorker.name}</Text>
                                 <View style={styles.workerMeta}>
-                                    <Text style={styles.workerRating}>⭐ {assignedWorker.rating || t('new_worker')}</Text>
+                                    <Text style={styles.workerRating}>⭐ {assignedWorker.rating ? Number(assignedWorker.rating).toFixed(1) : t('new_worker')}</Text>
                                     <View style={styles.metaDivider} />
-                                    <Text style={styles.workerJobs}>{t('completed_jobs_count').replace('%{count}', assignedWorker.completed_jobs || 0)}</Text>
+                                    <Text style={styles.workerJobs}>{assignedWorker.completed_jobs || 0} Jobs</Text>
                                 </View>
                             </View>
                             <TouchableOpacity style={styles.callIconBtn}>
@@ -417,6 +455,17 @@ const createStyles = (t) => StyleSheet.create({
     otpDisplay: { paddingVertical: t.spacing.lg, paddingHorizontal: t.spacing[32], borderRadius: t.radius.lg, backgroundColor: t.background.surfaceRaised },
     otpTxt: { color: t.brand.primary, fontSize: 32, fontWeight: '900', letterSpacing: 8 },
     otpInputWrap: { marginTop: t.spacing.lg },
+
+    estimateBox: { width: '100%', backgroundColor: t.background.app, padding: t.spacing.lg, borderRadius: t.radius.md, borderWidth: 1, borderColor: t.brand.primary + '33', marginTop: 8 },
+    estimateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    estimateLabel: { color: t.text.tertiary, fontSize: 11, fontWeight: 'bold', letterSpacing: 1 },
+    estimateVal: { color: t.text.primary, fontSize: 14, fontWeight: '600' },
+    estIconBox: { width: 36, height: 36, borderRadius: 12, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center', marginRight: t.spacing.sm },
+    estIcon: { fontSize: 16 },
+    estInfoBlock: { flex: 1 },
+    startCodeWrapper: { marginTop: t.spacing['2xl'], alignItems: 'center', backgroundColor: t.brand.primary + '0A', padding: t.spacing.lg, borderRadius: t.radius.xl, borderWidth: 1, borderColor: t.brand.primary + '22', width: '100%' },
+    startCodeHeader: { color: t.text.primary, fontSize: 16, fontWeight: '900', letterSpacing: 0.5 },
+    startCodeSub: { color: t.text.secondary, fontSize: 12, marginTop: 4, marginBottom: 12 },
 
     workerRow: { marginHorizontal: t.spacing.lg, backgroundColor: t.background.surface, borderRadius: t.radius.xl, flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, ...t.shadows.premium },
     workerPhoto: { width: 50, height: 50, borderRadius: 25 },

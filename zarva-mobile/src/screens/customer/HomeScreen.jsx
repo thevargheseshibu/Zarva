@@ -216,6 +216,33 @@ export default function HomeScreen({ navigation }) {
                                     ))
                                 )}
                             </View>
+
+                            <FadeInView delay={400} style={{ marginTop: 24, gap: 12 }}>
+
+                                <PressableAnimated
+                                    style={{
+                                        backgroundColor: tTheme.background.surfaceRaised,
+                                        padding: 16,
+                                        borderRadius: tTheme.radius.xl,
+                                        borderWidth: 1,
+                                        borderColor: tTheme.status.warning.base + '40',
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between'
+                                    }}
+                                    onPress={() => navigation.navigate('MyCustomRequests')}
+                                >
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: tTheme.text.primary, fontSize: tTheme.typography.size.body, fontWeight: 'bold' }}>
+                                            Track Custom Requests
+                                        </Text>
+                                        <Text style={{ color: tTheme.text.secondary, fontSize: 12, marginTop: 4 }}>
+                                            View status or post approved custom requests live.
+                                        </Text>
+                                    </View>
+                                    <Text style={{ fontSize: 20 }}>📋</Text>
+                                </PressableAnimated>
+                            </FadeInView>
                         </View>
 
                         {recentJobs.length > 0 && (

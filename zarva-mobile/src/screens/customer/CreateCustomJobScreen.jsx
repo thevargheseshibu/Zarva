@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useT } from '../../hooks/useT';
 import apiClient from '../../services/api/client';
 import { useTokens } from '../../design-system';
@@ -14,6 +15,7 @@ export default function CreateCustomJobScreen({ navigation }) {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [hourlyRate, setHourlyRate] = useState('');
+    const [images, setImages] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async () => {
@@ -32,11 +34,25 @@ export default function CreateCustomJobScreen({ navigation }) {
 
         setIsSubmitting(true);
         try {
-            await apiClient.post('/api/custom-jobs/templates', {
-                title,
-                description,
-                hourly_rate: parseFloat(hourlyRate)
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('description', description);
+            formData.append('hourly_rate', parseFloat(hourlyRate));
+
+            images.forEach((img, i) => {
+                const uriParts = img.split('.');
+                const fileType = uriParts[uriParts.length - 1];
+                formData.append('photos', {
+                    uri: img,
+                    name: `photo_${i}.${fileType}`,
+                    type: `image/${fileType}`
+                });
             });
+
+            await apiClient.post('/api/custom-jobs/templates', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
             Alert.alert('Submitted for Review', 'Your custom request has been sent for admin review. Once approved, you can post it live for workers!', [
                 { text: 'OK', onPress: () => navigation.goBack() }
             ]);
@@ -45,6 +61,31 @@ export default function CreateCustomJobScreen({ navigation }) {
             Alert.alert('Error', err.response?.data?.error || 'Failed to submit request');
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const pickImage = async () => {
+        if (images.length >= 3) {
+            Alert.alert('Limit Reached', 'You can upload up to 3 images.');
+            return;
+        }
+
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
+            return;
+        }
+
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsMultipleSelection: true,
+            selectionLimit: 3 - images.length,
+            quality: 0.5,
+        });
+
+        if (!result.canceled && result.assets) {
+            const newUris = result.assets.map(a => a.uri);
+            setImages(prev => [...prev, ...newUris].slice(0, 3));
         }
     };
 
@@ -107,6 +148,27 @@ export default function CreateCustomJobScreen({ navigation }) {
                         onChangeText={setHourlyRate}
                     />
                     <Text style={styles.hint}>Billing works just like standard jobs using a live timer.</Text>
+                </View>
+
+                <View style={styles.formGroup}>
+                    <Text style={styles.label}>Photos (Optional, max 3)</Text>
+                    <View style={styles.imgRow}>
+                        {images.map((uri, i) => (
+                            <View key={i} style={styles.imgWrap}>
+                                <Image source={{ uri }} style={styles.previewImg} />
+                                <TouchableOpacity
+                                    style={styles.rmBtn}
+                                    onPress={() => setImages(prev => prev.filter((_, idx) => idx !== i))}>
+                                    <Text style={styles.rmTxt}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                        {images.length < 3 && (
+                            <TouchableOpacity style={styles.addImgBtn} onPress={pickImage}>
+                                <Text style={styles.addImgPlus}>+</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
 
             </ScrollView>
@@ -177,5 +239,13 @@ const createStyles = (t) => StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: t.border.default,
         paddingBottom: 40
-    }
+    },
+
+    imgRow: { flexDirection: 'row', gap: t.spacing.md, flexWrap: 'wrap' },
+    imgWrap: { position: 'relative', width: 80, height: 80 },
+    previewImg: { width: '100%', height: '100%', borderRadius: t.radius.md },
+    rmBtn: { position: 'absolute', top: -6, right: -6, backgroundColor: t.status.error.base, width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    rmTxt: { color: '#FFF', fontSize: 10, fontWeight: '900' },
+    addImgBtn: { width: 80, height: 80, borderRadius: t.radius.md, borderWidth: 2, borderColor: t.border.hover, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: t.background.surfaceRaised },
+    addImgPlus: { fontSize: 24, color: t.text.tertiary }
 });

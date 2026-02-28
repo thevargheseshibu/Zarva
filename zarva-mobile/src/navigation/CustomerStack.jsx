@@ -16,6 +16,7 @@ import RatingScreen from '../screens/customer/RatingScreen';
 import WorkerReputationScreen from '../screens/customer/WorkerReputationScreen';
 import EditJobScreen from '../screens/customer/EditJobScreen';
 import CreateCustomJobScreen from '../screens/customer/CreateCustomJobScreen';
+import MyCustomRequestsScreen from '../screens/customer/MyCustomRequestsScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
 import SupportNavigator from '../screens/shared/support/SupportNavigator';
 
@@ -38,6 +39,7 @@ export default function CustomerStack() {
             <Stack.Screen name="WorkerReputation" component={WorkerReputationScreen} />
             <Stack.Screen name="EditJob" component={EditJobScreen} />
             <Stack.Screen name="CreateCustomJob" component={CreateCustomJobScreen} />
+            <Stack.Screen name="MyCustomRequests" component={MyCustomRequestsScreen} />
             <Stack.Screen name="Chat" component={ChatScreen} />
             <Stack.Screen name="Support" component={SupportNavigator} />
         </Stack.Navigator>

@@ -89,7 +89,7 @@ export default function PaymentScreen({ route, navigation }) {
     if (fetchingInvoice) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={t.brand.primary} />
+                <ActivityIndicator size="large" color={tTheme.brand.primary} />
             </View>
         );
     }
@@ -97,7 +97,7 @@ export default function PaymentScreen({ route, navigation }) {
     if (!invoice) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ color: t.text.tertiary }}>Error generating invoice.</Text>
+                <Text style={{ color: tTheme.text.tertiary }}>Error generating invoice.</Text>
                 <PremiumButton title="Retry" onPress={() => navigation.replace('Payment', { jobId })} style={{ marginTop: 20 }} />
             </View>
         );

@@ -21,7 +21,7 @@ export default function WorkerHomeScreen({ navigation }) {
     const tokens = useTokens();
     const styles = React.useMemo(() => createStyles(tokens), [tokens]);
     const t = useT();
-    
+
     const { isOnline, setOnline, setAvailable, activeJob, setActiveJob, locationOverride, setLocationOverride } = useWorkerStore();
     const [toggling, setToggling] = useState(false);
     const [worker, setWorker] = useState({ id: null, name: '', rating: 0, verified: false, photo: null });
@@ -104,6 +104,7 @@ export default function WorkerHomeScreen({ navigation }) {
             }
         } catch (err) {
             console.error('[WorkerHome] Location sync failed:', err);
+            Alert.alert('Sync Error', 'Failed to update location on server.');
         }
     };
 
@@ -132,14 +133,14 @@ export default function WorkerHomeScreen({ navigation }) {
                 setStats(statsRes.data.stats);
                 setEarningsToday(statsRes.data.stats.earnings_today || 0);
             }
-            
+
             if (u && u.id) {
                 const reviewsRes = await apiClient.get(`/api/reviews/worker/${u.id}`);
                 if (reviewsRes.data?.reviews) {
                     setReviews(reviewsRes.data.reviews);
                 }
             }
-            
+
             captureAndSyncLocation();
         } catch (err) {
             console.error('[WorkerHome] Data load failed:', err);
@@ -267,7 +268,7 @@ export default function WorkerHomeScreen({ navigation }) {
                 <FadeInView delay={500} style={styles.section}>
                     <View style={styles.sectionHeaderRow}>
                         <Text style={styles.sectionHeader}>{t('recent_feedback')}</Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Reputation')}>
+                        <TouchableOpacity onPress={() => navigation.navigate('WorkerReputation', { workerId: worker.id, workerName: worker.name })}>
                             <Text style={styles.viewAll}>{t('see_all')}</Text>
                         </TouchableOpacity>
                     </View>

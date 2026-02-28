@@ -25,7 +25,7 @@ export default function TicketListScreen() {
         try {
             setError(null);
             const res = await apiClient.get('/api/support/tickets');
-            setTickets(res.data.data || []);
+            setTickets(res.data?.tickets || []);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to load tickets');
         } finally {

@@ -13,6 +13,7 @@ import AlertPreferencesScreen from '../screens/worker/AlertPreferencesScreen';
 import WorkerReputationScreen from '../screens/customer/WorkerReputationScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
 import SupportNavigator from '../screens/shared/support/SupportNavigator';
+import ExtensionRequestScreen from '../screens/worker/ExtensionRequestScreen';
 
 const Stack = createStackNavigator();
 
@@ -29,6 +30,7 @@ export default function WorkerStack() {
             <Stack.Screen name="AlertPreferences" component={AlertPreferencesScreen} options={{ headerShown: true, title: 'Alert Settings' }} />
             <Stack.Screen name="WorkerReputation" component={WorkerReputationScreen} options={{ headerShown: true, title: 'My Reputation' }} />
             <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="ExtensionRequest" component={ExtensionRequestScreen} />
             <Stack.Screen name="Support" component={SupportNavigator} />
         </Stack.Navigator>
     );

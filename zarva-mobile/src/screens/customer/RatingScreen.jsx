@@ -61,7 +61,7 @@ export default function RatingScreen({ route, navigation }) {
 
     const handleSubmit = async () => {
         if (isReadOnly) {
-            navigation.popToTop();
+            navigation.replace('CustomerTabs');
             return;
         }
         setLoading(true);
@@ -78,7 +78,7 @@ export default function RatingScreen({ route, navigation }) {
                 },
                 comment
             });
-            navigation.popToTop();
+            navigation.replace('CustomerTabs');
         } catch (err) {
             console.error('Failed to submit review', err);
             Alert.alert('Error', 'Failed to submit feedback. Please try again.');
@@ -127,11 +127,11 @@ export default function RatingScreen({ route, navigation }) {
         <View style={styles.screen}>
             {/* Header */}
             <View style={styles.header}>
-                <PressableAnimated onPress={() => navigation.popToTop()} style={styles.headerBtn}>
+                <PressableAnimated onPress={() => navigation.replace('CustomerTabs')} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>✕</Text>
                 </PressableAnimated>
                 {!isReadOnly && (
-                    <TouchableOpacity onPress={() => navigation.popToTop()}>
+                    <TouchableOpacity onPress={() => navigation.replace('CustomerTabs')}>
                         <Text style={styles.skipTxt}>{t('skip_caps')}</Text>
                     </TouchableOpacity>
                 )}

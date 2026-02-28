@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -9,8 +8,8 @@ import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
-
-
+import { colors, radius, spacing, shadows } from '../../design-system/tokens';
+import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
 const DEFAULT_QUESTIONS = ['Describe what you need help with', 'Any specific requirements?'];
 
@@ -20,14 +19,14 @@ function buildFallbackConfig(category, basePrice = 300) {
         questions: [
             { id: 'q1', type: 'text', label: DEFAULT_QUESTIONS[0], required: true },
             { id: 'q2', type: 'text', label: DEFAULT_QUESTIONS[1], required: false, skippable: true },
-            { id: 'q3', type: 'image', label: 'Upload a photo (optional)', required: false, skippable: true },
+            { id: 'q3', type: 'image', label: 'Upload photo 1 (optional)', required: false, skippable: true },
+            { id: 'q4', type: 'image', label: 'Upload photo 2 (optional)', required: false, skippable: true },
+            { id: 'q5', type: 'image', label: 'Upload photo 3 (optional)', required: false, skippable: true }
         ]
     };
 }
 
 export default function DynamicQuestionsScreen({ route, navigation }) {
-    const tTheme = useTokens();
-    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { category, label, location } = route.params || { category: 'unknown', label: 'Service', location: null };
 
@@ -53,7 +52,9 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                 const dynamicQuestions = [
                     { id: 'q1', type: 'text', label: catQuestions[0] || 'Describe the issue briefly', required: true },
                     { id: 'q2', type: 'text', label: catQuestions[1] || 'Any specific requirements?', required: false, skippable: true },
-                    { id: 'q3', type: 'image', label: 'Upload a photo (optional)', required: false, skippable: true }
+                    { id: 'q3', type: 'image', label: 'Upload photo 1 (optional)', required: false, skippable: true },
+                    { id: 'q4', type: 'image', label: 'Upload photo 2 (optional)', required: false, skippable: true },
+                    { id: 'q5', type: 'image', label: 'Upload photo 3 (optional)', required: false, skippable: true }
                 ];
 
                 setConfig({ base_price: basePrice, breakdown: breakDownData, questions: dynamicQuestions });
@@ -133,11 +134,11 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                         <TextInput
                             style={styles.input}
                             placeholder={t('type_details_here')}
-                            placeholderTextColor={tTheme.text.tertiary}
+                            placeholderTextColor={colors.text.muted}
                             value={answer || ''}
                             onChangeText={(txt) => handleAnswer(q.id, txt)}
                             multiline
-                            selectionColor={tTheme.brand.primary}
+                            selectionColor={colors.accent.primary}
                         />
                     )}
 
@@ -231,77 +232,77 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
     );
 }
 
-const createStyles = (t) => StyleSheet.create({
-    screen: { flex: 1, backgroundColor: t.background.app },
+const styles = StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
     header: {
         paddingTop: 60,
-        paddingHorizontal: t.spacing['2xl'],
+        paddingHorizontal: spacing[24],
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: t.spacing.lg
+        paddingBottom: spacing[16]
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
-    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.body },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
+    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
 
-    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
+    scrollContent: { padding: spacing[24], paddingBottom: 120 },
 
-    introTitle: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.hero },
-    introSub: { color: t.text.secondary, fontSize: t.typography.size.body, marginTop: 4, marginBottom: t.spacing[32], letterSpacing: t.typography.tracking.body },
+    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
+    introSub: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, marginBottom: spacing[32], letterSpacing: tracking.body },
 
-    questionCard: { padding: t.spacing['2xl'], marginBottom: t.spacing['2xl'], gap: t.spacing.lg },
+    questionCard: { padding: spacing[24], marginBottom: spacing[24], gap: spacing[16] },
     qHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    qLabel: { color: t.text.primary, fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.cardTitle, flex: 1 },
-    requiredDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.brand.primary },
+    qLabel: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, letterSpacing: tracking.cardTitle, flex: 1 },
+    requiredDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent.primary },
 
     input: {
-        backgroundColor: t.background.surfaceRaised,
-        borderRadius: t.radius.lg,
-        padding: t.spacing.lg,
-        color: t.text.primary,
-        fontSize: t.typography.size.body,
+        backgroundColor: colors.elevated,
+        borderRadius: radius.lg,
+        padding: spacing[16],
+        color: colors.text.primary,
+        fontSize: fontSize.body,
         minHeight: 120,
         textAlignVertical: 'top',
         borderWidth: 1,
-        borderColor: t.background.surface
+        borderColor: colors.surface
     },
 
     uploadBox: {
         height: 160,
-        backgroundColor: t.background.surfaceRaised,
-        borderRadius: t.radius.lg,
+        backgroundColor: colors.elevated,
+        borderRadius: radius.lg,
         borderWidth: 1,
-        borderColor: t.background.surface,
+        borderColor: colors.surface,
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden'
     },
-    uploadBoxDone: { borderStyle: 'solid', borderColor: t.brand.primary + '44' },
+    uploadBoxDone: { borderStyle: 'solid', borderColor: colors.accent.primary + '44' },
     uploadPlaceholder: { alignItems: 'center', gap: 8 },
     uploadIcon: { fontSize: 32 },
-    uploadText: { color: t.text.tertiary, fontSize: t.typography.size.caption, textAlign: 'center' },
+    uploadText: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center' },
     previewImage: { width: '100%', height: '100%', resizeMode: 'cover' },
 
     skipBtn: { alignSelf: 'flex-end', marginTop: 4 },
-    skipTxt: { color: t.text.tertiary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold, textDecorationLine: 'underline' },
+    skipTxt: { color: colors.text.muted, fontSize: fontSize.micro, fontWeight: fontWeight.bold, textDecorationLine: 'underline' },
 
     pricingPreview: {
         flexDirection: 'row',
-        backgroundColor: t.background.surface,
-        padding: t.spacing['2xl'],
-        borderRadius: t.radius.xl,
+        backgroundColor: colors.surface,
+        padding: spacing[24],
+        borderRadius: radius.xl,
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginTop: t.spacing.sm,
-        ...t.shadows.premium
+        marginTop: spacing[8],
+        ...shadows.premium
     },
     pricingInfo: { gap: 4 },
-    priceLabel: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
-    priceValue: { color: t.text.primary, fontSize: 24, fontWeight: t.typography.weight.bold },
+    priceLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    priceValue: { color: colors.text.primary, fontSize: 24, fontWeight: fontWeight.bold },
     pricingHint: { flex: 0.8 },
-    hintTxt: { color: t.text.tertiary, fontSize: 10, textAlign: 'right', fontStyle: 'italic' },
+    hintTxt: { color: colors.text.muted, fontSize: 10, textAlign: 'right', fontStyle: 'italic' },
 
-    footer: { marginTop: t.spacing[40] }
+    footer: { marginTop: spacing[40] }
 });

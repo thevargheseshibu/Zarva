@@ -153,7 +153,10 @@ class BillingService {
         await conn.beginTransaction();
 
         try {
-            const [jobs] = await conn.query('SELECT status, customer_id, start_otp_hash, worker_id FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
+            const [jobs] = await conn.query(
+                'SELECT status, customer_id, start_otp_hash, worker_id, hourly_rate, billing_cap_minutes, inspection_fee, travel_charge FROM jobs WHERE id = $1 FOR UPDATE',
+                [jobId]
+            );
             const job = jobs[0];
 
             if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
@@ -171,6 +174,17 @@ class BillingService {
             );
 
             await this._recordTimerEvent(conn, jobId, 'job_start', 'worker', 'Customer approved estimate & started job');
+
+            const hourlyRate = parseFloat(job.hourly_rate || 0);
+            const capMins = parseInt(job.billing_cap_minutes || 60, 10);
+            const inspectionFee = parseFloat(job.inspection_fee || 0);
+            const travelCharge = parseFloat(job.travel_charge || 0);
+            const estimatedAmount = (capMins / 60) * hourlyRate + inspectionFee + travelCharge;
+            const estimatedPaise = Math.ceil(estimatedAmount * 100);
+            if (estimatedPaise > 0) {
+                const walletService = await import('./wallet.service.js');
+                await walletService.postJobStartEntries(jobId, estimatedPaise, job.customer_id, conn);
+            }
 
             await conn.commit();
 
