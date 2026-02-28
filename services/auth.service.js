@@ -57,10 +57,17 @@ function signJwt(user) {
  * @returns {Promise<object>}  - users row
  */
 async function findOrCreateUser(phone, pool) {
-    // 1. Try to find existing user
+    // 1. Try to find existing user (fetching unified name and dob)
     const [rows] = await pool.query(
-        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at
-       FROM users WHERE phone = $1 LIMIT 1`,
+        `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.block_reason,
+                COALESCE(u.onboarding_complete, false) as onboarding_complete,
+                u.language_preference, 
+                u.last_login_at, u.date_of_birth as dob,
+                COALESCE(cp.name, wp.name) as name
+         FROM users u
+         LEFT JOIN customer_profiles cp ON cp.user_id = u.id
+         LEFT JOIN worker_profiles wp ON wp.user_id = u.id
+         WHERE u.phone = $1 LIMIT 1`,
         [phone],
     );
 
@@ -87,8 +94,15 @@ async function findOrCreateUser(phone, pool) {
     );
 
     const [newRows] = await pool.query(
-        `SELECT id, phone, role, active_role, is_blocked, language_preference, last_login_at
-       FROM users WHERE id = $1 LIMIT 1`,
+        `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.block_reason,
+                COALESCE(u.onboarding_complete, false) as onboarding_complete,
+                u.language_preference, 
+                u.last_login_at, u.date_of_birth as dob,
+                COALESCE(cp.name, wp.name) as name
+         FROM users u
+         LEFT JOIN customer_profiles cp ON cp.user_id = u.id
+         LEFT JOIN worker_profiles wp ON wp.user_id = u.id
+         WHERE u.id = $1 LIMIT 1`,
         [userId],
     );
     return newRows[0];
@@ -126,6 +140,12 @@ async function issueTokenPair(user, pool, meta = {}) {
        (user_id, token_hash, device_info, ip_address, expires_at)
      VALUES ($1, $2, $3, $4, $5)`,
         [user.id, refreshTokenHash, meta.device_info ?? null, meta.ip_address ?? null, refreshExpires],
+    );
+
+    // Update last_login_at on the user record
+    await pool.query(
+        `UPDATE users SET last_login_at = NOW() WHERE id = $1`,
+        [user.id]
     );
 
     return { token, refresh_token: refreshToken };
@@ -190,13 +210,16 @@ async function refreshTokenPair(oldRefreshToken, pool) {
  */
 async function getUserProfile(userId, pool) {
     const [userRows] = await pool.query(
-        `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.language_preference, u.last_login_at, u.created_at, COALESCE(cp.name, wp.name) as global_name, NULL as dob,
-            cp.email, cp.profile_s3_key, cp.city,
+        `SELECT u.id, u.phone, u.role, u.active_role, u.is_blocked, u.block_reason,
+            COALESCE(u.onboarding_complete, false) as onboarding_complete,
+            u.language_preference, u.last_login_at, u.created_at,
+            COALESCE(cp.name, wp.name) as global_name, u.date_of_birth as dob,
+            cp.email, cp.profile_s3_key, cp.city, cp.district as customer_district,
             cp.default_lat, cp.default_lng, cp.total_jobs as customer_total_jobs,
             cp.average_rating as customer_average_rating, cp.rating_count as customer_rating_count,
             COALESCE(cp.cancelled_jobs, 0) as customer_cancelled_jobs,
             COALESCE(cp.saved_addresses, '[]') as saved_addresses,
-            wp.category    as worker_category,
+            wp.category    as worker_category, wp.district as worker_district,
             COALESCE(wp.average_rating, 0) as average_rating, 
             COALESCE(wp.total_jobs, 0) as worker_total_jobs,
             'free' as subscription_status,
@@ -229,6 +252,8 @@ async function getUserProfile(userId, pool) {
         roles: [role],
         active_role: row.active_role,
         is_blocked: Boolean(row.is_blocked),
+        block_reason: row.block_reason,
+        onboarding_complete: Boolean(row.onboarding_complete),
         language_preference: row.language_preference,
         last_login_at: row.last_login_at,
         created_at: row.created_at,
@@ -247,6 +272,7 @@ async function getUserProfile(userId, pool) {
             is_available: Boolean(row.is_available),
             kyc_status: row.kyc_status,
             city: row.worker_city,
+            district: row.worker_district,
             current_job_id: row.current_job_id,
             last_location_lat: row.last_location_lat,
             last_location_lng: row.last_location_lng,
@@ -258,6 +284,7 @@ async function getUserProfile(userId, pool) {
         base.profile = {
             email: row.email,
             city: row.city,
+            district: row.customer_district,
             total_jobs: row.customer_total_jobs,
             average_rating: row.customer_average_rating,
             rating_count: row.customer_rating_count,

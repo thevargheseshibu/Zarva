@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
@@ -7,8 +8,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useT } from '../../hooks/useT';
 import apiClient from '../../services/api/client';
 import coverageApi from '../../services/api/coverageApi';
-import { colors, spacing, radius, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 import { useJobStore } from '../../stores/jobStore';
 import LocationInput from '../../components/LocationInput';
 import PremiumButton from '../../components/PremiumButton';
@@ -19,6 +20,8 @@ import Card from '../../components/Card';
 dayjs.extend(customParseFormat);
 
 export default function LocationScheduleScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { category, label, answers, structuredAnswers, basePrice } = route.params || {};
 
@@ -244,7 +247,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
                                     setIsEmergency(val);
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 }}
-                                trackColor={{ false: colors.elevated, true: colors.accent.primary }}
+                                trackColor={{ false: tTheme.background.surfaceRaised, true: tTheme.brand.primary }}
                                 thumbColor={isEmergency ? '#FFF' : '#AAA'}
                             />
                         </View>
@@ -288,75 +291,75 @@ export default function LocationScheduleScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
-    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
+    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.body },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
-    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
-    introSub: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, marginBottom: spacing[32], letterSpacing: tracking.body },
+    introTitle: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.hero },
+    introSub: { color: t.text.secondary, fontSize: t.typography.size.body, marginTop: 4, marginBottom: t.spacing[32], letterSpacing: t.typography.tracking.body },
 
-    section: { marginTop: spacing[32], gap: spacing[16] },
-    sectionHeader: { color: colors.accent.primary, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    section: { marginTop: t.spacing[32], gap: t.spacing.lg },
+    sectionHeader: { color: t.brand.primary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
 
-    tabRow: { flexDirection: 'row', gap: spacing[12] },
+    tabRow: { flexDirection: 'row', gap: t.spacing.md },
     tab: {
         flex: 1,
-        paddingVertical: spacing[16],
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
+        paddingVertical: t.spacing.lg,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.accent.border + '22',
+        borderColor: t.border.default + '22',
         alignItems: 'center',
-        ...shadows.premium
+        ...t.shadows.premium
     },
     tabActive: {
-        backgroundColor: colors.accent.primary + '11',
-        borderColor: colors.accent.primary
+        backgroundColor: t.brand.primary + '11',
+        borderColor: t.brand.primary
     },
-    tabTxt: { color: colors.text.muted, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
-    tabTxtActive: { color: colors.accent.primary },
+    tabTxt: { color: t.text.tertiary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold },
+    tabTxtActive: { color: t.brand.primary },
 
-    pickerCard: { padding: 0, overflow: 'hidden', marginTop: spacing[8] },
+    pickerCard: { padding: 0, overflow: 'hidden', marginTop: t.spacing.sm },
     pickerRow: { flexDirection: 'row', alignItems: 'center' },
-    pickerBtn: { flex: 1, padding: spacing[20], alignItems: 'center', gap: 4 },
-    pickerLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    pickerValue: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.semibold },
-    pickerDivider: { width: 1, height: '60%', backgroundColor: colors.accent.border + '22' },
+    pickerBtn: { flex: 1, padding: t.spacing[20], alignItems: 'center', gap: 4 },
+    pickerLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    pickerValue: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.semibold },
+    pickerDivider: { width: 1, height: '60%', backgroundColor: t.border.default + '22' },
 
     emergencyCard: {
-        padding: spacing[24],
-        backgroundColor: colors.surface,
+        padding: t.spacing['2xl'],
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.accent.border + '22'
+        borderColor: t.border.default + '22'
     },
-    emergencyCardActive: { borderColor: colors.accent.primary + '44' },
-    emergencyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[16] },
+    emergencyCardActive: { borderColor: t.brand.primary + '44' },
+    emergencyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: t.spacing.lg },
     emergencyInfo: { flex: 1 },
-    emergencyTitle: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, letterSpacing: tracking.cardTitle },
-    emergencySub: { color: colors.text.secondary, fontSize: 10, marginTop: 4, lineHeight: 14 },
+    emergencyTitle: { color: t.text.primary, fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.cardTitle },
+    emergencySub: { color: t.text.secondary, fontSize: 10, marginTop: 4, lineHeight: 14 },
 
-    footer: { marginTop: spacing[48] },
+    footer: { marginTop: t.spacing[48] },
 
     warningBox: {
-        marginTop: spacing[16],
-        backgroundColor: colors.warning + '11',
+        marginTop: t.spacing.lg,
+        backgroundColor: t.status.warning.base + '11',
         borderWidth: 1,
-        borderColor: colors.warning + '44',
-        borderRadius: radius.md,
-        padding: spacing[16],
+        borderColor: t.status.warning.base + '44',
+        borderRadius: t.radius.md,
+        padding: t.spacing.lg,
     },
-    warningTitle: { color: colors.warning, fontSize: fontSize.base, fontWeight: fontWeight.bold, marginBottom: 4 },
-    warningText: { color: colors.text.primary, fontSize: fontSize.sm, lineHeight: 20 }
+    warningTitle: { color: t.status.warning.base, fontSize: t.typography.size.base, fontWeight: t.typography.weight.bold, marginBottom: 4 },
+    warningText: { color: t.text.primary, fontSize: t.typography.size.sm, lineHeight: 20 }
 });

@@ -47,7 +47,7 @@ router.post('/profile', async (req, res) => {
         });
     }
 
-    const { language_preference, name, email, city, dob } = req.body;
+    const { language_preference, name, email, city, district, dob } = req.body;
 
     try {
         const pool = getPool();
@@ -62,6 +62,9 @@ router.post('/profile', async (req, res) => {
             if (language_preference) {
                 await conn.query(`UPDATE users SET language_preference = $1 WHERE id = $2`, [language_preference, req.user.id]);
             }
+            if (dob) {
+                await conn.query(`UPDATE users SET date_of_birth = $1 WHERE id = $2`, [dob, req.user.id]);
+            }
 
             // 2. Update/Insert Customer Profile (UPSERT)
             if (name || email || city) {
@@ -69,6 +72,7 @@ router.post('/profile', async (req, res) => {
                 if (name) { cols.push('name'); vals.push(name); updates.push(`name = EXCLUDED.name`); }
                 if (email) { cols.push('email'); vals.push(email); updates.push(`email = EXCLUDED.email`); }
                 if (city) { cols.push('city'); vals.push(city); updates.push(`city = EXCLUDED.city`); }
+                if (district) { cols.push('district'); vals.push(district); updates.push(`district = EXCLUDED.district`); }
 
                 const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
                 const sql = `INSERT INTO customer_profiles (${cols.join(', ')}) VALUES (${placeholders}) 
@@ -77,10 +81,11 @@ router.post('/profile', async (req, res) => {
             }
 
             // 3. Update Worker Profile (Only if exists, because category is NOT NULL)
-            if (name || city) {
+            if (name || city || district) {
                 const wUpdates = []; const wVals = []; let wIdx = 1;
                 if (name) { wUpdates.push(`name = $${wIdx++}`); wVals.push(name); }
                 if (city) { wUpdates.push(`city = $${wIdx++}`); wVals.push(city); }
+                if (district) { wUpdates.push(`district = $${wIdx++}`); wVals.push(district); }
                 if (wUpdates.length > 0) {
                     wVals.push(req.user.id);
                     await conn.query(`UPDATE worker_profiles SET ${wUpdates.join(', ')} WHERE user_id = $${wIdx}`, wVals);
@@ -124,17 +129,19 @@ router.post('/location', async (req, res) => {
 
     try {
         const pool = getPool();
+        const { district } = req.body;
         // UPSERT the location into customer_profiles
         await pool.query(
-            `INSERT INTO customer_profiles (user_id, home_address, home_location, current_location, home_pincode)
-             VALUES ($1, $2, ST_SetSRID(ST_MakePoint($4, $3), 4326), ST_SetSRID(ST_MakePoint($4, $3), 4326), $5)
+            `INSERT INTO customer_profiles (user_id, home_address, home_location, current_location, home_pincode, district)
+             VALUES ($1, $2, ST_SetSRID(ST_MakePoint($4, $3), 4326), ST_SetSRID(ST_MakePoint($4, $3), 4326), $5, $6)
              ON CONFLICT (user_id) DO UPDATE 
              SET home_address = EXCLUDED.home_address, 
                  home_location = EXCLUDED.home_location, 
                  current_location = EXCLUDED.current_location,
                  home_pincode = EXCLUDED.home_pincode,
+                 district = EXCLUDED.district,
                  updated_at = NOW()`,
-            [req.user.id, address, lat, lng, pincode || null]
+            [req.user.id, address, lat, lng, pincode || null, district || null]
         );
 
         return res.status(200).json({ status: 'ok', message: 'Location synced successfully' });
@@ -218,12 +225,19 @@ router.put('/fcm-token', async (req, res) => {
 
     try {
         const pool = getPool();
+        // 1. Clear this token from any other users (shared device support)
+        await pool.query(
+            `UPDATE users SET fcm_token = NULL WHERE fcm_token = $1 AND id != $2`,
+            [fcm_token, req.user.id]
+        );
+
+        // 2. Assign to current user
         await pool.query(
             `UPDATE users SET fcm_token = $1 WHERE id = $2`,
             [fcm_token, req.user.id]
         );
 
-        return res.status(200).json({ status: 'ok', message: 'FCM token synced successfully' });
+        return res.status(200).json({ status: 'ok', message: 'FCM token synced exclusively' });
     } catch (err) {
         console.error('[me.js] Update FCM Token Error:', err);
         return res.status(500).json({ status: 'error', code: 'UPDATE_FAILED', message: 'Failed to sync FCM token.' });

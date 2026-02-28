@@ -8,6 +8,19 @@ import App from './App';
 messaging().setBackgroundMessageHandler(async (remoteMessage) => {
     console.log('[FCM Background] Message handled in background!', remoteMessage);
     if (remoteMessage.data?.type === 'NEW_JOB_ALERT') {
+        try {
+            const authDataStr = await AsyncStorage.getItem('zarva-auth-storage');
+            if (authDataStr) {
+                const state = JSON.parse(authDataStr).state;
+                if (!state?.isAuthenticated || state?.user?.active_role !== 'worker') {
+                    console.log('[FCM Background] Ignoring NEW_JOB_ALERT: user not authenticated or not in worker role');
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('[FCM Background] Auth parse err', e);
+        }
+
         const payload = {
             id: remoteMessage.data.job_id,
             category: remoteMessage.data.category,

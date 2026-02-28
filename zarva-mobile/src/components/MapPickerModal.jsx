@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTokens } from '../design-system';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
-import { colors, spacing, radius } from '../design-system/tokens';
 
 export default function MapPickerModal({ visible, onClose, onSelectLocation, initialLocation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const [region, setRegion] = useState(null);
     const [markerCoord, setMarkerCoord] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -46,19 +48,16 @@ export default function MapPickerModal({ visible, onClose, onSelectLocation, ini
 
     const handleConfirm = async () => {
         if (!markerCoord) return;
-
         try {
             const [addressArr] = await Location.reverseGeocodeAsync({
                 latitude: markerCoord.latitude,
                 longitude: markerCoord.longitude
             });
-
             let addressText = 'Unknown Location';
             if (addressArr) {
                 const parts = [addressArr.name, addressArr.city || addressArr.subregion, addressArr.region].filter(Boolean);
                 addressText = parts.join(', ');
             }
-
             onSelectLocation({
                 latitude: markerCoord.latitude,
                 longitude: markerCoord.longitude,
@@ -89,12 +88,8 @@ export default function MapPickerModal({ visible, onClose, onSelectLocation, ini
         <html>
         <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
-                  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
-                  crossorigin=""/>
-            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
-                    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
-                    crossorigin=""></script>
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
             <style>
                 body { padding: 0; margin: 0; }
                 html, body, #map { height: 100%; width: 100%; }
@@ -105,31 +100,16 @@ export default function MapPickerModal({ visible, onClose, onSelectLocation, ini
             <div id="map"></div>
             <script>
                 var map = L.map('map').setView([${lat}, ${lng}], 15);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-                }).addTo(map);
-
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
                 var marker = L.marker([${lat}, ${lng}], {draggable: true}).addTo(map);
-
-                // Update react native when marker dragged
                 marker.on('dragend', function(e) {
                     var position = marker.getLatLng();
-                    window.ReactNativeWebView.postMessage(JSON.stringify({
-                        type: 'updateLocation',
-                        lat: position.lat,
-                        lng: position.lng
-                    }));
+                    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'updateLocation', lat: position.lat, lng: position.lng }));
                 });
-
-                // Move marker when map clicked
                 map.on('click', function(e) {
                     var position = e.latlng;
                     marker.setLatLng(position);
-                    window.ReactNativeWebView.postMessage(JSON.stringify({
-                        type: 'updateLocation',
-                        lat: position.lat,
-                        lng: position.lng
-                    }));
+                    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'updateLocation', lat: position.lat, lng: position.lng }));
                 });
             </script>
         </body>
@@ -149,7 +129,7 @@ export default function MapPickerModal({ visible, onClose, onSelectLocation, ini
 
                     {loading || !region ? (
                         <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color={colors.accent.primary} />
+                            <ActivityIndicator size="large" color={tTheme.brand.primary} />
                             <Text style={styles.loadingTxt}>Fetching map...</Text>
                         </View>
                     ) : (
@@ -160,7 +140,6 @@ export default function MapPickerModal({ visible, onClose, onSelectLocation, ini
                                 style={styles.map}
                                 onMessage={handleMessage}
                                 scrollEnabled={false}
-                                bounces={false}
                                 javaScriptEnabled={true}
                                 domStorageEnabled={true}
                             />
@@ -185,21 +164,21 @@ export default function MapPickerModal({ visible, onClose, onSelectLocation, ini
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    container: { backgroundColor: colors.bg.primary, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, height: '80%' },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.bg.surface },
-    title: { color: colors.text.primary, fontSize: 18, fontWeight: '700' },
-    closeBtn: { padding: spacing.xs },
-    closeTxt: { color: colors.text.muted, fontSize: 20 },
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md },
-    loadingTxt: { color: colors.text.muted, fontSize: 14 },
+    container: { backgroundColor: t.background.app, borderTopLeftRadius: t.radius.xl, borderTopRightRadius: t.radius.xl, height: '80%' },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: t.spacing.lg, borderBottomWidth: 1, borderBottomColor: t.background.surface },
+    title: { color: t.text.primary, fontSize: 18, fontWeight: '700' },
+    closeBtn: { padding: t.spacing.xs },
+    closeTxt: { color: t.text.tertiary, fontSize: 20 },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: t.spacing.md },
+    loadingTxt: { color: t.text.tertiary, fontSize: 14 },
     mapWrap: { flex: 1, position: 'relative' },
     map: { flex: 1 },
-    hintBox: { position: 'absolute', top: spacing.md, alignSelf: 'center', backgroundColor: colors.bg.elevated, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-    hintTxt: { color: colors.text.primary, fontSize: 12, fontWeight: '600' },
-    footer: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.bg.surface, backgroundColor: colors.bg.primary },
-    confirmBtn: { backgroundColor: colors.accent.primary, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
+    hintBox: { position: 'absolute', top: t.spacing.md, alignSelf: 'center', backgroundColor: t.background.surfaceRaised, paddingHorizontal: t.spacing.md, paddingVertical: t.spacing.sm, borderRadius: t.radius.full },
+    hintTxt: { color: t.text.primary, fontSize: 12, fontWeight: '600' },
+    footer: { padding: t.spacing.lg, borderTopWidth: 1, borderTopColor: t.background.surface, backgroundColor: t.background.app },
+    confirmBtn: { backgroundColor: t.brand.primary, paddingVertical: t.spacing.md, borderRadius: t.radius.md, alignItems: 'center' },
     confirmBtnDisabled: { opacity: 0.5 },
-    confirmTxt: { color: colors.bg.primary, fontSize: 16, fontWeight: '700' }
+    confirmTxt: { color: t.background.app, fontSize: 16, fontWeight: '700' }
 });

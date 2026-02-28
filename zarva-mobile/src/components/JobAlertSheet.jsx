@@ -1,18 +1,12 @@
 import React, { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import { useTokens } from '../design-system';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
-import { colors, spacing, radius } from '../../design-system/tokens';
 import GoldButton from './GoldButton';
 
-/*
-  Usage:
-  const alertSheetRef = useRef(null);
-  <JobAlertSheet ref={alertSheetRef} onAccept={handleAccept} />
-  
-  Trigger via: alertSheetRef.current?.showAlert(jobData);
-*/
-
 const JobAlertSheet = forwardRef(({ onAccept }, ref) => {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const bottomSheetRef = React.useRef(null);
     const [job, setJob] = useState(null);
     const [timeLeft, setTimeLeft] = useState(30);
@@ -47,10 +41,10 @@ const JobAlertSheet = forwardRef(({ onAccept }, ref) => {
     return (
         <BottomSheet
             ref={bottomSheetRef}
-            snapPoints={['65%']}
+            snapPoints={['68%']}
             enablePanDownToClose
-            backgroundStyle={{ backgroundColor: colors.bg.elevated }}
-            handleIndicatorStyle={{ backgroundColor: colors.text.muted }}
+            backgroundStyle={styles.sheetBackground}
+            handleIndicatorStyle={styles.handle}
             onClose={() => setJob(null)}
         >
             <BottomSheetView style={styles.container}>
@@ -96,26 +90,24 @@ const JobAlertSheet = forwardRef(({ onAccept }, ref) => {
     );
 });
 
-const styles = StyleSheet.create({
-    container: { flex: 1, padding: spacing.lg, gap: spacing.lg },
+const createStyles = (t) => StyleSheet.create({
+    sheetBackground: { backgroundColor: t.background.surfaceRaised },
+    handle: { backgroundColor: t.text.tertiary },
+    container: { flex: 1, padding: t.spacing.lg, gap: t.spacing.lg },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    title: { color: colors.text.primary, fontSize: 20, fontWeight: '800' },
-    timer: { color: colors.text.primary, fontSize: 18, fontWeight: '700', fontFamily: 'Courier' },
-    timerDanger: { color: colors.danger },
-
-    infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', borderBottomColor: colors.bg.surface, borderBottomWidth: 1, paddingBottom: spacing.sm },
-    category: { color: colors.text.secondary, fontSize: 16, textTransform: 'uppercase', letterSpacing: 1 },
-    est: { color: colors.accent.primary, fontSize: 28, fontWeight: '800' },
-
-    distTxt: { color: colors.text.primary, fontSize: 16 },
-
-    descBox: { flexDirection: 'row', gap: spacing.md, backgroundColor: colors.bg.surface, padding: spacing.md, borderRadius: radius.md },
-    thumb: { width: 60, height: 60, borderRadius: radius.sm, backgroundColor: colors.bg.elevated },
-    desc: { flex: 1, color: colors.text.muted, fontSize: 14, fontStyle: 'italic', lineHeight: 20 },
-
-    actionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: 'auto', marginBottom: spacing.xl },
-    ghostBtn: { flex: 1, padding: spacing.md, alignItems: 'center' },
-    ghostTxt: { color: colors.text.muted, fontSize: 16, fontWeight: '700' }
+    title: { color: t.text.primary, fontSize: 20, fontWeight: '800' },
+    timer: { color: t.text.primary, fontSize: 18, fontWeight: '700' },
+    timerDanger: { color: t.status.error.base },
+    infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', borderBottomColor: t.background.surface, borderBottomWidth: 1, paddingBottom: t.spacing.sm },
+    category: { color: t.text.secondary, fontSize: 16, textTransform: 'uppercase', letterSpacing: 1 },
+    est: { color: t.brand.primary, fontSize: 28, fontWeight: '800' },
+    distTxt: { color: t.text.primary, fontSize: 16 },
+    descBox: { flexDirection: 'row', gap: t.spacing.md, backgroundColor: t.background.surface, padding: t.spacing.md, borderRadius: t.radius.md },
+    thumb: { width: 60, height: 60, borderRadius: t.radius.sm, backgroundColor: t.background.surfaceRaised },
+    desc: { flex: 1, color: t.text.tertiary, fontSize: 14, fontStyle: 'italic', lineHeight: 20 },
+    actionRow: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, marginTop: 'auto', marginBottom: t.spacing.xl },
+    ghostBtn: { flex: 1, padding: t.spacing.md, alignItems: 'center' },
+    ghostTxt: { color: t.text.tertiary, fontSize: 16, fontWeight: '700' }
 });
 
 export default JobAlertSheet;

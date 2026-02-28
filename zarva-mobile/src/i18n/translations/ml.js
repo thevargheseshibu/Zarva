@@ -127,8 +127,57 @@ export default {
     credentials_submitted: 'രേഖകൾ സമർപ്പിച്ചു',
     security_validation: 'സുരക്ഷാ പരിശോധന',
     network_activation: 'നെറ്റ്‌വർക്ക് ആക്ടിവേഷൻ',
-    return_to_terminal: 'ടെർമിനലിലേക്ക് മടങ്ങുക',
     notify_encrypted_channel: 'സജീവമാകുമ്പോൾ എൻക്രിപ്റ്റ് ചെയ്ത ചാനൽ വഴി ഞങ്ങൾ നിങ്ങളെ അറിയിക്കും.',
+    return_to_terminal: 'ടെർമിനലിലേക്ക് മടങ്ങുക',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'വീണ്ടും എടുക്കുക',
+    remove: 'നീക്കം ചെയ്യുക',
+    uploaded_securely: 'സുരക്ഷിതമായി അപ്‌ലോഡ് ചെയ്തു',
+    remove_document: 'പ്രമാണം നീക്കം ചെയ്യണോ?',
+    confirm_remove_doc: 'ഈ അപ്‌ലോഡ് നീക്കം ചെയ്യണമെന്ന് ഉറപ്പാണോ?',
+    incomplete_info: 'അപൂർണ്ണം',
+    please_upload_all_docs: 'എല്ലാ രേഖകളും അപ്‌ലോഡ് ചെയ്ത് ആധാർ നമ്പർ നൽകുക.',
+    uploading_documents: 'സുരക്ഷിതമായി അപ്‌ലോഡ് ചെയ്യുന്നു...',
+    submitting_application: 'ഒട്ടിക്കൽ പൂർത്തിയാകുന്നു...',
+    protocol_required: 'പ്രോട്ടോക്കോൾ ആവശ്യമാണ്',
+    please_read_agreement: 'ദയവായി കരാർ അവസാനം വരെ സ്ക്രോൾ ചെയ്യുക.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'അക്കൗണ്ട് സസ്പെൻഡ് ചെയ്തു',
+    account_blocked_desc: 'നിങ്ങളുടെ അക്കൗണ്ട് താൽക്കാലികമായി സസ്പെൻഡ് ചെയ്തിരിക്കുന്നു. ദയവായി ബന്ധപ്പെടുക.',
+    blocked_reason_label: 'സസ്പെൻഷൻ കാരണം',
+    contact_support_blocked: 'പിന്തുണ ബന്ധപ്പെടുക',
+    policy_enforcement: 'നയ നിർദ്ദേശം',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'വീണ്ടും എടുക്കുക',
+    remove: 'നീക്കം ചെയ്യുക',
+    uploaded_securely: 'സുരക്ഷിതമായി അപ്‌ലോഡ് ചെയ്തു',
+    remove_document: 'പ്രമാണം നീക്കം ചെയ്യണോ?',
+    confirm_remove_doc: 'ഈ അപ്‌ലോഡ് നീക്കം ചെയ്യണമെന്ന് ഉറപ്പാണോ?',
+    incomplete_info: 'അപൂർണ്ണം',
+    please_upload_all_docs: 'എല്ലാ രേഖകളും അപ്‌ലോഡ് ചെയ്ത് ആധാർ നമ്പർ നൽകുക.',
+    uploading_documents: 'സുരക്ഷിതമായി അപ്‌ലോഡ് ചെയ്യുന്നു...',
+    submitting_application: 'ഒട്ടിക്കൽ പൂർത്തിയാകുന്നു...',
+    protocol_required: 'പ്രോട്ടോക്കോൾ ആവശ്യമാണ്',
+    please_read_agreement: 'ദയവായി കരാർ അവസാനം വരെ സ്ക്രോൾ ചെയ്യുക.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'അക്കൗണ്ട് സസ്പെൻഡ് ചെയ്തു',
+    account_blocked_desc: 'നിങ്ങളുടെ അക്കൗണ്ട് താൽക്കാലികമായി സസ്പെൻഡ് ചെയ്തിരിക്കുന്നു. ദയവായി ബന്ധപ്പെടുക.',
+    blocked_reason_label: 'സസ്പെൻഷൻ കാരണം',
+    contact_support_blocked: 'പിന്തുണ ബന്ധപ്പെടുക',
+    policy_enforcement: 'നയ നിർദ്ദേശം',
+
+    // ── Worker Verification ──────────────────────────
+    profile_under_review: 'പ്രൊഫൈൽ പരിശോധനയിലാണ്',
+    pending_review_long_desc: "ഞങ്ങൾക്ക് നിങ്ങളുടെ അപേക്ഷ ലഭിച്ചു! ഞങ്ങളുടെ ടീം നിങ്ങളുടെ രേഖകളും പ്രൊഫൈൽ വിശദാംശങ്ങളും പരിശോധിച്ചുവരികയാണ്. ഇതിന് സാധാരണയായി 24-48 മണിക്കൂർ എടുക്കും.",
+    what_happens_next: 'അടുത്തതായി എന്ത് സംഭവിക്കും?',
+    step_document_check: 'ഞങ്ങളുടെ ടീം നിങ്ങളുടെ തിരിച്ചറിയൽ രേഖകൾ പരിശോധിക്കും.',
+    step_background_check: 'ഞങ്ങൾ ആന്തരിക സുരക്ഷാ പരിശോധനകൾ നടത്തുന്നു.',
+    step_notification: 'അംഗീകാരം ലഭിച്ചുകഴിഞ്ഞാൽ നിങ്ങൾക്ക് അറിയിപ്പ് ലഭിക്കും!',
+    contact_support: 'സപ്പോർട്ടുമായി ബന്ധപ്പെടുക',
 
     // ── Worker Tabs & Overviews ──────────────────────
     mission_status: 'മിഷൻ സ്റ്റാറ്റസ്',

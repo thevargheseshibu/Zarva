@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useTokens } from '../design-system';
 import { View, Text, TextInput, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../design-system/typography';
+
 import PressableAnimated from '../design-system/components/PressableAnimated';
 import Card from './Card';
 import FadeInView from './FadeInView';
 
 export default function LocationInput({ onChange, onLoading, initialData = {} }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const [loading, setLoading] = useState(false);
     const [gpsText, setGpsText] = useState('');
 
@@ -114,44 +116,44 @@ export default function LocationInput({ onChange, onLoading, initialData = {} })
                     <TextInput
                         style={styles.input}
                         placeholder="House / Flat No. *"
-                        placeholderTextColor={colors.text.muted}
+                        placeholderTextColor={tTheme.text.tertiary}
                         value={fields.house}
                         onChangeText={(val) => updateField('house', val)}
-                        selectionColor={colors.accent.primary}
+                        selectionColor={tTheme.brand.primary}
                     />
                     <TextInput
                         style={styles.input}
                         placeholder="Street / Area Name *"
-                        placeholderTextColor={colors.text.muted}
+                        placeholderTextColor={tTheme.text.tertiary}
                         value={fields.street}
                         onChangeText={(val) => updateField('street', val)}
-                        selectionColor={colors.accent.primary}
+                        selectionColor={tTheme.brand.primary}
                     />
                     <TextInput
                         style={styles.input}
                         placeholder="Landmark (Optional)"
-                        placeholderTextColor={colors.text.muted}
+                        placeholderTextColor={tTheme.text.tertiary}
                         value={fields.landmark}
                         onChangeText={(val) => updateField('landmark', val)}
-                        selectionColor={colors.accent.primary}
+                        selectionColor={tTheme.brand.primary}
                     />
 
                     <View style={styles.row}>
                         <TextInput
                             style={[styles.input, styles.half]}
                             placeholder="District"
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={tTheme.text.tertiary}
                             value={fields.district}
                             onChangeText={(val) => updateField('district', val)}
-                            selectionColor={colors.accent.primary}
+                            selectionColor={tTheme.brand.primary}
                         />
                         <TextInput
                             style={[styles.input, styles.half]}
                             placeholder="City *"
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={tTheme.text.tertiary}
                             value={fields.city}
                             onChangeText={(val) => updateField('city', val)}
-                            selectionColor={colors.accent.primary}
+                            selectionColor={tTheme.brand.primary}
                         />
                     </View>
 
@@ -159,21 +161,21 @@ export default function LocationInput({ onChange, onLoading, initialData = {} })
                         <TextInput
                             style={[styles.input, styles.half]}
                             placeholder="State *"
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={tTheme.text.tertiary}
                             value={fields.state}
                             onChangeText={(val) => updateField('state', val)}
-                            selectionColor={colors.accent.primary}
+                            selectionColor={tTheme.brand.primary}
                         />
                         <View style={styles.half}>
                             <TextInput
                                 style={[styles.input, isPincodeError && styles.inputError]}
                                 placeholder="Pincode *"
-                                placeholderTextColor={colors.text.muted}
+                                placeholderTextColor={tTheme.text.tertiary}
                                 keyboardType="numeric"
                                 maxLength={6}
                                 value={fields.pincode}
                                 onChangeText={(val) => updateField('pincode', val.replace(/[^0-9]/g, ''))}
-                                selectionColor={colors.accent.primary}
+                                selectionColor={tTheme.brand.primary}
                             />
                             {isPincodeError && <Text style={styles.errorText}>Invalid pincode</Text>}
                         </View>
@@ -184,71 +186,33 @@ export default function LocationInput({ onChange, onLoading, initialData = {} })
     );
 }
 
-const styles = StyleSheet.create({
-    container: { gap: spacing[24] },
-
+const createStyles = (t) => StyleSheet.create({
+    container: { gap: t.spacing['2xl'] },
     gpsBtn: {
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.accent.border,
-        paddingVertical: spacing[16],
-        paddingHorizontal: spacing[24],
-        ...shadows.premium
+        borderColor: t.border.default,
+        paddingVertical: t.spacing.lg,
+        paddingHorizontal: t.spacing['2xl']
     },
     gpsBtnContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
     gpsIcon: { fontSize: 18 },
-    gpsTxt: {
-        color: colors.accent.primary,
-        fontSize: fontSize.body,
-        fontWeight: fontWeight.bold,
-        letterSpacing: tracking.body
-    },
-    gpsReadout: {
-        color: colors.text.muted,
-        fontSize: fontSize.micro,
-        marginTop: 8,
-        textAlign: 'center',
-        paddingHorizontal: spacing[16],
-        fontStyle: 'italic'
-    },
-
-    manualWrapper: {
-        padding: spacing[24],
-        gap: spacing[16],
-        backgroundColor: colors.surface,
-        borderWidth: 1,
-        borderColor: colors.accent.border + '22'
-    },
-    manualHeader: {
-        color: colors.accent.primary,
-        fontSize: fontSize.micro,
-        fontWeight: fontWeight.bold,
-        letterSpacing: 1.5,
-        marginBottom: 4
-    },
-
+    gpsTxt: { color: t.brand.primary, fontSize: 16, fontWeight: '700' },
+    gpsReadout: { color: t.text.tertiary, fontSize: 10, marginTop: 8, textAlign: 'center', paddingHorizontal: 16, fontStyle: 'italic' },
+    manualWrapper: { padding: t.spacing['2xl'], gap: t.spacing.lg, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border.default + '22' },
+    manualHeader: { color: t.brand.primary, fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 4 },
     input: {
-        backgroundColor: colors.elevated,
-        borderRadius: radius.lg,
-        padding: spacing[16],
-        color: colors.text.primary,
-        fontSize: fontSize.body,
+        backgroundColor: t.background.surfaceRaised,
+        borderRadius: t.radius.lg,
+        padding: t.spacing.lg,
+        color: t.text.primary,
+        fontSize: 16,
         borderWidth: 1,
-        borderColor: colors.surface,
-        letterSpacing: tracking.body
+        borderColor: t.background.surface
     },
-    inputError: {
-        borderColor: colors.accent.primary + '88',
-        backgroundColor: colors.accent.primary + '11'
-    },
-    errorText: {
-        color: colors.accent.primary,
-        fontSize: 10,
-        marginTop: 4,
-        paddingLeft: 4,
-        fontWeight: fontWeight.bold
-    },
-    row: { flexDirection: 'row', gap: spacing[16] },
+    inputError: { borderColor: t.brand.primary + '88', backgroundColor: t.brand.primary + '11' },
+    errorText: { color: t.brand.primary, fontSize: 10, marginTop: 4, paddingLeft: 4 },
+    row: { flexDirection: 'row', gap: t.spacing.lg },
     half: { flex: 1 }
 });

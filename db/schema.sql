@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
   is_blocked    BOOLEAN         NOT NULL DEFAULT FALSE,
   block_reason  VARCHAR(255)        NULL,
   language_preference VARCHAR(10) NOT NULL DEFAULT 'en',
+  onboarding_complete BOOLEAN   NOT NULL DEFAULT FALSE,
   fcm_token     VARCHAR(255)        NULL,
   last_login_at TIMESTAMPTZ            NULL,
   created_at    TIMESTAMPTZ        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -73,6 +74,7 @@ CREATE TABLE IF NOT EXISTS customer_profiles (
   email           VARCHAR(150)        NULL,
   profile_s3_key  VARCHAR(512)        NULL,
   city            VARCHAR(64)     NOT NULL DEFAULT 'Kochi',
+  district        VARCHAR(100)        NULL,
   default_lat     NUMERIC(10,7)       NULL,
   default_lng     NUMERIC(10,7)       NULL,
   total_jobs      INT             NOT NULL DEFAULT 0,
@@ -96,6 +98,7 @@ CREATE TABLE IF NOT EXISTS worker_profiles (
   profile_s3_key      VARCHAR(512)        NULL,
   category            VARCHAR(64)     NOT NULL,
   city                VARCHAR(64)     NOT NULL DEFAULT 'Kochi',
+  district            VARCHAR(100)        NULL,
   home_address        JSONB               NULL,
   home_location       GEOGRAPHY(Point, 4326) NULL, -- REPLACES home_lat / home_lng
   home_pincode        VARCHAR(10)         NULL,
@@ -122,6 +125,8 @@ CREATE TABLE IF NOT EXISTS worker_profiles (
   service_range       INT                 NOT NULL DEFAULT 20,
   skills              JSONB               NOT NULL DEFAULT '[]',
   aadhar_number_last4 VARCHAR(4)          NULL,
+  payment_method      VARCHAR(20)         NULL,
+  payment_details     JSONB               NULL,
   worker_cancel_penalty INT             NOT NULL DEFAULT 0,
   created_at          TIMESTAMPTZ        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMPTZ        NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -193,7 +198,8 @@ CREATE INDEX idx_agreement_worker ON worker_agreements(worker_id);
 DROP TYPE IF EXISTS job_status_enum CASCADE;
 CREATE TYPE job_status_enum AS ENUM (
   'open', 'searching', 'assigned', 'worker_en_route',
-  'worker_arrived', 'in_progress', 'pending_completion',
+  'worker_arrived', 'inspection_active', 'estimate_submitted',
+  'in_progress', 'pending_completion',
   'completed', 'cancelled', 'disputed', 'no_worker_found'
 );
 
@@ -219,6 +225,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   
   pincode                 VARCHAR(10)     NOT NULL,
   city                    VARCHAR(64)     NOT NULL DEFAULT 'Kochi',
+  district                VARCHAR(100)        NULL,
   
   description             TEXT                NULL,
   scheduled_at            TIMESTAMPTZ            NULL,
@@ -239,6 +246,23 @@ CREATE TABLE IF NOT EXISTS jobs (
   travel_charge           NUMERIC(10,2)   NOT NULL DEFAULT 0.00,
   platform_fee            NUMERIC(10,2)       NULL,
   total_amount            NUMERIC(10,2)       NULL,
+
+  billing_type            VARCHAR(20)     DEFAULT 'hourly',
+  hourly_rate             DECIMAL(10,2),
+  inspection_fee          DECIMAL(10,2),
+  distance_km             DECIMAL(6,2),
+  estimated_duration_minutes INTEGER,
+  approved_extension_minutes INTEGER DEFAULT 0,
+  billing_cap_minutes     INTEGER,
+  issue_notes             TEXT,
+  inspection_otp_hash     VARCHAR(255),
+  inspection_started_at   TIMESTAMPTZ,
+  inspection_expires_at   TIMESTAMPTZ,
+  job_started_at          TIMESTAMPTZ,
+  job_ended_at            TIMESTAMPTZ,
+  final_billed_minutes    INTEGER,
+  final_amount            DECIMAL(10,2),
+  exceeded_estimate       BOOLEAN         DEFAULT FALSE,
   
   chat_enabled            BOOLEAN         NOT NULL DEFAULT FALSE,
   escalated               BOOLEAN         NOT NULL DEFAULT FALSE,
@@ -438,6 +462,7 @@ CREATE TABLE IF NOT EXISTS unserviceable_requests (
   id                          BIGSERIAL PRIMARY KEY,
   location                    GEOGRAPHY(Point, 4326) NOT NULL,
   service_type                VARCHAR(64)         NULL,
+  district                    VARCHAR(100)        NULL,
   nearest_worker_distance_km  NUMERIC(10,2)       NULL,
   requested_at                TIMESTAMPTZ        NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -540,6 +565,39 @@ CREATE TABLE IF NOT EXISTS dispute_categories (
   priority_default VARCHAR(20) DEFAULT 'medium',
   sla_hours INTEGER DEFAULT 24,
   active BOOLEAN DEFAULT TRUE
+);
+
+-- ────────────────────────────────────────────────────────────
+--  23. job_timer_events (Hourly Billing Audit Tracker)
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS job_timer_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id BIGINT NOT NULL REFERENCES jobs(id),
+  event_type VARCHAR(50) NOT NULL,
+  triggered_by VARCHAR(20) NOT NULL,
+  server_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  gps_lat DECIMAL(10,8),
+  gps_lng DECIMAL(11,8),
+  notes TEXT,
+  metadata JSONB
+);
+
+CREATE INDEX IF NOT EXISTS idx_timer_events_job ON job_timer_events(job_id, server_timestamp ASC);
+
+-- ────────────────────────────────────────────────────────────
+--  24. job_extensions (For Time Extension Requests)
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS job_extensions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id BIGINT NOT NULL REFERENCES jobs(id),
+  requested_at TIMESTAMPTZ DEFAULT NOW(),
+  reason TEXT NOT NULL,
+  additional_minutes INTEGER NOT NULL,
+  photo_url TEXT NOT NULL,
+  photo_captured_at TIMESTAMPTZ NOT NULL,
+  status VARCHAR(20) DEFAULT 'pending',
+  otp_hash VARCHAR(255),
+  resolved_at TIMESTAMPTZ
 );
 
 -- End of Postgre Schema

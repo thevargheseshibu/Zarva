@@ -57,7 +57,7 @@ export async function startOnboarding(userId, pool) {
  * Sets demographic and skill data. Progresses status from 'draft' to 'documents_pending'.
  */
 export async function updateProfile(userId, profileData, pool) {
-    const { gender, skills, experience_years, service_range } = profileData;
+    const { gender, category, skills, experience_years, service_range, district } = profileData;
 
     const [rows] = await pool.query('SELECT * FROM worker_profiles WHERE user_id = $1', [userId]);
     if (!rows.length) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
@@ -65,11 +65,13 @@ export async function updateProfile(userId, profileData, pool) {
     const wp = rows[0];
 
     const newGender = gender !== undefined ? gender : wp.gender;
+    const newCategory = category !== undefined ? category : wp.category;
     const newSkills = skills !== undefined ? skills : (typeof wp.skills === 'string' ? JSON.parse(wp.skills) : wp.skills);
     const newExp = experience_years !== undefined ? experience_years : wp.experience_years;
     const newRange = service_range !== undefined ? service_range : wp.service_range;
+    const newDistrict = district !== undefined ? district : wp.district;
 
-    if (!newGender || !newSkills || newExp === undefined || newRange === undefined) {
+    if (!newGender || !newCategory || !Array.isArray(newSkills) || newExp === undefined || newRange === undefined) {
         throw Object.assign(new Error('Missing required profile fields'), { status: 400 });
     }
 
@@ -85,9 +87,9 @@ export async function updateProfile(userId, profileData, pool) {
     // Update profile
     await pool.query(
         `UPDATE worker_profiles 
-        SET gender = $1, skills = $2, experience_years = $3, service_range = $4 
-      WHERE user_id = $5`,
-        [newGender, JSON.stringify(newSkills), newExp, newRange, userId]
+        SET gender = $1, category = $2, skills = $3, experience_years = $4, service_range = $5, district = $6, city = $7
+      WHERE user_id = $8`,
+        [newGender, newCategory, JSON.stringify(newSkills), newExp, newRange, newDistrict, profileData.city || wp.city || 'Kochi', userId]
     );
 
     // Progress status if it was draft
@@ -170,9 +172,16 @@ export async function submitDocuments(userId, docs, pool) {
         [userId, aadhar_front_key, userId, aadhar_back_key, userId, photo_key]
     );
 
-    // Update status and aadhaar_number
-    console.log(`[Worker Onboarding] Documents Saved. Progressing pipeline to pending_review for U:${userId}`);
-    await pool.query(`UPDATE worker_profiles SET kyc_status = 'pending_review', aadhar_number_last4 = $1 WHERE user_id = $2`, [aadhar_number ? aadhar_number.slice(-4) : null, userId]);
+    // Update status, aadhaar_number and profile photo
+    console.log(`[Worker Onboarding] Documents Saved. Syncing profile photo and progressing pipeline to pending_review for U:${userId}`);
+    await pool.query(
+        `UPDATE worker_profiles 
+         SET kyc_status = 'pending_review', 
+             aadhar_number_last4 = $1,
+             profile_s3_key = COALESCE(profile_s3_key, $2)
+         WHERE user_id = $3`, 
+        [aadhar_number ? aadhar_number.slice(-4) : null, photo_key, userId]
+    );
 
     return { success: true };
 }
@@ -206,7 +215,7 @@ export async function agreeToTerms(userId, nameTyped, ipAddress, pool) {
  * 6. Get Onboarding Status
  */
 export async function getOnboardingStatus(userId, pool) {
-    const [profiles] = await pool.query('SELECT kyc_status, is_verified, payment_method, payment_details FROM worker_profiles WHERE user_id = $1', [userId]);
+    const [profiles] = await pool.query('SELECT kyc_status, is_verified, payment_method, payment_details, district FROM worker_profiles WHERE user_id = $1', [userId]);
 
     if (!profiles.length) {
         return {

@@ -3,9 +3,10 @@
  * "I am a..." — Customer or Service Provider cards, GoldButton confirm.
  */
 import React, { useState } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, UIManager, Platform, Alert } from 'react-native';
 
-import { colors, spacing, radius } from '../../design-system/tokens';
+
 import PremiumButton from '../../components/PremiumButton';
 import { useAuthStore } from '../../stores/authStore';
 import apiClient from '../../services/api/client';
@@ -14,6 +15,8 @@ import MainBackground from '../../components/MainBackground';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function RoleSelection() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const [selected, setSelected] = useState(null);
     const [loading, setLoading] = useState(false);
     const { user, token, login } = useAuthStore();
@@ -113,43 +116,43 @@ export default function RoleSelection() {
                     disabled={!selected}
                     loading={loading}
                     onPress={handleContinue}
-                    style={{ marginTop: spacing.xl }}
+                    style={{ marginTop: tTheme.spacing.xl }}
                 />
             </View>
         </MainBackground>
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     content: {
         flex: 1,
-        paddingHorizontal: spacing.lg, justifyContent: 'center', gap: spacing.sm,
+        paddingHorizontal: t.spacing.lg, justifyContent: 'center', gap: t.spacing.sm,
     },
-    title: { color: colors.text.primary, fontSize: 30, fontWeight: '800' },
-    sub: { color: colors.text.secondary, fontSize: 14, marginBottom: spacing.md },
-    cards: { gap: spacing.md },
+    title: { color: t.text.primary, fontSize: 30, fontWeight: '800' },
+    sub: { color: t.text.secondary, fontSize: 14, marginBottom: t.spacing.md },
+    cards: { gap: t.spacing.md },
     card: {
-        flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-        backgroundColor: colors.surface, borderRadius: radius.xl,
-        padding: spacing.lg, borderWidth: 1.5, borderColor: 'transparent',
+        flexDirection: 'row', alignItems: 'center', gap: t.spacing.md,
+        backgroundColor: t.background.surface, borderRadius: t.radius.xl,
+        padding: t.spacing.lg, borderWidth: 1.5, borderColor: 'transparent',
         overflow: 'hidden'
     },
     cardSelected: {
-        borderColor: colors.accent.primary + '44',
+        borderColor: t.brand.primary + '44',
     },
     icon: { fontSize: 40 },
     cardText: { flex: 1 },
-    cardTitle: { color: colors.text.secondary, fontSize: 19, fontWeight: '700' },
-    cardTitleActive: { color: colors.text.primary },
-    cardSub: { color: colors.text.muted, fontSize: 13, marginTop: 3 },
+    cardTitle: { color: t.text.secondary, fontSize: 19, fontWeight: '700' },
+    cardTitleActive: { color: t.text.primary },
+    cardSub: { color: t.text.tertiary, fontSize: 13, marginTop: 3 },
     radio: {
         width: 22, height: 22, borderRadius: 11,
-        borderWidth: 2, borderColor: colors.text.muted,
+        borderWidth: 2, borderColor: t.text.tertiary,
         justifyContent: 'center', alignItems: 'center',
     },
-    radioActive: { borderColor: colors.accent.primary },
+    radioActive: { borderColor: t.brand.primary },
     radioDot: {
         width: 11, height: 11, borderRadius: 5.5,
-        backgroundColor: colors.accent.primary,
+        backgroundColor: t.brand.primary,
     },
 });

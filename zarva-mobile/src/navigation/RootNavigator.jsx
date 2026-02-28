@@ -15,6 +15,10 @@ import WorkerStack from './WorkerStack';
 import OnboardingNavigator from './OnboardingNavigator';
 import RoleSelection from '../screens/auth/RoleSelection';
 import CompleteProfileScreen from '../screens/auth/CompleteProfileScreen';
+import VerificationPendingScreen from '../screens/worker/VerificationPendingScreen';
+import BlockedScreen from '../screens/auth/BlockedScreen';
+import CreateTicketScreen from '../screens/shared/support/CreateTicketScreen';
+import TicketChatScreen from '../screens/shared/support/TicketChatScreen';
 import { useAuthStore } from '../stores/authStore';
 import { useJobStore } from '../stores/jobStore';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
@@ -72,7 +76,7 @@ export default function RootNavigator() {
             if (!navigationRef.isReady()) return;
 
             const role = authState.user?.active_role;
-            const pushData = response.notification.request.content.data;
+            const pushData = response?.notification?.request?.content?.data;
             const jobId = pushData?.job_id || jobState.activeJob?.id;
 
             if (jobId) {
@@ -121,9 +125,29 @@ export default function RootNavigator() {
         }
 
         const role = user.active_role;
-        const onboardingDone = user.onboarding_complete ?? true;
+        const profile = user.profile || {};
+        const onboardingDone = user.onboarding_complete;
+
+        if (user.is_blocked) {
+            return (
+                <Stack.Navigator screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="Blocked" component={BlockedScreen} />
+                    <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
+                    <Stack.Screen name="TicketChat" component={TicketChatScreen} />
+                </Stack.Navigator>
+            );
+        }
 
         if (role === 'worker' && !onboardingDone) return <OnboardingNavigator />;
+
+        if (role === 'worker' && profile.kyc_status !== 'approved') {
+            return (
+                <Stack.Navigator screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="VerificationPending" component={VerificationPendingScreen} />
+                </Stack.Navigator>
+            );
+        }
+
         if (role === 'customer') return <CustomerStack />;
         if (role === 'worker') return <WorkerStack />;
 

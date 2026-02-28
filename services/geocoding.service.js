@@ -35,6 +35,7 @@ export async function geocodePincode(pincode, city = 'Kochi') {
             city: city,
             countrycodes: 'in', // Limit to India
             format: 'json',
+            addressdetails: 1,
             limit: 1
         });
 
@@ -49,16 +50,52 @@ export async function geocodePincode(pincode, city = 'Kochi') {
         }
 
         const data = await response.json();
+        let coordsInfo = null;
 
         if (data && data.length > 0) {
             const result = data[0];
-            const coordsInfo = {
+            const address = result.address || {};
+            const district = address.state_district || address.county || address.city_district || null;
+
+            coordsInfo = {
                 latitude: parseFloat(result.lat),
                 longitude: parseFloat(result.lon),
                 formatted_address: result.display_name,
-                city: city
+                city: city,
+                district: district
             };
+        }
 
+        // 2b. Secondary Fallback for Indian Pincodes (Detailed District/City info)
+        if (!coordsInfo || !coordsInfo.district) {
+            try {
+                console.log(`[Geocoding] Nominatim insufficient. Trying postalpincode.in for ${pincode}`);
+                const postResponse = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+                const postData = await postResponse.json();
+                
+                if (postData && postData[0]?.Status === 'Success') {
+                    const postInfo = postData[0].PostOffice[0];
+                    if (!coordsInfo) {
+                        // If no coords from Nominatim, we still lack lat/lng, but we can at least get address parts
+                        coordsInfo = {
+                            latitude: 0, // Fallback, though ideally we want both
+                            longitude: 0,
+                            formatted_address: `${postInfo.Name}, ${postInfo.District}, ${postInfo.State}`,
+                            city: postInfo.Block !== 'NA' ? postInfo.Block : postInfo.District,
+                            district: postInfo.District
+                        };
+                    } else {
+                        // Merge district/city if missing
+                        coordsInfo.district = coordsInfo.district || postInfo.District;
+                        coordsInfo.city = coordsInfo.city || (postInfo.Block !== 'NA' ? postInfo.Block : postInfo.District);
+                    }
+                }
+            } catch (postErr) {
+                console.warn(`[Geocoding] Secondary fallback failed for ${pincode}:`, postErr.message);
+            }
+        }
+
+        if (coordsInfo) {
             // 3. Cache the result for 30 days (Pincodes rarely change coordinates)
             if (redis) {
                 await redis.set(cacheKey, JSON.stringify(coordsInfo), 'EX', 30 * 24 * 60 * 60);

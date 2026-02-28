@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { colors, spacing, radius } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+
+
 import { useT } from '../../../hooks/useT';
 import apiClient from '../../../services/api/client';
 import PremiumHeader from '../../../components/PremiumHeader';
@@ -11,6 +12,8 @@ import PremiumButton from '../../../components/PremiumButton';
 import FadeInView from '../../../components/FadeInView';
 
 export default function CreateTicketScreen() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const navigation = useNavigation();
     const route = useRoute();
     const t = useT();
@@ -92,7 +95,7 @@ export default function CreateTicketScreen() {
                         <TextInput
                             style={styles.inputArea}
                             placeholder={t('describe_here', { defaultValue: 'Type your message here...' })}
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={t.text.tertiary}
                             multiline
                             numberOfLines={6}
                             textAlignVertical="top"
@@ -116,58 +119,58 @@ export default function CreateTicketScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     keyboardView: { flex: 1 },
-    scroll: { flexGrow: 1, padding: spacing[24] },
+    scroll: { flexGrow: 1, padding: t.spacing['2xl'] },
 
     jobContext: {
-        backgroundColor: colors.surface,
-        padding: spacing[16],
-        borderRadius: radius.lg,
+        backgroundColor: t.background.surface,
+        padding: t.spacing.lg,
+        borderRadius: t.radius.lg,
         borderWidth: 1,
-        borderColor: colors.accent.border + '22',
-        marginBottom: spacing[24],
+        borderColor: t.border.default + '22',
+        marginBottom: t.spacing['2xl'],
         alignItems: 'center',
     },
     jobLabel: {
-        color: colors.text.muted,
-        fontSize: fontSize.micro,
-        fontWeight: fontWeight.bold,
+        color: t.text.tertiary,
+        fontSize: t.typography.size.micro,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 2,
         marginBottom: 4,
     },
     jobText: {
-        color: colors.accent.primary,
-        fontSize: fontSize.body,
-        fontWeight: fontWeight.bold,
+        color: t.brand.primary,
+        fontSize: t.typography.size.body,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 1,
     },
 
     prompt: {
-        color: colors.text.primary,
-        fontSize: fontSize.title,
-        fontWeight: fontWeight.bold,
-        marginBottom: spacing[16],
-        letterSpacing: tracking.title,
+        color: t.text.primary,
+        fontSize: t.typography.size.title,
+        fontWeight: t.typography.weight.bold,
+        marginBottom: t.spacing.lg,
+        letterSpacing: t.typography.tracking.title,
     },
 
     inputArea: {
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.accent.border + '44',
-        padding: spacing[20],
-        color: colors.text.primary,
-        fontSize: fontSize.body,
+        borderColor: t.border.default + '44',
+        padding: t.spacing[20],
+        color: t.text.primary,
+        fontSize: t.typography.size.body,
         lineHeight: 24,
         minHeight: 180,
     },
 
     footer: {
-        padding: spacing[24],
-        paddingBottom: Platform.OS === 'ios' ? spacing[32] : spacing[24],
+        padding: t.spacing['2xl'],
+        paddingBottom: Platform.OS === 'ios' ? t.spacing[32] : t.spacing['2xl'],
         borderTopWidth: 1,
-        borderTopColor: colors.accent.border + '11',
-        backgroundColor: colors.background,
+        borderTopColor: t.border.default + '11',
+        backgroundColor: t.background.app,
     }
 });

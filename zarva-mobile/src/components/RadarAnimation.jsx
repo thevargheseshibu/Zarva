@@ -3,6 +3,7 @@
  * Reanimated2 concentric rings that expand and fade — gold pulse radar effect.
  */
 import React, { useEffect } from 'react';
+import { useTokens } from '../design-system';
 import { View, StyleSheet } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -12,13 +13,13 @@ import Animated, {
     withDelay,
     Easing,
 } from 'react-native-reanimated';
-import { colors } from '../design-system/tokens';
+
 
 const RING_COUNT = 3;
 const MAX_SCALE = 3.2;
 const DURATION_MS = 2200;
 
-function Ring({ delay }) {
+function Ring({ delay, styles }) {
     const scale = useSharedValue(0.4);
     const opacity = useSharedValue(0.7);
 
@@ -50,10 +51,12 @@ function Ring({ delay }) {
 }
 
 export default function RadarAnimation({ size = 64, style }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     return (
         <View style={[styles.container, { width: size, height: size }, style]}>
             {Array.from({ length: RING_COUNT }).map((_, i) => (
-                <Ring key={i} delay={i * (DURATION_MS / RING_COUNT)} />
+                <Ring key={i} delay={i * (DURATION_MS / RING_COUNT)} styles={styles} />
             ))}
             {/* Core dot */}
             <View style={[styles.core, { width: size * 0.28, height: size * 0.28 }]} />
@@ -61,7 +64,7 @@ export default function RadarAnimation({ size = 64, style }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     container: {
         justifyContent: 'center',
         alignItems: 'center',
@@ -72,12 +75,12 @@ const styles = StyleSheet.create({
         height: '100%',
         borderRadius: 9999,
         borderWidth: 1,
-        borderColor: colors.accent.primary,
+        borderColor: t.brand.primary,
     },
     core: {
         borderRadius: 9999,
-        backgroundColor: colors.accent.primary,
-        shadowColor: colors.accent.primary,
+        backgroundColor: t.brand.primary,
+        shadowColor: t.brand.primary,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.5,
         shadowRadius: 10,

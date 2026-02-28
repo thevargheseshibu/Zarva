@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+
+
 import PremiumButton from '../../../components/PremiumButton';
 import LocationInput from '../../../components/LocationInput';
 import FadeInView from '../../../components/FadeInView';
@@ -16,6 +17,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 const RANGES = [10, 20, 50];
 
 export default function OnboardingBasicInfo({ data, onNext }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const GENDERS = [
         { key: 'male', label: t('gender_male') },
@@ -92,7 +95,7 @@ export default function OnboardingBasicInfo({ data, onNext }) {
                             value={experience}
                             onChangeText={t => setExperience(t.replace(/[^0-9]/g, ''))}
                             placeholder={t('eg_years')}
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={t.text.tertiary}
                             keyboardType="number-pad"
                             maxLength={2}
                         />
@@ -154,48 +157,48 @@ export default function OnboardingBasicInfo({ data, onNext }) {
     );
 }
 
-const styles = StyleSheet.create({
-    scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
-    headerSub: { color: colors.text.secondary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
-    sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
+const createStyles = (t) => StyleSheet.create({
+    scrollContent: { padding: t.spacing['2xl'], gap: t.spacing[32], paddingBottom: 60 },
+    headerSub: { color: t.text.secondary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    title: { color: t.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: t.typography.tracking.hero, marginTop: 4 },
+    sub: { color: t.text.tertiary, fontSize: t.typography.size.body, lineHeight: 24, marginTop: 8 },
 
     section: { gap: 12 },
-    label: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    label: { color: t.text.primary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
 
     radioGrid: { flexDirection: 'row', gap: 10 },
     radioChip: {
         flex: 1,
         paddingVertical: 14,
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        borderRadius: radius.lg,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.lg,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
     radioChipActive: {
         borderColor: 'transparent',
         overflow: 'hidden',
-        ...shadows.accentGlow
+        ...t.shadows.accentGlow
     },
-    radioText: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    radioText: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
     radioTextActive: {
-        color: '#FFFFFF',
+        color: 't.text.primary',
         textShadowColor: 'rgba(0,0,0,0.2)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4
     },
 
-    inputCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface },
+    inputCard: { backgroundColor: t.background.surface, padding: 4, borderWidth: 1, borderColor: t.background.surface },
     input: {
         paddingHorizontal: 16, paddingVertical: 14,
-        color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold
+        color: t.text.primary, fontSize: 18, fontWeight: t.typography.weight.bold
     },
 
-    locCard: { padding: 4, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
-    noteTxt: { color: colors.text.muted, fontSize: 10, marginTop: 4, fontStyle: 'italic' },
+    locCard: { padding: 4, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.background.surface },
+    noteTxt: { color: t.text.tertiary, fontSize: 10, marginTop: 4, fontStyle: 'italic' },
 
-    footer: { marginTop: spacing[16] },
+    footer: { marginTop: t.spacing.lg },
 
-    appMetadata: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2, textAlign: 'center', marginTop: 24 }
+    appMetadata: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2, textAlign: 'center', marginTop: 24 }
 });

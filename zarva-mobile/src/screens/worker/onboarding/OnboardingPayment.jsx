@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+
+
 import PremiumButton from '../../../components/PremiumButton';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
@@ -13,6 +14,8 @@ import MainBackground from '../../../components/MainBackground';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function OnboardingPayment({ data, onNext }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const [method, setMethod] = useState('upi');
     const [upi, setUpi] = useState(data.upi || '');
@@ -83,7 +86,7 @@ export default function OnboardingPayment({ data, onNext }) {
                                 value={upi}
                                 onChangeText={setUpi}
                                 placeholder={t('username_upi')}
-                                placeholderTextColor={colors.text.muted}
+                                placeholderTextColor={t.text.tertiary}
                                 autoCapitalize="none"
                                 keyboardType="email-address"
                             />
@@ -100,7 +103,7 @@ export default function OnboardingPayment({ data, onNext }) {
                                     value={holderName}
                                     onChangeText={setHolderName}
                                     placeholder={t('beneficiary_name')}
-                                    placeholderTextColor={colors.text.muted}
+                                    placeholderTextColor={t.text.tertiary}
                                     autoCapitalize="words"
                                 />
                             </Card>
@@ -110,7 +113,7 @@ export default function OnboardingPayment({ data, onNext }) {
                                     value={accountNo}
                                     onChangeText={setAccountNo}
                                     placeholder={t('account_number')}
-                                    placeholderTextColor={colors.text.muted}
+                                    placeholderTextColor={t.text.tertiary}
                                     keyboardType="number-pad"
                                 />
                             </Card>
@@ -120,7 +123,7 @@ export default function OnboardingPayment({ data, onNext }) {
                                     value={ifsc}
                                     onChangeText={t => setIfsc(t.toUpperCase().slice(0, 11))}
                                     placeholder={t('ifsc_code')}
-                                    placeholderTextColor={colors.text.muted}
+                                    placeholderTextColor={t.text.tertiary}
                                     autoCapitalize="characters"
                                 />
                             </Card>
@@ -151,51 +154,51 @@ export default function OnboardingPayment({ data, onNext }) {
     );
 }
 
-const styles = StyleSheet.create({
-    scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
-    headerSub: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
-    sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
+const createStyles = (t) => StyleSheet.create({
+    scrollContent: { padding: t.spacing['2xl'], gap: t.spacing[32], paddingBottom: 60 },
+    headerSub: { color: t.text.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    title: { color: t.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: t.typography.tracking.hero, marginTop: 4 },
+    sub: { color: t.text.tertiary, fontSize: t.typography.size.body, lineHeight: 24, marginTop: 8 },
 
     section: { gap: 12 },
-    label: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    label: { color: t.text.primary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
 
     tabContainer: {
         flexDirection: 'row',
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         padding: 4,
-        borderRadius: radius.lg,
+        borderRadius: t.radius.lg,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
-    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: radius.md, overflow: 'hidden' },
-    tabActive: { backgroundColor: 'transparent', ...shadows.premium },
-    tabTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: t.radius.md, overflow: 'hidden' },
+    tabActive: { backgroundColor: 'transparent', ...t.shadows.premium },
+    tabTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
     tabTxtActive: {
-        color: '#FFFFFF',
+        color: 't.text.primary',
         textShadowColor: 'rgba(0,0,0,0.2)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4
     },
 
-    inputCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface },
+    inputCard: { backgroundColor: t.background.surface, padding: 4, borderWidth: 1, borderColor: t.background.surface },
     input: {
         paddingHorizontal: 16, paddingVertical: 14,
-        color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.semibold
+        color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.semibold
     },
 
     bankForm: { gap: 12 },
-    hintTxt: { color: colors.text.muted, fontSize: 10, fontStyle: 'italic', paddingLeft: 4 },
+    hintTxt: { color: t.text.tertiary, fontSize: 10, fontStyle: 'italic', paddingLeft: 4 },
 
     secureBadge: {
         alignItems: 'center',
         paddingVertical: 12,
-        backgroundColor: colors.accent.primary + '08',
-        borderRadius: radius.md,
+        backgroundColor: t.brand.primary + '08',
+        borderRadius: t.radius.md,
         borderWidth: 1,
-        borderColor: colors.accent.primary + '11'
+        borderColor: t.brand.primary + '11'
     },
-    secureTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    secureTxt: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
 
-    footer: { marginTop: spacing[16] }
+    footer: { marginTop: t.spacing.lg }
 });

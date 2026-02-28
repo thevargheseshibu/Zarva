@@ -10,7 +10,7 @@ Server-First Processing All important logic must be implemented in Node.js by de
 
 API-Only Communication Mobile must: Never connect directly to database Never call third-party services using secret keys Never store sensitive credentials All communication must go through: React Native → HTTPS / Socket → Node Server → Database
 
-
+Make sure new files or code have proper internationalization files.
 /- Node js project
 
 /zarva-mobile -react native project . So what ever said in perspective with react native project will be from /zarva-mobile.

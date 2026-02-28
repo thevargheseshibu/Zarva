@@ -32,6 +32,11 @@ class CoverageAPI {
         });
         return response.data;
     }
+
+    async resolvePincode(pincode, city = '') {
+        const response = await client.get(`/api/coverage/pincode/${pincode}${city ? `?city=${encodeURIComponent(city)}` : ''}`);
+        return response.data; // { latitude, longitude, formatted_address, city, district }
+    }
 }
 
 export default new CoverageAPI();

@@ -128,6 +128,46 @@ export default {
     security_validation: 'భద్రతా ధృవీకరణ',
     network_activation: 'నెట్‌వర్క్ యాక్టివేషన్',
     return_to_terminal: 'టెర్మినల్‌కు తిరిగి వెళ్లండి',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'మళ్ళీ తీయండి',
+    remove: 'తొలగించు',
+    uploaded_securely: 'సురక్షితంగా అప్‌లోడ్ చేయబడింది',
+    remove_document: 'పత్రాన్ని తొలగించాలా?',
+    confirm_remove_doc: 'ఈ అప్‌లోడ్‌ని తొలగించాలని మీకు నిశ్చయంగా ఉందా?',
+    incomplete_info: 'అసంపూర్ణం',
+    please_upload_all_docs: 'దయచేసి అన్ని పత్రాలు అప్‌లోడ్ చేయండి మరియు ఆధార్ నంబర్ నమోదు చేయండి.',
+    uploading_documents: 'సురక్షితంగా అప్‌లోడ్ అవుతోంది...',
+    submitting_application: 'నమోదు పూర్తవుతోంది...',
+    protocol_required: 'ప్రోటోకాల్ అవసరం',
+    please_read_agreement: 'దయచేసి ఒప్పందం చివరి వరకు స్క్రోల్ చేయండి.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ఖాతా నిలిపివేయబడింది',
+    account_blocked_desc: 'మీ ఖాతా తాత్కాలికంగా నిలిపివేయబడింది. సహాయానికి సంప్రదించండి.',
+    blocked_reason_label: 'నిలిపివేత కారణం',
+    contact_support_blocked: 'మద్దతును సంప్రదించండి',
+    policy_enforcement: 'విధాన అమలు',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'మళ్ళీ తీయండి',
+    remove: 'తొలగించు',
+    uploaded_securely: 'సురక్షితంగా అప్‌లోడ్ చేయబడింది',
+    remove_document: 'పత్రాన్ని తొలగించాలా?',
+    confirm_remove_doc: 'ఈ అప్‌లోడ్‌ని తొలగించాలని మీకు నిశ్చయంగా ఉందా?',
+    incomplete_info: 'అసంపూర్ణం',
+    please_upload_all_docs: 'దయచేసి అన్ని పత్రాలు అప్‌లోడ్ చేయండి మరియు ఆధార్ నంబర్ నమోదు చేయండి.',
+    uploading_documents: 'సురక్షితంగా అప్‌లోడ్ అవుతోంది...',
+    submitting_application: 'నమోదు పూర్తవుతోంది...',
+    protocol_required: 'ప్రోటోకాల్ అవసరం',
+    please_read_agreement: 'దయచేసి ఒప్పందం చివరి వరకు స్క్రోల్ చేయండి.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ఖాతా నిలిపివేయబడింది',
+    account_blocked_desc: 'మీ ఖాతా తాత్కాలికంగా నిలిపివేయబడింది. సహాయానికి సంప్రదించండి.',
+    blocked_reason_label: 'నిలిపివేత కారణం',
+    contact_support_blocked: 'మద్దతును సంప్రదించండి',
+    policy_enforcement: 'విధాన అమలు',
     notify_encrypted_channel: 'యాక్టివ్ అయిన తర్వాత మేము ఎన్‌క్రిప్టెడ్ ఛానెల్ ద్వారా మీకు తెలియజేస్తాము.',
 
     // ── Worker Tabs & Overviews ──────────────────────

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, BackHandler, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -9,10 +10,12 @@ import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import RadarAnimation from '../../components/RadarAnimation';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 
 export default function SearchingScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { category, jobId } = route.params || { category: 'unknown', jobId: 'mock-123' };
     const [countdown, setCountdown] = useState(5);
@@ -120,24 +123,24 @@ export default function SearchingScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background, padding: spacing.lg },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app, padding: t.spacing.lg },
     content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-    searchingHeader: { alignItems: 'center', marginBottom: spacing.xxl },
+    searchingHeader: { alignItems: 'center', marginBottom: t.spacing.xxl },
     searchingTitle: {
-        color: colors.text.primary,
-        fontSize: fontSize.title,
-        fontWeight: fontWeight.bold,
+        color: t.text.primary,
+        fontSize: t.typography.size.title,
+        fontWeight: t.typography.weight.bold,
         textAlign: 'center',
-        letterSpacing: tracking.title
+        letterSpacing: t.typography.tracking.title
     },
     searchingSub: {
-        color: colors.text.secondary,
-        fontSize: fontSize.body,
+        color: t.text.secondary,
+        fontSize: t.typography.size.body,
         textAlign: 'center',
         marginTop: 8,
-        letterSpacing: tracking.body
+        letterSpacing: t.typography.tracking.body
     },
 
     radarWrapper: {
@@ -145,78 +148,78 @@ const styles = StyleSheet.create({
         height: 280,
         justifyContent: 'center',
         alignItems: 'center',
-        marginVertical: spacing.xl
+        marginVertical: t.spacing.xl
     },
     pulseLabel: {
         position: 'absolute',
         bottom: -20,
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         paddingHorizontal: 12,
         paddingVertical: 4,
-        borderRadius: radius.full,
+        borderRadius: t.radius.full,
         borderWidth: 1,
-        borderColor: colors.accent.border,
-        ...shadows.premium
+        borderColor: t.border.default,
+        ...t.shadows.premium
     },
     waveTxt: {
-        color: colors.accent.primary,
+        color: t.brand.primary,
         fontSize: 10,
-        fontWeight: fontWeight.bold,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 2
     },
 
-    statusBox: { marginTop: spacing.xxl, minHeight: 40 },
+    statusBox: { marginTop: t.spacing.xxl, minHeight: 40 },
     statusTxt: {
-        color: colors.text.muted,
-        fontSize: fontSize.caption,
-        fontWeight: fontWeight.medium,
+        color: t.text.tertiary,
+        fontSize: t.typography.size.caption,
+        fontWeight: t.typography.weight.medium,
         fontStyle: 'italic',
-        letterSpacing: tracking.caption
+        letterSpacing: t.typography.tracking.caption
     },
 
     bottomArea: { position: 'absolute', bottom: 60, left: 24, right: 24, alignItems: 'center' },
     minimizeInfo: {
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         paddingHorizontal: 16,
         paddingVertical: 8,
-        borderRadius: radius.full,
-        ...shadows.premium
+        borderRadius: t.radius.full,
+        ...t.shadows.premium
     },
-    minimizeTxt: { color: colors.text.muted, fontSize: fontSize.micro, fontWeight: fontWeight.medium },
+    minimizeTxt: { color: t.text.tertiary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.medium },
     minimizeBtn: {
         paddingVertical: 12,
         paddingHorizontal: 24,
-        borderRadius: radius.full,
-        backgroundColor: colors.elevated,
+        borderRadius: t.radius.full,
+        backgroundColor: t.background.surfaceRaised,
         borderWidth: 1,
-        borderColor: colors.accent.border
+        borderColor: t.border.default
     },
     minimizeBtnTxt: {
-        color: colors.accent.primary,
-        fontSize: fontSize.caption,
-        fontWeight: fontWeight.bold,
+        color: t.brand.primary,
+        fontSize: t.typography.size.caption,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 1
     },
 
-    errorContent: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.lg },
+    errorContent: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: t.spacing.lg },
     errorIconCircle: {
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: colors.elevated,
+        backgroundColor: t.background.surfaceRaised,
         justifyContent: 'center',
         alignItems: 'center',
-        ...shadows.premium
+        ...t.shadows.premium
     },
     errorIcon: { fontSize: 32 },
-    errorTitle: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold, letterSpacing: tracking.title },
+    errorTitle: { color: t.text.primary, fontSize: t.typography.size.title, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.title },
     errorSub: {
-        color: colors.text.secondary,
-        fontSize: fontSize.body,
+        color: t.text.secondary,
+        fontSize: t.typography.size.body,
         textAlign: 'center',
         lineHeight: 24,
-        paddingHorizontal: spacing.lg,
-        marginBottom: spacing.md,
-        letterSpacing: tracking.body
+        paddingHorizontal: t.spacing.lg,
+        marginBottom: t.spacing.md,
+        letterSpacing: t.typography.tracking.body
     }
 });

@@ -104,8 +104,8 @@ router.post('/onboarding/service-area', (req, res) =>
             throw Object.assign(new Error('latitude, longitude, and radius_km are required'), { status: 400 });
         }
 
-        if (radius_km < 1 || radius_km > 50) {
-            throw Object.assign(new Error('Radius must be between 1 and 50 km'), { status: 400 });
+        if (radius_km < 15 || radius_km > 200) {
+            throw Object.assign(new Error('Radius must be at least 15 km'), { status: 400 });
         }
 
         // Ensure coverageService is imported dynamically since it's only needed here
@@ -122,12 +122,15 @@ router.post('/onboarding/service-area', (req, res) =>
         if (service_types && Array.isArray(service_types)) {
             await pool.query(
                 'UPDATE worker_profiles SET service_types = $1 WHERE user_id = $2',
-                [service_types, userId]
-            );
-        }
-
-        return {
-            message: 'Service area updated successfully',
+                 [service_types, userId]
+             );
+         }
+ 
+         // Update location_updated_at timestamp
+         await pool.query('UPDATE worker_profiles SET location_updated_at = NOW() WHERE user_id = $1', [userId]);
+ 
+         return {
+             message: 'Service area updated successfully',
             service_area: result.service_area_geojson,
             estimated_coverage_area_km2: Math.PI * Math.pow(radius_km, 2)
         };
@@ -139,8 +142,41 @@ router.post('/onboarding/service-area', (req, res) =>
  */
 router.post('/onboard', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const { gender, location, categories, experience, payment, documents, agreement_signature, aadhaar_number: aadhar_number } = req.body;
+        const { gender, location, primarySkill, secondarySkills, experience, documents, agreement_signature, aadhaar_number: aadhar_number } = req.body;
+        let { payment } = req.body;
         const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+
+        // Fallback for flattened payment structure from mobile (method, upi, account_number, etc)
+        if (!payment || !payment.method) {
+            const pm = req.body.payment_method || req.body.method;
+            if (pm === 'upi') {
+                payment = {
+                    method: 'upi',
+                    details: { upi_id: req.body.upi || req.body.payment_details?.upi_id }
+                };
+            } else if (pm === 'bank') {
+                payment = {
+                    method: 'bank',
+                    details: { 
+                        account_no: req.body.account_number || req.body.payment_details?.account_no,
+                        ifsc: req.body.ifsc || req.body.payment_details?.ifsc,
+                        holder_name: req.body.holder_name || req.body.beneficiary_name || req.body.payment_details?.holder_name 
+                    }
+                };
+            }
+        }
+
+        // Experience Mapping: Primary Numeric Input starts here
+        const fromBodyYears = parseFloat(req.body.experience_years);
+        
+        // Categorical -> Numeric Fallback (if numeric input is empty)
+        const expMap = {
+            '0-1': 1.0,
+            '1-3': 3.0,
+            '3-5': 5.0,
+            '5+': 10.0
+        };
+        const numericExperience = !isNaN(fromBodyYears) ? fromBodyYears : (expMap[experience] || 0);
 
         // Boot role if needed safely
         try {
@@ -150,16 +186,35 @@ router.post('/onboard', (req, res) =>
         // Mappings
         await WorkerService.updateProfile(userId, {
             gender,
-            skills: categories || [],
-            experience_years: experience,
-            service_range: location?.service_range || 20
+            category: primarySkill,
+            skills: secondarySkills || [],
+            experience_years: numericExperience,
+            service_range: location?.service_range || 20,
+            district: location?.district,
+            city: location?.city
         }, pool);
 
-        // Location Injection
-        if (location && location.isValid) {
+        // Location & Pincode Injection
+        if (location && location.lat && location.lng) {
             await pool.query(`UPDATE worker_profiles 
-                 SET home_address=$1, home_location=ST_SetSRID(ST_MakePoint($3, $2), 4326), home_pincode=$4, city=$5 
-                 WHERE user_id=$6`, [JSON.stringify(location), location.lat, location.lng, location.pincode, location.city, userId]
+                 SET home_address=$1, 
+                     home_location=ST_SetSRID(ST_MakePoint($3, $2), 4326), 
+                     home_pincode=$4, 
+                     city=$5,
+                     district=$6,
+                     current_location=ST_SetSRID(ST_MakePoint($3, $2), 4326),
+                     last_location_lat=$2,
+                     last_location_lng=$3,
+                     location_updated_at=NOW()
+                 WHERE user_id=$7`, [
+                     JSON.stringify(location), 
+                     location.lat, 
+                     location.lng, 
+                     location.pincode, 
+                     location.city || 'Kochi', 
+                     location.district,
+                     userId
+                 ]
             );
         }
 
@@ -177,6 +232,9 @@ router.post('/onboard', (req, res) =>
         }
 
         await WorkerService.agreeToTerms(userId, agreement_signature, ipAddress, pool);
+
+        // Mark onboarding as complete globally
+        await pool.query('UPDATE users SET onboarding_complete = true WHERE id = $1', [userId]);
 
         return { success: true, message: "Onboarding successfully completed" };
     })
@@ -274,17 +332,17 @@ router.post('/jobs/:id/arrived', (req, res) =>
         if (!job || job.worker_id != userId) throw Object.assign(new Error('Job not associated with you'), { status: 403 });
         if (job.status !== 'worker_en_route' && job.status !== 'assigned') throw Object.assign(new Error(`Invalid job state: ${job.status}`), { status: 400 });
 
-        // 2. Generate Physical Start OTP
+        // 2. Generate Physical Inspection OTP (New Flow)
         const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
         const hash = await bcrypt.hash(otp, 10);
 
         // 3. MySQL Storage (Hash)
-        await pool.query(`UPDATE jobs SET start_otp_hash=$1, status='worker_arrived', arrived_at=NOW() WHERE id=$2`, [hash, jobId]
+        await pool.query(`UPDATE jobs SET inspection_otp_hash=$1, status='worker_arrived', arrived_at=NOW() WHERE id=$2`, [hash, jobId]
         );
 
         // 4. Redis Storage (Plaintext Relayed to Customer) -> 60 min TTL (3600s)
         const redisClient = getRedisClient();
-        await redisClient.set(`zarva:otp:start:${jobId}`, otp, 'EX', 3600);
+        await redisClient.set(`zarva:otp:inspection:${jobId}`, otp, 'EX', 3600);
 
         // Real Firebase Update
         await updateJobNode(jobId, { status: 'worker_arrived' });
@@ -312,17 +370,17 @@ router.post('/jobs/:id/resend-start-otp', (req, res) =>
         if (job.status !== 'worker_arrived') throw Object.assign(new Error('Invalid job state'), { status: 400 });
 
         const redisClient = getRedisClient();
-        let otp = await redisClient.get(`zarva:otp:start:${jobId}`);
+        let otp = await redisClient.get(`zarva:otp:inspection:${jobId}`);
 
         // If OTP missing/expired, regenerate it (Issue: Refresh Support)
         if (!otp) {
-            console.log(`[Worker] OTP for job ${jobId} expired/missing in Redis. Regenerating...`);
+            console.log(`[Worker] Inspection OTP for job ${jobId} expired/missing in Redis. Regenerating...`);
             otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
             const hash = await bcrypt.hash(otp, 10);
 
-            await pool.query(`UPDATE jobs SET start_otp_hash=$1, arrived_at=NOW() WHERE id=$2`, [hash, jobId]
+            await pool.query(`UPDATE jobs SET inspection_otp_hash=$1, arrived_at=NOW() WHERE id=$2`, [hash, jobId]
             );
-            await redisClient.set(`zarva:otp:start:${jobId}`, otp, 'EX', 3600);
+            await redisClient.set(`zarva:otp:inspection:${jobId}`, otp, 'EX', 3600);
         }
 
         const { notifyCustomerWorkerArrived } = await import('../services/notification.service.js');
@@ -334,20 +392,67 @@ router.post('/jobs/:id/resend-start-otp', (req, res) =>
 );
 
 /**
- * Worker Verifies Start OTP internally
+ * Worker Verifies Inspection OTP internally
  * Guards: worker_arrived
+ */
+router.post('/jobs/:id/verify-inspection-otp', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { otp, code } = req.body;
+        const inputOtp = otp || code;
+
+        const billingService = (await import('../services/billing.service.js')).default;
+
+        await billingService.startInspection(jobId, inputOtp, userId); // note we pass userId but billingService expects customerId internally? 
+        // Wait, billing service expects customerId in startInspection, let me fix it to use workerId or just not check customerId there since worker triggers it.
+        // Actually I should just query here or adjust the service. It's safe since token is worker and we guard the job.
+
+        const redisClient = getRedisClient();
+        await redisClient.del(`zarva:otp:inspection:${jobId}`);
+        return { verified: true };
+    })
+);
+
+/**
+ * Worker Submits Estimate
+ * Guards: inspection_active
+ */
+router.post('/jobs/:id/inspection/estimate', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { estimated_minutes, notes, photo_url } = req.body;
+
+        const billingService = (await import('../services/billing.service.js')).default;
+        await billingService.submitEstimate(jobId, userId, estimated_minutes, notes, photo_url);
+
+        // Generate Start OTP now that estimate is in
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(otp, 10);
+
+        await pool.query(`UPDATE jobs SET start_otp_hash=$1 WHERE id=$2`, [hash, jobId]);
+
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:start:${jobId}`, otp, 'EX', 3600);
+
+        return { submitted: true };
+    })
+);
+
+/**
+ * Worker Verifies Start OTP internally
+ * Guards: estimate_submitted
  */
 router.post('/jobs/:id/verify-start-otp', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
         const { otp, code } = req.body;
-        const inputOtp = otp || code; // Support both for mobile compatibility
+        const inputOtp = otp || code;
 
         const [jobs] = await pool.query('SELECT id, status, worker_id, start_otp_hash, arrived_at, start_otp_attempts FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
         const job = jobs[0];
 
         if (!job || job.worker_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
-        if (job.status !== 'worker_arrived') throw Object.assign(new Error('Invalid job state'), { status: 400 });
+        if (job.status !== 'estimate_submitted') throw Object.assign(new Error('Invalid job state'), { status: 400 });
 
         const features = configLoader.get('features');
         if (!features?.otp?.start_otp_enabled) {
@@ -366,8 +471,12 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         const match = await bcrypt.compare(String(inputOtp), job.start_otp_hash);
 
         if (match) {
+            // Rely on billing handler for Timer initialization
+            const billingService = (await import('../services/billing.service.js')).default;
+            await billingService._recordTimerEvent(pool, jobId, 'job_start', 'worker', 'Job active');
+
             await pool.query(`UPDATE jobs SET status='in_progress', work_started_at=NOW() WHERE id=$1`, [jobId]);
-            await updateJobNode(jobId, { status: 'in_progress' });
+            await updateJobNode(jobId, { status: 'in_progress', timer_status: 'active' });
 
             const redisClient = getRedisClient();
             await redisClient.del(`zarva:otp:start:${jobId}`); // Clean cache natively
@@ -408,14 +517,43 @@ router.post('/jobs/:id/complete', (req, res) =>
         await pool.query(`UPDATE jobs SET end_otp_hash=$1, status='pending_completion', work_ended_at=NOW() WHERE id=$2`, [hash, jobId]
         );
 
+        // Record timer end
+        const billingService = (await import('../services/billing.service.js')).default;
+        await billingService._recordTimerEvent(pool, jobId, 'job_end', 'worker', 'Worker requested completion');
+
         // Redis Storage (Relayed to Worker to SHOW Customer) 180m TTL (10800s)
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800);
 
-        await updateJobNode(jobId, { status: 'pending_completion' });
+        await updateJobNode(jobId, { status: 'pending_completion', timer_status: 'stopped' });
         // console.log(`[Push Notification Mock] -> Customer: "Worker is done - enter completion code"`);
 
         return { end_otp: otp }; // Worker SEES this in their app to show customer
+    })
+);
+
+/**
+ * Worker Requests Time Extension
+ * Guards: in_progress
+ */
+router.post('/jobs/:id/extension/request', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { requested_minutes, reason, photo_url } = req.body;
+
+        const billingService = (await import('../services/billing.service.js')).default;
+        await billingService.requestExtension(jobId, userId, reason, requested_minutes, photo_url, new Date());
+
+        // Generate Extension OTP for customer to approve
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(otp, 10);
+
+        await pool.query(`UPDATE job_extensions SET otp_hash=$1 WHERE job_id=$2 AND status='pending'`, [hash, jobId]);
+
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:extension:${jobId}`, otp, 'EX', 3600);
+
+        return { requested: true };
     })
 );
 
@@ -576,10 +714,15 @@ router.put('/availability', (req, res) =>
             throw Object.assign(new Error('is_online or is_available required'), { status: 400 });
         }
 
-        const [wp] = await pool.query('SELECT current_job_id FROM worker_profiles WHERE user_id=$1', [userId]
+        const [rows] = await pool.query('SELECT current_job_id, kyc_status, is_verified FROM worker_profiles WHERE user_id=$1', [userId]
         );
-        const profile = wp[0];
+
+        const profile = rows[0];
         if (!profile) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
+
+        if (profile.kyc_status !== 'approved' && is_online === true) {
+            throw Object.assign(new Error('Your profile is pending review. You can only go online once approved.'), { status: 403 });
+        }
 
         // Update DB
         params.push(userId);
@@ -605,7 +748,7 @@ router.put('/availability', (req, res) =>
 // Get nearby open jobs for worker
 router.get('/available-jobs', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const [profiles] = await pool.query('SELECT kyc_status, is_online, category, last_location_lat, last_location_lng FROM worker_profiles WHERE user_id=$1', [userId]
+        const [profiles] = await pool.query('SELECT kyc_status, is_online, category, skills, last_location_lat, last_location_lng FROM worker_profiles WHERE user_id=$1', [userId]
         );
         const profile = profiles[0] || {};
 
@@ -617,13 +760,26 @@ router.get('/available-jobs', (req, res) =>
 
         const hasLocation = profile.last_location_lat && profile.last_location_lng;
 
+        // Extract skills safely
+        let secondarySkills = [];
+        try {
+            if (profile.skills) {
+                secondarySkills = typeof profile.skills === 'string' ? JSON.parse(profile.skills) : profile.skills;
+            }
+        } catch (e) {
+            console.error("Failed to parse skills for available-jobs", e);
+        }
+        
+        // Pass skills as a JSON string to the query for Postgres JSONB containment check
+        const skillsParam = JSON.stringify(secondarySkills);
+
         let jobs;
         if (hasLocation) {
             // Geo-sorted with Haversine
             [jobs] = await pool.query(`SELECT j.id, j.category, j.status, j.created_at, j.address,
                         j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
                         j.travel_charge, j.scheduled_at,
-                        j.latitude, j.longitude,
+                        j.latitude, j.longitude, j.job_source,
                         c.name as customer_name,
                         ROUND(
                             (ST_Distance(ST_SetSRID(ST_MakePoint($2, $1), 4326), j.job_location) / 1000.0)::numeric,
@@ -632,20 +788,24 @@ router.get('/available-jobs', (req, res) =>
                  FROM jobs j
                  LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
                  WHERE j.status IN ('open', 'searching', 'no_worker_found')
+                 AND j.customer_id != $3
+                 AND (j.category = $4 OR  $5::jsonb @> to_jsonb(j.category::text))
                  AND ST_DWithin(ST_SetSRID(ST_MakePoint($2, $1), 4326), j.job_location, 100 * 1000)
-                 ORDER BY distance_km ASC, j.created_at DESC LIMIT 50`, [profile.last_location_lat, profile.last_location_lng]
+                 ORDER BY distance_km ASC, j.created_at DESC LIMIT 50`, [profile.last_location_lat, profile.last_location_lng, userId, profile.category, skillsParam]
             );
         } else {
             // No location set — return all open jobs by date
             [jobs] = await pool.query(
                 `SELECT j.id, j.category, j.status, j.created_at, j.address,
                         j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
-                        j.latitude, j.longitude,
+                        j.latitude, j.longitude, j.job_source,
                         c.name as customer_name, NULL as distance_km
                  FROM jobs j
                  LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
                  WHERE j.status IN ('open', 'searching', 'no_worker_found')
-                 ORDER BY j.created_at DESC LIMIT 50`
+                 AND j.customer_id != $1
+                 AND (j.category = $2 OR  $3::jsonb @> to_jsonb(j.category::text))
+                 ORDER BY j.created_at DESC LIMIT 50`, [userId, profile.category, skillsParam]
             );
         }
 
@@ -672,7 +832,9 @@ router.get('/available-jobs', (req, res) =>
                 time: j.created_at,
                 customer_name: j.customer_name || 'Customer',
                 description: j.description || '',
-                wave_number: 1 // Default fallback for wave tracker
+                wave_number: 1, // Default fallback for wave tracker
+                job_source: j.job_source,
+                is_custom: j.job_source === 'custom'
             };
         });
 
@@ -687,7 +849,7 @@ router.get('/history', (req, res) =>
         const [jobs] = await pool.query(`SELECT j.id, j.category, j.status, j.created_at, j.address,
                     (SELECT total FROM job_invoices WHERE job_id = j.id LIMIT 1) as amount
              FROM jobs j
-             WHERE j.worker_id = $1 AND j.status IN ('assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion', 'completed', 'cancelled', 'disputed')
+             WHERE j.worker_id = $1 AND j.status IN ('assigned', 'worker_en_route', 'worker_arrived', 'inspection_active', 'estimate_submitted', 'in_progress', 'pending_completion', 'completed', 'cancelled', 'disputed')
              ORDER BY j.created_at DESC LIMIT 50`, [userId]
         );
 

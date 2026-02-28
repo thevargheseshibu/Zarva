@@ -128,6 +128,46 @@ export default {
     security_validation: 'பாதுகாப்பு சரிபார்ப்பு',
     network_activation: 'நெட்வொர்க் செயல்படுத்தல்',
     return_to_terminal: 'டெர்மினலுக்குத் திரும்பு',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'மீண்டும் எடுக்கவும்',
+    remove: 'அகற்றவும்',
+    uploaded_securely: 'பாதுகாப்பாக பதிவேற்றப்பட்டது',
+    remove_document: 'ஆவணத்தை நீக்கவும்?',
+    confirm_remove_doc: 'இந்த பதிவேற்றத்தை நீக்க விரும்புகிறீர்களா?',
+    incomplete_info: 'முழுமையற்றது',
+    please_upload_all_docs: 'அனைத்து ஆவணங்களையும் பதிவேற்றவும் மற்றும் ஆதார் எண்ணை உள்ளிடவும்.',
+    uploading_documents: 'பாதுகாப்பாக பதிவேற்றுகிறது...',
+    submitting_application: 'பதிவு நிறைவடைகிறது...',
+    protocol_required: 'நெறிமுறை தேவை',
+    please_read_agreement: 'ஒப்பந்தத்தின் கடைசி வரை ஸ்க்ரோல் செய்யவும்.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'கணக்கு நிறுத்தப்பட்டது',
+    account_blocked_desc: 'உங்கள் கணக்கு தற்காலிகமாக நிறுத்தப்பட்டுள்ளது. ஆதரவை தொடர்பு கொள்ளவும்.',
+    blocked_reason_label: 'நிறுத்தத்தின் காரணம்',
+    contact_support_blocked: 'ஆதரவை தொடர்பு கொள்ளவும்',
+    policy_enforcement: 'கொள்கை அமலாக்கம்',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'மீண்டும் எடுக்கவும்',
+    remove: 'அகற்றவும்',
+    uploaded_securely: 'பாதுகாப்பாக பதிவேற்றப்பட்டது',
+    remove_document: 'ஆவணத்தை நீக்கவும்?',
+    confirm_remove_doc: 'இந்த பதிவேற்றத்தை நீக்க விரும்புகிறீர்களா?',
+    incomplete_info: 'முழுமையற்றது',
+    please_upload_all_docs: 'அனைத்து ஆவணங்களையும் பதிவேற்றவும் மற்றும் ஆதார் எண்ணை உள்ளிடவும்.',
+    uploading_documents: 'பாதுகாப்பாக பதிவேற்றுகிறது...',
+    submitting_application: 'பதிவு நிறைவடைகிறது...',
+    protocol_required: 'நெறிமுறை தேவை',
+    please_read_agreement: 'ஒப்பந்தத்தின் கடைசி வரை ஸ்க்ரோல் செய்யவும்.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'கணக்கு நிறுத்தப்பட்டது',
+    account_blocked_desc: 'உங்கள் கணக்கு தற்காலிகமாக நிறுத்தப்பட்டுள்ளது. ஆதரவை தொடர்பு கொள்ளவும்.',
+    blocked_reason_label: 'நிறுத்தத்தின் காரணம்',
+    contact_support_blocked: 'ஆதரவை தொடர்பு கொள்ளவும்',
+    policy_enforcement: 'கொள்கை அமலாக்கம்',
     notify_encrypted_channel: 'செயல்படுத்தப்பட்டதும் மறைகுறியாக்கப்பட்ட சேனல் மூலம் உங்களுக்குத் தெரிவிப்போம்.',
 
     // ── Worker Tabs & Overviews ──────────────────────

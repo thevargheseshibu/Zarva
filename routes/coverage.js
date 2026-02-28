@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import coverageService from '../services/coverage.service.js';
+import { geocodePincode } from '../services/geocoding.service.js';
 
 const router = Router();
 
@@ -44,6 +45,25 @@ router.post('/map-data', async (req, res) => {
     } catch (err) {
         console.error('[CoverageRoute] /map-data error:', err);
         return fail(res, 'Failed to fetch map data', 500, 'SERVER_ERROR');
+    }
+});
+
+/**
+ * Resolve district and city from pincode
+ * GET /api/coverage/pincode/:pincode
+ */
+router.get('/pincode/:pincode', async (req, res) => {
+    try {
+        const { pincode } = req.params;
+        const { city } = req.query; // Optional City hint
+
+        if (!pincode) return fail(res, 'Pincode is required');
+
+        const locationDetails = await geocodePincode(pincode, city);
+        return ok(res, locationDetails);
+    } catch (err) {
+        console.error('[CoverageRoute] /pincode/:pincode error:', err);
+        return fail(res, 'Failed to resolve location from pincode', 500, 'SERVER_ERROR');
     }
 });
 

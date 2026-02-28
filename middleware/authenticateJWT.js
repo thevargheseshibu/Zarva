@@ -82,7 +82,7 @@ export async function authenticate(rawToken, pool = null, features = null) {
 
     // 3. Load user
     const [userRows] = await db.query(
-        `SELECT id, phone, role, is_blocked FROM users WHERE id = $1 LIMIT 1`,
+        `SELECT id, phone, role, is_blocked, block_reason FROM users WHERE id = $1 LIMIT 1`,
         [dbToken.user_id],
     );
 
@@ -92,20 +92,21 @@ export async function authenticate(rawToken, pool = null, features = null) {
 
     const user = userRows[0];
 
-    // 4. Block check (feature-flagged)
-    //    Use injected features object (tests) or live isEnabled() (production)
-    const checkBlocked = features
-        ? Boolean(features?.security?.check_blocked_on_every_request)
-        : isEnabled('security.check_blocked_on_every_request');
-    if (checkBlocked && user.is_blocked) {
-        return { error: { status: 403, code: 'FORBIDDEN', message: 'Account suspended.' } };
-    }
-
-    // 5. Build req.user
+    // 4. Always include block info in result — enforcement happens in the Express handler
+    //    where req.path is available to whitelist /api/me.
     const roles = payload.roles ?? [user.role];
     const active_role = payload.active_role ?? user.role;
 
-    return { user: { id: user.id, phone: user.phone, roles, active_role } };
+    return {
+        user: {
+            id: user.id,
+            phone: user.phone,
+            roles,
+            active_role,
+            is_blocked: Boolean(user.is_blocked),
+            block_reason: user.block_reason || null,
+        }
+    };
 }
 
 // ── Public paths — skip JWT enforcement ─────────────────────────
@@ -122,14 +123,23 @@ const PUBLIC_PATHS = new Set([
 ]);
 
 /**
+ * Check if a path is public
+ */
+function isPublicPath(path) {
+    if (PUBLIC_PATHS.has(path)) return true;
+    if (path.startsWith('/api/coverage/pincode/')) return true;
+    return false;
+}
+
+/**
  * @param {import('express').Request}  req
  * @param {import('express').Response} res
  * @param {import('express').NextFunction} next
  */
 async function authenticateJWT(req, res, next) {
     try {
-        // Skip auth for public paths (OTP flow, refresh, dev-login, public worker reviews)
-        if (PUBLIC_PATHS.has(req.path) || (req.originalUrl.startsWith('/api/reviews/worker/') && req.method === 'GET')) {
+        // Skip auth for public paths (OTP flow, refresh, dev-login, public worker reviews, pincode utils)
+        if (isPublicPath(req.path) || (req.originalUrl.startsWith('/api/reviews/worker/') && req.method === 'GET')) {
             return next();
         }
 
@@ -146,14 +156,21 @@ async function authenticateJWT(req, res, next) {
         const result = await authenticate(rawToken);
 
         if (result.error) {
-            // In dev mode, let's expose the message to help debugging
             const code = result.error.code;
             const message = process.env.NODE_ENV === 'development' ? result.error.message : (code === 'UNAUTHORIZED' ? 'Authentication required.' : 'Account suspended.');
+            return res.status(result.error.status).json({ status: 'error', code: result.error.code, message });
+        }
 
-            return res.status(result.error.status).json({
+        // Block enforcement — allow /api/me through so the client can read is_blocked and show BlockedScreen
+        // Middleware is global (app.use), so req.originalUrl holds the full path
+        const checkBlocked = isEnabled('security.check_blocked_on_every_request');
+        const isProfileRoute = req.originalUrl === '/api/me' || req.originalUrl.startsWith('/api/me?');
+        if (checkBlocked && result.user.is_blocked && !isProfileRoute) {
+            return res.status(403).json({
                 status: 'error',
-                code: result.error.code,
-                message: message,
+                code: 'FORBIDDEN',
+                message: 'Account suspended.',
+                block_reason: result.user.block_reason || null,
             });
         }
 

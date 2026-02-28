@@ -128,6 +128,46 @@ export default {
     security_validation: 'ସୁରକ୍ଷା ଯାଞ୍ଚ',
     network_activation: 'ନେଟୱାର୍କ ସକ୍ରିୟକରଣ',
     return_to_terminal: 'ଟର୍ମିନାଲ୍ କୁ ଫେରନ୍ତୁ',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'ପୁଣି ନିଅନ୍ତୁ',
+    remove: 'ଅପସାରଣ କରନ୍ତୁ',
+    uploaded_securely: 'ସୁରକ୍ଷିତ ଭାବରେ ଅପଲୋଡ ହୋଇଛି',
+    remove_document: 'ଦଲିଲ ଅପସାରଣ କରିବେ?',
+    confirm_remove_doc: 'ଆପଣ ଏହି ଅପଲୋଡ ଅପସାରଣ କରିବାକୁ ନିଶ୍ଚିତ?',
+    incomplete_info: 'ଅସମ୍ପୂର୍ଣ୍ଣ',
+    please_upload_all_docs: 'ଦୟାକରି ସମସ୍ତ ଦଲିଲ ଅପଲୋଡ କରନ୍ତୁ ଏବଂ ଆଧାର ନମ୍ବର ଦିଅନ୍ତୁ।',
+    uploading_documents: 'ସୁରକ୍ଷିତ ଭାବରେ ଅପଲୋଡ ହେଉଛି...',
+    submitting_application: 'ପଞ୍ଜୀକରଣ ସମ୍ପୂର୍ଣ ହେଉଛି...',
+    protocol_required: 'ପ୍ରୋଟୋକଲ ଆବଶ୍ୟକ',
+    please_read_agreement: 'ଦୟାକରି ଚୁକ୍ତିର ଶେଷ ପର୍ଯ୍ୟନ୍ତ ସ୍କ୍ରୋଲ କରନ୍ତୁ।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ଆକାଉଣ୍ଟ ସ୍ଥଗିତ',
+    account_blocked_desc: 'ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ସାମୟିକ ଭାବରେ ସ୍ଥଗିତ ହୋଇଛି। ସହାୟତା ପାଇଁ ଯୋଗାଯୋଗ କରନ୍ତୁ।',
+    blocked_reason_label: 'ସ୍ଥଗିତ କାରଣ',
+    contact_support_blocked: 'ସହାୟତା ସହ ଯୋଗାଯୋଗ',
+    policy_enforcement: 'ନୀତି ଲଗୁ',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'ପୁଣି ନିଅନ୍ତୁ',
+    remove: 'ଅପସାରଣ କରନ୍ତୁ',
+    uploaded_securely: 'ସୁରକ୍ଷିତ ଭାବରେ ଅପଲୋଡ ହୋଇଛି',
+    remove_document: 'ଦଲିଲ ଅପସାରଣ କରିବେ?',
+    confirm_remove_doc: 'ଆପଣ ଏହି ଅପଲୋଡ ଅପସାରଣ କରିବାକୁ ନିଶ୍ଚିତ?',
+    incomplete_info: 'ଅସମ୍ପୂର୍ଣ୍ଣ',
+    please_upload_all_docs: 'ଦୟାକରି ସମସ୍ତ ଦଲିଲ ଅପଲୋଡ କରନ୍ତୁ ଏବଂ ଆଧାର ନମ୍ବର ଦିଅନ୍ତୁ।',
+    uploading_documents: 'ସୁରକ୍ଷିତ ଭାବରେ ଅପଲୋଡ ହେଉଛି...',
+    submitting_application: 'ପଞ୍ଜୀକରଣ ସମ୍ପୂର୍ଣ ହେଉଛି...',
+    protocol_required: 'ପ୍ରୋଟୋକଲ ଆବଶ୍ୟକ',
+    please_read_agreement: 'ଦୟାକରି ଚୁକ୍ତିର ଶେଷ ପର୍ଯ୍ୟନ୍ତ ସ୍କ୍ରୋଲ କରନ୍ତୁ।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ଆକାଉଣ୍ଟ ସ୍ଥଗିତ',
+    account_blocked_desc: 'ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ସାମୟିକ ଭାବରେ ସ୍ଥଗିତ ହୋଇଛି। ସହାୟତା ପାଇଁ ଯୋଗାଯୋଗ କରନ୍ତୁ।',
+    blocked_reason_label: 'ସ୍ଥଗିତ କାରଣ',
+    contact_support_blocked: 'ସହାୟତା ସହ ଯୋଗାଯୋଗ',
+    policy_enforcement: 'ନୀତି ଲଗୁ',
     notify_encrypted_channel: 'ସକ୍ରିୟ ହେବା ପରେ ଆମେ ଆପଣଙ୍କୁ ଏନକ୍ରିପ୍ଟେଡ୍ ଚ୍ୟାନେଲ୍ ମାଧ୍ୟମରେ ଜଣାଇବୁ।',
 
     // ── Worker Tabs & Overviews ──────────────────────

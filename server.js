@@ -9,6 +9,8 @@ dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}`, override:
 dotenv.config({ override: false }); // fallback to plain .env
 
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 import configLoader from './config/loader.js';
 import { getPool } from './config/database.js';
@@ -26,6 +28,8 @@ import jobsRouter from './routes/jobs.js';
 import paymentRouter from './routes/payment.js';
 import reviewsRouter from './routes/reviews.js';
 import chatRouter from './routes/chat.js';
+import customJobsRouter from './routes/customJobs.js';
+import adminCustomJobsRouter from './routes/admin/customJobs.js';
 import supportRouter from './routes/support/index.js';
 import {
     generalLimiter,
@@ -99,6 +103,13 @@ async function bootstrap() {
     app.use('/api/support', supportRouter); // protected — requires valid JWT
     app.use('/api/jobs/:jobId/chat', chatRouter); // Specific route first
     app.use('/api/jobs', jobsRouter);       // General route second
+    app.use('/api/custom-jobs', customJobsRouter); // Custom jobs
+    app.use('/api/admin/custom-jobs', adminCustomJobsRouter); // Admin custom jobs
+
+    // Serve static admin files
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
 
     // 5. 404 handler
     app.use((_req, res) => {
@@ -115,8 +126,8 @@ async function bootstrap() {
     initCronJobs(); // Added this line
 
     // 8. Start listening
-    app.listen(PORT, () => {
-        console.log(`[Server] Zarva API running on port ${PORT} (${ENV})`);
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`[Server] Zarva API running on port ${PORT} (0.0.0.0) in ${ENV}`);
     });
 }
 

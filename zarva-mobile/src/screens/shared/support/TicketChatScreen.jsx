@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, StyleSheet, TextInput, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ref, onValue, off } from 'firebase/database';
-import { database } from '../../../services/firebase';
-import { colors, spacing, radius } from '../../../design-system/tokens';
-import { fontSize, fontWeight } from '../../../design-system/typography';
+import { database } from '../../../utils/firebase';
+
+
 import { useAuthStore } from '../../../stores/authStore';
 import { useT } from '../../../hooks/useT';
 import apiClient from '../../../services/api/client';
@@ -12,6 +13,8 @@ import PremiumHeader from '../../../components/PremiumHeader';
 import MainBackground from '../../../components/MainBackground';
 
 export default function TicketChatScreen() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const navigation = useNavigation();
     const route = useRoute();
     const t = useT();
@@ -117,7 +120,7 @@ export default function TicketChatScreen() {
             <MainBackground>
                 <PremiumHeader title={t('support_chat', { defaultValue: 'Support Chat' })} onBack={() => navigation.goBack()} />
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color={colors.accent.primary} />
+                    <ActivityIndicator size="large" color={t.brand.primary} />
                 </View>
             </MainBackground>
         );
@@ -173,7 +176,7 @@ export default function TicketChatScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Type a message..."
-                                placeholderTextColor={colors.text.muted}
+                                placeholderTextColor={tTheme.text.tertiary}
                                 value={newMessage}
                                 onChangeText={setNewMessage}
                                 multiline
@@ -195,67 +198,68 @@ export default function TicketChatScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     keyboardView: { flex: 1 },
 
     statusBanner: {
-        padding: spacing[12],
+        padding: t.spacing.md,
         alignItems: 'center',
         borderBottomWidth: 1,
     },
     statusBannerTxt: {
-        fontSize: fontSize.small,
-        fontWeight: fontWeight.bold,
+        fontSize: 12,
+        fontWeight: 'bold',
         letterSpacing: 1,
     },
 
     listContent: {
-        padding: spacing[24],
-        paddingBottom: spacing[40],
-        gap: spacing[16],
+        padding: t.spacing['2xl'],
+        paddingBottom: 40,
+        gap: t.spacing.lg,
     },
     chatStart: {
         alignItems: 'center',
-        paddingVertical: spacing[32],
+        paddingVertical: 32,
         gap: 8,
     },
     chatStartIcon: { fontSize: 40 },
-    chatStartInfo: { color: colors.text.muted, fontSize: fontSize.small, textAlign: 'center', lineHeight: 18 },
+    chatStartInfo: { color: t.text.tertiary, fontSize: 12, textAlign: 'center', lineHeight: 18 },
 
     messageBubble: {
         maxWidth: '85%',
-        padding: spacing[16],
-        borderRadius: radius.lg,
+        padding: t.spacing.lg,
+        borderRadius: t.radius.lg,
     },
     myBubble: {
         alignSelf: 'flex-end',
-        backgroundColor: colors.accent.primary,
+        backgroundColor: t.brand.primary,
         borderBottomRightRadius: 4,
     },
     theirBubble: {
         alignSelf: 'flex-start',
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surfaceRaised,
         borderWidth: 1,
-        borderColor: colors.accent.border + '11',
+        borderColor: t.border.default + '11',
         borderBottomLeftRadius: 4,
     },
     senderName: {
-        color: colors.text.muted,
-        fontSize: fontSize.micro,
-        fontWeight: fontWeight.bold,
+        color: t.text.tertiary,
+        fontSize: 10,
+        fontWeight: 'bold',
         marginBottom: 4,
         letterSpacing: 1,
     },
     messageText: {
-        fontSize: fontSize.body,
+        fontSize: 14,
         lineHeight: 22,
+        color: t.text.primary,
     },
     myText: {
-        color: '#FFFFFF',
+        color: '#FFF',
     },
     theirText: {
-        color: colors.text.primary,
+        color: t.text.primary,
     },
     timeText: {
         fontSize: 10,
@@ -266,36 +270,36 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.7)',
     },
     theirTime: {
-        color: colors.text.muted,
+        color: t.text.tertiary,
     },
 
     inputContainer: {
-        padding: spacing[16],
-        paddingBottom: Platform.OS === 'ios' ? spacing[32] : spacing[16],
-        backgroundColor: colors.background,
+        padding: t.spacing.lg,
+        paddingBottom: Platform.OS === 'ios' ? 32 : t.spacing.lg,
+        backgroundColor: t.background.surface,
         borderTopWidth: 1,
-        borderTopColor: colors.accent.border + '11',
+        borderTopColor: t.border.default + '11',
     },
     disabledText: {
-        color: colors.text.muted,
+        color: t.text.tertiary,
         textAlign: 'center',
         fontStyle: 'italic',
-        fontSize: fontSize.body,
+        fontSize: 14,
     },
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
+        backgroundColor: t.background.surfaceRaised,
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.accent.border + '33',
-        paddingHorizontal: spacing[12],
-        paddingVertical: spacing[8],
+        borderColor: t.border.default + '33',
+        paddingHorizontal: t.spacing.md,
+        paddingVertical: t.spacing.sm,
     },
     input: {
         flex: 1,
-        color: colors.text.primary,
-        fontSize: fontSize.body,
+        color: t.text.primary,
+        fontSize: 14,
         minHeight: 40,
         maxHeight: 120,
         paddingTop: 10,
@@ -305,17 +309,17 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: colors.accent.primary,
+        backgroundColor: t.brand.primary,
         justifyContent: 'center',
         alignItems: 'center',
-        marginLeft: spacing[12],
+        marginLeft: t.spacing.md,
         marginBottom: 2,
     },
     sendButtonDisabled: {
-        backgroundColor: colors.elevated,
+        backgroundColor: t.background.surfaceRaised,
     },
     sendIcon: {
-        color: '#FFFFFF',
+        color: '#FFF',
         fontSize: 18,
         fontWeight: '900',
         marginLeft: 2,

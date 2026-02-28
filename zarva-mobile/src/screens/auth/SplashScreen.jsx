@@ -1,10 +1,13 @@
 import React from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { colors } from '../../design-system/tokens';
+
 import RadarAnimation from '../../components/RadarAnimation';
 import { useT } from '../../hooks/useT';
 
 export default function SplashScreen({ navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     React.useEffect(() => {
         const t = setTimeout(() => navigation.replace('Language'), 2000);
@@ -20,8 +23,8 @@ export default function SplashScreen({ navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.bg.primary, justifyContent: 'center', alignItems: 'center', gap: 20 },
-    brand: { color: colors.accent.primary, fontSize: 42, fontWeight: '800', letterSpacing: 6 },
-    tagline: { color: colors.text.secondary, fontSize: 13, letterSpacing: 1 },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app, justifyContent: 'center', alignItems: 'center', gap: 20 },
+    brand: { color: t.brand.primary, fontSize: 42, fontWeight: '800', letterSpacing: 6 },
+    tagline: { color: t.text.secondary, fontSize: 13, letterSpacing: 1 },
 });

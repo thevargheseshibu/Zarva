@@ -128,6 +128,46 @@ export default {
     security_validation: 'ਸੁਰੱਖਿਆ ਜਾਂਚ',
     network_activation: 'ਨੈੱਟਵਰਕ ਐਕਟੀਵੇਸ਼ਨ',
     return_to_terminal: 'ਟਰਮੀਨਲ \'ਤੇ ਵਾਪਸ ਜਾਓ',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'ਦੁਬਾਰਾ ਲਓ',
+    remove: 'ਹਟਾਓ',
+    uploaded_securely: 'ਸੁਰੱਖਿਅਤ ਢੰਗ ਨਾਲ ਅਪਲੋਡ ਹੋਇਆ',
+    remove_document: 'ਦਸਤਾਵੇਜ਼ ਹਟਾਓ?',
+    confirm_remove_doc: 'ਕੀ ਤੁਸੀਂ ਇਸ ਅਪਲੋਡ ਨੂੰ ਹਟਾਉਣਾ ਚਾਹੁੰਦੇ ਹੋ?',
+    incomplete_info: 'ਅਧੂਰਾ',
+    please_upload_all_docs: 'ਕਿਰਪਾ ਕਰਕੇ ਸਾਰੇ ਦਸਤਾਵੇਜ਼ ਅਪਲੋਡ ਕਰੋ ਅਤੇ ਆਧਾਰ ਨੰਬਰ ਦਿਓ।',
+    uploading_documents: 'ਸੁਰੱਖਿਅਤ ਢੰਗ ਨਾਲ ਅਪਲੋਡ ਹੋ ਰਿਹਾ ਹੈ...',
+    submitting_application: 'ਰਜਿਸਟ੍ਰੇਸ਼ਨ ਮੁਕੰਮਲ ਹੋ ਰਹੀ ਹੈ...',
+    protocol_required: 'ਪ੍ਰੋਟੋਕੋਲ ਲੋੜੀਂਦਾ',
+    please_read_agreement: 'ਕਿਰਪਾ ਕਰਕੇ ਸਮਝੌਤੇ ਦੇ ਅੰਤ ਤੱਕ ਸਕ੍ਰੋਲ ਕਰੋ।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ਖਾਤਾ ਮੁਅੱਤਲ',
+    account_blocked_desc: 'ਤੁਹਾਡਾ ਖਾਤਾ ਅਸਥਾਈ ਤੌਰ \'ਤੇ ਮੁਅੱਤਲ ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ। ਸਹਾਇਤਾ ਲਈ ਸੰਪਰਕ ਕਰੋ।',
+    blocked_reason_label: 'ਮੁਅੱਤਲੀ ਦਾ ਕਾਰਨ',
+    contact_support_blocked: 'ਸਹਾਇਤਾ ਨਾਲ ਸੰਪਰਕ ਕਰੋ',
+    policy_enforcement: 'ਨੀਤੀ ਲਾਗੂ',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'ਦੁਬਾਰਾ ਲਓ',
+    remove: 'ਹਟਾਓ',
+    uploaded_securely: 'ਸੁਰੱਖਿਅਤ ਢੰਗ ਨਾਲ ਅਪਲੋਡ ਹੋਇਆ',
+    remove_document: 'ਦਸਤਾਵੇਜ਼ ਹਟਾਓ?',
+    confirm_remove_doc: 'ਕੀ ਤੁਸੀਂ ਇਸ ਅਪਲੋਡ ਨੂੰ ਹਟਾਉਣਾ ਚਾਹੁੰਦੇ ਹੋ?',
+    incomplete_info: 'ਅਧੂਰਾ',
+    please_upload_all_docs: 'ਕਿਰਪਾ ਕਰਕੇ ਸਾਰੇ ਦਸਤਾਵੇਜ਼ ਅਪਲੋਡ ਕਰੋ ਅਤੇ ਆਧਾਰ ਨੰਬਰ ਦਿਓ।',
+    uploading_documents: 'ਸੁਰੱਖਿਅਤ ਢੰਗ ਨਾਲ ਅਪਲੋਡ ਹੋ ਰਿਹਾ ਹੈ...',
+    submitting_application: 'ਰਜਿਸਟ੍ਰੇਸ਼ਨ ਮੁਕੰਮਲ ਹੋ ਰਹੀ ਹੈ...',
+    protocol_required: 'ਪ੍ਰੋਟੋਕੋਲ ਲੋੜੀਂਦਾ',
+    please_read_agreement: 'ਕਿਰਪਾ ਕਰਕੇ ਸਮਝੌਤੇ ਦੇ ਅੰਤ ਤੱਕ ਸਕ੍ਰੋਲ ਕਰੋ।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ਖਾਤਾ ਮੁਅੱਤਲ',
+    account_blocked_desc: 'ਤੁਹਾਡਾ ਖਾਤਾ ਅਸਥਾਈ ਤੌਰ \'ਤੇ ਮੁਅੱਤਲ ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ। ਸਹਾਇਤਾ ਲਈ ਸੰਪਰਕ ਕਰੋ।',
+    blocked_reason_label: 'ਮੁਅੱਤਲੀ ਦਾ ਕਾਰਨ',
+    contact_support_blocked: 'ਸਹਾਇਤਾ ਨਾਲ ਸੰਪਰਕ ਕਰੋ',
+    policy_enforcement: 'ਨੀਤੀ ਲਾਗੂ',
     notify_encrypted_channel: 'ਅਸੀਂ ਤੁਹਾਨੂੰ ਐਨਕ੍ਰਿਪਟਡ ਚੈਨਲ ਰਾਹੀਂ ਸੂਚਿਤ ਕਰਾਂਗੇ ਜਦੋਂ ਇਹ ਕਿਰਿਆਸ਼ੀਲ ਹੋ ਜਾਵੇਗਾ।',
 
     // ── Worker Tabs & Overviews ──────────────────────

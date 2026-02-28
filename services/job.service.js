@@ -8,8 +8,9 @@ import configLoader from '../config/loader.js';
 import { generateEstimate, calculatePricing } from '../utils/pricingEngine.js';
 import * as matchingEngine from './matchingEngine.js';
 import { processLocation } from './location.service.js';
-
 import coverageService from './coverage.service.js';
+import * as PricingService from './pricing.service.js';
+import { updateJobStatus } from './firebase.service.js';
 
 /**
  * Validates a photo_s3_key to ensure it exists and belongs to the user.
@@ -55,7 +56,9 @@ export async function createJob(customerId, payload, idempotencyKey, pool) {
         customer_lat,
         customer_lng,
         pincode,
+        district,
         customer_address,
+        customer_address_detail,
         estimated_hours,
         is_emergency,
         scheduled_for
@@ -70,7 +73,8 @@ export async function createJob(customerId, payload, idempotencyKey, pool) {
         latitude: customer_lat,
         longitude: customer_lng,
         pincode: pincode,
-        city: 'Kochi'
+        city: 'Kochi',
+        district: district
     });
 
     // CRITICAL - Verify serviceability BEFORE creating job
@@ -83,7 +87,7 @@ export async function createJob(customerId, payload, idempotencyKey, pool) {
     if (!coverage.is_serviceable) {
         // Log unserviceable request asynchronously
         import('./analytics.service.js').then(m => {
-            m.default.logUnserviceableRequest(locationInfo.latitude, locationInfo.longitude, category);
+            m.default.logUnserviceableRequest(locationInfo.latitude, locationInfo.longitude, category, locationInfo.district);
         }).catch(err => console.error(err));
 
         throw Object.assign(new Error(`Sorry, we don't have ${category} workers available in this area yet. Nearest worker is ${coverage.nearest_worker_distance_km ? coverage.nearest_worker_distance_km.toFixed(1) : 'unknown'} km away.`), {
@@ -96,26 +100,21 @@ export async function createJob(customerId, payload, idempotencyKey, pool) {
         });
     }
 
-    // 2. Load Configs & Compute Exact Pricing bindings
-    const pricingConfig = configLoader.get('jobs');
-    if (!pricingConfig.categories[category]) {
-        throw Object.assign(new Error(`Invalid category: ${category}`), { status: 400 });
-    }
-
-    // 3. Optional S3 Key validation
-    if (photo_s3_key) {
-        await validatePhotoKey(customerId, photo_s3_key, pool);
-    }
-
-    // Compute locked-in rates and constraints
-    const lockedHours = estimated_hours || pricingConfig.categories[category].min_hours;
-    const pricingBreakdown = calculatePricing({
+    // 2. Resolve Hourly Rate and Lock it in
+    const pricing = PricingService.resolveHourlyRate(
         category,
-        hours: lockedHours,
-        travelKm: 0,
-        isEmergency: Boolean(is_emergency),
-        scheduledAt: scheduled_for
-    }, pricingConfig);
+        locationInfo.city,
+        locationInfo.district, // Note: using district as stateName proxy if state is missing in locationInfo
+        locationInfo.pincode,
+        is_emergency ? 1.5 : 1.0
+    );
+
+    // Update pricing for standard billing fields
+    const rate_per_hour = pricing.hourly_rate;
+    const travel_charge = 0; // Set to 0 at job creation, calculated at worker arrival
+    const advance_amount = 0; // As per new design, we focus on hourly logic
+    const platform_fee = 0;
+    const total_amount = 0;
 
     const scheduledDate = scheduled_for ? new Date(scheduled_for) : null;
     let jobId = null;
@@ -125,16 +124,18 @@ export async function createJob(customerId, payload, idempotencyKey, pool) {
         const [rows] = await pool.query(
             `INSERT INTO jobs (
                 idempotency_key, customer_id, category, status,
-                address, job_location, location_source, latitude, longitude, pincode, city,
+                address, customer_address_detail, job_location, location_source, latitude, longitude, pincode, city, district,
                 description, scheduled_at,
-                rate_per_hour, advance_amount, travel_charge, platform_fee, total_amount
-            ) VALUES ($1, $2, $3, 'open', $4, ST_GeogFromText($5), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+                rate_per_hour, advance_amount, travel_charge, platform_fee, total_amount, metadata
+            ) VALUES ($1, $2, $3, 'open', $4, $5, ST_GeogFromText($6), $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id`,
             [
-                idempotencyKey, customerId, category, customer_address, locationInfo.location, locationInfo.location_source,
-                locationInfo.latitude, locationInfo.longitude, locationInfo.pincode, locationInfo.city,
+                idempotencyKey, customerId, category, customer_address,
+                JSON.stringify(customer_address_detail || {}),
+                locationInfo.location, locationInfo.location_source,
+                locationInfo.latitude, locationInfo.longitude, locationInfo.pincode, locationInfo.city, locationInfo.district,
                 description || null, scheduledDate,
-                pricingConfig.categories[category].rate_per_hour, pricingBreakdown.advance_amount,
-                pricingBreakdown.travel_charge, pricingBreakdown.platform_fee, pricingBreakdown.total_amount
+                rate_per_hour, advance_amount, travel_charge, platform_fee, total_amount,
+                JSON.stringify({ resolved_via: pricing.resolved_via, tier: pricing.tier })
             ]
         );
         jobId = rows[0].id;
@@ -150,6 +151,10 @@ export async function createJob(customerId, payload, idempotencyKey, pool) {
 
     // Immediately mutate to 'searching'
     await pool.query(`UPDATE jobs SET status = 'searching' WHERE id = $1`, [jobId]);
+
+    // Initialize Firebase visibility (status: 'searching')
+    await updateJobStatus(jobId, 'searching').catch(e => console.error(`[JobService] Firebase status init failed for ${jobId}:`, e.message));
+
 
     // 5. Fire Matching Engine asynchronously
     console.log(`[JobService] Job ${jobId} created and moved to 'searching'. Triggering Matching Engine...`);

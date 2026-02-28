@@ -1,8 +1,9 @@
 import React from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { colors, spacing } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+
+
 import { useT } from '../../../hooks/useT';
 import MainBackground from '../../../components/MainBackground';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
@@ -10,6 +11,8 @@ import FadeInView from '../../../components/FadeInView';
 import PremiumHeader from '../../../components/PremiumHeader';
 
 export default function SupportHomeScreen() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const navigation = useNavigation();
     const t = useT();
 
@@ -65,7 +68,7 @@ export default function SupportHomeScreen() {
                         style={[styles.optionCard, styles.historyCard]}
                         onPress={() => navigation.navigate('TicketList')}
                     >
-                        <View style={[styles.iconCircle, { backgroundColor: colors.surface }]}>
+                        <View style={[styles.iconCircle, { backgroundColor: tTheme.background.surface }]}>
                             <Text style={styles.iconTxt}>📋</Text>
                         </View>
                         <View style={styles.optionTextContainer}>
@@ -80,49 +83,49 @@ export default function SupportHomeScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     content: {
         flex: 1,
-        padding: spacing[24],
-        paddingTop: spacing[32],
+        padding: t.spacing['2xl'],
+        paddingTop: t.spacing[32],
     },
     subtitle: {
-        color: colors.text.primary,
-        fontSize: fontSize.title,
-        fontWeight: fontWeight.bold,
-        marginBottom: spacing[8],
-        letterSpacing: tracking.title,
+        color: t.text.primary,
+        fontSize: t.typography.size.title,
+        fontWeight: t.typography.weight.bold,
+        marginBottom: t.spacing.sm,
+        letterSpacing: t.typography.tracking.title,
     },
     description: {
-        color: colors.text.secondary,
-        fontSize: fontSize.body,
+        color: t.text.secondary,
+        fontSize: t.typography.size.body,
         lineHeight: 24,
-        marginBottom: spacing[32],
+        marginBottom: t.spacing[32],
     },
     optionsContainer: {
-        gap: spacing[16],
+        gap: t.spacing.lg,
     },
     optionCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        padding: spacing[20],
+        backgroundColor: t.background.surface,
+        padding: t.spacing[20],
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: colors.accent.border + '22',
+        borderColor: t.border.default + '22',
     },
     historyCard: {
-        backgroundColor: colors.elevated,
-        borderColor: colors.elevated,
+        backgroundColor: t.background.surfaceRaised,
+        borderColor: t.background.surfaceRaised,
     },
     iconCircle: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: colors.elevated,
+        backgroundColor: t.background.surfaceRaised,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: spacing[16],
+        marginRight: t.spacing.lg,
     },
     iconTxt: {
         fontSize: 24,
@@ -131,20 +134,20 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     optionTitle: {
-        color: colors.text.primary,
-        fontSize: fontSize.body,
-        fontWeight: fontWeight.bold,
+        color: t.text.primary,
+        fontSize: t.typography.size.body,
+        fontWeight: t.typography.weight.bold,
         marginBottom: 4,
     },
     optionDesc: {
-        color: colors.text.muted,
-        fontSize: fontSize.small,
+        color: t.text.tertiary,
+        fontSize: t.typography.size.small,
         lineHeight: 18,
     },
     chevron: {
-        color: colors.accent.primary,
+        color: t.brand.primary,
         fontSize: 28,
         fontWeight: '200',
-        marginLeft: spacing[8],
+        marginLeft: t.spacing.sm,
     }
 });

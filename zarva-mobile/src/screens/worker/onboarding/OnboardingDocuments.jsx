@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Alert, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+
+
 import PremiumButton from '../../../components/PremiumButton';
 import apiClient from '../../../services/api/client';
 import FadeInView from '../../../components/FadeInView';
@@ -35,6 +36,8 @@ async function uploadImage(uri, docKey) {
 }
 
 export default function OnboardingDocuments({ data, onNext }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
 
     const DOCS = [
@@ -130,7 +133,7 @@ export default function OnboardingDocuments({ data, onNext }) {
                             value={aadhaarNumber}
                             onChangeText={t => setAadhaarNumber(t.replace(/[^0-9]/g, ''))}
                             placeholder="0000 0000 0000"
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={t.text.tertiary}
                             keyboardType="number-pad"
                             maxLength={12}
                         />
@@ -193,47 +196,47 @@ export default function OnboardingDocuments({ data, onNext }) {
     );
 }
 
-const styles = StyleSheet.create({
-    scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
-    headerSub: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
-    sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
+const createStyles = (t) => StyleSheet.create({
+    scrollContent: { padding: t.spacing['2xl'], gap: t.spacing[32], paddingBottom: 60 },
+    headerSub: { color: t.text.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    title: { color: t.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: t.typography.tracking.hero, marginTop: 4 },
+    sub: { color: t.text.tertiary, fontSize: t.typography.size.body, lineHeight: 24, marginTop: 8 },
 
     section: { gap: 12 },
-    label: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    label: { color: t.text.primary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
 
-    inputCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface },
+    inputCard: { backgroundColor: t.background.surface, padding: 4, borderWidth: 1, borderColor: t.background.surface },
     input: {
         paddingHorizontal: 16, paddingVertical: 14,
-        color: colors.text.primary, fontSize: 24, fontWeight: '900', letterSpacing: 4, textAlign: 'center'
+        color: t.text.primary, fontSize: 24, fontWeight: '900', letterSpacing: 4, textAlign: 'center'
     },
 
     docGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
     docItem: { width: '47%' },
     docCard: {
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
         padding: 12,
         gap: 12,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
-    docCardActive: { borderColor: colors.accent.primary + '44' },
-    docCardError: { borderColor: colors.danger + '44' },
+    docCardActive: { borderColor: t.brand.primary + '44' },
+    docCardError: { borderColor: t.status.error.base + '44' },
 
-    docPreviewWrap: { width: '100%', aspectRatio: 1.2, borderRadius: radius.lg, backgroundColor: colors.elevated, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+    docPreviewWrap: { width: '100%', aspectRatio: 1.2, borderRadius: t.radius.lg, backgroundColor: t.background.surfaceRaised, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
     docPreview: { width: '100%', height: '100%', resizeMode: 'cover', opacity: 0.8 },
     docPlaceholder: { alignItems: 'center', gap: 8 },
     docIcon: { fontSize: 32 },
 
     loaderOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-    successDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent.primary },
-    errorDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger },
+    successDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: t.brand.primary },
+    errorDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: t.status.error.base },
 
     docInfo: { gap: 2 },
-    docLabel: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    docStatus: { color: colors.text.muted, fontSize: 7, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
-    statusError: { color: colors.danger },
+    docLabel: { color: t.text.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    docStatus: { color: t.text.tertiary, fontSize: 7, fontWeight: t.typography.weight.bold, letterSpacing: 0.5 },
+    statusError: { color: t.status.error.base },
 
-    footer: { marginTop: spacing[16] }
+    footer: { marginTop: t.spacing.lg }
 });

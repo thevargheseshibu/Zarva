@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
@@ -7,10 +8,12 @@ import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 
 export default function RatingScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || {};
 
@@ -101,7 +104,7 @@ export default function RatingScreen({ route, navigation }) {
                     <Text style={[
                         styles.star,
                         { fontSize: size },
-                        star <= value ? { color: colors.accent.primary } : { color: colors.surface }
+                        star <= value ? { color: tTheme.brand.primary } : { color: tTheme.background.surface }
                     ]}>
                         {star <= value ? '★' : '☆'}
                     </Text>
@@ -113,7 +116,7 @@ export default function RatingScreen({ route, navigation }) {
     if (fetchLoading) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={colors.accent.primary} />
+                <ActivityIndicator size="large" color={tTheme.brand.primary} />
             </View>
         );
     }
@@ -184,12 +187,12 @@ export default function RatingScreen({ route, navigation }) {
                                 <TextInput
                                     style={[styles.input, isReadOnly && styles.inputDisabled]}
                                     placeholder={t('add_details_experience')}
-                                    placeholderTextColor={colors.text.muted}
+                                    placeholderTextColor={tTheme.text.tertiary}
                                     value={comment}
                                     onChangeText={setComment}
                                     multiline
                                     editable={!isReadOnly}
-                                    selectionColor={colors.accent.primary}
+                                    selectionColor={tTheme.brand.primary}
                                 />
                             </View>
                         </Card>
@@ -210,65 +213,65 @@ export default function RatingScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 18 },
-    skipTxt: { color: colors.accent.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 18 },
+    skipTxt: { color: t.brand.primary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
-    profileBox: { alignItems: 'center', gap: spacing[16], marginBottom: spacing[40] },
+    profileBox: { alignItems: 'center', gap: t.spacing.lg, marginBottom: t.spacing[40] },
     photoContainer: { position: 'relative' },
-    photo: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: colors.accent.border },
+    photo: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: t.border.default },
     ratingBadge: {
         position: 'absolute',
         bottom: -10,
         alignSelf: 'center',
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         paddingHorizontal: 12,
         paddingVertical: 4,
-        borderRadius: radius.full,
+        borderRadius: t.radius.full,
         borderWidth: 1,
-        borderColor: colors.accent.border,
-        ...shadows.premium
+        borderColor: t.border.default,
+        ...t.shadows.premium
     },
-    ratingBadgeTxt: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold },
+    ratingBadgeTxt: { color: t.text.primary, fontSize: 10, fontWeight: t.typography.weight.bold },
 
-    title: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero, textAlign: 'center' },
-    sub: { color: colors.text.secondary, fontSize: fontSize.body, textAlign: 'center', paddingHorizontal: spacing[32] },
+    title: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.hero, textAlign: 'center' },
+    sub: { color: t.text.secondary, fontSize: t.typography.size.body, textAlign: 'center', paddingHorizontal: t.spacing[32] },
 
-    mainRatingBox: { alignItems: 'center', gap: spacing[12], marginBottom: spacing[40] },
-    starRow: { flexDirection: 'row', gap: spacing[8], justifyContent: 'center' },
+    mainRatingBox: { alignItems: 'center', gap: t.spacing.md, marginBottom: t.spacing[40] },
+    starRow: { flexDirection: 'row', gap: t.spacing.sm, justifyContent: 'center' },
     star: { textShadowColor: 'rgba(189, 0, 255, 0.3)', textShadowOffset: { width: 0, height: 4 }, textShadowRadius: 10 },
-    ratingLabel: { color: colors.accent.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    ratingLabel: { color: t.brand.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
 
-    metricsCard: { padding: spacing[24], gap: spacing[20] },
+    metricsCard: { padding: t.spacing['2xl'], gap: t.spacing[20] },
     metricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    metricLabel: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
+    metricLabel: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.semibold },
 
-    commentWrap: { marginTop: spacing[12], gap: 8 },
-    commentLabel: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    commentWrap: { marginTop: t.spacing.md, gap: 8 },
+    commentLabel: { color: t.text.tertiary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
     input: {
-        backgroundColor: colors.elevated,
-        borderRadius: radius.lg,
-        padding: spacing[16],
-        color: colors.text.primary,
-        fontSize: fontSize.body,
+        backgroundColor: t.background.surfaceRaised,
+        borderRadius: t.radius.lg,
+        padding: t.spacing.lg,
+        color: t.text.primary,
+        fontSize: t.typography.size.body,
         minHeight: 120,
         textAlignVertical: 'top',
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
-    inputDisabled: { opacity: 0.7, backgroundColor: colors.surface },
+    inputDisabled: { opacity: 0.7, backgroundColor: t.background.surface },
 
-    footer: { marginTop: spacing[48] }
+    footer: { marginTop: t.spacing[48] }
 });

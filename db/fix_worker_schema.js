@@ -21,7 +21,9 @@ async function run() {
             ADD COLUMN IF NOT EXISTS gender VARCHAR(20) NULL,
             ADD COLUMN IF NOT EXISTS experience_years VARCHAR(50) NULL,
             ADD COLUMN IF NOT EXISTS service_range INT NOT NULL DEFAULT 20,
-            ADD COLUMN IF NOT EXISTS skills JSONB NOT NULL DEFAULT '[]';
+            ADD COLUMN IF NOT EXISTS skills JSONB NOT NULL DEFAULT '[]',
+            ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) NULL,
+            ADD COLUMN IF NOT EXISTS payment_details JSONB NULL;
             
             ALTER TABLE worker_profiles ALTER COLUMN experience_years TYPE VARCHAR(50);
         `);

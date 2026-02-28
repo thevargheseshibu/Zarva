@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
+import { useTokens } from '../design-system';
 import { View, Text, Animated, Easing, StyleSheet, Modal, Dimensions } from 'react-native';
-import { colors, radius, spacing } from '../design-system/tokens';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -16,8 +17,10 @@ export default function ZLoader({
     fullScreen = false,
     message = "Processing...",
     size = 80,
-    color = colors.accent.primary
+    color = '#7C3AED' // Default Zarva Purple
 }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const spinAnim = useRef(new Animated.Value(0)).current;
     const pulseAnim = useRef(new Animated.Value(0)).current;
 
@@ -166,7 +169,7 @@ export default function ZLoader({
     return content;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(5, 5, 8, 0.92)', // Deep dark premium overlay
@@ -198,7 +201,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     message: {
-        color: colors.text.primary,
+        color: t.text.primary,
         fontSize: 14,
         fontWeight: '700',
         letterSpacing: 1.5,

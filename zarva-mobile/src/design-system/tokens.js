@@ -24,6 +24,12 @@ export const colors = {
     success: '#10B981', // Crisp green
     warning: '#F59E0B',
     danger: '#EF4444',
+    status: {
+        error: '#EF4444',
+        success: '#10B981',
+        warning: '#F59E0B',
+    },
+    border: 'rgba(124, 58, 237, 0.2)', // Global border alias
 
     // ✍️ Text System (High Contrast Readability)
     text: {

@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
-import { fontSize, fontWeight } from '../../../design-system/typography';
+
+
 import PremiumButton from '../../../components/PremiumButton';
 import coverageApi from '../../../services/api/coverageApi';
 
 const RADIUS_OPTIONS = [5, 10, 20, 30, 50];
 
 export default function ServiceAreaSetupScreen({ data, onNext }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const [loading, setLoading] = useState(false);
     const [location, setLocation] = useState(null);
     const [radiusKm, setRadiusKm] = useState(20);
@@ -150,27 +153,27 @@ export default function ServiceAreaSetupScreen({ data, onNext }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     container: { flex: 1 },
-    content: { padding: spacing[24], paddingBottom: 60, gap: spacing[24] },
-    headerBox: { marginBottom: spacing[8] },
-    title: { fontSize: fontSize['3xl'], fontWeight: fontWeight.bold, color: colors.text.primary, marginBottom: spacing[8] },
-    subtitle: { fontSize: fontSize.base, color: colors.text.secondary, lineHeight: 22 },
-    section: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing[20], ...shadows.sm, borderWidth: 1, borderColor: colors.border },
-    label: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: colors.text.primary, marginBottom: spacing[12] },
+    content: { padding: t.spacing['2xl'], paddingBottom: 60, gap: t.spacing['2xl'] },
+    headerBox: { marginBottom: t.spacing.sm },
+    title: { fontSize: fontSize['3xl'], fontWeight: t.typography.weight.bold, color: t.text.primary, marginBottom: t.spacing.sm },
+    subtitle: { fontSize: t.typography.size.base, color: t.text.secondary, lineHeight: 22 },
+    section: { backgroundColor: t.background.surface, borderRadius: t.radius.xl, padding: t.spacing[20], ...t.shadows.sm, borderWidth: 1, borderColor: t.border.default },
+    label: { fontSize: t.typography.size.lg, fontWeight: t.typography.weight.semibold, color: t.text.primary, marginBottom: t.spacing.md },
 
-    locationBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background, padding: spacing[16], borderRadius: radius.lg, gap: spacing[12] },
+    locationBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.background.app, padding: t.spacing.lg, borderRadius: t.radius.lg, gap: t.spacing.md },
     emoji: { fontSize: 24 },
-    locText: { color: colors.success, fontWeight: fontWeight.medium, fontSize: fontSize.base },
-    locSub: { color: colors.text.secondary, fontSize: fontSize.sm, marginTop: 4 },
-    locWait: { color: colors.warning, fontStyle: 'italic' },
+    locText: { color: t.status.success.base, fontWeight: t.typography.weight.medium, fontSize: t.typography.size.base },
+    locSub: { color: t.text.secondary, fontSize: t.typography.size.sm, marginTop: 4 },
+    locWait: { color: t.status.warning.base, fontStyle: 'italic' },
 
-    radiusDesc: { color: colors.accent.primary, fontSize: fontSize.base, fontWeight: fontWeight.medium, marginBottom: spacing[16] },
-    radiusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[12] },
-    radiusChip: { flex: 1, minWidth: '28%', paddingVertical: spacing[12], alignItems: 'center', backgroundColor: colors.background, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
-    radiusChipActive: { backgroundColor: colors.accent.primary + '22', borderColor: colors.accent.primary },
-    radiusText: { color: colors.text.primary, fontWeight: fontWeight.medium, fontSize: fontSize.base },
-    radiusTextActive: { color: colors.accent.primary, fontWeight: fontWeight.bold },
+    radiusDesc: { color: t.brand.primary, fontSize: t.typography.size.base, fontWeight: t.typography.weight.medium, marginBottom: t.spacing.lg },
+    radiusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.md },
+    radiusChip: { flex: 1, minWidth: '28%', paddingVertical: t.spacing.md, alignItems: 'center', backgroundColor: t.background.app, borderRadius: t.radius.lg, borderWidth: 1, borderColor: t.border.default },
+    radiusChipActive: { backgroundColor: t.brand.primary + '22', borderColor: t.brand.primary },
+    radiusText: { color: t.text.primary, fontWeight: t.typography.weight.medium, fontSize: t.typography.size.base },
+    radiusTextActive: { color: t.brand.primary, fontWeight: t.typography.weight.bold },
 
-    warningText: { marginTop: spacing[16], fontSize: fontSize.sm, color: colors.warning, fontStyle: 'italic', lineHeight: 20 }
+    warningText: { marginTop: t.spacing.lg, fontSize: t.typography.size.sm, color: t.status.warning.base, fontStyle: 'italic', lineHeight: 20 }
 });

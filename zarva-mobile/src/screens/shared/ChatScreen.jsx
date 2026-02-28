@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ActivityIndicator, Keyboard } from 'react-native';
 import { ref, onValue, off } from 'firebase/database';
 import { db } from '../../utils/firebase';
 import * as chatApi from '../../services/api/chatApi';
 import { useT } from '../../hooks/useT';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import dayjs from 'dayjs';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
 export default function ChatScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId, userRole, otherUserId } = route.params;
 
@@ -193,7 +196,7 @@ export default function ChatScreen({ route, navigation }) {
                     )}
                     <Text style={[styles.timeText, isMe && styles.timeTextMe]}>
                         {dayjs(item.created_at).format('h:mm A')}
-                        {item.is_error && <Text style={{ color: colors.danger }}> • Failed</Text>}
+                        {item.is_error && <Text style={{ color: t.status.error.base }}> • Failed</Text>}
                     </Text>
                 </View>
             </View>
@@ -220,7 +223,7 @@ export default function ChatScreen({ route, navigation }) {
 
             {loading ? (
                 <View style={styles.loadingWrap}>
-                    <ActivityIndicator size="large" color={colors.accent.primary} />
+                    <ActivityIndicator size="large" color={t.brand.primary} />
                 </View>
             ) : (
                 <FlatList
@@ -233,7 +236,7 @@ export default function ChatScreen({ route, navigation }) {
                     showsVerticalScrollIndicator={false}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.5}
-                    ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.accent.primary} style={{ padding: 20 }} /> : null}
+                    ListFooterComponent={loadingMore ? <ActivityIndicator color={t.brand.primary} style={{ padding: 20 }} /> : null}
                 />
             )}
 
@@ -242,7 +245,7 @@ export default function ChatScreen({ route, navigation }) {
                 <TextInput
                     style={styles.input}
                     placeholder={t('type_a_message')}
-                    placeholderTextColor={colors.text.muted}
+                    placeholderTextColor={t.text.tertiary}
                     value={input}
                     onChangeText={handleTextChange}
                     multiline
@@ -260,31 +263,31 @@ export default function ChatScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing.lg,
+        paddingHorizontal: t.spacing.lg,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing.sm,
-        backgroundColor: colors.surface,
+        paddingBottom: t.spacing.sm,
+        backgroundColor: t.background.surface,
         borderBottomWidth: 1,
-        borderBottomColor: colors.elevated
+        borderBottomColor: t.background.surfaceRaised
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
     headerCenter: { alignItems: 'center' },
-    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
-    typingTxt: { color: colors.accent.primary, fontSize: 10, fontStyle: 'italic', position: 'absolute', bottom: -12 },
+    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
+    typingTxt: { color: t.brand.primary, fontSize: 10, fontStyle: 'italic', position: 'absolute', bottom: -12 },
 
     loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    listContent: { paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: spacing.sm },
+    listContent: { paddingHorizontal: t.spacing.md, paddingBottom: t.spacing.md, gap: t.spacing.sm },
 
-    systemMessageWrap: { alignItems: 'center', marginVertical: spacing.md },
-    systemMessage: { backgroundColor: colors.elevated, paddingHorizontal: 16, paddingVertical: 6, borderRadius: radius.full },
-    systemText: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold },
+    systemMessageWrap: { alignItems: 'center', marginVertical: t.spacing.md },
+    systemMessage: { backgroundColor: t.background.surfaceRaised, paddingHorizontal: 16, paddingVertical: 6, borderRadius: t.radius.full },
+    systemText: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold },
 
     messageRow: { flexDirection: 'row', width: '100%', marginVertical: 4 },
     messageRowMe: { justifyContent: 'flex-end' },
@@ -292,36 +295,36 @@ const styles = StyleSheet.create({
 
     messageBubble: {
         maxWidth: '80%',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        borderRadius: radius.xl,
+        paddingHorizontal: t.spacing.lg,
+        paddingVertical: t.spacing.md,
+        borderRadius: t.radius.xl,
     },
     messageBubbleThem: {
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         borderBottomLeftRadius: 4,
         borderWidth: 1,
-        borderColor: colors.elevated
+        borderColor: t.background.surfaceRaised
     },
     messageBubbleMe: {
-        backgroundColor: colors.accent.primary,
+        backgroundColor: t.brand.primary,
         borderBottomRightRadius: 4,
-        ...shadows.accentGlow
+        ...t.shadows.accentGlow
     },
     messageText: {
-        color: colors.text.primary,
-        fontSize: fontSize.caption,
+        color: t.text.primary,
+        fontSize: t.typography.size.caption,
         lineHeight: 22
     },
     messageTextMe: {
-        color: '#FFFFFF'
+        color: 't.text.primary'
     },
     deletedText: {
         fontStyle: 'italic',
-        color: colors.text.muted
+        color: t.text.tertiary
     },
     timeText: {
         fontSize: 9,
-        color: colors.text.muted,
+        color: t.text.tertiary,
         marginTop: 4,
         alignSelf: 'flex-end'
     },
@@ -332,37 +335,37 @@ const styles = StyleSheet.create({
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        paddingBottom: Platform.OS === 'ios' ? 30 : spacing.md,
-        backgroundColor: colors.surface,
+        paddingHorizontal: t.spacing.md,
+        paddingVertical: t.spacing.sm,
+        paddingBottom: Platform.OS === 'ios' ? 30 : t.spacing.md,
+        backgroundColor: t.background.surface,
         borderTopWidth: 1,
-        borderTopColor: colors.elevated
+        borderTopColor: t.background.surfaceRaised
     },
     input: {
         flex: 1,
-        backgroundColor: colors.elevated,
-        color: colors.text.primary,
-        borderRadius: radius.lg,
-        paddingHorizontal: spacing.md,
+        backgroundColor: t.background.surfaceRaised,
+        color: t.text.primary,
+        borderRadius: t.radius.lg,
+        paddingHorizontal: t.spacing.md,
         paddingTop: 12,
         paddingBottom: 12,
         minHeight: 44,
         maxHeight: 120,
-        fontSize: fontSize.body
+        fontSize: t.typography.size.body
     },
     sendBtn: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: colors.accent.primary,
+        backgroundColor: t.brand.primary,
         justifyContent: 'center',
         alignItems: 'center',
-        marginLeft: spacing.sm,
+        marginLeft: t.spacing.sm,
         marginBottom: 2
     },
     sendBtnDisabled: {
-        backgroundColor: colors.elevated
+        backgroundColor: t.background.surfaceRaised
     },
     sendIcon: {
         color: '#FFF',
@@ -370,6 +373,6 @@ const styles = StyleSheet.create({
         marginLeft: 2
     },
     sendIconDisabled: {
-        color: colors.text.muted
+        color: t.text.tertiary
     }
 });

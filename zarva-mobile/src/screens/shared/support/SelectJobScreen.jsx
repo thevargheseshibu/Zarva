@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { colors, spacing } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+
+
 import { useT } from '../../../hooks/useT';
 import apiClient from '../../../services/api/client';
 import PremiumHeader from '../../../components/PremiumHeader';
@@ -10,6 +11,8 @@ import MainBackground from '../../../components/MainBackground';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
 
 export default function SelectJobScreen() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const navigation = useNavigation();
     const t = useT();
 
@@ -43,7 +46,7 @@ export default function SelectJobScreen() {
             <MainBackground>
                 <PremiumHeader title={t('select_job', { defaultValue: 'Select a Job' })} onBack={() => navigation.goBack()} />
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color={colors.accent.primary} />
+                    <ActivityIndicator size="large" color={t.brand.primary} />
                 </View>
             </MainBackground>
         );
@@ -99,35 +102,35 @@ export default function SelectJobScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     content: { flex: 1 },
     prompt: {
-        color: colors.text.secondary,
-        fontSize: fontSize.body,
-        marginHorizontal: spacing[24],
-        marginTop: spacing[24],
-        marginBottom: spacing[16],
+        color: t.text.secondary,
+        fontSize: t.typography.size.body,
+        marginHorizontal: t.spacing['2xl'],
+        marginTop: t.spacing['2xl'],
+        marginBottom: t.spacing.lg,
     },
     list: {
-        paddingHorizontal: spacing[24],
-        paddingBottom: spacing[40],
-        gap: spacing[12],
+        paddingHorizontal: t.spacing['2xl'],
+        paddingBottom: t.spacing[40],
+        gap: t.spacing.md,
     },
 
     empty: {
         alignItems: 'center',
         paddingTop: 60,
     },
-    emptyIcon: { fontSize: 40, marginBottom: spacing[16] },
-    emptyTxt: { color: colors.text.muted, fontSize: fontSize.body, textAlign: 'center' },
+    emptyIcon: { fontSize: 40, marginBottom: t.spacing.lg },
+    emptyTxt: { color: t.text.tertiary, fontSize: t.typography.size.body, textAlign: 'center' },
 
     card: {
-        backgroundColor: colors.surface,
-        padding: spacing[16],
+        backgroundColor: t.background.surface,
+        padding: t.spacing.lg,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: colors.accent.border + '22',
+        borderColor: t.border.default + '22',
         position: 'relative'
     },
     cardTop: {
@@ -137,15 +140,15 @@ const styles = StyleSheet.create({
         paddingRight: 24
     },
     cardTitle: {
-        color: colors.text.primary,
-        fontSize: fontSize.body,
-        fontWeight: fontWeight.bold,
+        color: t.text.primary,
+        fontSize: t.typography.size.body,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 1
     },
     cardStatus: {
-        color: colors.accent.primary,
-        fontSize: fontSize.micro,
-        fontWeight: fontWeight.bold,
+        color: t.brand.primary,
+        fontSize: t.typography.size.micro,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 1
     },
     cardBottom: {
@@ -154,18 +157,18 @@ const styles = StyleSheet.create({
         paddingRight: 24
     },
     cardId: {
-        color: colors.text.muted,
-        fontSize: fontSize.small
+        color: t.text.tertiary,
+        fontSize: t.typography.size.small
     },
     cardDate: {
-        color: colors.text.muted,
-        fontSize: fontSize.small
+        color: t.text.tertiary,
+        fontSize: t.typography.size.small
     },
     chevron: {
         position: 'absolute',
         right: 16,
         top: '50%',
-        color: colors.accent.primary,
+        color: t.brand.primary,
         fontSize: 24,
         fontWeight: '200',
         transform: [{ translateY: -12 }]

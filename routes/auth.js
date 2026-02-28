@@ -111,9 +111,9 @@ router.post('/verify-otp', normalizePhone, async (req, res) => {
         const pool = getPool();
         const user = await findOrCreateUser(phone, pool);
 
-        if (user.is_blocked) {
-            return fail(res, 'Account suspended.', 403, 'ACCOUNT_BLOCKED');
-        }
+        // Issue token even for blocked users so the app can show BlockedScreen with reason.
+        // The middleware enforces the block on all other API calls.
+        const isSuspended = Boolean(user.is_blocked);
 
         const meta = {
             device_info: req.headers['user-agent'] ?? null,
@@ -131,6 +131,9 @@ router.post('/verify-otp', normalizePhone, async (req, res) => {
                 dob: user.dob,
                 roles: user.role ? [user.role] : [],
                 active_role: user.active_role || null,
+                is_blocked: isSuspended,
+                block_reason: user.block_reason || null,
+                onboarding_complete: Boolean(user.onboarding_complete),
             },
         }, 200);
     } catch (err) {
@@ -252,9 +255,8 @@ router.post('/dev-otp/verify', normalizePhone, async (req, res) => {
         const pool = getPool();
         const user = await findOrCreateUser(phone, pool);
 
-        if (user.is_blocked) {
-            return fail(res, 'Account suspended.', 403, 'ACCOUNT_BLOCKED');
-        }
+        // Issue token even for blocked users so the app can show BlockedScreen with reason.
+        const isSuspended = Boolean(user.is_blocked);
 
         const meta = {
             device_info: req.headers['user-agent'] ?? null,
@@ -272,6 +274,9 @@ router.post('/dev-otp/verify', normalizePhone, async (req, res) => {
                 dob: user.dob,
                 roles: user.role ? [user.role] : [],
                 active_role: user.active_role || null,
+                is_blocked: isSuspended,
+                block_reason: user.block_reason || null,
+                onboarding_complete: Boolean(user.onboarding_complete),
             },
         });
     } catch (err) {
@@ -297,9 +302,8 @@ router.post('/dev-login', normalizePhone, async (req, res) => {
         const pool = getPool();
         const user = await findOrCreateUser(phone, pool);
 
-        if (user.is_blocked) {
-            return fail(res, 'Account suspended.', 403, 'ACCOUNT_BLOCKED');
-        }
+        // Issue token even for blocked users so app can show BlockedScreen.
+        const isSuspended = Boolean(user.is_blocked);
 
         const meta = {
             device_info: req.headers['user-agent'] ?? null,
@@ -317,6 +321,9 @@ router.post('/dev-login', normalizePhone, async (req, res) => {
                 dob: user.dob,
                 roles: [user.role],
                 active_role: user.role,
+                is_blocked: isSuspended,
+                block_reason: user.block_reason || null,
+                onboarding_complete: Boolean(user.onboarding_complete),
             },
         });
     } catch (err) {

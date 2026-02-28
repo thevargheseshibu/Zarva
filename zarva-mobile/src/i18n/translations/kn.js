@@ -128,6 +128,46 @@ export default {
     security_validation: 'ಭದ್ರತಾ ಮೌಲ್ಯೀಕರಣ',
     network_activation: 'ನೆಟ್‌ವರ್ಕ್ ಸಕ್ರಿಯಗೊಳಿಸುವಿಕೆ',
     return_to_terminal: 'ಟರ್ಮಿನಲ್‌ಗೆ ಹಿಂತಿರುಗಿ',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'ಮರು ತೆಗೆಯಿರಿ',
+    remove: 'ತೆಗೆದುಹಾಕಿ',
+    uploaded_securely: 'ಸುರಕ್ಷಿತವಾಗಿ ಅಪ್ಲೋಡ್ ಆಗಿದೆ',
+    remove_document: 'ದಾಖಲೆ ತೆಗೆದುಹಾಕಲೇ?',
+    confirm_remove_doc: 'ಈ ಅಪ್ಲೋಡ್ ತೆಗೆದುಹಾಕಲು ಖಚಿತಪಡಿಸಿ.',
+    incomplete_info: 'ಅಪೂರ್ಣ',
+    please_upload_all_docs: 'ದಯವಿಟ್ಟು ಎಲ್ಲಾ ದಾಖಲೆಗಳನ್ನು ಅಪ್ಲೋಡ್ ಮಾಡಿ ಮತ್ತು ಆಧಾರ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ.',
+    uploading_documents: 'ಸುರಕ್ಷಿತವಾಗಿ ಅಪ್ಲೋಡ್ ಆಗುತ್ತಿದೆ...',
+    submitting_application: 'ನೋಂದಣಿ ಪೂರ್ಣಗೊಳ್ಳುತ್ತಿದೆ...',
+    protocol_required: 'ಪ್ರೋಟೋಕಾಲ್ ಅಗತ್ಯ',
+    please_read_agreement: 'ದಯವಿಟ್ಟು ಒಪ್ಪಂದದ ಕೊನೆಗೆ ಸ್ಕ್ರೋಲ್ ಮಾಡಿ.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ಖಾತೆ ಸ್ಥಗಿತ',
+    account_blocked_desc: 'ನಿಮ್ಮ ಖಾತೆ ತಾತ್ಕಾಲಿಕವಾಗಿ ಸ್ಥಗಿತಗೊಂಡಿದೆ. ಸಹಾಯಕ್ಕಾಗಿ ಸಂಪರ್ಕಿಸಿ.',
+    blocked_reason_label: 'ಸ್ಥಗಿತದ ಕಾರಣ',
+    contact_support_blocked: 'ಬೆಂಬಲವನ್ನು ಸಂಪರ್ಕಿಸಿ',
+    policy_enforcement: 'ನೀತಿ ಜಾರಿ',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'ಮರು ತೆಗೆಯಿರಿ',
+    remove: 'ತೆಗೆದುಹಾಕಿ',
+    uploaded_securely: 'ಸುರಕ್ಷಿತವಾಗಿ ಅಪ್ಲೋಡ್ ಆಗಿದೆ',
+    remove_document: 'ದಾಖಲೆ ತೆಗೆದುಹಾಕಲೇ?',
+    confirm_remove_doc: 'ಈ ಅಪ್ಲೋಡ್ ತೆಗೆದುಹಾಕಲು ಖಚಿತಪಡಿಸಿ.',
+    incomplete_info: 'ಅಪೂರ್ಣ',
+    please_upload_all_docs: 'ದಯವಿಟ್ಟು ಎಲ್ಲಾ ದಾಖಲೆಗಳನ್ನು ಅಪ್ಲೋಡ್ ಮಾಡಿ ಮತ್ತು ಆಧಾರ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ.',
+    uploading_documents: 'ಸುರಕ್ಷಿತವಾಗಿ ಅಪ್ಲೋಡ್ ಆಗುತ್ತಿದೆ...',
+    submitting_application: 'ನೋಂದಣಿ ಪೂರ್ಣಗೊಳ್ಳುತ್ತಿದೆ...',
+    protocol_required: 'ಪ್ರೋಟೋಕಾಲ್ ಅಗತ್ಯ',
+    please_read_agreement: 'ದಯವಿಟ್ಟು ಒಪ್ಪಂದದ ಕೊನೆಗೆ ಸ್ಕ್ರೋಲ್ ಮಾಡಿ.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ಖಾತೆ ಸ್ಥಗಿತ',
+    account_blocked_desc: 'ನಿಮ್ಮ ಖಾತೆ ತಾತ್ಕಾಲಿಕವಾಗಿ ಸ್ಥಗಿತಗೊಂಡಿದೆ. ಸಹಾಯಕ್ಕಾಗಿ ಸಂಪರ್ಕಿಸಿ.',
+    blocked_reason_label: 'ಸ್ಥಗಿತದ ಕಾರಣ',
+    contact_support_blocked: 'ಬೆಂಬಲವನ್ನು ಸಂಪರ್ಕಿಸಿ',
+    policy_enforcement: 'ನೀತಿ ಜಾರಿ',
     notify_encrypted_channel: 'ಸಕ್ರಿಯವಾದ ನಂತರ ನಾವು ಎನ್‌ಕ್ರಿಪ್ಟ್ ಮಾಡಿದ ಚಾನಲ್ ಮೂಲಕ ನಿಮಗೆ ತಿಳಿಸುತ್ತೇವೆ.',
 
     // ── Worker Tabs & Overviews ──────────────────────

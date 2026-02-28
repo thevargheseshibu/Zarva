@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, StyleSheet, BackHandler, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
@@ -10,8 +11,8 @@ import Animated, {
     Easing,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+
+
 import PremiumButton from '../../../components/PremiumButton';
 import { useAuthStore } from '../../../stores/authStore';
 import apiClient from '../../../services/api/client';
@@ -21,6 +22,8 @@ import { useT } from '../../../hooks/useT';
 import MainBackground from '../../../components/MainBackground';
 
 export default function PendingApproval() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const scale = useSharedValue(0);
     const opacity = useSharedValue(0);
@@ -44,7 +47,7 @@ export default function PendingApproval() {
                     useAuthStore.getState().setUser(meRes.data?.user || meRes.data);
                 }
             } catch (err) { }
-        }, 30000);
+        }, 3000);
 
         return () => clearInterval(poll);
     }, []);
@@ -88,7 +91,7 @@ export default function PendingApproval() {
                             <View style={[styles.stepDot, step.status === 'done' && styles.dotDone, step.status === 'pending' && styles.dotPending]} />
                             <Card style={[styles.stepCard, step.status === 'done' && styles.cardDone]}>
                                 <Text style={[styles.stepLabel, step.status === 'future' && styles.labelFuture]}>{step.label}</Text>
-                                {step.status === 'pending' && <ActivityIndicator size="small" color={colors.accent.primary} style={styles.inlineLoader} />}
+                                {step.status === 'pending' && <ActivityIndicator size="small" color={tTheme.brand.primary} style={styles.inlineLoader} />}
                             </Card>
                         </View>
                     ))}
@@ -110,38 +113,38 @@ export default function PendingApproval() {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background, justifyContent: 'center' },
-    content: { padding: spacing[32], gap: 48, alignItems: 'center' },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app, justifyContent: 'center' },
+    content: { padding: t.spacing[32], gap: 48, alignItems: 'center' },
 
     statusIconBox: { width: 120, height: 120, justifyContent: 'center', alignItems: 'center' },
     glowCircle: {
         ...StyleSheet.absoluteFillObject,
         borderRadius: 60,
-        backgroundColor: colors.accent.primary + '11',
+        backgroundColor: t.brand.primary + '11',
         borderWidth: 2,
-        borderColor: colors.accent.primary + '22'
+        borderColor: t.brand.primary + '22'
     },
-    checkmark: { color: colors.accent.primary, fontSize: 48, fontWeight: '900' },
+    checkmark: { color: t.brand.primary, fontSize: 48, fontWeight: '900' },
 
     textStack: { alignItems: 'center', gap: 12 },
-    statusLabel: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 3 },
-    title: { color: colors.text.primary, fontSize: 28, fontWeight: '900', letterSpacing: tracking.title, textAlign: 'center' },
-    sub: { color: colors.text.muted, fontSize: 13, lineHeight: 22, textAlign: 'center', paddingHorizontal: 20 },
-    accentText: { color: colors.text.primary, fontWeight: fontWeight.bold },
+    statusLabel: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 3 },
+    title: { color: t.text.primary, fontSize: 28, fontWeight: '900', letterSpacing: t.typography.tracking.title, textAlign: 'center' },
+    sub: { color: t.text.tertiary, fontSize: 13, lineHeight: 22, textAlign: 'center', paddingHorizontal: 20 },
+    accentText: { color: t.text.primary, fontWeight: t.typography.weight.bold },
 
     timeline: { width: '100%', gap: 16 },
     stepRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.elevated },
-    dotDone: { backgroundColor: colors.accent.primary },
-    dotPending: { backgroundColor: colors.accent.primary, opacity: 0.5 },
+    stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.background.surfaceRaised },
+    dotDone: { backgroundColor: t.brand.primary },
+    dotPending: { backgroundColor: t.brand.primary, opacity: 0.5 },
 
-    stepCard: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
-    cardDone: { backgroundColor: colors.accent.primary + '08', borderColor: colors.accent.primary + '11' },
-    stepLabel: { color: colors.text.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    labelFuture: { color: colors.text.muted },
+    stepCard: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.background.surface },
+    cardDone: { backgroundColor: t.brand.primary + '08', borderColor: t.brand.primary + '11' },
+    stepLabel: { color: t.text.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    labelFuture: { color: t.text.tertiary },
     inlineLoader: { transform: [{ scale: 0.7 }] },
 
     footer: { width: '100%', alignItems: 'center', gap: 16 },
-    footerHint: { color: colors.text.muted, fontSize: 9, fontStyle: 'italic' }
+    footerHint: { color: t.text.tertiary, fontSize: 9, fontStyle: 'italic' }
 });

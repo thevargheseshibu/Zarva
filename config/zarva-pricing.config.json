@@ -1,0 +1,192 @@
+{
+    "base_hourly_rates": {
+        "AC Service": 400,
+        "Electrical": 350,
+        "Plumbing": 300,
+        "Cleaning": 250,
+        "Carpentry": 400,
+        "Painting": 350,
+        "Service": 300
+    },
+    "tier_multipliers": {
+        "1": 1.25,
+        "2": 1.0,
+        "3": 0.85,
+        "4": 0.75
+    },
+    "cities": {
+        "TIER_1_METRO": {
+            "_tier": 1,
+            "cities": [
+                {
+                    "name": "Mumbai",
+                    "pincode_prefixes": [
+                        "400"
+                    ]
+                },
+                {
+                    "name": "Delhi",
+                    "pincode_prefixes": [
+                        "110"
+                    ]
+                },
+                {
+                    "name": "Bangalore",
+                    "pincode_prefixes": [
+                        "560"
+                    ]
+                },
+                {
+                    "name": "Hyderabad",
+                    "pincode_prefixes": [
+                        "500"
+                    ]
+                },
+                {
+                    "name": "Chennai",
+                    "pincode_prefixes": [
+                        "600"
+                    ]
+                },
+                {
+                    "name": "Kolkata",
+                    "pincode_prefixes": [
+                        "700"
+                    ]
+                }
+            ]
+        },
+        "TIER_2_LARGE_CITY": {
+            "_tier": 2,
+            "example_cities": [
+                {
+                    "name": "Pune",
+                    "pincode_prefixes": [
+                        "411"
+                    ]
+                },
+                {
+                    "name": "Ahmedabad",
+                    "pincode_prefixes": [
+                        "380"
+                    ]
+                },
+                {
+                    "name": "Kochi",
+                    "pincode_prefixes": [
+                        "682"
+                    ]
+                },
+                {
+                    "name": "Ernakulam",
+                    "pincode_prefixes": [
+                        "682"
+                    ]
+                }
+            ]
+        },
+        "TIER_3_MID_TOWN": {
+            "_tier": 3,
+            "example_cities": [
+                {
+                    "name": "Thrissur",
+                    "pincode_prefixes": [
+                        "680"
+                    ]
+                },
+                {
+                    "name": "Mysore",
+                    "pincode_prefixes": [
+                        "570"
+                    ]
+                }
+            ]
+        },
+        "TIER_4_SMALL_TOWN": {
+            "_tier": 4,
+            "example_cities": []
+        }
+    },
+    "service_city_overrides": {
+        "AC Service_Mumbai": 600,
+        "Electrical_Kochi": 450
+    },
+    "pincode_tier_map": {
+        "110": 1,
+        "400": 1,
+        "682": 2,
+        "680": 3
+    },
+    "state_defaults": {
+        "Maharashtra": 2,
+        "Kerala": 2,
+        "Karnataka": 2,
+        "Tamil Nadu": 2,
+        "Delhi": 1
+    },
+    "time_multipliers": [
+        {
+            "label": "regular",
+            "start": "08:00",
+            "end": "18:00",
+            "days": [
+                1,
+                2,
+                3,
+                4,
+                5
+            ],
+            "multiplier": 1.0
+        },
+        {
+            "label": "evening",
+            "start": "18:00",
+            "end": "22:00",
+            "days": [
+                1,
+                2,
+                3,
+                4,
+                5
+            ],
+            "multiplier": 1.15
+        },
+        {
+            "label": "night",
+            "start": "22:00",
+            "end": "08:00",
+            "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+            ],
+            "multiplier": 1.5
+        },
+        {
+            "label": "weekend",
+            "start": "08:00",
+            "end": "22:00",
+            "days": [
+                0,
+                6
+            ],
+            "multiplier": 1.25
+        }
+    ],
+    "public_holidays_2026": [
+        "2026-01-01",
+        "2026-01-26",
+        "2026-08-15",
+        "2026-10-02",
+        "2026-12-25"
+    ],
+    "holiday_multiplier": 1.5,
+    "free_km_radius": 5,
+    "per_km_rate_inr": 15,
+    "billing_minimum_minutes": 30,
+    "billing_increment_minutes": 15
+}

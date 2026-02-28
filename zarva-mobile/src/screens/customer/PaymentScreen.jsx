@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
@@ -7,10 +8,12 @@ import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 
 export default function PaymentScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || { jobId: 'mock-123' };
     const [loading, setLoading] = useState(false);
@@ -86,7 +89,7 @@ export default function PaymentScreen({ route, navigation }) {
     if (fetchingInvoice) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={colors.accent.primary} />
+                <ActivityIndicator size="large" color={t.brand.primary} />
             </View>
         );
     }
@@ -94,7 +97,7 @@ export default function PaymentScreen({ route, navigation }) {
     if (!invoice) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ color: colors.text.muted }}>Error generating invoice.</Text>
+                <Text style={{ color: t.text.tertiary }}>Error generating invoice.</Text>
                 <PremiumButton title="Retry" onPress={() => navigation.replace('Payment', { jobId })} style={{ marginTop: 20 }} />
             </View>
         );
@@ -206,69 +209,69 @@ export default function PaymentScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         alignItems: 'center',
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg
     },
-    headerTitle: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 3 },
+    headerTitle: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 3 },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
-    introBox: { alignItems: 'center', gap: spacing[12], marginBottom: spacing[32] },
-    checkCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accent.primary + '11', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.accent.border + '44' },
+    introBox: { alignItems: 'center', gap: t.spacing.md, marginBottom: t.spacing[32] },
+    checkCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: t.brand.primary + '11', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: t.border.default + '44' },
     checkIcon: { fontSize: 24 },
-    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
-    introSub: { color: colors.text.secondary, fontSize: fontSize.body, textAlign: 'center', marginTop: 4 },
+    introTitle: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.hero },
+    introSub: { color: t.text.secondary, fontSize: t.typography.size.body, textAlign: 'center', marginTop: 4 },
 
-    invoiceCard: { padding: spacing[24], gap: spacing[16] },
+    invoiceCard: { padding: t.spacing['2xl'], gap: t.spacing.lg },
     invoiceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    invoiceLabel: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    invoiceNo: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
-    hoursBadge: { backgroundColor: colors.elevated, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.md, borderWidth: 1, borderColor: colors.surface },
-    hoursTxt: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold },
+    invoiceLabel: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    invoiceNo: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
+    hoursBadge: { backgroundColor: t.background.surfaceRaised, paddingHorizontal: 10, paddingVertical: 4, borderRadius: t.radius.md, borderWidth: 1, borderColor: t.background.surface },
+    hoursTxt: { color: t.text.primary, fontSize: 10, fontWeight: t.typography.weight.bold },
 
-    divider: { height: 1, backgroundColor: colors.surface, marginVertical: 4 },
+    divider: { height: 1, backgroundColor: t.background.surface, marginVertical: 4 },
 
     row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    label: { color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
-    value: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
+    label: { color: t.text.secondary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium },
+    value: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.semibold },
 
     advanceRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        padding: spacing[16],
-        borderRadius: radius.lg,
+        backgroundColor: t.background.surface,
+        padding: t.spacing.lg,
+        borderRadius: t.radius.lg,
         borderWidth: 1,
-        borderColor: colors.accent.border + '22'
+        borderColor: t.border.default + '22'
     },
     advanceInfo: { gap: 4 },
-    advanceLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    advanceValue: { color: colors.accent.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
-    paidBadge: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-    paidBadgeTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold },
+    advanceLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    advanceValue: { color: t.brand.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
+    paidBadge: { backgroundColor: t.brand.primary + '11', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+    paidBadgeTxt: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold },
 
     totalBlock: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-end',
-        marginTop: spacing[8],
-        padding: spacing[20],
-        backgroundColor: colors.elevated,
-        borderRadius: radius.xl,
+        marginTop: t.spacing.sm,
+        padding: t.spacing[20],
+        backgroundColor: t.background.surfaceRaised,
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
-    balanceLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    totalValue: { color: colors.text.primary, fontSize: 32, fontWeight: '900', marginTop: 4 },
-    secureBadge: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
+    balanceLabel: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    totalValue: { color: t.text.primary, fontSize: 32, fontWeight: '900', marginTop: 4 },
+    secureBadge: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium },
 
-    footer: { marginTop: spacing[40], gap: spacing[16] },
-    cashBtn: { paddingVertical: spacing[16], alignItems: 'center' },
-    cashBtnTxt: { color: colors.text.muted, fontSize: fontSize.caption, fontWeight: fontWeight.semibold, textDecorationLine: 'underline' }
+    footer: { marginTop: t.spacing[40], gap: t.spacing.lg },
+    cashBtn: { paddingVertical: t.spacing.lg, alignItems: 'center' },
+    cashBtnTxt: { color: t.text.tertiary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.semibold, textDecorationLine: 'underline' }
 });

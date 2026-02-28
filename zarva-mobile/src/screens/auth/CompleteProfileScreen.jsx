@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, TextInput, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { colors, spacing, radius } from '../../design-system/tokens';
+
 import GoldButton from '../../components/GoldButton';
 import apiClient from '../../services/api/client';
 import { useAuthStore } from '../../stores/authStore';
 import { useT } from '../../hooks/useT';
 
 export default function CompleteProfileScreen() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const { user, token, login } = useAuthStore();
     const t = useT();
     const [name, setName] = useState('');
@@ -59,7 +62,7 @@ export default function CompleteProfileScreen() {
                     value={name}
                     onChangeText={setName}
                     placeholder="e.g. Rajan Kumar"
-                    placeholderTextColor={colors.text.muted}
+                    placeholderTextColor={tTheme.text.tertiary}
                     autoCapitalize="words"
                 />
             </View>
@@ -71,7 +74,7 @@ export default function CompleteProfileScreen() {
                     onPress={() => setShowDatePicker(true)}
                     activeOpacity={0.7}
                 >
-                    <Text style={{ color: dob ? colors.text.primary : colors.text.muted, fontSize: 18 }}>
+                    <Text style={{ color: dob ? tTheme.text.primary : tTheme.text.tertiary, fontSize: 18 }}>
                         {dob ? dob.split('-').reverse().join('/') : "DD/MM/YYYY"}
                     </Text>
                 </TouchableOpacity>
@@ -83,7 +86,7 @@ export default function CompleteProfileScreen() {
                         display="spinner"
                         maximumDate={new Date()}
                         onChange={handleDateChange}
-                        textColor={colors.text.primary}
+                        textColor={tTheme.text.primary}
                         themeVariant="dark"
                     />
                 )}
@@ -94,22 +97,22 @@ export default function CompleteProfileScreen() {
                 disabled={!isValid}
                 loading={loading}
                 onPress={handleContinue}
-                style={{ marginTop: spacing.xl }}
+                style={{ marginTop: tTheme.spacing.xl }}
             />
         </ScrollView>
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flexGrow: 1, backgroundColor: colors.bg.primary, padding: spacing.xl, justifyContent: 'center', gap: spacing.lg },
-    header: { marginBottom: spacing.md },
-    title: { color: colors.text.primary, fontSize: 32, fontWeight: '800', marginBottom: spacing.xs },
-    sub: { color: colors.text.secondary, fontSize: 16, lineHeight: 24, marginTop: spacing.xs },
-    fieldGroup: { gap: spacing.xs },
-    label: { color: colors.text.secondary, fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flexGrow: 1, backgroundColor: t.background.app, padding: t.spacing.xl, justifyContent: 'center', gap: t.spacing.lg },
+    header: { marginBottom: t.spacing.md },
+    title: { color: t.text.primary, fontSize: 32, fontWeight: '800', marginBottom: t.spacing.xs },
+    sub: { color: t.text.secondary, fontSize: 16, lineHeight: 24, marginTop: t.spacing.xs },
+    fieldGroup: { gap: t.spacing.xs },
+    label: { color: t.text.secondary, fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
     input: {
-        backgroundColor: colors.bg.elevated, borderRadius: radius.md,
-        paddingHorizontal: spacing.md, paddingVertical: 16,
-        color: colors.text.primary, fontSize: 18, borderWidth: 1, borderColor: colors.bg.surface,
+        backgroundColor: t.background.surfaceRaised, borderRadius: t.radius.md,
+        paddingHorizontal: t.spacing.md, paddingVertical: 16,
+        color: t.text.primary, fontSize: 18, borderWidth: 1, borderColor: t.background.surface,
     }
 });

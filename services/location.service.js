@@ -15,6 +15,7 @@ export async function processLocation(data) {
             longitude: parseFloat(data.longitude),
             pincode: data.pincode || null,
             city: data.city || 'Kochi',
+            district: data.district || null,
             formatted_address: data.formatted_address || null
         };
     } else if (data.pincode) {
@@ -27,6 +28,7 @@ export async function processLocation(data) {
             longitude: parseFloat(coords.longitude),
             pincode: data.pincode,
             city: coords.city || data.city || 'Kochi',
+            district: coords.district || data.district || null,
             formatted_address: coords.formatted_address || data.formatted_address || null
         };
     } else {

@@ -15,11 +15,12 @@
  *              Server owns the test credentials via .env.development
  */
 import React, { useState } from 'react';
+import { useTokens } from '../../design-system';
 import {
     View, Text, TextInput, TouchableOpacity,
     StyleSheet, KeyboardAvoidingView, Platform, Alert
 } from 'react-native';
-import { colors, spacing, radius } from '../../design-system/tokens';
+
 import PremiumButton from '../../components/PremiumButton';
 import apiClient from '../../services/api/client';
 import { useAuthStore } from '../../stores/authStore';
@@ -42,6 +43,8 @@ function getFirebaseAuth() {
 }
 
 export default function PhoneScreen({ navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const [phone, setPhone] = useState('');
     const [loading, setLoading] = useState(null);
@@ -165,7 +168,7 @@ export default function PhoneScreen({ navigation }) {
                             onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
                             keyboardType="phone-pad"
                             placeholder="XXX-XXX-XXXX"
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={tTheme.text.tertiary}
                             maxLength={12}
                             autoFocus
                         />
@@ -176,7 +179,7 @@ export default function PhoneScreen({ navigation }) {
                         disabled={!isReady || !!loading}
                         loading={loading === 'whatsapp'}
                         onPress={() => handleSend('whatsapp')}
-                        style={{ marginTop: spacing.xl }}
+                        style={{ marginTop: tTheme.spacing.xl }}
                     />
 
                     <TouchableOpacity
@@ -200,43 +203,43 @@ export default function PhoneScreen({ navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     screen: { flex: 1, backgroundColor: 'transparent' },
-    back: { paddingTop: spacing.xl + 20, paddingLeft: spacing.lg },
-    backArrow: { color: colors.text.primary, fontSize: 24 },
-    content: { flex: 1, padding: spacing.lg, justifyContent: 'center', gap: spacing.md },
-    title: { color: colors.text.primary, fontSize: 28, fontWeight: '700' },
-    sub: { color: colors.text.secondary, fontSize: 14, marginBottom: spacing.sm },
+    back: { paddingTop: t.spacing.xl + 20, paddingLeft: t.spacing.lg },
+    backArrow: { color: t.text.primary, fontSize: 24 },
+    content: { flex: 1, padding: t.spacing.lg, justifyContent: 'center', gap: t.spacing.md },
+    title: { color: t.text.primary, fontSize: 28, fontWeight: '700' },
+    sub: { color: t.text.secondary, fontSize: 14, marginBottom: t.spacing.sm },
     inputRow: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: colors.surface, borderRadius: radius.lg,
-        borderWidth: 1, borderColor: colors.surface, overflow: 'hidden',
+        backgroundColor: t.background.surface, borderRadius: t.radius.lg,
+        borderWidth: 1, borderColor: t.background.surface, overflow: 'hidden',
     },
     countryChip: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
-        paddingHorizontal: spacing.md, paddingVertical: spacing.md,
-        backgroundColor: colors.elevated, borderRightWidth: 1,
+        paddingHorizontal: t.spacing.md, paddingVertical: t.spacing.md,
+        backgroundColor: t.background.surfaceRaised, borderRightWidth: 1,
         borderRightColor: 'rgba(255,255,255,0.05)',
     },
     countryFlag: { fontSize: 18 },
-    countryCode: { color: colors.text.primary, fontSize: 16, fontWeight: '600' },
+    countryCode: { color: t.text.primary, fontSize: 16, fontWeight: '600' },
     input: {
-        flex: 1, paddingHorizontal: spacing.md, color: colors.text.primary,
+        flex: 1, paddingHorizontal: t.spacing.md, color: t.text.primary,
         fontSize: 22, height: 58,
         fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
         fontWeight: '600', letterSpacing: 2,
     },
     terms: {
-        color: colors.text.muted, fontSize: 11,
-        textAlign: 'center', lineHeight: 18, marginTop: spacing.lg,
+        color: t.text.tertiary, fontSize: 11,
+        textAlign: 'center', lineHeight: 18, marginTop: t.spacing.lg,
     },
-    termsLink: { color: colors.accent.muted },
+    termsLink: { color: t.brand.primary },
     smsBtn: {
-        paddingVertical: spacing.md, alignItems: 'center',
-        marginTop: spacing.sm, borderRadius: radius.md,
+        paddingVertical: t.spacing.md, alignItems: 'center',
+        marginTop: t.spacing.sm, borderRadius: t.radius.md,
         borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
     },
-    smsBtnDisabled: { borderColor: colors.bg.overlay, opacity: 0.6 },
-    smsBtnText: { color: colors.text.primary, fontSize: 15, fontWeight: '600' },
-    smsBtnTextDisabled: { color: colors.text.muted },
+    smsBtnDisabled: { borderColor: t.border.default, opacity: 0.6 },
+    smsBtnText: { color: t.text.primary, fontSize: 15, fontWeight: '600' },
+    smsBtnTextDisabled: { color: t.text.tertiary },
 });

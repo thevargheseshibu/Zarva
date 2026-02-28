@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, BackHandler, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
@@ -15,12 +16,14 @@ import OTPInput from '../../components/OTPInput';
 import PremiumButton from '../../components/PremiumButton';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 
 const STAGES = ['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'];
 
 export default function JobStatusDetailScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || { jobId: 'mock-123' };
     const { searchPhase, assignedWorker, clearActiveJob, startListening, stopListening } = useJobStore();
@@ -315,13 +318,27 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                     <Text style={styles.detailValue}>{dayjs(job.scheduled_for).format('MMM D, h:mm A')}</Text>
                                 </View>
                             )}
+                            {job.description && (
+                                <View style={[styles.detailRow, { marginTop: tTheme.spacing.sm }]}>
+                                    <Text style={styles.detailLabel}>{t('description').toUpperCase()}</Text>
+                                    <Text style={styles.detailValue}>{parseJobDescription(job.description).text}</Text>
+                                </View>
+                            )}
                         </Card>
                     </FadeInView>
                 )}
 
                 {/* Footer Actions */}
                 <View style={styles.footerActions}>
-                    {['searching', 'assigned', 'worker_en_route'].includes(status) && (
+                    {['open', 'searching', 'no_worker_found', 'assigned', 'worker_en_route'].includes(status) && (
+                        <PremiumButton
+                            variant="secondary"
+                            title={t('edit_request')}
+                            onPress={() => navigation.navigate('EditJob', { jobId })}
+                            style={{ marginBottom: tTheme.spacing.md }}
+                        />
+                    )}
+                    {['open', 'searching', 'no_worker_found', 'assigned', 'worker_en_route'].includes(status) && (
                         <PremiumButton
                             variant="secondary"
                             title={t('status_cancel')}
@@ -352,22 +369,22 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing.lg,
+        paddingHorizontal: t.spacing.lg,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing.sm
+        paddingBottom: t.spacing.sm
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
-    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
-    headerChatBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
+    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.body },
+    headerChatBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center', position: 'relative' },
     chatIcon: { fontSize: 20 },
-    unreadBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: colors.danger, minWidth: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.background },
+    unreadBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: t.status.error.base, minWidth: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: t.background.app },
     unreadTxt: { color: '#FFF', fontSize: 10, fontWeight: '900' },
 
     scrollContent: { paddingBottom: 100 },
@@ -376,48 +393,48 @@ const styles = StyleSheet.create({
     map: { flex: 1 },
     mapOverlay: { position: 'absolute', top: 20, right: 20 },
 
-    mainCard: { margin: spacing.lg, gap: spacing.lg },
-    completedCard: { borderColor: colors.accent.primary + '44', borderWidth: 1 },
+    mainCard: { margin: t.spacing.lg, gap: t.spacing.lg },
+    completedCard: { borderColor: t.brand.primary + '44', borderWidth: 1 },
     statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     statusInfo: { flex: 1 },
-    statusLabel: { color: colors.accent.primary, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
-    statusTitle: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold, marginTop: 4, letterSpacing: tracking.title },
+    statusLabel: { color: t.brand.primary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
+    statusTitle: { color: t.text.primary, fontSize: t.typography.size.title, fontWeight: t.typography.weight.bold, marginTop: 4, letterSpacing: t.typography.tracking.title },
 
-    timerCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: colors.elevated, borderWidth: 2, borderColor: colors.accent.primary, justifyContent: 'center', alignItems: 'center' },
-    timerTxt: { color: colors.text.primary, fontSize: 14, fontWeight: fontWeight.bold },
+    timerCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: t.background.surfaceRaised, borderWidth: 2, borderColor: t.brand.primary, justifyContent: 'center', alignItems: 'center' },
+    timerTxt: { color: t.text.primary, fontSize: 14, fontWeight: t.typography.weight.bold },
 
-    stagesRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing[8] },
+    stagesRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: t.spacing.sm },
     stageCol: { flex: 1, alignItems: 'center', position: 'relative' },
-    stageDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.elevated },
-    stageDotActive: { backgroundColor: colors.accent.primary },
-    stageDotCurrent: { shadowColor: colors.accent.primary, shadowRadius: 6, shadowOpacity: 0.8, backgroundColor: '#FFF' },
-    stageLine: { position: 'absolute', left: '50%', top: 3.5, width: '100%', height: 1, backgroundColor: colors.elevated, zIndex: -1 },
-    stageLineActive: { backgroundColor: colors.accent.primary },
+    stageDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.background.surfaceRaised },
+    stageDotActive: { backgroundColor: t.brand.primary },
+    stageDotCurrent: { shadowColor: t.brand.primary, shadowRadius: 6, shadowOpacity: 0.8, backgroundColor: '#FFF' },
+    stageLine: { position: 'absolute', left: '50%', top: 3.5, width: '100%', height: 1, backgroundColor: t.background.surfaceRaised, zIndex: -1 },
+    stageLineActive: { backgroundColor: t.brand.primary },
 
-    actionCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg, alignItems: 'center', gap: spacing.md },
-    actionTitle: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold },
-    actionSub: { color: colors.text.secondary, fontSize: fontSize.caption, textAlign: 'center' },
-    otpDisplay: { paddingVertical: spacing[16], paddingHorizontal: spacing[32], borderRadius: radius.lg, backgroundColor: colors.elevated },
-    otpTxt: { color: colors.accent.primary, fontSize: 32, fontWeight: '900', letterSpacing: 8 },
-    otpInputWrap: { marginTop: spacing[16] },
+    actionCard: { marginHorizontal: t.spacing.lg, marginBottom: t.spacing.lg, alignItems: 'center', gap: t.spacing.md },
+    actionTitle: { color: t.text.primary, fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.bold },
+    actionSub: { color: t.text.secondary, fontSize: t.typography.size.caption, textAlign: 'center' },
+    otpDisplay: { paddingVertical: t.spacing.lg, paddingHorizontal: t.spacing[32], borderRadius: t.radius.lg, backgroundColor: t.background.surfaceRaised },
+    otpTxt: { color: t.brand.primary, fontSize: 32, fontWeight: '900', letterSpacing: 8 },
+    otpInputWrap: { marginTop: t.spacing.lg },
 
-    workerRow: { marginHorizontal: spacing.lg, backgroundColor: colors.surface, borderRadius: radius.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.md, ...shadows.premium },
+    workerRow: { marginHorizontal: t.spacing.lg, backgroundColor: t.background.surface, borderRadius: t.radius.xl, flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, ...t.shadows.premium },
     workerPhoto: { width: 50, height: 50, borderRadius: 25 },
     workerInfo: { flex: 1 },
-    workerName: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    workerName: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
     workerMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-    workerRating: { color: colors.accent.primary, fontSize: fontSize.micro, fontWeight: fontWeight.bold },
-    metaDivider: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.text.muted },
-    workerJobs: { color: colors.text.secondary, fontSize: fontSize.micro },
-    callIconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
+    workerRating: { color: t.brand.primary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold },
+    metaDivider: { width: 4, height: 4, borderRadius: 2, backgroundColor: t.text.tertiary },
+    workerJobs: { color: t.text.secondary, fontSize: t.typography.size.micro },
+    callIconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
     callIcon: { fontSize: 16 },
 
-    detailsSection: { marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-    sectionHeader: { color: colors.text.muted, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5, marginBottom: spacing.sm },
-    detailsCard: { gap: spacing.md },
+    detailsSection: { marginTop: t.spacing.xl, paddingHorizontal: t.spacing.lg },
+    sectionHeader: { color: t.text.tertiary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold, letterSpacing: 1.5, marginBottom: t.spacing.sm },
+    detailsCard: { gap: t.spacing.md },
     detailRow: { gap: 4 },
-    detailLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    detailValue: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
+    detailLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    detailValue: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium },
 
-    footerActions: { padding: spacing.lg, gap: spacing.md }
+    footerActions: { padding: t.spacing.lg, gap: t.spacing.md }
 });

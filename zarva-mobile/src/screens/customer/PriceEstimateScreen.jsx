@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
@@ -6,10 +7,12 @@ import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 
 export default function PriceEstimateScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { category, label, answers, structuredAnswers, basePrice, breakdown } = route.params || {
         category: 'unknown', label: 'Service', answers: {}, structuredAnswers: [], basePrice: 300, breakdown: null
@@ -138,72 +141,72 @@ export default function PriceEstimateScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
-    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
+    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.body },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
-    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
-    introSub: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, marginBottom: spacing[32], letterSpacing: tracking.body },
+    introTitle: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.hero },
+    introSub: { color: t.text.secondary, fontSize: t.typography.size.body, marginTop: 4, marginBottom: t.spacing[32], letterSpacing: t.typography.tracking.body },
 
-    detailCard: { padding: spacing[24], gap: spacing[12] },
-    sectionLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2, marginBottom: 8 },
+    detailCard: { padding: t.spacing['2xl'], gap: t.spacing.md },
+    sectionLabel: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2, marginBottom: 8 },
 
     costRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    costLabel: { color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
-    costValue: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
+    costLabel: { color: t.text.secondary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium },
+    costValue: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.semibold },
 
     surchargeBox: {
-        padding: spacing[12],
-        backgroundColor: colors.elevated,
-        borderRadius: radius.md,
+        padding: t.spacing.md,
+        backgroundColor: t.background.surfaceRaised,
+        borderRadius: t.radius.md,
         gap: 8,
         marginVertical: 4
     },
-    surchargeLabel: { color: colors.accent.primary, fontSize: 11, fontWeight: fontWeight.medium },
-    surchargeValue: { color: colors.text.primary, fontSize: 11, fontWeight: fontWeight.bold },
+    surchargeLabel: { color: t.brand.primary, fontSize: 11, fontWeight: t.typography.weight.medium },
+    surchargeValue: { color: t.text.primary, fontSize: 11, fontWeight: t.typography.weight.bold },
 
-    divider: { height: 1, backgroundColor: colors.surface, marginVertical: spacing[8] },
+    divider: { height: 1, backgroundColor: t.background.surface, marginVertical: t.spacing.sm },
 
-    subtotalLabel: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
-    subtotalValue: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    subtotalLabel: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
+    subtotalValue: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
 
     totalRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: spacing[16],
-        padding: spacing[16],
-        backgroundColor: colors.accent.primary + '11',
-        borderRadius: radius.lg,
+        marginTop: t.spacing.lg,
+        padding: t.spacing.lg,
+        backgroundColor: t.brand.primary + '11',
+        borderRadius: t.radius.lg,
         borderWidth: 1,
-        borderColor: colors.accent.primary + '22'
+        borderColor: t.brand.primary + '22'
     },
-    totalLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
-    totalHint: { color: colors.text.muted, fontSize: 10, marginTop: 2 },
-    totalValue: { color: colors.text.primary, fontSize: 28, fontWeight: '900' },
+    totalLabel: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
+    totalHint: { color: t.text.tertiary, fontSize: 10, marginTop: 2 },
+    totalValue: { color: t.text.primary, fontSize: 28, fontWeight: '900' },
 
-    paymentCard: { padding: spacing[24], marginTop: spacing[24], backgroundColor: colors.surface },
-    paymentHeader: { marginBottom: spacing[16] },
-    paymentTitle: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, letterSpacing: tracking.cardTitle },
+    paymentCard: { padding: t.spacing['2xl'], marginTop: t.spacing['2xl'], backgroundColor: t.background.surface },
+    paymentHeader: { marginBottom: t.spacing.lg },
+    paymentTitle: { color: t.text.primary, fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.cardTitle },
 
     paymentSplit: { flexDirection: 'row', alignItems: 'center' },
     splitBox: { flex: 1, alignItems: 'center', gap: 4 },
-    splitLabel: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    splitValue: { color: colors.text.primary, fontSize: 20, fontWeight: '800' },
-    splitHint: { color: colors.text.muted, fontSize: 9, fontStyle: 'italic' },
-    splitDivider: { width: 1, height: '70%', backgroundColor: colors.accent.border + '22' },
+    splitLabel: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    splitValue: { color: t.text.primary, fontSize: 20, fontWeight: '800' },
+    splitHint: { color: t.text.tertiary, fontSize: 9, fontStyle: 'italic' },
+    splitDivider: { width: 1, height: '70%', backgroundColor: t.border.default + '22' },
 
-    footer: { marginTop: spacing[40] }
+    footer: { marginTop: t.spacing[40] }
 });

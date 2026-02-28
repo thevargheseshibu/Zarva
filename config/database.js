@@ -23,9 +23,9 @@ function getPool() {
         user,
         password,
         database,
-        max: Number(process.env.DB_POOL_MAX) || 10,
+        max: Number(process.env.DB_POOL_MAX) || 20,
         idleTimeoutMillis: 10000,
-        connectionTimeoutMillis: 5000, // Slightly longer for stability
+        connectionTimeoutMillis: 10000, // 10s for stability during peak I/O
     });
 
     return wrappedPool;

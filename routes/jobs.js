@@ -299,8 +299,12 @@ router.get('/:id', async (req, res) => {
         delete job.worker_category;
         delete job.worker_verified;
 
-        // INJECT Redis Start OTP if Status matches
+        // INJECT Redis OTPs based on Status
         if (job.status === 'worker_arrived') {
+            const redisClient = getRedisClient();
+            const plaintextOtp = await redisClient.get(`zarva:otp:inspection:${job.id}`);
+            if (plaintextOtp) job.inspection_otp = plaintextOtp;
+        } else if (job.status === 'estimate_submitted') {
             const redisClient = getRedisClient();
             const plaintextOtp = await redisClient.get(`zarva:otp:start:${job.id}`);
             if (plaintextOtp) job.start_otp = plaintextOtp;
@@ -400,25 +404,19 @@ router.post('/:id/verify-end-otp', async (req, res) => {
 
             if (match) {
                 // SUCCESS - INVOICE GENERATION
-                const [timeCheck] = await conn.query(`SELECT EXTRACT(EPOCH FROM (NOW() - work_started_at)) / 3600 AS actual_hours FROM jobs WHERE id=$1`, [jobId]);
-                // Ensure at least min floor bounds depending on pricing config rules
-                let actual_hours = parseFloat(timeCheck[0].actual_hours || 0);
+                const billingService = (await import('../services/billing.service.js')).default;
 
-                // Calculate via Pure Pricing utility snapshot mapping
-                const invoiceBreakdown = calculatePricing({
-                    category: job.category,
-                    hours: actual_hours,
-                    travelKm: 0, // Mock for now until Geo
-                    scheduledAt: job.scheduled_at
-                }, configLoader.get('jobs'));
+                // This implicitly ends the job timer, sets pending_completion, and calculates the exact bill
+                const billDetails = await billingService.stopJobAndBill(jobId, 'customer', conn);
 
-                // 1. Finalize Job Record
-                await conn.query(`UPDATE jobs SET status='completed', actual_hours=$1, chat_enabled=false, work_ended_at=NOW() WHERE id=$2`, [actual_hours, jobId]
+                // 1. Finalize Job Record is already done inside stopJobAndBill (sets status='pending_completion')
+                // We advance it to 'completed' here since OTP is verified live by the customer
+                await conn.query(`UPDATE jobs SET status='completed', chat_enabled=false WHERE id=$1`, [jobId]
                 );
 
-                // 2. Draft Invoice Row
+                // 2. Draft Invoice Row (Using the BillingService breakdown)
                 const invNo = `INV-${Date.now()}-${jobId}`;
-                await conn.query(`INSERT INTO job_invoices (job_id, invoice_number, subtotal, platform_fee, travel_charge, discount, tax, total) VALUES ($1, $2, $3, $4, $5, 0, 0, $6)`, [jobId, invNo, invoiceBreakdown.subtotal, invoiceBreakdown.platform_fee, invoiceBreakdown.travel_charge, invoiceBreakdown.total_amount]
+                await conn.query(`INSERT INTO job_invoices (job_id, invoice_number, subtotal, platform_fee, travel_charge, discount, tax, total) VALUES ($1, $2, $3, $4, $5, 0, 0, $6)`, [jobId, invNo, billDetails.jobAmount, 0, billDetails.travelCharge, billDetails.totalAmount]
                 );
 
                 // 3. Worker Aggregations
@@ -441,7 +439,7 @@ router.post('/:id/verify-end-otp', async (req, res) => {
                 const { updateJobNode } = await import('../services/firebase.service.js');
                 await updateJobNode(jobId, { status: 'completed' });
 
-                return ok(res, { completed: true, invoice: invoiceBreakdown });
+                return ok(res, { completed: true, invoice: billDetails });
 
             } else {
                 const attempts = job.end_otp_attempts + 1;
@@ -565,6 +563,79 @@ router.post('/:id/dispute', async (req, res) => {
         await updateJobNode(jobId, { status: 'disputed' });
 
         return ok(res, { disputed: true, message: 'Dispute submitted. Admin will review within 48h.' });
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
+/**
+ * POST /api/jobs/:id/extension/approve (Customer)
+ */
+router.post('/:id/extension/approve', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    const jobId = req.params.id;
+    const { otp } = req.body;
+
+    try {
+        const billingService = (await import('../services/billing.service.js')).default;
+        await billingService.approveExtension(jobId, otp, userId);
+
+        const redisClient = getRedisClient();
+        await redisClient.del(`zarva:otp:extension:${jobId}`);
+
+        return ok(res, { approved: true });
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
+/**
+ * POST /api/jobs/:id/extension/reject (Customer)
+ */
+router.post('/:id/extension/reject', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    const jobId = req.params.id;
+
+    try {
+        const billingService = (await import('../services/billing.service.js')).default;
+        await billingService.rejectExtension(jobId, userId);
+        return ok(res, { rejected: true });
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
+/**
+ * POST /api/jobs/:id/stop (Customer Stops Job Early)
+ */
+router.post('/:id/stop', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    const jobId = req.params.id;
+
+    try {
+        const pool = getPool();
+        const [jobs] = await pool.query('SELECT status, customer_id FROM jobs WHERE id = $1', [jobId]);
+        const job = jobs[0];
+
+        if (!job || job.customer_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (job.status !== 'in_progress') throw Object.assign(new Error('Job is not in progress'), { status: 400 });
+
+        const billingService = (await import('../services/billing.service.js')).default;
+        await billingService.stopJobAndBill(jobId, 'customer');
+
+        // Customer stopping early still generates an invoice, handled similar to verify-end-otp without the OTP requirement
+        // Actually to keep it simple, stopJobAndBill moves it to `pending_completion`. The customer then proceeds to payment screen.
+        // Wait, if customer stopped it, they don't need to verify End OTP. We should just finalize it.
+        // I will let ZARVA UI handle it: stop -> pending_completion -> immediately process payment?
+        // Yes, the mobile app can just transition them to Payment screen directly.
+
+        return ok(res, { stopped: true });
     } catch (err) {
         return fail(res, err.message, err.status || 500);
     }

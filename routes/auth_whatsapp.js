@@ -104,9 +104,8 @@ router.post('/verify-otp', normalizePhone, async (req, res) => {
         const pool = getPool();
         const user = await findOrCreateUser(phone, pool);
 
-        if (user.is_blocked) {
-            return fail(res, 'Account suspended.', 403, 'ACCOUNT_BLOCKED');
-        }
+        // Issue token even for blocked users so the app can show BlockedScreen with reason.
+        const isSuspended = Boolean(user.is_blocked);
 
         const meta = {
             device_info: req.headers['user-agent'] ?? null,
@@ -122,6 +121,9 @@ router.post('/verify-otp', normalizePhone, async (req, res) => {
                 phone: user.phone,
                 roles: [user.role],
                 active_role: user.role,
+                is_blocked: isSuspended,
+                block_reason: user.block_reason || null,
+                onboarding_complete: Boolean(user.onboarding_complete),
             },
         }, 200);
 

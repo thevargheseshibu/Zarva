@@ -3,12 +3,15 @@
  * Worker preview: photo circle, name, gold star rating, category chip, distance.
  */
 import React from 'react';
+import { useTokens } from '../design-system';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import { colors, radius, spacing } from '../design-system/tokens';
-import { fontSize, fontWeight } from '../design-system/typography';
+
+
 import Card from './Card';
 
 export default function WorkerCard({ worker, distance, onPress }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const {
         name = 'Worker',
         category = '',
@@ -55,56 +58,56 @@ export default function WorkerCard({ worker, distance, onPress }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     card: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.md,
+        gap: t.spacing.md,
     },
     avatar: {
         width: 40,
         height: 40,
-        borderRadius: radius.full,
+        borderRadius: t.radius.full,
         overflow: 'hidden',
     },
     photo: { width: '100%', height: '100%' },
     photoFallback: {
         width: '100%',
         height: '100%',
-        backgroundColor: colors.bg.surface,
+        backgroundColor: t.background.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
     initials: {
-        color: colors.accent.primary,
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.bold,
+        color: t.brand.primary,
+        fontSize: t.typography.size.md,
+        fontWeight: t.typography.weight.bold,
     },
     info: { flex: 1 },
     name: {
-        color: colors.text.primary,
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.semibold,
+        color: t.text.primary,
+        fontSize: t.typography.size.md,
+        fontWeight: t.typography.weight.semibold,
     },
     row: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-    star: { color: colors.accent.primary, fontSize: fontSize.sm },
-    rating: { color: colors.text.secondary, fontSize: fontSize.sm },
+    star: { color: t.brand.primary, fontSize: t.typography.size.sm },
+    rating: { color: t.text.secondary, fontSize: t.typography.size.sm },
     chip: {
-        marginTop: spacing.xs,
-        backgroundColor: colors.bg.surface,
-        borderRadius: radius.sm,
-        paddingHorizontal: spacing.sm,
+        marginTop: t.spacing.xs,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.sm,
+        paddingHorizontal: t.spacing.sm,
         paddingVertical: 2,
         alignSelf: 'flex-start',
     },
     chipText: {
-        color: colors.text.secondary,
-        fontSize: fontSize.xs,
+        color: t.text.secondary,
+        fontSize: t.typography.size.xs,
         textTransform: 'capitalize',
     },
     distance: {
         color: colors.accent.muted,
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.medium,
+        fontSize: t.typography.size.sm,
+        fontWeight: t.typography.weight.medium,
     },
 });

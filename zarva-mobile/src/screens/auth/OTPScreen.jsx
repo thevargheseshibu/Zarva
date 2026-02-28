@@ -17,11 +17,12 @@
  * 🔐 Security: No OTP codes exist on mobile. All validation is server-side.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTokens } from '../../design-system';
 import {
     View, Text, TextInput, TouchableOpacity,
     StyleSheet, Platform, Alert,
 } from 'react-native';
-import { colors, spacing, radius } from '../../design-system/tokens';
+
 import PremiumButton from '../../components/PremiumButton';
 import { useAuthStore } from '../../stores/authStore';
 import { useOtpStore } from '../../stores/otpStore';
@@ -34,6 +35,8 @@ const BOX_COUNT = 6;
 const RESEND_SECONDS = 30;
 
 export default function OTPScreen({ navigation, route }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const { phone, authMethod = 'sms' } = route.params || {};
     const [digits, setDigits] = useState(Array(BOX_COUNT).fill(''));
     const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
@@ -237,38 +240,38 @@ export default function OTPScreen({ navigation, route }) {
                     loading={loading}
                     disabled={digits.join('').length < BOX_COUNT}
                     onPress={() => handleVerify()}
-                    style={{ marginTop: spacing.lg }}
+                    style={{ marginTop: tTheme.spacing.lg }}
                 />
             </View>
         </MainBackground>
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     screen: { flex: 1, backgroundColor: 'transparent' },
-    back: { paddingTop: spacing.xl + 20, paddingLeft: spacing.lg },
-    backArrow: { color: colors.text.primary, fontSize: 24 },
+    back: { paddingTop: t.spacing.xl + 20, paddingLeft: t.spacing.lg },
+    backArrow: { color: t.text.primary, fontSize: 24 },
     content: {
-        flex: 1, paddingHorizontal: spacing.lg,
-        justifyContent: 'center', gap: spacing.md,
+        flex: 1, paddingHorizontal: t.spacing.lg,
+        justifyContent: 'center', gap: t.spacing.md,
     },
-    title: { color: colors.text.primary, fontSize: 26, fontWeight: '700' },
-    sub: { color: colors.text.secondary, fontSize: 14 },
-    phone: { color: colors.text.primary, fontWeight: '600' },
-    boxRow: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'center', marginVertical: spacing.md },
+    title: { color: t.text.primary, fontSize: 26, fontWeight: '700' },
+    sub: { color: t.text.secondary, fontSize: 14 },
+    phone: { color: t.text.primary, fontWeight: '600' },
+    boxRow: { flexDirection: 'row', gap: t.spacing.sm, justifyContent: 'center', marginVertical: t.spacing.md },
     box: {
-        width: 44, height: 58, backgroundColor: colors.surface,
-        borderRadius: radius.md, borderWidth: 1,
+        width: 44, height: 58, backgroundColor: t.background.surface,
+        borderRadius: t.radius.md, borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.05)',
-        color: colors.text.primary, fontSize: 26,
+        color: t.text.primary, fontSize: 26,
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
         textAlign: 'center', fontWeight: '700',
     },
-    boxFilled: { borderColor: colors.accent.primary + '66' },
-    boxError: { borderBottomColor: colors.danger, color: colors.danger },
-    errorText: { color: colors.danger, fontSize: 13, textAlign: 'center', marginTop: -spacing.sm, marginBottom: spacing.sm },
-    resendRow: { alignItems: 'center', marginTop: spacing.xs },
-    timerText: { color: colors.text.muted, fontSize: 14 },
-    timerNum: { color: colors.text.secondary, fontWeight: '600' },
-    resendBtn: { color: colors.accent.primary, fontSize: 15, fontWeight: '600' },
+    boxFilled: { borderColor: t.brand.primary + '66' },
+    boxError: { borderBottomColor: t.status.error.base, color: t.status.error.base },
+    errorText: { color: t.status.error.base, fontSize: 13, textAlign: 'center', marginTop: -t.spacing.sm, marginBottom: t.spacing.sm },
+    resendRow: { alignItems: 'center', marginTop: t.spacing.xs },
+    timerText: { color: t.text.tertiary, fontSize: 14 },
+    timerNum: { color: t.text.secondary, fontWeight: '600' },
+    resendBtn: { color: t.brand.primary, fontSize: 15, fontWeight: '600' },
 });

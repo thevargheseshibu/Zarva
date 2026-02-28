@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useTokens } from '../design-system';
 import {
     Text,
     ActivityIndicator,
@@ -19,8 +20,8 @@ import Animated, {
     withSpring
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { colors, radius, spacing, shadows } from '../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../design-system/typography';
+
+
 import { durations, springs } from '../design-system/motion';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -35,6 +36,8 @@ export default function PremiumButton({
     textStyle,
     haptic = Haptics.ImpactFeedbackStyle.Light,
 }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const scale = useSharedValue(1);
     const translateX = useSharedValue(0);
 
@@ -110,24 +113,24 @@ export default function PremiumButton({
             style={[
                 styles.baseButton,
                 isDisabled && styles.disabled,
-                variant === 'primary' && !isDisabled && shadows.accentGlow,
+                variant === 'primary' && !isDisabled && tTheme.shadows.accentGlow,
                 animatedStyle,
                 style,
             ]}
         >
             {variant === 'primary' && !isDisabled ? (
                 <LinearGradient
-                    colors={colors.accent.gradient}
+                    colors={[tTheme.brand.primary, tTheme.brand.secondary]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={StyleSheet.absoluteFill}
                 />
             ) : variant === 'primary' ? (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.accent.primary }]} />
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: tTheme.brand.primary }]} />
             ) : null}
 
             {loading ? (
-                <ActivityIndicator color={variant === 'primary' ? colors.text.primary : colors.accent.primary} size="small" />
+                <ActivityIndicator color={variant === 'primary' ? tTheme.text.primary : tTheme.brand.primary} size="small" />
             ) : (
                 <Text style={[styles.baseLabel, vStyles.label, textStyle]}>{title}</Text>
             )}
@@ -135,25 +138,25 @@ export default function PremiumButton({
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     baseButton: {
         height: 56,
         width: '100%',
-        borderRadius: radius.lg,
+        borderRadius: t.radius.lg,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
     },
     baseLabel: {
-        fontSize: fontSize.body,
-        fontWeight: fontWeight.bold,
-        letterSpacing: tracking.body,
+        fontSize: t.typography.size.body,
+        fontWeight: t.typography.weight.bold,
+        letterSpacing: t.typography.tracking.body,
     },
     primaryButton: {
         overflow: 'hidden',
     },
     primaryLabel: {
-        color: '#FFFFFF',
+        color: t.text.primary,
         textShadowColor: 'rgba(0,0,0,0.2)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4,
@@ -161,18 +164,18 @@ const styles = StyleSheet.create({
     ghostButton: {
         backgroundColor: 'transparent',
         borderWidth: 1,
-        borderColor: colors.accent.primary,
+        borderColor: t.brand.primary,
     },
     ghostLabel: {
-        color: colors.accent.primary,
+        color: t.brand.primary,
     },
     dangerButton: {
         backgroundColor: 'transparent',
         borderWidth: 1,
-        borderColor: colors.danger,
+        borderColor: t.status.error.base,
     },
     dangerLabel: {
-        color: colors.danger,
+        color: t.status.error.base,
     },
     disabled: {
         opacity: 0.4,

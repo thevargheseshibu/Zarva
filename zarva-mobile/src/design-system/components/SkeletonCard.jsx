@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -7,11 +7,13 @@ import Animated, {
     useAnimatedStyle,
     Easing,
 } from 'react-native-reanimated';
-import { colors, radius, spacing } from '../tokens';
+import { useTokens } from '../useTheme';
 
 export default function SkeletonCard({ width, height = 120, style }) {
+    const t = useTokens();
+    const styles = useMemo(() => createStyles(t), [t]);
     const { width: screenWidth } = useWindowDimensions();
-    const cardWidth = width || screenWidth - spacing.lg * 2;
+    const cardWidth = width || screenWidth - t.spacing.lg * 2;
 
     const translateX = useSharedValue(-cardWidth);
 
@@ -37,10 +39,10 @@ export default function SkeletonCard({ width, height = 120, style }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     container: {
-        backgroundColor: colors.surface,
-        borderRadius: radius.lg,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.lg,
         overflow: 'hidden',
     },
     shimmer: {

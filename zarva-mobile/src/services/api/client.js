@@ -14,40 +14,31 @@ import Constants from 'expo-constants';
 
 let BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 
+// In dev, we prioritize resolving the machine IP for physical devices
 if (__DEV__) {
-    const expoConfig = Constants?.expoConfig || Constants?.manifest || {};
-    const hostUri = expoConfig.hostUri;
-    const debuggerHost = expoConfig.debuggerHost;
+    const isIpDefined = BASE_URL && !BASE_URL.includes('localhost') && !BASE_URL.includes('127.0.0.1');
 
-    // In dev, we usually want to connect to the machine running Metro
-    // We treat 'localhost' or '127.0.0.1' as a signal that we need to resolve the machine IP
-    const needsResolution = !BASE_URL || BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1');
-
-    console.log('[api/client] Environment:', {
-        BASE_URL,
-        hostUri,
-        debuggerHost,
-        os: Platform.OS,
-        needsResolution
-    });
-
-    if (needsResolution) {
+    if (!isIpDefined) {
+        const expoConfig = Constants?.expoConfig || Constants?.manifest || {};
+        const hostUri = expoConfig.hostUri;
+        const debuggerHost = expoConfig.debuggerHost;
+        
         let detectedIP = null;
         if (hostUri) detectedIP = hostUri.split(':')[0];
         else if (debuggerHost) detectedIP = debuggerHost.split(':')[0];
 
-        if (detectedIP && detectedIP !== 'localhost' && detectedIP !== '127.0.0.1' && !process.env.EXPO_PUBLIC_API_URL?.includes('localhost')) {
+        if (detectedIP && detectedIP !== 'localhost' && detectedIP !== '127.0.0.1') {
             BASE_URL = `http://${detectedIP}:3000`;
-            console.log('[api/client] 🚀 Resolved to Metro machine IP:', BASE_URL);
-        } else if (Platform.OS === 'android' && !process.env.EXPO_PUBLIC_API_URL?.includes('localhost')) {
-            // 10.0.2.2 is the special alias to your host loopback interface for Android Emulators
+            console.log('[api/client] 🚀 Auto-Resolved to Metro machine IP:', BASE_URL);
+        } else if (Platform.OS === 'android') {
             BASE_URL = 'http://10.0.2.2:3000';
-            console.log('[api/client] 🤖 Resolved to Android Emulator host alias:', BASE_URL);
+            console.log('[api/client] 🤖 Fallback to Android Emulator host alias:', BASE_URL);
         } else {
-            // Fallback for iOS simulator, adb reverse, or when IP detection fails
-            BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
-            console.log('[api/client] 🔌 Using configured/default URL (supporting adb reverse):', BASE_URL);
+            BASE_URL = 'http://localhost:3000';
+            console.log('[api/client] 🔌 Fallback to localhost:', BASE_URL);
         }
+    } else {
+        console.log('[api/client] ✅ Using provided .env IP URL:', BASE_URL);
     }
 } else if (!BASE_URL) {
     BASE_URL = 'http://localhost:3000';
@@ -125,7 +116,7 @@ apiClient.interceptors.response.use(
             );
         }
         else if (error?.response?.data?.message && status >= 500) {
-            Alert.alert('Server Error', error.response.data.message, [{ text: 'OK' }]);
+            Alert.alert('Server Error', error.response?.data?.message, [{ text: 'OK' }]);
         }
 
         return Promise.reject(error);

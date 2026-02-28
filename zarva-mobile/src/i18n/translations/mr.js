@@ -128,6 +128,46 @@ export default {
     security_validation: 'सुरक्षा पडताळणी',
     network_activation: 'नेटवर्क सक्रियण',
     return_to_terminal: 'टर्मिनलवर परत जा',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'पुन्हा घ्या',
+    remove: 'काढा',
+    uploaded_securely: 'सुरक्षितपणे अपलोड झाले',
+    remove_document: 'दस्तऐवज काढायचा?',
+    confirm_remove_doc: 'हे अपलोड काढायचे आहे का?',
+    incomplete_info: 'अपूर्ण',
+    please_upload_all_docs: 'कृपया सर्व कागदपत्रे अपलोड करा आणि आधार क्रमांक द्या.',
+    uploading_documents: 'सुरक्षितपणे अपलोड होत आहे...',
+    submitting_application: 'नोंदणी पूर्ण होत आहे...',
+    protocol_required: 'प्रोटोकॉल आवश्यक',
+    please_read_agreement: 'कृपया कराराच्या शेवटापर्यंत स्क्रोल करा.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'खाते निलंबित',
+    account_blocked_desc: 'तुमचे खाते तात्पुरते निलंबित केले आहे. सहाय्यासाठी संपर्क करा.',
+    blocked_reason_label: 'निलंबनाचे कारण',
+    contact_support_blocked: 'सहाय्यास संपर्क करा',
+    policy_enforcement: 'धोरण अंमलबजावणी',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'पुन्हा घ्या',
+    remove: 'काढा',
+    uploaded_securely: 'सुरक्षितपणे अपलोड झाले',
+    remove_document: 'दस्तऐवज काढायचा?',
+    confirm_remove_doc: 'हे अपलोड काढायचे आहे का?',
+    incomplete_info: 'अपूर्ण',
+    please_upload_all_docs: 'कृपया सर्व कागदपत्रे अपलोड करा आणि आधार क्रमांक द्या.',
+    uploading_documents: 'सुरक्षितपणे अपलोड होत आहे...',
+    submitting_application: 'नोंदणी पूर्ण होत आहे...',
+    protocol_required: 'प्रोटोकॉल आवश्यक',
+    please_read_agreement: 'कृपया कराराच्या शेवटापर्यंत स्क्रोल करा.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'खाते निलंबित',
+    account_blocked_desc: 'तुमचे खाते तात्पुरते निलंबित केले आहे. सहाय्यासाठी संपर्क करा.',
+    blocked_reason_label: 'निलंबनाचे कारण',
+    contact_support_blocked: 'सहाय्यास संपर्क करा',
+    policy_enforcement: 'धोरण अंमलबजावणी',
     notify_encrypted_channel: 'सक्रिय झाल्यावर आम्ही तुम्हाला एनक्रिप्टेड चॅनेलद्वारे सूचित करू.',
 
     // ── Worker Tabs & Overviews ──────────────────────

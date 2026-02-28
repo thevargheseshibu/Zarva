@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -12,10 +13,12 @@ import PressableAnimated from '../../design-system/components/PressableAnimated'
 import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
 import OTPInput from '../../components/OTPInput';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 
 export default function ActiveJobScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || {};
     const [status, setStatus] = useState('assigned');
@@ -237,7 +240,7 @@ export default function ActiveJobScreen({ route, navigation }) {
                             <Text style={styles.endOtpCode}>{endOtp}</Text>
                         </View>
                         <View style={styles.waitingIconBox}>
-                            <ActivityIndicator size="small" color={colors.accent.primary} />
+                            <ActivityIndicator size="small" color={t.brand.primary} />
                             <Text style={styles.waitingTxt}>{t('awaiting_confirmation')}</Text>
                         </View>
                     </Card>
@@ -260,7 +263,7 @@ export default function ActiveJobScreen({ route, navigation }) {
 
     if (loading) return (
         <View style={styles.loadingScreen}>
-            <ActivityIndicator size="large" color={colors.accent.primary} />
+            <ActivityIndicator size="large" color={t.brand.primary} />
             <Text style={styles.loadingTxt}>{t('syncing_session')}</Text>
         </View>
     );
@@ -336,54 +339,54 @@ export default function ActiveJobScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
-    loadingScreen: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', gap: 12 },
-    loadingTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
+    loadingScreen: { flex: 1, backgroundColor: t.background.app, justifyContent: 'center', alignItems: 'center', gap: 12 },
+    loadingTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
 
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
     headerCenter: { alignItems: 'center', gap: 4 },
-    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.body },
     statusPillWrap: { transform: [{ scale: 0.85 }] },
-    headerChatBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+    headerChatBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center', position: 'relative' },
     chatIcon: { fontSize: 20 },
-    unreadBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: colors.danger, minWidth: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: colors.background },
+    unreadBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: t.status.error.base, minWidth: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: t.background.app },
     unreadTxt: { color: '#FFF', fontSize: 10, fontWeight: '900' },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120, gap: spacing[24] },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120, gap: t.spacing['2xl'] },
 
-    clientCard: { padding: spacing[24], gap: spacing[20], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent.border + '11' },
+    clientCard: { padding: t.spacing['2xl'], gap: t.spacing[20], backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border.default + '11' },
     clientTop: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    clientAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent.primary + '11', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.accent.border + '22' },
-    avatarTxt: { color: colors.accent.primary, fontSize: 20, fontWeight: '900' },
+    clientAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: t.brand.primary + '11', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: t.border.default + '22' },
+    avatarTxt: { color: t.brand.primary, fontSize: 20, fontWeight: '900' },
     clientInfo: { gap: 2 },
-    clientLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
-    clientName: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold },
-    categoryTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
+    clientLabel: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
+    clientName: { color: t.text.primary, fontSize: t.typography.size.title, fontWeight: t.typography.weight.bold },
+    categoryTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium },
 
     jobLocation: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: colors.elevated,
-        padding: spacing[16],
-        borderRadius: radius.lg,
+        backgroundColor: t.background.surfaceRaised,
+        padding: t.spacing.lg,
+        borderRadius: t.radius.lg,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
     locLeft: { flex: 1, gap: 4 },
-    locLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    locAddress: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
-    navBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent.primary + '22', justifyContent: 'center', alignItems: 'center' },
+    locLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    locAddress: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium },
+    navBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: t.brand.primary + '22', justifyContent: 'center', alignItems: 'center' },
     navBtnIcon: { fontSize: 16 },
 
     contactActions: { marginTop: 4 },
@@ -393,49 +396,49 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 8,
         paddingVertical: 12,
-        borderRadius: radius.md,
+        borderRadius: t.radius.md,
         borderWidth: 1,
-        borderColor: colors.accent.border + '44'
+        borderColor: t.border.default + '44'
     },
     contactIcon: { fontSize: 14 },
-    contactTxt: { color: colors.text.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    contactTxt: { color: t.text.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
 
-    actionCard: { padding: spacing[24], alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent.primary + '22' },
-    actionLabel: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2, marginBottom: 8 },
-    actionTitle: { color: colors.text.primary, fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
-    actionSub: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center', lineHeight: 20, marginBottom: spacing[24] },
+    actionCard: { padding: t.spacing['2xl'], alignItems: 'center', backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.brand.primary + '22' },
+    actionLabel: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 2, marginBottom: 8 },
+    actionTitle: { color: t.text.primary, fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+    actionSub: { color: t.text.tertiary, fontSize: t.typography.size.caption, textAlign: 'center', lineHeight: 20, marginBottom: t.spacing['2xl'] },
 
-    otpWrap: { width: '100%', marginBottom: spacing[24] },
-    expiryTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, marginTop: 16, letterSpacing: 1 },
+    otpWrap: { width: '100%', marginBottom: t.spacing['2xl'] },
+    expiryTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, marginTop: 16, letterSpacing: 1 },
 
-    timerBox: { alignItems: 'center', gap: 12, marginBottom: spacing[24] },
-    timerValue: { color: colors.text.primary, fontSize: 56, fontWeight: '900', letterSpacing: 2 },
+    timerBox: { alignItems: 'center', gap: 12, marginBottom: t.spacing['2xl'] },
+    timerValue: { color: t.text.primary, fontSize: 56, fontWeight: '900', letterSpacing: 2 },
     liveBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: colors.accent.primary + '11',
+        backgroundColor: t.brand.primary + '11',
         paddingHorizontal: 10,
         paddingVertical: 4,
-        borderRadius: radius.full
+        borderRadius: t.radius.full
     },
-    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent.primary },
-    liveTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.brand.primary },
+    liveTxt: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
 
     endOtpBox: {
-        backgroundColor: colors.elevated,
+        backgroundColor: t.background.surfaceRaised,
         paddingHorizontal: 32,
         paddingVertical: 20,
-        borderRadius: radius.xl,
-        marginBottom: spacing[24],
+        borderRadius: t.radius.xl,
+        marginBottom: t.spacing['2xl'],
         borderWidth: 1,
-        borderColor: colors.accent.border + '11'
+        borderColor: t.border.default + '11'
     },
-    endOtpCode: { color: colors.accent.primary, fontSize: 44, fontWeight: '900', letterSpacing: 8 },
+    endOtpCode: { color: t.brand.primary, fontSize: 44, fontWeight: '900', letterSpacing: 8 },
     waitingIconBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    waitingTxt: { color: colors.text.muted, fontSize: 10, fontStyle: 'italic' },
+    waitingTxt: { color: t.text.tertiary, fontSize: 10, fontStyle: 'italic' },
 
     finishedBox: { alignItems: 'center', gap: 8, marginTop: 20 },
-    finishStatus: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    finishTitle: { color: colors.text.primary, fontSize: 24, fontWeight: '900', marginBottom: 16 }
+    finishStatus: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    finishTitle: { color: t.text.primary, fontSize: 24, fontWeight: '900', marginBottom: 16 }
 });

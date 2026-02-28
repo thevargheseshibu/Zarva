@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert, RefreshControl, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -12,14 +13,16 @@ import PressableAnimated from '../../design-system/components/PressableAnimated'
 import StatusPill from '../../components/StatusPill';
 import MapPickerModal from '../../components/MapPickerModal';
 import MainBackground from '../../components/MainBackground';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
 
-const LOCATION_TASK_NAME = 'background-location-task';
-
+/**
+ * WorkerHomeScreen.jsx - Cleaned and Verified
+ */
 export default function WorkerHomeScreen({ navigation }) {
+    const tokens = useTokens();
+    const styles = React.useMemo(() => createStyles(tokens), [tokens]);
     const t = useT();
-    const { isOnline, setOnline, isAvailable, setAvailable, activeJob, setActiveJob, locationOverride, setLocationOverride } = useWorkerStore();
+    
+    const { isOnline, setOnline, setAvailable, activeJob, setActiveJob, locationOverride, setLocationOverride } = useWorkerStore();
     const [toggling, setToggling] = useState(false);
     const [worker, setWorker] = useState({ id: null, name: '', rating: 0, verified: false, photo: null });
     const [earningsToday, setEarningsToday] = useState(0);
@@ -89,67 +92,67 @@ export default function WorkerHomeScreen({ navigation }) {
 
         try {
             if (type === 'base') {
-                // Hits the service-area endpoint which updates home_location + service_center
                 await apiClient.post('/api/worker/onboarding/service-area', {
                     latitude: loc.latitude,
                     longitude: loc.longitude,
-                    radius_km: 20 // Default or fetch current
+                    radius_km: 20
                 });
                 Alert.alert('Base Location Updated', 'Your permanent service area center has been updated.');
             } else {
-                // Just updates current_location for live tracking
                 await apiClient.put('/api/worker/location', { lat: loc.latitude, lng: loc.longitude });
                 Alert.alert('Active Location Updated', 'Your current location for job matching is updated.');
             }
         } catch (err) {
-            console.error('[WorkerHome] sync failure:', err);
-            Alert.alert('Sync Error', 'Failed to update location on server.');
+            console.error('[WorkerHome] Location sync failed:', err);
         }
     };
 
-    const fetchProfile = async () => {
+    const loadData = useCallback(async () => {
+        setRefreshing(true);
         try {
-            const res = await apiClient.get('/api/me');
-            const user = res.data?.user;
-            if (user && user.profile) {
-                const p = user.profile;
-                setWorker({
-                    id: user.id,
-                    name: user.name || 'Professional',
-                    rating: Number(p.average_rating || 0),
-                    verified: !!p.is_verified,
-                    photo: user.photo
-                });
-                setOnline(!!p.is_online);
-                setAvailable(!!p.is_available);
-                setEarningsToday(p.earnings_today || 0);
-                setStats({ today: p.jobs_today || 0, week: p.jobs_week || 0 });
-                if (p.current_job_id) fetchActiveJob(p.current_job_id);
-                else setActiveJob(null);
+            const [meRes, statsRes] = await Promise.all([
+                apiClient.get('/api/me'),
+                apiClient.get('/api/worker/stats')
+            ]);
 
-                try {
-                    const revRes = await apiClient.get(`/api/reviews/worker/${user.id}`);
-                    setReviews(revRes.data?.data?.reviews || revRes.data?.reviews || []);
-                } catch (rErr) { }
+            let u;
+            if (meRes.data?.user) {
+                u = meRes.data.user;
+                setWorker({
+                    id: u.id,
+                    name: u.name || 'Worker',
+                    rating: parseFloat(u.rating) || 0,
+                    verified: u.kyc_status === 'verified',
+                    photo: u.photo_url
+                });
+                setOnline(u.is_online);
+                setAvailable(u.is_available);
             }
+            if (statsRes.data?.stats) {
+                setStats(statsRes.data.stats);
+                setEarningsToday(statsRes.data.stats.earnings_today || 0);
+            }
+            
+            if (u && u.id) {
+                const reviewsRes = await apiClient.get(`/api/reviews/worker/${u.id}`);
+                if (reviewsRes.data?.reviews) {
+                    setReviews(reviewsRes.data.reviews);
+                }
+            }
+            
+            captureAndSyncLocation();
         } catch (err) {
-            console.error('[WorkerHome] Failed to fetch profile:', err);
+            console.error('[WorkerHome] Data load failed:', err);
         } finally {
             setRefreshing(false);
         }
-    };
-
-    const onRefresh = useCallback(() => {
-        setRefreshing(true);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        fetchProfile();
-    }, [fetchProfile]);
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
-            fetchProfile();
-            captureAndSyncLocation();
-        }, [])
+            loadData();
+            if (activeJob?.id) fetchActiveJob(activeJob.id);
+        }, [loadData, activeJob?.id])
     );
 
     const toggleOnline = async (val) => {
@@ -172,7 +175,6 @@ export default function WorkerHomeScreen({ navigation }) {
 
     return (
         <MainBackground>
-            {/* Header / Profile Summary */}
             <View style={styles.header}>
                 <FadeInView delay={100} style={styles.headerTop}>
                     <View style={styles.profileRow}>
@@ -197,7 +199,7 @@ export default function WorkerHomeScreen({ navigation }) {
                             value={isOnline}
                             onValueChange={toggleOnline}
                             disabled={toggling}
-                            trackColor={{ false: colors.elevated, true: colors.accent.primary }}
+                            trackColor={{ false: tokens.background.surfaceRaised, true: tokens.brand.primary }}
                             thumbColor="#FFF"
                         />
                     </View>
@@ -238,82 +240,57 @@ export default function WorkerHomeScreen({ navigation }) {
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={colors.accent.primary}
-                    />
-                }
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadData} tintColor={tokens.brand.primary} />}
             >
-                {/* Location Bar */}
-                <FadeInView delay={400}>
-                    <PressableAnimated style={styles.locationBar} onPress={() => setIsMapVisible(true)}>
-                        <Text style={styles.locIcon}>📍</Text>
-                        <Text style={styles.locTxt} numberOfLines={1}>{location.address}</Text>
-                        <Text style={styles.locEdit}>{t('edit')}</Text>
-                    </PressableAnimated>
-                </FadeInView>
+                <TouchableOpacity style={styles.locationBar} onPress={() => setIsMapVisible(true)}>
+                    <Text style={styles.locIcon}>📍</Text>
+                    <Text style={styles.locTxt} numberOfLines={1}>{location.address}</Text>
+                    <Text style={styles.locEdit}>{t('edit')}</Text>
+                </TouchableOpacity>
 
-                {/* Active Job Section */}
-                {activeJob && (
-                    <FadeInView delay={500} style={styles.section}>
+                {activeJob ? (
+                    <FadeInView delay={400} style={styles.section}>
                         <Text style={styles.sectionHeader}>{t('current_engagement')}</Text>
                         <Card style={styles.activeJobCard}>
                             <View style={styles.ajTitleRow}>
-                                <Text style={styles.ajCategory}>{t(`cat_${activeJob.category}`) || activeJob.category || t('cat_service')}</Text>
+                                <Text style={styles.ajCategory}>{t(`cat_${activeJob.category}`) || t('cat_service')}</Text>
                                 <StatusPill status={activeJob.status} />
                             </View>
-                            <Text style={styles.ajAddress} numberOfLines={1}>{t('request_from')} {activeJob.customer_address?.split(',')[0]}</Text>
-                            <PressableAnimated
-                                style={styles.ajAction}
-                                onPress={() => navigation.navigate('ActiveJob', { jobId: activeJob.id })}
-                            >
+                            <Text style={styles.ajAddress}>{activeJob.location_address}</Text>
+                            <TouchableOpacity style={styles.ajAction} onPress={() => navigation.navigate('ActiveJob', { jobId: activeJob.id })}>
                                 <Text style={styles.ajActionTxt}>{t('resume_operations')}</Text>
-                            </PressableAnimated>
+                            </TouchableOpacity>
                         </Card>
                     </FadeInView>
-                )}
+                ) : null}
 
-                {/* Feed / Feedback Summary */}
-                <FadeInView delay={600} style={styles.section}>
+                <FadeInView delay={500} style={styles.section}>
                     <View style={styles.sectionHeaderRow}>
                         <Text style={styles.sectionHeader}>{t('recent_feedback')}</Text>
-                        {reviews.length > 0 && (
-                            <TouchableOpacity onPress={() => navigation.navigate('WorkerReputation', { workerId: worker.id, workerName: worker.name })}>
-                                <Text style={styles.viewAll}>{t('see_all')}</Text>
-                            </TouchableOpacity>
-                        )}
+                        <TouchableOpacity onPress={() => navigation.navigate('Reputation')}>
+                            <Text style={styles.viewAll}>{t('see_all')}</Text>
+                        </TouchableOpacity>
                     </View>
 
                     {reviews.length === 0 ? (
                         <Card style={styles.emptyFeedback}>
-                            <Text style={styles.emptyTxt}>
-                                {t('empty_feedback_desc')}
-                            </Text>
+                            <Text style={styles.emptyTxt}>{t('empty_feedback_desc')}</Text>
                         </Card>
                     ) : (
-                        reviews?.slice(0, 3).map((review, index) => (
-                            <Card key={index} style={styles.feedbackCard}>
+                        reviews.slice(0, 3).map((review, idx) => (
+                            <Card key={idx} style={styles.feedbackCard}>
                                 <View style={styles.fbHeader}>
-                                    <Text style={styles.fbStars}>
-                                        {"★".repeat(review.overall_score)}
-                                    </Text>
-                                    <Text style={styles.fbUser}>
-                                        {review.reviewer_identifier}
-                                    </Text>
+                                    <Text style={styles.fbStars}>{'★'.repeat(Math.round(review.rating))}</Text>
+                                    <Text style={styles.fbUser}>{review.reviewer_identifier}</Text>
                                 </View>
                                 <Text style={styles.fbComment} numberOfLines={2}>
-                                    {review.comment
-                                        ? `"${review.comment}"`
-                                        : t('default_feedback')}
+                                    {review.comment ? `"${review.comment}"` : t('default_feedback')}
                                 </Text>
                             </Card>
                         ))
                     )}
                 </FadeInView>
 
-                {/* Status Indicator */}
                 {!isOnline && (
                     <FadeInView delay={700} style={styles.offlineBox}>
                         <Text style={styles.offlineTxt}>{t('offline_desc')}</Text>
@@ -331,85 +308,85 @@ export default function WorkerHomeScreen({ navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1 },
+const createStyles = (t) => StyleSheet.create({
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         backgroundColor: 'transparent',
-        paddingBottom: spacing[24],
+        paddingBottom: t.spacing['2xl'],
     },
-    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[24] },
+    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: t.spacing['2xl'] },
     profileRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     photoWrap: { position: 'relative' },
-    photo: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: colors.accent.border },
-    verifiedDot: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#00D1FF', borderWidth: 2, borderColor: colors.surface },
+    photo: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: t.border.default },
+    verifiedDot: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#00D1FF', borderWidth: 2, borderColor: t.background.surface },
     headerText: { gap: 2 },
-    greeting: { color: colors.text.muted, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
-    name: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold },
+    greeting: { color: t.text.tertiary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
+    name: { color: t.text.primary, fontSize: t.typography.size.title, fontWeight: t.typography.weight.bold },
 
     statusBox: { alignItems: 'center', gap: 4 },
-    statusTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    statusTxtActive: { color: colors.accent.primary },
+    statusTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    statusTxtActive: { color: t.brand.primary },
 
     earningsCard: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: colors.elevated,
+        backgroundColor: t.background.surfaceRaised,
         borderWidth: 1,
-        borderColor: colors.surface,
-        marginBottom: spacing[20]
+        borderColor: t.background.surface,
+        marginBottom: t.spacing[20]
     },
-    eLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
-    eValue: { color: colors.text.primary, fontSize: 40, fontWeight: '1000', marginTop: 4 },
-    eAction: { backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full },
-    eActionTxt: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold },
+    eInfo: { gap: 4 },
+    eLabel: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
+    eValue: { color: t.text.primary, fontSize: 40, fontWeight: '900', marginTop: 4 },
+    eAction: { backgroundColor: t.background.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: t.radius.full },
+    eActionTxt: { color: t.text.primary, fontSize: 12, fontWeight: t.typography.weight.bold },
 
     statsGrid: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     statItem: { flex: 1, alignItems: 'center', gap: 4 },
-    statVal: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
-    statLbl: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    statDivider: { width: 1, height: 20, backgroundColor: colors.surface },
+    statVal: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
+    statLbl: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    statDivider: { width: 1, height: 20, backgroundColor: t.background.surface },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
     locationBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        padding: spacing[16],
-        borderRadius: radius.xl,
+        backgroundColor: t.background.surface,
+        padding: t.spacing.lg,
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.accent.border + '11',
+        borderColor: t.border.default + '11',
         gap: 12,
-        marginBottom: spacing[32]
+        marginBottom: t.spacing[32]
     },
     locIcon: { fontSize: 14 },
-    locTxt: { flex: 1, color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
-    locEdit: { color: colors.accent.primary, fontSize: 12, fontWeight: fontWeight.bold },
+    locTxt: { flex: 1, color: t.text.secondary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium },
+    locEdit: { color: t.brand.primary, fontSize: 12, fontWeight: t.typography.weight.bold },
 
-    section: { marginBottom: spacing[32], gap: spacing[16] },
+    section: { marginBottom: t.spacing[32], gap: t.spacing.lg },
     sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    sectionHeader: { color: colors.accent.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    viewAll: { color: colors.text.muted, fontSize: 12, fontWeight: fontWeight.bold },
+    sectionHeader: { color: t.brand.primary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    viewAll: { color: t.text.tertiary, fontSize: 12, fontWeight: t.typography.weight.bold },
 
-    activeJobCard: { gap: spacing[12], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent.border + '22' },
+    activeJobCard: { gap: t.spacing.md, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border.default + '22' },
     ajTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    ajCategory: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
-    ajAddress: { color: colors.text.secondary, fontSize: fontSize.micro },
-    ajAction: { backgroundColor: colors.accent.primary, paddingVertical: 14, borderRadius: radius.lg, alignItems: 'center', marginTop: 10 },
-    ajActionTxt: { color: colors.background, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    ajCategory: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
+    ajAddress: { color: t.text.secondary, fontSize: t.typography.size.micro },
+    ajAction: { backgroundColor: t.brand.primary, paddingVertical: 14, borderRadius: t.radius.lg, alignItems: 'center', marginTop: 10 },
+    ajActionTxt: { color: t.background.app, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
 
-    feedbackCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface, gap: 10 },
+    feedbackCard: { backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.background.surface, gap: 10 },
     fbHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    fbStars: { color: colors.accent.primary, fontSize: 12, letterSpacing: 2 },
-    fbUser: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold },
-    fbComment: { color: colors.text.secondary, fontSize: fontSize.caption, fontStyle: 'italic', lineHeight: 20 },
+    fbStars: { color: t.brand.primary, fontSize: 12, letterSpacing: 2 },
+    fbUser: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold },
+    fbComment: { color: t.text.secondary, fontSize: t.typography.size.caption, fontStyle: 'italic', lineHeight: 20 },
 
-    emptyFeedback: { alignItems: 'center', backgroundColor: colors.surface, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.surface },
-    emptyTxt: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center' },
+    emptyFeedback: { alignItems: 'center', backgroundColor: t.background.surface, borderStyle: 'dashed', borderWidth: 1, borderColor: t.background.surface },
+    emptyTxt: { color: t.text.tertiary, fontSize: t.typography.size.caption, textAlign: 'center' },
 
-    offlineBox: { padding: spacing[16], alignItems: 'center', backgroundColor: colors.accent.primary + '10', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.accent.primary + '15' },
-    offlineTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 }
+    offlineBox: { padding: t.spacing.lg, alignItems: 'center', backgroundColor: t.brand.primary + '10', borderRadius: t.radius.lg, borderWidth: 1, borderColor: t.brand.primary + '15' },
+    offlineTxt: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 }
 });

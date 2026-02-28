@@ -128,6 +128,46 @@ export default {
     security_validation: 'নিরাপত্তা যাচাই',
     network_activation: 'নেটওয়ার্ক অ্যাক্টিভেশন',
     return_to_terminal: 'টার্মিনালে ফিরে যান',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'পুনরায় তুলুন',
+    remove: 'সরান',
+    uploaded_securely: 'নিরাপদে আপলোড হয়েছে',
+    remove_document: 'ডকুমেন্ট সরাবেন?',
+    confirm_remove_doc: 'আপনি কি নিশ্চিত এই আপলোড সরাতে চান?',
+    incomplete_info: 'অসম্পূর্ণ',
+    please_upload_all_docs: 'সমস্ত ডকুমেন্ট আপলোড করুন এবং আধার নম্বর দিন।',
+    uploading_documents: 'নিরাপদে আপলোড হচ্ছে...',
+    submitting_application: 'নথিভুক্তি সম্পন্ন হচ্ছে...',
+    protocol_required: 'প্রোটোকল প্রয়োজন',
+    please_read_agreement: 'চুক্তির শেষ পর্যন্ত স্ক্রল করুন।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'অ্যাকাউন্ট স্থগিত',
+    account_blocked_desc: 'আপনার অ্যাকাউন্ট সাময়িকভাবে স্থগিত করা হয়েছে। সহায়তার জন্য যোগাযোগ করুন।',
+    blocked_reason_label: 'স্থগিতের কারণ',
+    contact_support_blocked: 'সহায়তার সাথে যোগাযোগ করুন',
+    policy_enforcement: 'নীতি প্রয়োগ',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'পুনরায় তুলুন',
+    remove: 'সরান',
+    uploaded_securely: 'নিরাপদে আপলোড হয়েছে',
+    remove_document: 'ডকুমেন্ট সরাবেন?',
+    confirm_remove_doc: 'আপনি কি নিশ্চিত এই আপলোড সরাতে চান?',
+    incomplete_info: 'অসম্পূর্ণ',
+    please_upload_all_docs: 'সমস্ত ডকুমেন্ট আপলোড করুন এবং আধার নম্বর দিন।',
+    uploading_documents: 'নিরাপদে আপলোড হচ্ছে...',
+    submitting_application: 'নথিভুক্তি সম্পন্ন হচ্ছে...',
+    protocol_required: 'প্রোটোকল প্রয়োজন',
+    please_read_agreement: 'চুক্তির শেষ পর্যন্ত স্ক্রল করুন।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'অ্যাকাউন্ট স্থগিত',
+    account_blocked_desc: 'আপনার অ্যাকাউন্ট সাময়িকভাবে স্থগিত করা হয়েছে। সহায়তার জন্য যোগাযোগ করুন।',
+    blocked_reason_label: 'স্থগিতের কারণ',
+    contact_support_blocked: 'সহায়তার সাথে যোগাযোগ করুন',
+    policy_enforcement: 'নীতি প্রয়োগ',
     notify_encrypted_channel: 'সক্রিয় হওয়ার পর আমরা এনক্রিপ্টেড চ্যানেলের মাধ্যমে আপনাকে জানাব।',
 
     // ── Worker Tabs & Overviews ──────────────────────

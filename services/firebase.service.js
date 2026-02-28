@@ -60,6 +60,16 @@ export async function updateJobNode(jobId, fields) {
     await ref.update({ ...fields, last_updated: Date.now() });
 }
 
+export async function updateExtensionNode(jobId, fields) {
+    if (!isLiveTracking()) return;
+    const ref = await dbRef(`active_jobs/${jobId}/extension_request`);
+    if (!ref) {
+        console.log(`[Firebase Mock] active_jobs/${jobId}/extension_request update =`, JSON.stringify(fields));
+        return;
+    }
+    await ref.update({ ...fields, timestamp: Date.now() });
+}
+
 export async function createJobNode(jobId, workerId, customerLat, customerLng, worker = null) {
     const data = {
         status: 'assigned',

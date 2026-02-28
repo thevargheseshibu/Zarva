@@ -128,6 +128,46 @@ export default {
     security_validation: 'নিৰাপত্তা প্ৰমাণীকৰণ',
     network_activation: 'নেটৱৰ্ক সক্ৰিয়কৰণ',
     return_to_terminal: 'টাৰ্মিনেললৈ উভতি যাওক',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'পুনৰ তুলক',
+    remove: 'আঁতৰাওক',
+    uploaded_securely: 'সুৰক্ষিতভাৱে আপলোড হ\'ল',
+    remove_document: 'দস্তাবেজ আঁতৰাওক?',
+    confirm_remove_doc: 'আপুনি নিশ্চিত নে এই আপলোড আঁতৰাব বিচাৰে?',
+    incomplete_info: 'অসম্পূৰ্ণ',
+    please_upload_all_docs: 'অনুগ্ৰহ কৰি সকলো নথি আপলোড কৰক আৰু আপোনাৰ আধাৰ নম্বৰ দিয়ক।',
+    uploading_documents: 'সুৰক্ষিতভাৱে আপলোড হৈছে...',
+    submitting_application: 'নামভৰ্তি সম্পূৰ্ণ কৰা হৈছে...',
+    protocol_required: 'প্ৰট\'কল প্ৰয়োজন',
+    please_read_agreement: 'অনুগ্ৰহ কৰি চুক্তিৰ তলত স্ক্ৰল কৰক।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'একাউণ্ট স্থগিত',
+    account_blocked_desc: 'আপোনাৰ একাউণ্ট সাময়িকভাৱে স্থগিত কৰা হৈছে। আমাৰ সৈতে যোগাযোগ কৰক।',
+    blocked_reason_label: 'স্থগিতৰ কাৰণ',
+    contact_support_blocked: 'সহায়ৰ সৈতে যোগাযোগ কৰক',
+    policy_enforcement: 'নীতি প্ৰয়োগ',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'পুনৰ তুলক',
+    remove: 'আঁতৰাওক',
+    uploaded_securely: 'সুৰক্ষিতভাৱে আপলোড হ\'ল',
+    remove_document: 'দস্তাবেজ আঁতৰাওক?',
+    confirm_remove_doc: 'আপুনি নিশ্চিত নে এই আপলোড আঁতৰাব বিচাৰে?',
+    incomplete_info: 'অসম্পূৰ্ণ',
+    please_upload_all_docs: 'অনুগ্ৰহ কৰি সকলো নথি আপলোড কৰক আৰু আপোনাৰ আধাৰ নম্বৰ দিয়ক।',
+    uploading_documents: 'সুৰক্ষিতভাৱে আপলোড হৈছে...',
+    submitting_application: 'নামভৰ্তি সম্পূৰ্ণ কৰা হৈছে...',
+    protocol_required: 'প্ৰট\'কল প্ৰয়োজন',
+    please_read_agreement: 'অনুগ্ৰহ কৰি চুক্তিৰ তলত স্ক্ৰল কৰক।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'একাউণ্ট স্থগিত',
+    account_blocked_desc: 'আপোনাৰ একাউণ্ট সাময়িকভাৱে স্থগিত কৰা হৈছে। আমাৰ সৈতে যোগাযোগ কৰক।',
+    blocked_reason_label: 'স্থগিতৰ কাৰণ',
+    contact_support_blocked: 'সহায়ৰ সৈতে যোগাযোগ কৰক',
+    policy_enforcement: 'নীতি প্ৰয়োগ',
     notify_encrypted_channel: 'সক্ৰিয় হোৱাৰ পিছত আমি আপোনাক এনক্ৰিপ্ট কৰা চেনেলৰ জৰিয়তে জনাওঁ।',
 
     // ── Worker Tabs & Overviews ──────────────────────

@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, FlatList, TextInput } from 'react-native';
+import { useTokens } from '../../design-system';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, FlatList, TextInput, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../../design-system/tokens';
+
 import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../i18n';
 import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
@@ -12,9 +13,11 @@ import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
 import { useNavigation } from '@react-navigation/native';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
 
 export default function CustomerProfileScreen() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const navigation = useNavigation();
     const { user, logout, setUser } = useAuthStore();
     const { language, loadLanguage } = useLanguageStore();
@@ -52,7 +55,10 @@ export default function CustomerProfileScreen() {
 
     return (
         <View style={styles.screen}>
-            <View style={styles.scrollContent}>
+            <ScrollView 
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+            >
 
                 <FadeInView delay={50} style={styles.header}>
                     <View style={styles.avatarPlaceholder}>
@@ -135,7 +141,7 @@ export default function CustomerProfileScreen() {
                     <Text style={styles.versionTxt}>Zarva v2.4.0 • Ultra Premium</Text>
                 </FadeInView>
 
-            </View>
+            </ScrollView>
 
             <Modal
                 visible={isLangModalOpen}
@@ -155,11 +161,11 @@ export default function CustomerProfileScreen() {
                         <TextInput
                             style={styles.searchInput}
                             placeholder={t('search_language')}
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={tTheme.text.tertiary}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                             autoCorrect={false}
-                            selectionColor={colors.accent.primary}
+                            selectionColor={tTheme.brand.primary}
                         />
                     </View>
 
@@ -194,105 +200,105 @@ export default function CustomerProfileScreen() {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
-    scrollContent: { paddingHorizontal: spacing[24], paddingTop: 80, gap: spacing[32] },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
+    scrollContent: { paddingHorizontal: t.spacing['2xl'], paddingTop: 80, gap: t.spacing[32] },
 
     header: { alignItems: 'center', gap: 8 },
     avatarPlaceholder: {
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: colors.accent.primary + '11',
+        backgroundColor: t.brand.primary + '11',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: colors.accent.border + '44',
+        borderColor: t.border.default + '44',
         marginBottom: 8
     },
-    avatarTxt: { color: colors.accent.primary, fontSize: 32, fontWeight: '900' },
-    title: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
-    phone: { color: colors.text.secondary, fontSize: fontSize.body, letterSpacing: 1 },
+    avatarTxt: { color: t.brand.primary, fontSize: 32, fontWeight: '900' },
+    title: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.hero },
+    phone: { color: t.text.secondary, fontSize: t.typography.size.body, letterSpacing: 1 },
 
     metricsContainer: {
         flexDirection: 'row',
-        padding: spacing[24],
-        backgroundColor: colors.surface,
+        padding: t.spacing['2xl'],
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.accent.border + '11'
+        borderColor: t.border.default + '11'
     },
     metric: { alignItems: 'center', flex: 1 },
-    divider: { width: 1, height: '50%', backgroundColor: colors.accent.border + '22', alignSelf: 'center' },
-    metricValue: { color: colors.accent.primary, fontSize: 24, fontWeight: '900' },
-    metricLabel: { color: colors.text.muted, fontSize: 10, marginTop: 4, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
+    divider: { width: 1, height: '50%', backgroundColor: t.border.default + '22', alignSelf: 'center' },
+    metricValue: { color: t.brand.primary, fontSize: 24, fontWeight: '900' },
+    metricLabel: { color: t.text.tertiary, fontSize: 10, marginTop: 4, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
 
-    section: { gap: spacing[16] },
-    sectionHeader: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2, marginLeft: 4 },
+    section: { gap: t.spacing.lg },
+    sectionHeader: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 2, marginLeft: 4 },
 
     addressCard: {
-        padding: spacing[20],
-        backgroundColor: colors.surface,
+        padding: t.spacing[20],
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.surface,
+        borderColor: t.background.surface,
         gap: 8
     },
     addressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    addressTag: { color: colors.text.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    addressTag: { color: t.text.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
     addressPin: { fontSize: 12 },
-    addressText: { color: colors.text.secondary, fontSize: fontSize.caption, lineHeight: 18 },
+    addressText: { color: t.text.secondary, fontSize: t.typography.size.caption, lineHeight: 18 },
 
     settingCard: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: colors.surface,
-        padding: spacing[20],
-        borderRadius: radius.xl,
+        backgroundColor: t.background.surface,
+        padding: t.spacing[20],
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.accent.border + '11',
-        ...shadows.premium
+        borderColor: t.border.default + '11',
+        ...t.shadows.premium
     },
     settingInfo: { gap: 4 },
-    settingLabel: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    settingValue: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.semibold },
-    chevron: { color: colors.accent.primary, fontSize: 24, fontWeight: '200' },
+    settingLabel: { color: t.text.tertiary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    settingValue: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.semibold },
+    chevron: { color: t.brand.primary, fontSize: 24, fontWeight: '200' },
 
-    footer: { marginTop: spacing[16], gap: spacing[24], alignItems: 'center' },
-    versionTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium, letterSpacing: 1 },
+    footer: { marginTop: t.spacing.lg, gap: t.spacing['2xl'], alignItems: 'center' },
+    versionTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium, letterSpacing: 1 },
 
     // Modal
-    modalScreen: { flex: 1, backgroundColor: colors.background, paddingTop: 60 },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing[24], marginBottom: spacing[24] },
-    modalTitle: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold },
-    closeBtn: { color: colors.accent.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    modalScreen: { flex: 1, backgroundColor: t.background.app, paddingTop: 60 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: t.spacing['2xl'], marginBottom: t.spacing['2xl'] },
+    modalTitle: { color: t.text.primary, fontSize: t.typography.size.title, fontWeight: t.typography.weight.bold },
+    closeBtn: { color: t.brand.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
 
     searchContainer: {
-        marginHorizontal: spacing[24],
-        marginBottom: spacing[24],
-        backgroundColor: colors.surface,
-        borderRadius: radius.lg,
-        paddingHorizontal: spacing[16],
+        marginHorizontal: t.spacing['2xl'],
+        marginBottom: t.spacing['2xl'],
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.lg,
+        paddingHorizontal: t.spacing.lg,
         borderWidth: 1,
-        borderColor: colors.accent.border + '11'
+        borderColor: t.border.default + '11'
     },
-    searchInput: { color: colors.text.primary, fontSize: fontSize.body, paddingVertical: spacing[16] },
+    searchInput: { color: t.text.primary, fontSize: t.typography.size.body, paddingVertical: t.spacing.lg },
 
-    listContent: { paddingHorizontal: spacing[24], paddingBottom: 120, gap: spacing[12] },
+    listContent: { paddingHorizontal: t.spacing['2xl'], paddingBottom: 120, gap: t.spacing.md },
     langCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
-        padding: spacing[20],
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
+        padding: t.spacing[20],
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
-    langCardSelected: { borderColor: colors.accent.primary, backgroundColor: colors.accent.primary + '05' },
-    langFlag: { fontSize: 32, marginRight: spacing[16] },
+    langCardSelected: { borderColor: t.brand.primary, backgroundColor: t.brand.primary + '05' },
+    langFlag: { fontSize: 32, marginRight: t.spacing.lg },
     langTextContainer: { flex: 1 },
-    langNative: { color: colors.text.secondary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
-    langNativeActive: { color: colors.text.primary },
-    langTranslated: { color: colors.text.muted, fontSize: fontSize.micro, marginTop: 2 },
-    checkedCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent.primary, justifyContent: 'center', alignItems: 'center' },
+    langNative: { color: t.text.secondary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
+    langNativeActive: { color: t.text.primary },
+    langTranslated: { color: t.text.tertiary, fontSize: t.typography.size.micro, marginTop: 2 },
+    checkedCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: t.brand.primary, justifyContent: 'center', alignItems: 'center' },
     checkMark: { color: '#FFF', fontWeight: '900', fontSize: 12 }
 });

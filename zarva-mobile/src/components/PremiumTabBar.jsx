@@ -1,9 +1,10 @@
 import React from 'react';
+import { useTokens } from '../design-system';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, spacing, shadows } from '../design-system/tokens';
+
 
 const { width } = Dimensions.get('window');
 
@@ -12,6 +13,8 @@ const { width } = Dimensions.get('window');
  * Custom glassmorphic Bottom Tab Bar designed for the Zarva Web theme.
  */
 export default function PremiumTabBar({ state, descriptors, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const insets = useSafeAreaInsets();
 
     // Set padding to just the safe area (or 0 on Android) to remove the gap
@@ -20,7 +23,7 @@ export default function PremiumTabBar({ state, descriptors, navigation }) {
     return (
         <View style={[styles.container, { paddingBottom: bottomPadding }]}>
             <LinearGradient
-                colors={[colors.surface, 'rgba(20, 8, 40, 0.85)']} // Using surface matching colors
+                colors={[tTheme.background.surface, 'rgba(20, 8, 40, 0.85)']} // Using surface matching colors
                 style={styles.blurContainer}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 0, y: 1 }}
@@ -67,7 +70,7 @@ export default function PremiumTabBar({ state, descriptors, navigation }) {
                             >
                                 <View style={[styles.iconContainer, isFocused && styles.iconContainerActive]}>
                                     {/* Render Icon */}
-                                    {iconFn ? iconFn({ color: isFocused ? colors.accent.primary : colors.text.muted, size: 24 }) : <Text style={styles.missingIcon}>❖</Text>}
+                                    {iconFn ? iconFn({ color: isFocused ? tTheme.brand.primary : tTheme.text.tertiary, size: 24 }) : <Text style={styles.missingIcon}>❖</Text>}
 
                                     {/* Active Indicator Glow */}
                                     {isFocused && (
@@ -86,25 +89,25 @@ export default function PremiumTabBar({ state, descriptors, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     container: {
         position: 'absolute',
         bottom: 0,
         width: width,
-        paddingHorizontal: spacing[16],
+        paddingHorizontal: t.spacing.lg,
         backgroundColor: 'transparent',
     },
     blurContainer: {
-        borderTopLeftRadius: radius.xl,
-        borderTopRightRadius: radius.xl,
+        borderTopLeftRadius: t.radius.xl,
+        borderTopRightRadius: t.radius.xl,
         borderBottomLeftRadius: 0,
         borderBottomRightRadius: 0,
         borderWidth: 1,
         borderBottomWidth: 0, // No border on the bottom
-        borderColor: colors.accent.border + '44',
+        borderColor: t.border.default + '44',
         overflow: 'hidden',
         // Heavy shadow for floating effect
-        shadowColor: colors.accent.primary,
+        shadowColor: t.brand.primary,
         shadowOffset: { width: 0, height: -5 },
         shadowOpacity: 0.15,
         shadowRadius: 20,
@@ -135,11 +138,11 @@ const styles = StyleSheet.create({
         height: 44,
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: radius.md,
+        borderRadius: t.radius.md,
         position: 'relative',
     },
     iconContainerActive: {
-        backgroundColor: colors.accent.primary + '11',
+        backgroundColor: t.brand.primary + '11',
     },
     activeGlow: {
         position: 'absolute',
@@ -147,8 +150,8 @@ const styles = StyleSheet.create({
         width: 16,
         height: 3,
         borderRadius: 2,
-        backgroundColor: colors.accent.primary,
-        shadowColor: colors.accent.primary,
+        backgroundColor: t.brand.primary,
+        shadowColor: t.brand.primary,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 1,
         shadowRadius: 8,
@@ -158,15 +161,15 @@ const styles = StyleSheet.create({
         marginTop: 4,
         fontSize: 10,
         fontWeight: '600',
-        color: colors.text.muted,
+        color: t.text.tertiary,
         letterSpacing: 0.5,
     },
     labelActive: {
-        color: colors.accent.primary,
+        color: t.brand.primary,
         fontWeight: '800',
     },
     missingIcon: {
-        color: colors.text.muted,
+        color: t.text.tertiary,
         fontSize: 18,
     }
 });

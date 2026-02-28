@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, TouchableOpacity, BackHandler, ActivityIndicator } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 import { useAuthStore } from '../../stores/authStore';
 import apiClient from '../../services/api/client';
 import MainBackground from '../../components/MainBackground';
@@ -26,6 +27,8 @@ const SCREEN_MAP = [
 ];
 
 export default function OnboardingWelcome() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const [step, setStep] = useState(0);
     const [data, setData] = useState({});
     const [done, setDone] = useState(false);
@@ -72,7 +75,7 @@ export default function OnboardingWelcome() {
     if (isLoading) {
         return (
             <MainBackground style={{ justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color={colors.accent.primary} />
+                <ActivityIndicator size="large" color={tTheme.brand.primary} />
             </MainBackground>
         );
     }
@@ -124,12 +127,12 @@ export default function OnboardingWelcome() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     screen: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         paddingTop: 60,
         paddingBottom: 20,
         gap: 16
@@ -138,28 +141,28 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: colors.accent.border + '11'
+        borderColor: t.border.default + '11'
     },
-    backArrow: { color: colors.text.primary, fontSize: 20 },
+    backArrow: { color: t.text.primary, fontSize: 20 },
 
-    progressContainer: { flex: 1, height: 6, backgroundColor: colors.surface, borderRadius: 3, overflow: 'hidden', position: 'relative' },
-    track: { flex: 1, backgroundColor: colors.surface },
-    fill: { height: '100%', backgroundColor: colors.accent.primary, borderRadius: 3 },
+    progressContainer: { flex: 1, height: 6, backgroundColor: t.background.surface, borderRadius: 3, overflow: 'hidden', position: 'relative' },
+    track: { flex: 1, backgroundColor: t.background.surface },
+    fill: { height: '100%', backgroundColor: t.brand.primary, borderRadius: 3 },
     glow: {
         position: 'absolute',
         top: 0,
         width: 20,
         height: '100%',
-        backgroundColor: colors.accent.primary,
+        backgroundColor: t.brand.primary,
         opacity: 0.5,
         transform: [{ translateX: -10 }]
     },
 
     stepInfo: { flexDirection: 'row', alignItems: 'baseline' },
-    stepCount: { color: colors.text.primary, fontSize: 16, fontWeight: '900' },
-    stepTotal: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, marginLeft: 4 }
+    stepCount: { color: t.text.primary, fontSize: 16, fontWeight: '900' },
+    stepTotal: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, marginLeft: 4 }
 });

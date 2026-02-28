@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { colors, spacing } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+
+
 import { useT } from '../../../hooks/useT';
 import apiClient from '../../../services/api/client';
 import PremiumHeader from '../../../components/PremiumHeader';
@@ -10,6 +11,8 @@ import MainBackground from '../../../components/MainBackground';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
 
 export default function TicketListScreen() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const navigation = useNavigation();
     const t = useT();
 
@@ -47,13 +50,13 @@ export default function TicketListScreen() {
     };
 
     const StatusBadge = ({ status }) => {
-        let bg = colors.elevated;
-        let c = colors.text.muted;
+        let bg = t.background.surfaceRaised;
+        let c = t.text.tertiary;
         const low = (status || '').toLowerCase();
 
         if (low === 'open') {
-            bg = colors.accent.primary + '22';
-            c = colors.accent.primary;
+            bg = t.brand.primary + '22';
+            c = t.brand.primary;
         } else if (low === 'resolved' || low === 'closed') {
             bg = '#4CAF5022';
             c = '#4CAF50';
@@ -71,7 +74,7 @@ export default function TicketListScreen() {
             <MainBackground>
                 <PremiumHeader title={t('my_tickets', { defaultValue: 'My Tickets' })} onBack={() => navigation.goBack()} />
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color={colors.accent.primary} />
+                    <ActivityIndicator size="large" color={t.brand.primary} />
                 </View>
             </MainBackground>
         );
@@ -83,7 +86,7 @@ export default function TicketListScreen() {
 
             <FlatList
                 contentContainerStyle={styles.list}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent.primary} />}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.brand.primary} />}
                 data={tickets}
                 keyExtractor={item => item.id}
                 ListEmptyComponent={() => (
@@ -116,59 +119,59 @@ export default function TicketListScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    list: { padding: spacing[24], gap: spacing[16], paddingBottom: spacing[40] },
+    list: { padding: t.spacing['2xl'], gap: t.spacing.lg, paddingBottom: t.spacing[40] },
 
     empty: {
         alignItems: 'center',
         paddingTop: 80,
     },
-    emptyIcon: { fontSize: 40, marginBottom: spacing[16] },
-    emptyTxt: { color: colors.text.muted, fontSize: fontSize.body, textAlign: 'center' },
+    emptyIcon: { fontSize: 40, marginBottom: t.spacing.lg },
+    emptyTxt: { color: t.text.tertiary, fontSize: t.typography.size.body, textAlign: 'center' },
 
     card: {
-        backgroundColor: colors.surface,
-        padding: spacing[20],
+        backgroundColor: t.background.surface,
+        padding: t.spacing[20],
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: colors.accent.border + '22',
+        borderColor: t.border.default + '22',
     },
     cardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: spacing[12],
+        marginBottom: t.spacing.md,
     },
     ticketNumber: {
-        color: colors.text.primary,
-        fontSize: fontSize.body,
-        fontWeight: fontWeight.bold,
+        color: t.text.primary,
+        fontSize: t.typography.size.body,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 1,
     },
     badge: {
-        paddingHorizontal: spacing[12],
+        paddingHorizontal: t.spacing.md,
         paddingVertical: 4,
         borderRadius: 12,
     },
     badgeTxt: {
-        fontSize: fontSize.micro,
-        fontWeight: fontWeight.bold,
+        fontSize: t.typography.size.micro,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 1,
     },
     cardInfo: { gap: 4 },
     type: {
-        color: colors.text.secondary,
-        fontSize: fontSize.small,
-        fontWeight: fontWeight.medium,
+        color: t.text.secondary,
+        fontSize: t.typography.size.small,
+        fontWeight: t.typography.weight.medium,
     },
     jobId: {
-        color: colors.accent.primary,
-        fontSize: fontSize.small,
+        color: t.brand.primary,
+        fontSize: t.typography.size.small,
     },
     date: {
-        color: colors.text.muted,
-        fontSize: fontSize.small,
+        color: t.text.tertiary,
+        fontSize: t.typography.size.small,
         marginTop: 4,
     }
 });

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { useTokens } from '../../../design-system';
 import { View, Text, ScrollView, TextInput, Alert, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+
+
 import PremiumButton from '../../../components/PremiumButton';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
@@ -15,6 +16,8 @@ import MainBackground from '../../../components/MainBackground';
 const AGREEMENT_VERSION = 'v2026-02';
 
 export default function OnboardingAgreement({ data, onNext }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const [signature, setSignature] = useState('');
     const [loading, setLoading] = useState(false);
     const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
@@ -66,7 +69,7 @@ export default function OnboardingAgreement({ data, onNext }) {
 
                 <FadeInView delay={150} style={styles.section}>
                     <Text style={styles.label}>{t('service_agreement')} {!hasScrolledToBottom && "(Please read to the end)"}</Text>
-                    <Card style={[styles.agreementCard, !hasScrolledToBottom && { borderColor: colors.accent.primary + '66' }]}>
+                    <Card style={[styles.agreementCard, !hasScrolledToBottom && { borderColor: t.brand.primary + '66' }]}>
                         <ScrollView
                             style={styles.innerScroll}
                             showsVerticalScrollIndicator={true}
@@ -89,7 +92,7 @@ export default function OnboardingAgreement({ data, onNext }) {
                             value={signature}
                             onChangeText={setSignature}
                             placeholder={user?.name || t('full_legal_name')}
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={t.text.tertiary}
                             autoCapitalize="words"
                         />
                     </Card>
@@ -118,33 +121,33 @@ export default function OnboardingAgreement({ data, onNext }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
-    scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
-    headerSub: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
-    sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
+    scrollContent: { padding: t.spacing['2xl'], gap: t.spacing[32], paddingBottom: 60 },
+    headerSub: { color: t.text.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    title: { color: t.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: t.typography.tracking.hero, marginTop: 4 },
+    sub: { color: t.text.tertiary, fontSize: t.typography.size.body, lineHeight: 24, marginTop: 8 },
 
     section: { gap: 12 },
-    label: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    label: { color: t.text.primary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
 
     agreementCard: {
         height: 240,
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.surface,
+        borderColor: t.background.surface,
         padding: 4
     },
     innerScroll: { padding: 16 },
-    agreementBody: { color: colors.text.muted, fontSize: 11, lineHeight: 18, fontWeight: fontWeight.medium },
+    agreementBody: { color: t.text.tertiary, fontSize: 11, lineHeight: 18, fontWeight: t.typography.weight.medium },
 
-    inputCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface },
+    inputCard: { backgroundColor: t.background.surface, padding: 4, borderWidth: 1, borderColor: t.background.surface },
     input: {
         paddingHorizontal: 16, paddingVertical: 14,
-        color: colors.text.primary, fontSize: 18, fontWeight: 'bold', fontStyle: 'italic', letterSpacing: 0.5
+        color: t.text.primary, fontSize: 18, fontWeight: 'bold', fontStyle: 'italic', letterSpacing: 0.5
     },
-    hintTxt: { color: colors.text.muted, fontSize: 10, fontStyle: 'italic', paddingLeft: 4 },
+    hintTxt: { color: t.text.tertiary, fontSize: 10, fontStyle: 'italic', paddingLeft: 4 },
 
-    footer: { marginTop: spacing[16] },
-    successHint: { color: colors.accent.primary, fontSize: 10, fontWeight: 'bold', textAlign: 'right', marginTop: 4 }
+    footer: { marginTop: t.spacing.lg },
+    successHint: { color: t.brand.primary, fontSize: 10, fontWeight: 'bold', textAlign: 'right', marginTop: 4 }
 });

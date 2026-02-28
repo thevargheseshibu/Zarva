@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
@@ -6,10 +7,12 @@ import apiClient from '../../services/api/client';
 import FadeInView from '../../components/FadeInView';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 
 export default function WorkerReputationScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { workerId, workerName } = route.params || {};
     const [loading, setLoading] = useState(true);
@@ -43,7 +46,7 @@ export default function WorkerReputationScreen({ route, navigation }) {
     if (loading) {
         return (
             <View style={styles.loadingScreen}>
-                <ActivityIndicator size="large" color={colors.accent.primary} />
+                <ActivityIndicator size="large" color={t.brand.primary} />
                 <Text style={styles.loadingText}>{t('loading_reputation')}</Text>
             </View>
         );
@@ -127,86 +130,86 @@ export default function WorkerReputationScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
-    loadingScreen: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', gap: spacing[16] },
-    loadingText: { color: colors.text.muted, fontSize: fontSize.caption, fontWeight: fontWeight.medium, letterSpacing: 1 },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
+    loadingScreen: { flex: 1, backgroundColor: t.background.app, justifyContent: 'center', alignItems: 'center', gap: t.spacing.lg },
+    loadingText: { color: t.text.tertiary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium, letterSpacing: 1 },
 
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
-    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
+    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.body },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
     summaryCard: {
-        padding: spacing[24],
-        backgroundColor: colors.surface,
+        padding: t.spacing['2xl'],
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.accent.border + '22',
-        marginBottom: spacing[32]
+        borderColor: t.border.default + '22',
+        marginBottom: t.spacing[32]
     },
-    summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing[24] },
+    summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: t.spacing['2xl'] },
     scoreBox: { alignItems: 'flex-end', flexDirection: 'row', gap: 2 },
-    avgScore: { color: colors.accent.primary, fontSize: 48, fontWeight: '900', lineHeight: 52 },
-    maxScore: { color: colors.text.muted, fontSize: 14, fontWeight: fontWeight.bold, marginBottom: 8 },
+    avgScore: { color: t.brand.primary, fontSize: 48, fontWeight: '900', lineHeight: 52 },
+    maxScore: { color: t.text.tertiary, fontSize: 14, fontWeight: t.typography.weight.bold, marginBottom: 8 },
 
     summaryInfo: { flex: 1, gap: 4 },
-    workerName: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, letterSpacing: tracking.cardTitle },
+    workerName: { color: t.text.primary, fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.cardTitle },
     starsBox: { gap: 2 },
-    starsTxt: { color: colors.accent.primary, fontSize: 16, letterSpacing: 2 },
-    reviewsCount: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
+    starsTxt: { color: t.brand.primary, fontSize: 16, letterSpacing: 2 },
+    reviewsCount: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium },
 
     sectionHeader: {
-        color: colors.accent.primary,
+        color: t.brand.primary,
         fontSize: 10,
-        fontWeight: fontWeight.bold,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 2,
-        marginBottom: spacing[16]
+        marginBottom: t.spacing.lg
     },
 
     reviewCard: {
-        padding: spacing[20],
-        marginBottom: spacing[16],
-        gap: spacing[12],
-        backgroundColor: colors.surface,
+        padding: t.spacing[20],
+        marginBottom: t.spacing.lg,
+        gap: t.spacing.md,
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
     reviewTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-    reviewerName: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
-    reviewDate: { color: colors.text.muted, fontSize: 10, marginTop: 2 },
-    reviewStarsBox: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-    reviewStars: { color: colors.accent.primary, fontSize: 12, letterSpacing: 1 },
+    reviewerName: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
+    reviewDate: { color: t.text.tertiary, fontSize: 10, marginTop: 2 },
+    reviewStarsBox: { backgroundColor: t.brand.primary + '11', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+    reviewStars: { color: t.brand.primary, fontSize: 12, letterSpacing: 1 },
 
-    reviewComment: { color: colors.text.primary, fontSize: fontSize.caption, lineHeight: 20, fontStyle: 'italic', opacity: 0.9 },
+    reviewComment: { color: t.text.primary, fontSize: t.typography.size.caption, lineHeight: 20, fontStyle: 'italic', opacity: 0.9 },
 
     metricTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
     metricTag: {
-        backgroundColor: colors.elevated,
+        backgroundColor: t.background.surfaceRaised,
         paddingHorizontal: 8,
         paddingVertical: 4,
-        borderRadius: radius.md,
+        borderRadius: t.radius.md,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
-    metricTagTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
+    metricTagTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 0.5 },
 
     emptyBox: {
-        padding: spacing[48],
+        padding: t.spacing[48],
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.accent.border + '22',
+        borderColor: t.border.default + '22',
         borderStyle: 'dashed'
     },
-    emptyTxt: { color: colors.text.muted, fontSize: fontSize.body, textAlign: 'center', fontStyle: 'italic' }
+    emptyTxt: { color: t.text.tertiary, fontSize: t.typography.size.body, textAlign: 'center', fontStyle: 'italic' }
 });

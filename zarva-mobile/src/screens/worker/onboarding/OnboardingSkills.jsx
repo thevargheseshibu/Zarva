@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
+import { useTokens } from '../../../design-system';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, spacing, radius, shadows } from '../../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../../design-system/typography';
+import { LinearGradient } from 'expo-linear-gradient';
+
 import PremiumButton from '../../../components/PremiumButton';
 import apiClient from '../../../services/api/client';
 import FadeInView from '../../../components/FadeInView';
@@ -10,9 +11,13 @@ import Card from '../../../components/Card';
 import { useT } from '../../../hooks/useT';
 import { useUIStore } from '../../../stores/uiStore';
 import MainBackground from '../../../components/MainBackground';
-import { LinearGradient } from 'expo-linear-gradient';
 
+/**
+ * OnboardingSkills.jsx - Standardized version.
+ */
 export default function OnboardingSkills({ data, onNext }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
 
     const EXP_LEVELS = [
@@ -85,7 +90,7 @@ export default function OnboardingSkills({ data, onNext }) {
                         <TextInput
                             style={styles.searchInput}
                             placeholder={t('search_competencies')}
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={tTheme.text.tertiary}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                         />
@@ -177,48 +182,48 @@ export default function OnboardingSkills({ data, onNext }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    scrollContent: { padding: spacing[24], gap: spacing[32], paddingBottom: 60 },
-    headerSub: { color: colors.text.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    title: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero, marginTop: 4 },
-    sub: { color: colors.text.muted, fontSize: fontSize.body, lineHeight: 24, marginTop: 8 },
+    scrollContent: { padding: t.spacing['2xl'], gap: t.spacing[32], paddingBottom: 60 },
+    headerSub: { color: t.text.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    title: { color: t.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: t.typography.tracking.hero, marginTop: 4 },
+    sub: { color: t.text.tertiary, fontSize: t.typography.size.body, lineHeight: 24, marginTop: 8 },
 
     section: { gap: 12 },
-    label: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    label: { color: t.text.primary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
 
-    searchCard: { backgroundColor: colors.surface, padding: 4, borderWidth: 1, borderColor: colors.surface, marginBottom: 8 },
+    searchCard: { backgroundColor: t.background.surface, padding: 4, borderWidth: 1, borderColor: t.background.surface, marginBottom: 8 },
     searchInput: {
         paddingHorizontal: 16, paddingVertical: 14,
-        color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.medium
+        color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium
     },
 
     skillsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     skillChip: {
         paddingHorizontal: 16,
         paddingVertical: 12,
-        borderRadius: radius.lg,
-        backgroundColor: colors.surface,
+        borderRadius: t.radius.lg,
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
     skillChipActive: {
         borderColor: 'transparent',
         overflow: 'hidden',
-        ...shadows.accentGlow
+        ...t.shadows.accentGlow
     },
-    skillTxt: { color: colors.text.muted, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    skillTxt: { color: t.text.tertiary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
     skillTxtActive: {
-        color: '#FFFFFF',
+        color: t.text.primary,
         textShadowColor: 'rgba(0,0,0,0.2)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4
     },
 
-    moreChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.lg, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.accent.border + '44' },
-    moreTxt: { color: colors.accent.secondary, fontSize: 12, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    moreChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: t.radius.lg, borderStyle: 'dashed', borderWidth: 1, borderColor: t.border.default + '44' },
+    moreTxt: { color: t.brand.secondary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
 
-    emptyResults: { color: colors.text.muted, fontSize: 13, fontStyle: 'italic', paddingLeft: 4 },
+    emptyResults: { color: t.text.tertiary, fontSize: 13, fontStyle: 'italic', paddingLeft: 4 },
 
     expGrid: { gap: 12 },
     expChip: {
@@ -227,24 +232,24 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 20,
         paddingVertical: 18,
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
     expChipActive: {
         borderColor: 'transparent',
         overflow: 'hidden',
-        ...shadows.accentGlow
+        ...t.shadows.accentGlow
     },
-    expLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    expLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
     expLabelActive: {
-        color: '#FFFFFF',
+        color: t.text.primary,
         textShadowColor: 'rgba(0,0,0,0.2)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4
     },
-    activeIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' },
+    activeIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.text.primary },
 
-    footer: { marginTop: spacing[8] }
+    footer: { marginTop: t.spacing.sm }
 });

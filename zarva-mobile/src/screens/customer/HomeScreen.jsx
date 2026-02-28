@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -13,8 +14,8 @@ import { useJobStore } from '../../stores/jobStore';
 import apiClient from '../../services/api/client';
 import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 import { durations } from '../../design-system/motion';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import SkeletonCard from '../../design-system/components/SkeletonCard';
@@ -24,7 +25,12 @@ import Card from '../../components/Card';
 import MapPickerModal from '../../components/MapPickerModal';
 import NotCoveredView from '../../components/NotCoveredView';
 
+/**
+ * HomeScreen.jsx - Standardized version to resolve tag mismatch and theme naming.
+ */
 export default function HomeScreen({ navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const [recentJobs, setRecentJobs] = useState([]);
     const [services, setServices] = useState([]);
@@ -48,7 +54,7 @@ export default function HomeScreen({ navigation }) {
         const opacity = interpolate(scrollY.value, [0, 60], [0, 1], 'clamp');
         return {
             opacity,
-            backgroundColor: colors.background + 'EE',
+            backgroundColor: tTheme.background.app + 'EE',
         };
     });
 
@@ -180,7 +186,7 @@ export default function HomeScreen({ navigation }) {
                                 <TextInput
                                     style={styles.searchInput}
                                     placeholder={t('what_need_help_with')}
-                                    placeholderTextColor={colors.text.secondary}
+                                    placeholderTextColor={tTheme.text.secondary}
                                     value={searchQuery}
                                     onChangeText={setSearchQuery}
                                 />
@@ -294,10 +300,10 @@ export default function HomeScreen({ navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     scrollView: { flex: 1 },
-    content: { padding: spacing[24], paddingTop: 100, paddingBottom: 120 },
+    content: { padding: t.spacing['2xl'], paddingTop: 100, paddingBottom: 120 },
 
     headerFloating: {
         position: 'absolute',
@@ -310,86 +316,86 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     headerTitle: {
-        color: colors.text.primary,
-        fontSize: fontSize.body,
-        fontWeight: fontWeight.bold,
+        color: t.text.primary,
+        fontSize: t.typography.size.body,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 1.2,
         textTransform: 'uppercase',
     },
 
-    topBar: { marginBottom: spacing[32] },
+    topBar: { marginBottom: t.spacing[32] },
     locationPill: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         alignSelf: 'flex-start',
-        paddingHorizontal: spacing[16],
-        paddingVertical: spacing[12],
-        borderRadius: radius.full,
-        gap: spacing[8],
-        ...shadows.premium
+        paddingHorizontal: t.spacing.lg,
+        paddingVertical: t.spacing.md,
+        borderRadius: t.radius.full,
+        gap: t.spacing.sm,
+        ...t.shadows.premium
     },
-    locationTxt: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.medium, maxWidth: 200 },
-    locationChevron: { color: colors.accent.primary, fontSize: 16 },
+    locationTxt: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium, maxWidth: 200 },
+    locationChevron: { color: t.brand.primary, fontSize: 16 },
 
-    greeting: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.semibold, letterSpacing: tracking.hero },
-    subGreeting: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, letterSpacing: tracking.body },
+    greeting: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.semibold, letterSpacing: t.typography.tracking.hero },
+    subGreeting: { color: t.text.secondary, fontSize: t.typography.size.body, marginTop: 4, letterSpacing: t.typography.tracking.body },
 
-    activeJobCard: { marginTop: spacing[32], gap: spacing[16] },
+    activeJobCard: { marginTop: t.spacing[32], gap: t.spacing.lg },
     activeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    activeLabel: { color: colors.accent.primary, fontSize: fontSize.micro, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
-    activeBody: { flexDirection: 'row', alignItems: 'center', gap: spacing[16], marginVertical: spacing[8] },
-    serviceIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    activeLabel: { color: t.brand.primary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
+    activeBody: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.lg, marginVertical: t.spacing.sm },
+    serviceIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
     activeInfo: { flex: 1 },
-    activeName: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, letterSpacing: tracking.cardTitle },
-    activeStatusDesc: { color: colors.text.secondary, fontSize: fontSize.micro, marginTop: 2 },
+    activeName: { color: t.text.primary, fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.cardTitle },
+    activeStatusDesc: { color: t.text.secondary, fontSize: t.typography.size.micro, marginTop: 2 },
 
-    searchSection: { marginTop: spacing[32] },
+    searchSection: { marginTop: t.spacing[32] },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        borderRadius: radius.lg,
-        paddingHorizontal: spacing[24],
-        paddingVertical: spacing[16],
-        gap: spacing[16],
-        ...shadows.premium
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.lg,
+        paddingHorizontal: t.spacing['2xl'],
+        paddingVertical: t.spacing.lg,
+        gap: t.spacing.lg,
+        ...t.shadows.premium
     },
     searchIcon: { fontSize: 18 },
-    searchInput: { flex: 1, color: colors.text.primary, fontSize: fontSize.body, paddingVertical: 4 },
+    searchInput: { flex: 1, color: t.text.primary, fontSize: t.typography.size.body, paddingVertical: 4 },
 
-    gridSection: { marginTop: spacing[32] },
-    sectionTitle: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.semibold, marginBottom: spacing[16], letterSpacing: tracking.cardTitle },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[16] },
+    gridSection: { marginTop: t.spacing[32] },
+    sectionTitle: { color: t.text.primary, fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.semibold, marginBottom: t.spacing.lg, letterSpacing: t.typography.tracking.cardTitle },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.lg },
     gridItem: { width: '47%' },
     serviceCard: {
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
-        padding: spacing[24],
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
+        padding: t.spacing['2xl'],
         alignItems: 'center',
-        gap: spacing[16],
-        ...shadows.premium
+        gap: t.spacing.lg,
+        ...t.shadows.premium
     },
-    iconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
+    iconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
     gridIcon: { fontSize: 28 },
-    gridLabel: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.bold, letterSpacing: tracking.caption },
+    gridLabel: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.caption },
 
-    recentSection: { marginTop: spacing[32] },
-    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[16] },
-    viewAllTxt: { color: colors.accent.primary, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
+    recentSection: { marginTop: t.spacing[32] },
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: t.spacing.lg },
+    viewAllTxt: { color: t.brand.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold },
     recentRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing[16],
-        backgroundColor: colors.surface,
-        padding: spacing[16],
-        borderRadius: radius.lg,
-        marginBottom: spacing[16],
-        ...shadows.premium
+        gap: t.spacing.lg,
+        backgroundColor: t.background.surface,
+        padding: t.spacing.lg,
+        borderRadius: t.radius.lg,
+        marginBottom: t.spacing.lg,
+        ...t.shadows.premium
     },
-    recentIconBox: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
+    recentIconBox: { width: 40, height: 40, borderRadius: 10, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
     recentIcon: { fontSize: 20 },
     recentInfo: { flex: 1 },
-    recentTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.medium, letterSpacing: tracking.body },
-    recentDate: { color: colors.text.secondary, fontSize: fontSize.micro, marginTop: 2 }
+    recentTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.medium, letterSpacing: t.typography.tracking.body },
+    recentDate: { color: t.text.secondary, fontSize: t.typography.size.micro, marginTop: 2 }
 });

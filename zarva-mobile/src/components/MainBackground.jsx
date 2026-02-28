@@ -1,19 +1,16 @@
 import React from 'react';
+import { useTokens } from '../design-system';
 import { StyleSheet, View, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../design-system/tokens';
 
-/**
- * MainBackground — Atmospheric Gradient System
- * Provides the signature Zarva depth with a multi-stop gradient.
- */
 export default function MainBackground({ children, style }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
             <LinearGradient
-                // Web Theme Background Strategy
-                colors={['#140828', colors.background, colors.background]}
+                colors={[tTheme.background.surface, tTheme.background.app, tTheme.background.app]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[StyleSheet.absoluteFill, style]}
@@ -37,9 +34,9 @@ export default function MainBackground({ children, style }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: t.background.app,
     },
 });

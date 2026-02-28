@@ -8,6 +8,7 @@
 
 import cron from 'node-cron';
 import { getPool } from '../config/database.js';
+import { startLiveBillingSync } from './liveBilling.js';
 
 export function initCronJobs() {
     console.log('[Cron] Initializing 15-minute scheduled sweeps...');
@@ -26,6 +27,9 @@ export function initCronJobs() {
             console.error('[Cron] Sweep Error:', err);
         }
     });
+
+    // Start Live Billing Background Tracker 
+    startLiveBillingSync();
 }
 
 /**

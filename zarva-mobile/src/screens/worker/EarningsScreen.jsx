@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -8,10 +9,12 @@ import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontWeight, tracking, fontSize } from '../../design-system/typography';
+
+
 
 export default function EarningsScreen({ navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const TABS = [t('today'), t('this_week'), t('this_month')];
     const [activeTab, setActiveTab] = useState(t('today'));
@@ -130,7 +133,7 @@ export default function EarningsScreen({ navigation }) {
 
                     {loading ? (
                         <View style={styles.loaderBox}>
-                            <ActivityIndicator color={colors.accent.primary} />
+                            <ActivityIndicator color={t.brand.primary} />
                         </View>
                     ) : (
                         <FlatList
@@ -154,80 +157,80 @@ export default function EarningsScreen({ navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
-    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
+    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.body },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
     tabBar: {
         flexDirection: 'row',
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         padding: 4,
-        borderRadius: radius.xl,
-        marginBottom: spacing[32],
+        borderRadius: t.radius.xl,
+        marginBottom: t.spacing[32],
         borderWidth: 1,
-        borderColor: colors.accent.border + '11'
+        borderColor: t.border.default + '11'
     },
-    tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: radius.lg },
-    tabActive: { backgroundColor: colors.elevated, ...shadows.premium },
-    tabTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
-    tabTxtActive: { color: colors.accent.primary },
+    tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: t.radius.lg },
+    tabActive: { backgroundColor: t.background.surfaceRaised, ...t.shadows.premium },
+    tabTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 0.5 },
+    tabTxtActive: { color: t.brand.primary },
 
-    heroCard: { padding: spacing[32], alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.accent.border + '11', marginBottom: spacing[24] },
-    heroLabel: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
+    heroCard: { padding: t.spacing[32], alignItems: 'center', backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border.default + '11', marginBottom: t.spacing['2xl'] },
+    heroLabel: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
     valueRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8 },
-    currency: { color: colors.text.primary, fontSize: 24, fontWeight: '900', marginTop: 12, marginRight: 4 },
-    heroValue: { color: colors.text.primary, fontSize: 64, fontWeight: '900', letterSpacing: -1 },
-    availableBadge: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 12, paddingVertical: 4, borderRadius: radius.full, marginTop: 16 },
-    availableTxt: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold },
+    currency: { color: t.text.primary, fontSize: 24, fontWeight: '900', marginTop: 12, marginRight: 4 },
+    heroValue: { color: t.text.primary, fontSize: 64, fontWeight: '900', letterSpacing: -1 },
+    availableBadge: { backgroundColor: t.brand.primary + '11', paddingHorizontal: 12, paddingVertical: 4, borderRadius: t.radius.full, marginTop: 16 },
+    availableTxt: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold },
 
     withdrawCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: spacing[20],
-        backgroundColor: colors.elevated,
+        padding: t.spacing[20],
+        backgroundColor: t.background.surfaceRaised,
         borderWidth: 1,
-        borderColor: colors.surface,
-        marginBottom: spacing[48]
+        borderColor: t.background.surface,
+        marginBottom: t.spacing[48]
     },
     withdrawInfo: { flex: 1, gap: 4 },
-    withdrawTitle: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
-    withdrawSub: { color: colors.text.muted, fontSize: 10, lineHeight: 12 },
-    withdrawBtn: { width: 100, height: 40, borderRadius: radius.md },
+    withdrawTitle: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold },
+    withdrawSub: { color: t.text.tertiary, fontSize: 10, lineHeight: 12 },
+    withdrawBtn: { width: 100, height: 40, borderRadius: t.radius.md },
 
-    section: { gap: spacing[16] },
+    section: { gap: t.spacing.lg },
     sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-    sectionHeader: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    historyMeta: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
+    sectionHeader: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    historyMeta: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium },
 
-    txList: { gap: spacing[16] },
+    txList: { gap: t.spacing.lg },
     txRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    txIconBox: { width: 44, height: 44, borderRadius: radius.lg, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
-    txIconCredit: { backgroundColor: colors.accent.primary + '11', borderColor: colors.accent.primary + '22' },
-    txIconDebit: { backgroundColor: colors.elevated, borderColor: colors.surface },
-    txIconTxt: { color: colors.text.primary, fontSize: 18, fontWeight: 'bold' },
+    txIconBox: { width: 44, height: 44, borderRadius: t.radius.lg, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+    txIconCredit: { backgroundColor: t.brand.primary + '11', borderColor: t.brand.primary + '22' },
+    txIconDebit: { backgroundColor: t.background.surfaceRaised, borderColor: t.background.surface },
+    txIconTxt: { color: t.text.primary, fontSize: 18, fontWeight: 'bold' },
     txInfo: { flex: 1, gap: 2 },
-    txTitle: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
-    txTime: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
+    txTitle: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold },
+    txTime: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium },
     txAmtBox: { alignItems: 'flex-end', gap: 4 },
-    txAmt: { color: colors.accent.primary, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
-    txAmtDebit: { color: colors.text.primary, opacity: 0.6 },
-    settledBadge: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-    settledTxt: { color: colors.accent.primary, fontSize: 6, fontWeight: '900' },
+    txAmt: { color: t.brand.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold },
+    txAmtDebit: { color: t.text.primary, opacity: 0.6 },
+    settledBadge: { backgroundColor: t.brand.primary + '11', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+    settledTxt: { color: t.brand.primary, fontSize: 6, fontWeight: '900' },
 
-    divider: { height: 1, backgroundColor: colors.elevated, opacity: 0.5 },
+    divider: { height: 1, backgroundColor: t.background.surfaceRaised, opacity: 0.5 },
     loaderBox: { padding: 40 },
     emptyBox: { padding: 40, alignItems: 'center' },
-    emptyTxt: { color: colors.text.muted, fontSize: fontSize.caption, fontStyle: 'italic' }
+    emptyTxt: { color: t.text.tertiary, fontSize: t.typography.size.caption, fontStyle: 'italic' }
 });

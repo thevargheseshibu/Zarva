@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, FlatList, RefreshControl, Alert, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import dayjs from 'dayjs';
@@ -10,12 +11,14 @@ import StatusPill from '../../components/StatusPill';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import SkeletonCard from '../../design-system/components/SkeletonCard';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 
 const FILTERS = ['All', 'Active', 'Completed', 'Cancelled'];
 
 export default function MyJobsScreen({ navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const [filter, setFilter] = useState('All');
     const [sortNewest, setSortNewest] = useState(true);
@@ -113,7 +116,7 @@ export default function MyJobsScreen({ navigation }) {
                                         <Text style={styles.iconBtnTxt}>🗑️</Text>
                                     </PressableAnimated>
                                 )}
-                                {['open', 'searching', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(item.status) && (
+                                {['open', 'searching', 'no_worker_found', 'assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(item.status) && (
                                     <PressableAnimated onPress={() => navigation.navigate('EditJob', { jobId: item.id })} style={styles.iconBtn}>
                                         <Text style={styles.iconBtnTxt}>✏️</Text>
                                     </PressableAnimated>
@@ -158,7 +161,7 @@ export default function MyJobsScreen({ navigation }) {
             {loading ? (
                 <View style={styles.listContent}>
                     {[1, 2, 3, 4].map(i => (
-                        <SkeletonCard key={i} height={160} style={{ marginBottom: spacing[16] }} />
+                        <SkeletonCard key={i} height={160} style={{ marginBottom: tTheme.spacing.lg }} />
                     ))}
                 </View>
             ) : (
@@ -168,7 +171,7 @@ export default function MyJobsScreen({ navigation }) {
                     keyExtractor={i => String(i.id)}
                     contentContainerStyle={styles.listContent}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent.primary} />
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tTheme.brand.primary} />
                     }
                     ListEmptyComponent={() => (
                         <View style={styles.emptyState}>
@@ -183,66 +186,66 @@ export default function MyJobsScreen({ navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
-    header: { paddingTop: 60, paddingHorizontal: spacing[24], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[24] },
-    title: { color: colors.text.primary, fontSize: fontSize.title, fontWeight: fontWeight.bold, letterSpacing: tracking.title },
-    sortToggle: { backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.lg, ...shadows.premium },
-    sortTxt: { color: colors.accent.primary, fontSize: 12, fontWeight: fontWeight.bold },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
+    header: { paddingTop: 60, paddingHorizontal: t.spacing['2xl'], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: t.spacing['2xl'] },
+    title: { color: t.text.primary, fontSize: t.typography.size.title, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.title },
+    sortToggle: { backgroundColor: t.background.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: t.radius.lg, ...t.shadows.premium },
+    sortTxt: { color: t.brand.primary, fontSize: 12, fontWeight: t.typography.weight.bold },
 
-    filterBar: { marginBottom: spacing[16] },
-    filterList: { paddingHorizontal: spacing[24], gap: spacing[8] },
+    filterBar: { marginBottom: t.spacing.lg },
+    filterList: { paddingHorizontal: t.spacing['2xl'], gap: t.spacing.sm },
     filterChip: {
         paddingHorizontal: 16,
         paddingVertical: 10,
-        borderRadius: radius.full,
-        backgroundColor: colors.surface,
+        borderRadius: t.radius.full,
+        backgroundColor: t.background.surface,
         borderWidth: 1,
         borderColor: 'transparent'
     },
-    filterChipActive: { backgroundColor: colors.elevated, borderColor: colors.accent.border },
-    filterText: { color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium, letterSpacing: tracking.caption },
-    filterTextActive: { color: colors.text.primary, fontWeight: fontWeight.bold },
+    filterChipActive: { backgroundColor: t.background.surfaceRaised, borderColor: t.border.default },
+    filterText: { color: t.text.secondary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium, letterSpacing: t.typography.tracking.caption },
+    filterTextActive: { color: t.text.primary, fontWeight: t.typography.weight.bold },
 
-    listContent: { padding: spacing[24], paddingBottom: 120 },
-    card: { padding: spacing[24], gap: spacing[16], marginBottom: spacing[24] },
-    cardTop: { flexDirection: 'row', alignItems: 'center', gap: spacing[16] },
-    jobTypeBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
-    jobTypeTxt: { color: colors.accent.primary, fontSize: 20, fontWeight: fontWeight.bold },
+    listContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
+    card: { padding: t.spacing['2xl'], gap: t.spacing.lg, marginBottom: t.spacing['2xl'] },
+    cardTop: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.lg },
+    jobTypeBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
+    jobTypeTxt: { color: t.brand.primary, fontSize: 20, fontWeight: t.typography.weight.bold },
     jobInfo: { flex: 1 },
-    jobTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
-    jobDate: { color: colors.text.secondary, fontSize: fontSize.micro, marginTop: 2 },
+    jobTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.body },
+    jobDate: { color: t.text.secondary, fontSize: t.typography.size.micro, marginTop: 2 },
 
-    jobDesc: { color: colors.text.secondary, fontSize: fontSize.caption, lineHeight: 20, letterSpacing: tracking.caption },
+    jobDesc: { color: t.text.secondary, fontSize: t.typography.size.caption, lineHeight: 20, letterSpacing: t.typography.tracking.caption },
 
     cardFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: spacing[16],
+        paddingTop: t.spacing.lg,
         borderTopWidth: 1,
-        borderTopColor: colors.elevated
+        borderTopColor: t.background.surfaceRaised
     },
     workerBrief: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    workerAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.elevated },
-    workerLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    workerName: { color: colors.text.primary, fontSize: 12, fontWeight: fontWeight.semibold },
-    searchingTxt: { color: colors.accent.primary, fontSize: 11, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
+    workerAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: t.background.surfaceRaised },
+    workerLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    workerName: { color: t.text.primary, fontSize: 12, fontWeight: t.typography.weight.semibold },
+    searchingTxt: { flex: 1, color: t.brand.primary, fontSize: 11, fontWeight: t.typography.weight.bold, letterSpacing: 0.5 },
 
-    actionRow: { flexDirection: 'row', gap: spacing[12] },
+    actionRow: { flexDirection: 'row', gap: t.spacing.md },
     iconBtn: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: colors.elevated,
+        backgroundColor: t.background.surfaceRaised,
         justifyContent: 'center',
         alignItems: 'center',
-        ...shadows.premium
+        ...t.shadows.premium
     },
     iconBtnTxt: { fontSize: 16 },
 
     emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
-    emptyIcon: { fontSize: 48, marginBottom: spacing[16] },
-    emptyTitle: { color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold, letterSpacing: tracking.title },
-    emptySub: { color: colors.text.secondary, fontSize: 14, marginTop: 4, letterSpacing: tracking.body }
+    emptyIcon: { fontSize: 48, marginBottom: t.spacing.lg },
+    emptyTitle: { color: t.text.primary, fontSize: 18, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.title },
+    emptySub: { color: t.text.secondary, fontSize: 14, marginTop: 4, letterSpacing: t.typography.tracking.body }
 });

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useTokens } from '../design-system';
 import { View, Text, StyleSheet, Image, Dimensions } from 'react-native';
 import Animated, {
     FadeIn,
@@ -10,13 +11,15 @@ import Animated, {
     withSequence
 } from 'react-native-reanimated';
 import { useT } from '../hooks/useT';
-import { colors, spacing, radius, shadows } from '../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../design-system/typography';
+
+
 import PremiumButton from './PremiumButton';
 
 const { width } = Dimensions.get('window');
 
 export default function NotCoveredView({ locationName, onRetry }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const floatAnim = useSharedValue(0);
 
@@ -76,18 +79,18 @@ export default function NotCoveredView({ locationName, onRetry }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     container: {
         flex: 1,
         alignItems: 'center',
-        padding: spacing[24],
-        backgroundColor: colors.background,
+        padding: t.spacing['2xl'],
+        backgroundColor: t.background.app,
     },
     imageContainer: {
         width: width * 0.8,
         height: 300,
-        marginTop: spacing[40],
-        marginBottom: spacing[24],
+        marginTop: t.spacing[40],
+        marginBottom: t.spacing['2xl'],
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -96,7 +99,7 @@ const styles = StyleSheet.create({
         width: 180,
         height: 180,
         borderRadius: 90,
-        backgroundColor: colors.accent.glow,
+        backgroundColor: t.brand.glow,
         opacity: 0.4,
     },
     graphic: {
@@ -109,41 +112,41 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     title: {
-        color: colors.text.primary,
-        fontSize: fontSize.hero,
-        fontWeight: fontWeight.bold,
-        letterSpacing: tracking.hero,
+        color: t.text.primary,
+        fontSize: t.typography.size.hero,
+        fontWeight: t.typography.weight.bold,
+        letterSpacing: t.typography.tracking.hero,
         textAlign: 'center',
-        marginBottom: spacing[16],
+        marginBottom: t.spacing.lg,
     },
     description: {
-        color: colors.text.secondary,
-        fontSize: fontSize.body,
+        color: t.text.secondary,
+        fontSize: t.typography.size.body,
         lineHeight: 26,
         textAlign: 'center',
-        paddingHorizontal: spacing[12],
-        marginBottom: spacing[48],
+        paddingHorizontal: t.spacing.md,
+        marginBottom: t.spacing[48],
     },
     actionSection: {
         width: '100%',
         alignItems: 'center',
         marginTop: 'auto',
-        marginBottom: spacing[32],
+        marginBottom: t.spacing[32],
     },
     badge: {
-        backgroundColor: colors.surface,
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.accent.border,
-        paddingHorizontal: spacing[20],
-        paddingVertical: spacing[10],
-        borderRadius: radius.full,
-        marginBottom: spacing[24],
-        ...shadows.accentGlow,
+        borderColor: t.border.default,
+        paddingHorizontal: t.spacing[20],
+        paddingVertical: t.spacing[10],
+        borderRadius: t.radius.full,
+        marginBottom: t.spacing['2xl'],
+        ...t.shadows.accentGlow,
     },
     badgeText: {
-        color: colors.accent.primary,
-        fontSize: fontSize.micro,
-        fontWeight: fontWeight.bold,
+        color: t.brand.primary,
+        fontSize: t.typography.size.micro,
+        fontWeight: t.typography.weight.bold,
         letterSpacing: 1.5,
     },
     button: {

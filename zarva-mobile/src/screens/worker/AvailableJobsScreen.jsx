@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, FlatList, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -12,14 +13,16 @@ import FadeInView from '../../components/FadeInView';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import MainBackground from '../../components/MainBackground';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 import { haversineKm, formatDistance } from '../../utils/distance';
 import { parseJobDescription } from '../../utils/jobParser';
 
 dayjs.extend(relativeTime);
 
 export default function AvailableJobsScreen({ navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const [filter, setFilter] = useState('All');
     const [sortBy, setSortBy] = useState('Nearest');
@@ -225,13 +228,13 @@ export default function AvailableJobsScreen({ navigation }) {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
-                        tintColor={colors.accent.primary}
+                        tintColor={tTheme.brand.primary}
                     />
                 }
                 ListEmptyComponent={() => {
                     if (loading) return (
                         <View style={styles.emptyContainer}>
-                            <ActivityIndicator size="large" color={colors.accent.primary} />
+                            <ActivityIndicator size="large" color={tTheme.brand.primary} />
                         </View>
                     );
                     return (
@@ -247,94 +250,94 @@ export default function AvailableJobsScreen({ navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     screen: { flex: 1 },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingBottom: spacing[24]
+        paddingBottom: t.spacing['2xl']
     },
-    headerSub: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    headerTitle: { color: colors.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: tracking.hero },
+    headerSub: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    headerTitle: { color: t.text.primary, fontSize: 32, fontWeight: '900', letterSpacing: t.typography.tracking.hero },
     countBadge: {
-        backgroundColor: colors.accent.primary + '11',
+        backgroundColor: t.brand.primary + '11',
         width: 44,
         height: 44,
         borderRadius: 22,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: colors.accent.border + '22'
+        borderColor: t.border.default + '22'
     },
-    countTxt: { color: colors.accent.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    countTxt: { color: t.brand.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
 
-    stickyHeader: { gap: spacing[16], paddingBottom: spacing[12] },
-    filterList: { paddingHorizontal: spacing[24], gap: spacing[12] },
+    stickyHeader: { gap: t.spacing.lg, paddingBottom: t.spacing.md },
+    filterList: { paddingHorizontal: t.spacing['2xl'], gap: t.spacing.md },
     filterChip: {
         paddingHorizontal: 16,
         paddingVertical: 8,
-        borderRadius: radius.full,
-        backgroundColor: colors.surface,
+        borderRadius: t.radius.full,
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
-    filterChipActive: { backgroundColor: colors.accent.primary, borderColor: colors.accent.primary },
-    filterTxt: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    filterTxtActive: { color: colors.background },
+    filterChipActive: { backgroundColor: t.brand.primary, borderColor: t.brand.primary },
+    filterTxt: { color: t.text.tertiary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    filterTxtActive: { color: t.background.app },
 
     sortBar: {
         flexDirection: 'row',
-        marginHorizontal: spacing[24],
-        backgroundColor: colors.surface,
-        borderRadius: radius.lg,
+        marginHorizontal: t.spacing['2xl'],
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.lg,
         padding: 4,
         gap: 4
     },
-    sortChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.md },
-    sortChipActive: { backgroundColor: colors.elevated },
-    sortTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    sortTxtActive: { color: colors.accent.primary },
+    sortChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: t.radius.md },
+    sortChipActive: { backgroundColor: t.background.surfaceRaised },
+    sortTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    sortTxtActive: { color: t.brand.primary },
 
-    listContent: { padding: spacing[24], paddingBottom: 120, gap: spacing[16], flexGrow: 1 },
-    jobCard: { padding: spacing[24], gap: spacing[16], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
+    listContent: { padding: t.spacing['2xl'], paddingBottom: 120, gap: t.spacing.lg, flexGrow: 1 },
+    jobCard: { padding: t.spacing['2xl'], gap: t.spacing.lg, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.background.surface },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    catBox: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.md },
-    catTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, textTransform: 'uppercase' },
-    timeTxt: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.medium },
+    catBox: { backgroundColor: t.brand.primary + '11', paddingHorizontal: 10, paddingVertical: 4, borderRadius: t.radius.md },
+    catTxt: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, textTransform: 'uppercase' },
+    timeTxt: { color: t.text.tertiary, fontSize: 9, fontWeight: t.typography.weight.medium },
 
-    descTxt: { color: colors.text.primary, fontSize: fontSize.body, fontStyle: 'italic', opacity: 0.9, lineHeight: 22 },
+    descTxt: { color: t.text.primary, fontSize: t.typography.size.body, fontStyle: 'italic', opacity: 0.9, lineHeight: 22 },
 
     statsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4 },
     statLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     statIcon: { fontSize: 14 },
-    statTxt: { color: colors.text.secondary, fontSize: fontSize.caption, fontWeight: fontWeight.medium },
+    statTxt: { color: t.text.secondary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium },
 
     rewardBox: { alignItems: 'flex-end', gap: 2 },
-    rewardLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    rewardVal: { color: colors.text.primary, fontSize: 24, fontWeight: '900' },
+    rewardLabel: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    rewardVal: { color: t.text.primary, fontSize: 24, fontWeight: '900' },
 
     cardFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: spacing[16],
+        paddingTop: t.spacing.lg,
         borderTopWidth: 1,
-        borderTopColor: colors.elevated
+        borderTopColor: t.background.surfaceRaised
     },
-    clientLabel: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.medium },
-    viewMore: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
+    clientLabel: { color: t.text.tertiary, fontSize: 9, fontWeight: t.typography.weight.medium },
+    viewMore: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
 
-    offlineScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing[40] },
-    offlineContent: { alignItems: 'center', gap: spacing[16] },
+    offlineScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: t.spacing[40] },
+    offlineContent: { alignItems: 'center', gap: t.spacing.lg },
     offlineIcon: { fontSize: 64, marginBottom: 8 },
-    offlineTitle: { color: colors.text.primary, fontSize: 24, fontWeight: '900', textAlign: 'center' },
-    offlineSub: { color: colors.text.muted, fontSize: fontSize.body, textAlign: 'center', lineHeight: 24 },
+    offlineTitle: { color: t.text.primary, fontSize: 24, fontWeight: '900', textAlign: 'center' },
+    offlineSub: { color: t.text.tertiary, fontSize: t.typography.size.body, textAlign: 'center', lineHeight: 24 },
 
     emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100, gap: 12 },
     emptyIcon: { fontSize: 48, marginBottom: 8 },
-    emptyTitle: { color: colors.text.primary, fontSize: 20, fontWeight: fontWeight.bold },
-    emptySub: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center', paddingHorizontal: spacing[40], lineHeight: 20 }
+    emptyTitle: { color: t.text.primary, fontSize: 20, fontWeight: t.typography.weight.bold },
+    emptySub: { color: t.text.tertiary, fontSize: t.typography.size.caption, textAlign: 'center', paddingHorizontal: t.spacing[40], lineHeight: 20 }
 });

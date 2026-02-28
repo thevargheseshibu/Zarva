@@ -50,13 +50,19 @@ function calculateEstimatedEarnings(job, distanceKm) {
 export async function sendJobAlertToWorkers(jobId, workers, job, waveNum) {
     const messaging = getMessaging();
     const matchingConfig = configLoader.get('zarva')?.matching || { worker_accept_window_seconds: 30 };
+    
+    // Safety check: Filter out the customer themselves to prevent self-notification
+    const targetWorkers = workers.filter(w => String(w.user_id) !== String(job.customer_id));
 
-    if (workers.length === 0) return;
+    if (targetWorkers.length === 0) {
+        console.log(`[FCM Service] Job ${jobId}: No workers to notify after filtering out customer.`);
+        return;
+    }
 
-    console.log(`[FCM Service] Dispatching Job ${jobId} Alert to ${workers.length} workers (Wave ${waveNum})`);
+    console.log(`[FCM Service] Dispatching Job ${jobId} Alert to ${targetWorkers.length} workers (Wave ${waveNum})`);
 
     // We send individual messages because distance_km and earnings are specific to each worker
-    const messages = workers.map(worker => {
+    const messages = targetWorkers.map(worker => {
         const safeDistance = Number(worker.distance_km) || 0;
         let estEarnings = 0;
         try {

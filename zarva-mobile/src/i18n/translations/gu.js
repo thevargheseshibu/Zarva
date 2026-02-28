@@ -128,6 +128,46 @@ export default {
     security_validation: 'સુરક્ષા ચકાસણી',
     network_activation: 'નેટવર્ક સક્રિયકરણ',
     return_to_terminal: 'ટર્મિનલ પર પાછા ફરો',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'ફરી ક્લિક કરો',
+    remove: 'દૂર કરો',
+    uploaded_securely: 'સુરક્ષિત રીતે અપલોડ થયેલ',
+    remove_document: 'દસ્તાવેજ દૂર કરો?',
+    confirm_remove_doc: 'શું તમે ખાતરી કરો છો કે આ અપલોડ દૂર કરવા ઇચ્છો છો?',
+    incomplete_info: 'અધૂરું',
+    please_upload_all_docs: 'કૃપા કરીને બધા દસ્તાવેજ અપલોડ કરો અને આધાર નંબર દાખલ કરો.',
+    uploading_documents: 'સુરક્ષિત રીતે અપલોડ થઈ રહ્યું છે...',
+    submitting_application: 'નોંધણી પૂર્ણ થઈ રહી છે...',
+    protocol_required: 'પ્રોટોકોલ જરૂરી',
+    please_read_agreement: 'કૃપા કરીને સ્ક્રોલ કરીને સમજૂતી સુધી પહોંચો.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ખાતું સ્થગિત',
+    account_blocked_desc: 'તમારું ખાતું અસ્થાયી રૂપે સ્થગિત કરવામાં આવ્યું છે. સહાય માટે સંપર્ક કરો.',
+    blocked_reason_label: 'સ્થગિતૈ કારણ',
+    contact_support_blocked: 'સહાય સાથે સંપર્ક કરો',
+    policy_enforcement: 'નીતિ અમલ',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'ફરી ક્લિક કરો',
+    remove: 'દૂર કરો',
+    uploaded_securely: 'સુરક્ષિત રીતે અપલોડ થયેલ',
+    remove_document: 'દસ્તાવેજ દૂર કરો?',
+    confirm_remove_doc: 'શું તમે ખાતરી કરો છો કે આ અપલોડ દૂર કરવા ઇચ્છો છો?',
+    incomplete_info: 'અધૂરું',
+    please_upload_all_docs: 'કૃપા કરીને બધા દસ્તાવેજ અપલોડ કરો અને આધાર નંબર દાખલ કરો.',
+    uploading_documents: 'સુરક્ષિત રીતે અપલોડ થઈ રહ્યું છે...',
+    submitting_application: 'નોંધણી પૂર્ણ થઈ રહી છે...',
+    protocol_required: 'પ્રોટોકોલ જરૂરી',
+    please_read_agreement: 'કૃપા કરીને સ્ક્રોલ કરીને સમજૂતી સુધી પહોંચો.',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'ખાતું સ્થગિત',
+    account_blocked_desc: 'તમારું ખાતું અસ્થાયી રૂપે સ્થગિત કરવામાં આવ્યું છે. સહાય માટે સંપર્ક કરો.',
+    blocked_reason_label: 'સ્થગિતૈ કારણ',
+    contact_support_blocked: 'સહાય સાથે સંપર્ક કરો',
+    policy_enforcement: 'નીતિ અમલ',
     notify_encrypted_channel: 'સક્રિય થયા પછી અમે તમને એન્ક્રિપ્ટેડ ચેનલ દ્વારા સૂચિત કરીશું.',
 
     // ── Worker Tabs & Overviews ──────────────────────

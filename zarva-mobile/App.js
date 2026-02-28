@@ -23,6 +23,7 @@ LogBox.ignoreLogs([
 ]);
 import RootNavigator from './src/navigation/RootNavigator';
 import { useLanguageStore } from './src/i18n';
+import { ThemeProvider } from './src/design-system';
 import apiClient from './src/services/api/client';
 import { useJobStore } from './src/stores/jobStore';
 import { useWorkerStore } from './src/stores/workerStore';
@@ -69,33 +70,15 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 });
 
-// Background/killed message handler — MUST be registered at module level (not inside a component)
-// This runs when the app is backgrounded or killed and receives a data-only FCM
-setBackgroundMessageHandler(getMessaging(), async remoteMessage => {
-  console.log('[FCM Background] Message received in background/killed state', remoteMessage.data?.type);
-  if (remoteMessage.data?.type === 'NEW_JOB_ALERT') {
-    const data = remoteMessage.data;
-    await AsyncStorage.setItem('zarva:pending_job_alert', JSON.stringify({
-      id: data.job_id,
-      category: data.category,
-      categoryIcon: data.category_icon,
-      distance: parseFloat(data.distance_km),
-      earnings: parseInt(data.estimated_earnings),
-      area: data.customer_area,
-      description: data.description_snippet,
-      isEmergency: data.is_emergency === '1',
-      acceptWindow: parseInt(data.accept_window_seconds) || 30,
-      wave: parseInt(data.wave_number),
-      timestamp: Date.now()
-    })).catch(console.warn);
-  }
-});
+// Background/killed message handler is registered in index.js to ensure it runs
+// as early as possible before the React application lifecycle starts.
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,6 +89,7 @@ const queryClient = new QueryClient({
 export default function App() {
   const { language, isLoaded, loadLanguage } = useLanguageStore();
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const [profileReady, setProfileReady] = React.useState(false);
 
   // 1. Initial Data Load
   React.useEffect(() => {
@@ -120,7 +104,7 @@ export default function App() {
   React.useEffect(() => {
     if (!isLoaded) return;
 
-    // Refresh User Profile to ensure local state has latest name/dob
+    // Refresh User Profile to ensure local state has latest name/dob/is_blocked/kyc_status
     if (isAuthenticated) {
       apiClient.get('/api/me')
         .then(res => {
@@ -129,7 +113,21 @@ export default function App() {
             useAuthStore.getState().setUser({ ...current, ...res.data.user });
           }
         })
-        .catch(e => console.warn('[App.js] Profile refresh failed:', e.message));
+        .catch(e => {
+          // 403 = account blocked since last session; pull block_reason from response and update store
+          if (e?.response?.status === 403) {
+            const current = useAuthStore.getState().user || {};
+            useAuthStore.getState().setUser({
+              ...current,
+              is_blocked: true,
+              block_reason: e.response.data?.block_reason || current.block_reason || null,
+            });
+          }
+          console.warn('[App.js] Profile refresh failed:', e.message);
+        })
+        .finally(() => setProfileReady(true));
+    } else {
+      setProfileReady(true); // Not logged in — render immediately
     }
 
     // Rehydrate minimizable active job queue
@@ -193,7 +191,7 @@ export default function App() {
         const token = await getToken(getMessaging());
         if (token) {
           console.log('[FCM] Syncing token with server:', token.slice(0, 10) + '...');
-          await apiClient.put('/api/me/fcm-token', { fcm_token: token });
+          await apiClient.put('/api/me/fcm-token', { fcm_token: token }).catch(() => { });
         }
       } catch (err) {
         if (err?.response?.status !== 401) {
@@ -211,6 +209,13 @@ export default function App() {
 
     const handleNewJob = (remoteMessage) => {
       console.log('[FCM] 🔔 NEW_JOB_ALERT received:', remoteMessage.data?.job_id);
+
+      const authState = useAuthStore.getState();
+      if (!authState.isAuthenticated || authState.user?.active_role !== 'worker') {
+          console.log('[FCM] Ignoring NEW_JOB_ALERT: user not authenticated or not in worker role');
+          return;
+      }
+
       const data = remoteMessage.data;
       const alertPayload = {
         id: data.job_id,
@@ -252,7 +257,7 @@ export default function App() {
     };
   }, [isLoaded]);
 
-  if (!isLoaded) {
+  if (!isLoaded || !profileReady) {
     return (
       <View style={{ flex: 1, backgroundColor: '#0A0A0F', justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#CFA34B" />
@@ -263,11 +268,13 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <StatusBar style="light" />
-          <RootNavigator />
-          <GlobalLoader />
-        </QueryClientProvider>
+        <ThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <StatusBar style="light" />
+            <RootNavigator />
+            <GlobalLoader />
+          </QueryClientProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

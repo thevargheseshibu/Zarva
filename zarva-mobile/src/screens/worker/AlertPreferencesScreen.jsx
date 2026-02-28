@@ -1,16 +1,19 @@
 import React from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { useWorkerStore } from '../../stores/workerStore';
-import { colors, spacing, radius, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 import FadeInView from '../../components/FadeInView';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import { useT } from '../../hooks/useT';
 
 export default function AlertPreferencesScreen() {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const { alertPreferences, updateAlertPrefs } = useWorkerStore();
     const navigation = useNavigation();
     const t = useT();
@@ -48,7 +51,7 @@ export default function AlertPreferencesScreen() {
                             <Switch
                                 value={alertPreferences.soundEnabled}
                                 onValueChange={() => toggle('soundEnabled')}
-                                trackColor={{ false: colors.elevated, true: colors.accent.primary }}
+                                trackColor={{ false: t.background.surfaceRaised, true: t.brand.primary }}
                                 thumbColor="#FFF"
                             />
                         </View>
@@ -66,7 +69,7 @@ export default function AlertPreferencesScreen() {
                             <Switch
                                 value={alertPreferences.vibrationEnabled}
                                 onValueChange={() => toggle('vibrationEnabled')}
-                                trackColor={{ false: colors.elevated, true: colors.accent.primary }}
+                                trackColor={{ false: t.background.surfaceRaised, true: t.brand.primary }}
                                 thumbColor="#FFF"
                             />
                         </View>
@@ -84,7 +87,7 @@ export default function AlertPreferencesScreen() {
                             <Switch
                                 value={alertPreferences.dndMode}
                                 onValueChange={() => toggle('dndMode')}
-                                trackColor={{ false: colors.elevated, true: colors.accent.primary }}
+                                trackColor={{ false: t.background.surfaceRaised, true: t.brand.primary }}
                                 thumbColor="#FFF"
                             />
                         </View>
@@ -108,44 +111,44 @@ export default function AlertPreferencesScreen() {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         alignItems: 'center',
         gap: 16,
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
-    headerSub: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    headerTitle: { color: colors.text.primary, fontSize: 20, fontWeight: '900', letterSpacing: tracking.body },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
+    headerSub: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    headerTitle: { color: t.text.primary, fontSize: 20, fontWeight: '900', letterSpacing: t.typography.tracking.body },
 
-    scrollContent: { padding: spacing[24], gap: 32, paddingBottom: 100 },
+    scrollContent: { padding: t.spacing['2xl'], gap: 32, paddingBottom: 100 },
 
-    sectionLabel: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2, marginBottom: 12 },
-    settingsCard: { padding: 4, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
+    sectionLabel: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 2, marginBottom: 12 },
+    settingsCard: { padding: 4, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.background.surface },
     settingRow: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 16 },
-    rowIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
+    rowIcon: { width: 40, height: 40, borderRadius: t.radius.md, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
     iconTxt: { fontSize: 16 },
     rowInfo: { flex: 1, gap: 2 },
-    rowTitle: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
-    rowSub: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
-    innerDivider: { height: 1, backgroundColor: colors.elevated, marginHorizontal: 16, opacity: 0.5 },
+    rowTitle: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold },
+    rowSub: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium },
+    innerDivider: { height: 1, backgroundColor: t.background.surfaceRaised, marginHorizontal: 16, opacity: 0.5 },
 
     tipCard: {
         padding: 24,
-        backgroundColor: colors.accent.primary + '08',
+        backgroundColor: t.brand.primary + '08',
         borderWidth: 1,
-        borderColor: colors.accent.primary + '11',
+        borderColor: t.brand.primary + '11',
         gap: 8
     },
-    tipHeader: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    tipBody: { color: colors.text.muted, fontSize: 13, lineHeight: 22 },
-    tipAccent: { color: colors.text.primary, fontWeight: fontWeight.bold },
+    tipHeader: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    tipBody: { color: t.text.tertiary, fontSize: 13, lineHeight: 22 },
+    tipAccent: { color: t.text.primary, fontWeight: t.typography.weight.bold },
 
     footer: { marginTop: 40, alignItems: 'center' },
-    footerTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 }
+    footerTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 }
 });

@@ -135,10 +135,11 @@ export async function startMatching(jobId) {
                 await updateJobNode(jobId, { wave_number: waveNum + 1 }).catch(() => { });
 
                 // 1. Refresh Job state
-                const [jobs] = await pool.query('SELECT status, category, latitude, longitude FROM jobs WHERE id = $1', [jobId]);
+                const [jobs] = await pool.query('SELECT id, status, category, latitude, longitude, customer_id FROM jobs WHERE id = $1', [jobId]);
                 const job = jobs[0];
+                console.log(`[MatchingEngine] Job ${jobId} refresh:`, job ? `Found (Status: ${job.status})` : 'NOT FOUND');
                 if (!job) {
-                    console.warn(`[MatchingEngine] Job ${jobId} not found. Aborting.`);
+                    console.warn(`[MatchingEngine] Job ${jobId} not found in DB. Aborting matching loop.`);
                     return;
                 }
                 if (job.status !== 'searching') {
@@ -148,9 +149,10 @@ export async function startMatching(jobId) {
 
                 console.log(`[MatchingEngine] Wave ${waveNum + 1} for Job ${jobId} (${job.category}) at ${job.latitude}, ${job.longitude} (Radius: ${wave.radius_km}km)`);
 
-                // 2. Extrapolate Exclusion lists
+                // 2. Extrapolate Exclusion lists (Notified workers + Customer themselves)
                 const [notified] = await pool.query('SELECT worker_id FROM job_worker_notifications WHERE job_id = $1', [jobId]);
-                const excludeIds = notified.map(r => r.worker_id);
+                const excludeIds = [...(notified || []).map(r => r.worker_id), job.customer_id].filter(Boolean);
+                console.log(`[MatchingEngine] Wave ${waveNum + 1} exclusion list count: ${excludeIds.length}`);
 
                 // 3. Find Proximate Workers
                 const workers = await findEligibleWorkers(job, wave.radius_km, wave.count, excludeIds, pool);
@@ -179,8 +181,16 @@ export async function startMatching(jobId) {
                 await sleep(wave.wait_seconds * 1000);
 
                 // 6. Check Post-Sleep Status
-                const [updated] = await pool.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
-                if (updated[0].status === 'assigned') return; // Accepted by worker in meantime
+                const [updatedRows] = await pool.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
+                const updatedJob = updatedRows[0];
+                if (updatedJob && updatedJob.status === 'assigned') {
+                    console.log(`[MatchingEngine] Job ${jobId} was accepted during sleep. Stopping waves.`);
+                    return;
+                }
+                if (updatedJob && updatedJob.status === 'cancelled') {
+                    console.log(`[MatchingEngine] Job ${jobId} was cancelled during sleep. Stopping waves.`);
+                    return;
+                }
             } catch (waveErr) {
                 console.error(`[MatchingEngine] Error in Wave ${waveNum + 1} for Job ${jobId}:`, waveErr);
                 // Continue to next wave if possible
@@ -189,6 +199,7 @@ export async function startMatching(jobId) {
 
         // Exhausted fully
         await pool.query("UPDATE jobs SET status='no_worker_found' WHERE id=$1", [jobId]);
+        await updateJobNode(jobId, { status: 'no_worker_found' }).catch(() => { });
         await triggerAutoRefund(jobId, pool);
 
     } catch (err) {
@@ -220,7 +231,7 @@ export async function acceptJob(jobId, workerId) {
         try {
             // FOR UPDATE physical lock on postgres record
             const [rows] = await conn.query(`
-                SELECT j.id, j.status, wp.is_online, wp.current_job_id 
+                SELECT j.id, j.status, j.customer_id, wp.is_online, wp.current_job_id 
                 FROM jobs j
                 JOIN worker_profiles wp ON wp.user_id = $1
                 WHERE j.id = $2 
@@ -231,8 +242,14 @@ export async function acceptJob(jobId, workerId) {
             const currentStatus = jobData?.status;
             const isOnline = jobData?.is_online;
             const currentJobId = jobData?.current_job_id;
+            const customerId = jobData?.customer_id;
 
             console.log(`[MatchingEngine] Job ${jobId} status: ${currentStatus}, Worker ${workerId} online: ${isOnline}, CurrentJob: ${currentJobId}`);
+
+            if (jobData && String(customerId) === String(workerId)) {
+                await conn.rollback();
+                throw Object.assign(new Error('You cannot accept a job you created yourself.'), { code: 'SELF_JOB', status: 403 });
+            }
 
             if (!jobData || !isOnline) {
                 await conn.rollback();

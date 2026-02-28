@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -10,10 +11,12 @@ import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import StatusPill from '../../components/StatusPill';
 import MainBackground from '../../components/MainBackground';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 
 export default function MyWorkScreen({ navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const FILTERS = [t('filter_all'), t('filter_active'), t('filter_completed'), t('filter_cancelled'), t('filter_disputed')];
     const [filter, setFilter] = useState(t('filter_all'));
@@ -191,13 +194,13 @@ export default function MyWorkScreen({ navigation }) {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
-                        tintColor={colors.accent.primary}
+                        tintColor={tTheme.brand.primary}
                     />
                 }
                 ListEmptyComponent={() => {
                     if (loading) return (
                         <View style={styles.emptyContainer}>
-                            <ActivityIndicator color={colors.accent.primary} />
+                            <ActivityIndicator color={tTheme.brand.primary} />
                         </View>
                     );
                     return (
@@ -217,70 +220,70 @@ export default function MyWorkScreen({ navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     screen: { flex: 1 },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
-        paddingBottom: spacing[16]
+        paddingHorizontal: t.spacing['2xl'],
+        paddingBottom: t.spacing.lg
     },
-    headerSub: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 2 },
-    headerTitle: { color: colors.text.primary, fontSize: 24, fontWeight: '900', letterSpacing: tracking.title },
+    headerSub: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
+    headerTitle: { color: t.text.primary, fontSize: 24, fontWeight: '900', letterSpacing: t.typography.tracking.title },
 
     statsBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface,
-        marginHorizontal: spacing[24],
-        padding: spacing[20],
-        borderRadius: radius.xl,
+        backgroundColor: t.background.surface,
+        marginHorizontal: t.spacing['2xl'],
+        padding: t.spacing[20],
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.accent.border + '11',
-        marginBottom: spacing[24]
+        borderColor: t.border.default + '11',
+        marginBottom: t.spacing['2xl']
     },
     statBox: { flex: 1, alignItems: 'center', gap: 4 },
-    statVal: { color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold },
-    statLbl: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    statDivider: { width: 1, height: 24, backgroundColor: colors.elevated, opacity: 0.5 },
+    statVal: { color: t.text.primary, fontSize: 18, fontWeight: t.typography.weight.bold },
+    statLbl: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    statDivider: { width: 1, height: 24, backgroundColor: t.background.surfaceRaised, opacity: 0.5 },
 
-    filterSection: { gap: spacing[12], marginBottom: spacing[16] },
-    filterList: { paddingHorizontal: spacing[24], gap: 10 },
+    filterSection: { gap: t.spacing.md, marginBottom: t.spacing.lg },
+    filterList: { paddingHorizontal: t.spacing['2xl'], gap: 10 },
     filterChip: {
         paddingHorizontal: 16,
         paddingVertical: 8,
-        borderRadius: radius.full,
-        backgroundColor: colors.surface,
+        borderRadius: t.radius.full,
+        backgroundColor: t.background.surface,
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
-    filterChipActive: { backgroundColor: colors.accent.primary, borderColor: colors.accent.primary },
-    filterTxt: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    filterTxtActive: { color: colors.background },
+    filterChipActive: { backgroundColor: t.brand.primary, borderColor: t.brand.primary },
+    filterTxt: { color: t.text.tertiary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    filterTxtActive: { color: t.background.app },
 
     sortSection: {
         flexDirection: 'row',
-        marginHorizontal: spacing[24],
-        backgroundColor: colors.surface,
+        marginHorizontal: t.spacing['2xl'],
+        backgroundColor: t.background.surface,
         padding: 4,
-        borderRadius: radius.lg,
+        borderRadius: t.radius.lg,
         gap: 4
     },
-    sortChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.md },
-    sortChipActive: { backgroundColor: colors.elevated },
-    sortTxt: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    sortTxtActive: { color: colors.accent.primary },
+    sortChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: t.radius.md },
+    sortChipActive: { backgroundColor: t.background.surfaceRaised },
+    sortTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    sortTxtActive: { color: t.brand.primary },
 
-    listContent: { padding: spacing[24], paddingBottom: 120, gap: spacing[16] },
-    historyCard: { padding: spacing[20], gap: spacing[16], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
+    listContent: { padding: t.spacing['2xl'], paddingBottom: 120, gap: t.spacing.lg },
+    historyCard: { padding: t.spacing[20], gap: t.spacing.lg, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.background.surface },
 
     cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    catBox: { backgroundColor: colors.accent.primary + '11', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.md },
-    catTxt: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, textTransform: 'uppercase' },
-    amtTxt: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold },
+    catBox: { backgroundColor: t.brand.primary + '11', paddingHorizontal: 10, paddingVertical: 4, borderRadius: t.radius.md },
+    catTxt: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, textTransform: 'uppercase' },
+    amtTxt: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
 
     cardMid: { gap: 4 },
-    addressTxt: { color: colors.text.secondary, fontSize: 13, fontWeight: fontWeight.medium },
-    dateTxt: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.medium },
+    addressTxt: { color: t.text.secondary, fontSize: 13, fontWeight: t.typography.weight.medium },
+    dateTxt: { color: t.text.tertiary, fontSize: 9, fontWeight: t.typography.weight.medium },
 
     cardBottom: {
         flexDirection: 'row',
@@ -288,15 +291,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: colors.elevated
+        borderTopColor: t.background.surfaceRaised
     },
     clientInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    clientAvatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.elevated, justifyContent: 'center', alignItems: 'center' },
-    avatarTxt: { color: colors.text.muted, fontSize: 10, fontWeight: 'bold' },
-    clientName: { color: colors.text.muted, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 0.5 },
+    clientAvatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
+    avatarTxt: { color: t.text.tertiary, fontSize: 10, fontWeight: 'bold' },
+    clientName: { color: t.text.tertiary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 0.5 },
 
     emptyContainer: { padding: 40, alignItems: 'center', gap: 12 },
     emptyIcon: { fontSize: 40, marginBottom: 8 },
-    emptyTitle: { color: colors.text.primary, fontSize: 18, fontWeight: fontWeight.bold },
-    emptySub: { color: colors.text.muted, fontSize: 13, textAlign: 'center', lineHeight: 20 }
+    emptyTitle: { color: t.text.primary, fontSize: 18, fontWeight: t.typography.weight.bold },
+    emptySub: { color: t.text.tertiary, fontSize: 13, textAlign: 'center', lineHeight: 20 }
 });

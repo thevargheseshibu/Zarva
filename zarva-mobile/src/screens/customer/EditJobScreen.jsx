@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -6,8 +7,8 @@ import dayjs from 'dayjs';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useT } from '../../hooks/useT';
 import apiClient from '../../services/api/client';
-import { colors, spacing, radius, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+
+
 import LocationInput from '../../components/LocationInput';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
@@ -15,6 +16,8 @@ import FadeInView from '../../components/FadeInView';
 import Card from '../../components/Card';
 
 export default function EditJobScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || {};
 
@@ -167,7 +170,7 @@ export default function EditJobScreen({ route, navigation }) {
     if (loading) {
         return (
             <View style={styles.loadingBox}>
-                <ActivityIndicator size="large" color={colors.accent.primary} />
+                <ActivityIndicator size="large" color={tTheme.brand.primary} />
                 <Text style={styles.loadingTxt}>{t('preparing_editor')}</Text>
             </View>
         );
@@ -202,11 +205,11 @@ export default function EditJobScreen({ route, navigation }) {
                                     <TextInput
                                         style={styles.input}
                                         placeholder={t('add_more_details')}
-                                        placeholderTextColor={colors.text.muted}
+                                        placeholderTextColor={tTheme.text.tertiary}
                                         value={answers[q.id] || ''}
                                         onChangeText={(txt) => handleAnswer(q.id, txt)}
                                         multiline
-                                        selectionColor={colors.accent.primary}
+                                        selectionColor={tTheme.brand.primary}
                                     />
                                 ) : q.type === 'image' ? (
                                     <PressableAnimated
@@ -312,82 +315,82 @@ export default function EditJobScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
-    loadingBox: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', gap: spacing[16] },
-    loadingTxt: { color: colors.text.muted, fontSize: fontSize.caption },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
+    loadingBox: { flex: 1, backgroundColor: t.background.app, justifyContent: 'center', alignItems: 'center', gap: t.spacing.lg },
+    loadingTxt: { color: t.text.tertiary, fontSize: t.typography.size.caption },
 
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
-    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
+    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.body },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
-    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
-    introSub: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, marginBottom: spacing[32], letterSpacing: tracking.body },
+    introTitle: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.hero },
+    introSub: { color: t.text.secondary, fontSize: t.typography.size.body, marginTop: 4, marginBottom: t.spacing[32], letterSpacing: t.typography.tracking.body },
 
-    section: { marginTop: spacing[32], gap: spacing[16] },
-    sectionHeader: { color: colors.accent.primary, fontSize: 9, fontWeight: fontWeight.bold, letterSpacing: 2, marginLeft: 4 },
+    section: { marginTop: t.spacing[32], gap: t.spacing.lg },
+    sectionHeader: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 2, marginLeft: 4 },
 
-    questionCard: { padding: spacing[20], gap: spacing[12], backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surface },
-    qLabel: { color: colors.text.primary, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
+    questionCard: { padding: t.spacing[20], gap: t.spacing.md, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.background.surface },
+    qLabel: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold },
     input: {
-        backgroundColor: colors.elevated,
-        borderRadius: radius.md,
-        padding: spacing[16],
-        color: colors.text.primary,
-        fontSize: fontSize.body,
+        backgroundColor: t.background.surfaceRaised,
+        borderRadius: t.radius.md,
+        padding: t.spacing.lg,
+        color: t.text.primary,
+        fontSize: t.typography.size.body,
         minHeight: 100,
         textAlignVertical: 'top',
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface
     },
 
     uploadBox: {
         height: 120,
-        backgroundColor: colors.elevated,
-        borderRadius: radius.md,
+        backgroundColor: t.background.surfaceRaised,
+        borderRadius: t.radius.md,
         borderWidth: 1,
-        borderColor: colors.surface,
+        borderColor: t.background.surface,
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden'
     },
-    uploadBoxDone: { borderStyle: 'solid', borderColor: colors.accent.primary + '44' },
+    uploadBoxDone: { borderStyle: 'solid', borderColor: t.brand.primary + '44' },
     uploadPlaceholder: { alignItems: 'center', gap: 4 },
     uploadIcon: { fontSize: 24 },
-    uploadText: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.medium },
+    uploadText: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium },
     previewImage: { width: '100%', height: '100%', resizeMode: 'cover' },
 
-    tabRow: { flexDirection: 'row', gap: spacing[12] },
+    tabRow: { flexDirection: 'row', gap: t.spacing.md },
     tab: {
         flex: 1,
-        paddingVertical: spacing[16],
-        backgroundColor: colors.surface,
-        borderRadius: radius.xl,
+        paddingVertical: t.spacing.lg,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.xl,
         borderWidth: 1,
-        borderColor: colors.accent.border + '11',
+        borderColor: t.border.default + '11',
         alignItems: 'center'
     },
-    tabActive: { backgroundColor: colors.accent.primary + '11', borderColor: colors.accent.primary },
-    tabTxt: { color: colors.text.muted, fontSize: fontSize.caption, fontWeight: fontWeight.bold },
-    tabTxtActive: { color: colors.accent.primary },
+    tabActive: { backgroundColor: t.brand.primary + '11', borderColor: t.brand.primary },
+    tabTxt: { color: t.text.tertiary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold },
+    tabTxtActive: { color: t.brand.primary },
 
-    pickerCard: { padding: 0, overflow: 'hidden', marginTop: spacing[8] },
+    pickerCard: { padding: 0, overflow: 'hidden', marginTop: t.spacing.sm },
     pickerRow: { flexDirection: 'row', alignItems: 'center' },
-    pickerBtn: { flex: 1, padding: spacing[20], alignItems: 'center', gap: 4 },
-    pickerLabel: { color: colors.text.muted, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1 },
-    pickerValue: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.semibold },
-    pickerDivider: { width: 1, height: '60%', backgroundColor: colors.accent.border + '22' },
+    pickerBtn: { flex: 1, padding: t.spacing[20], alignItems: 'center', gap: 4 },
+    pickerLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    pickerValue: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.semibold },
+    pickerDivider: { width: 1, height: '60%', backgroundColor: t.border.default + '22' },
 
-    footer: { marginTop: spacing[48] }
+    footer: { marginTop: t.spacing[48] }
 });

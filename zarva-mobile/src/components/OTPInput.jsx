@@ -3,17 +3,20 @@
  * 4-box OTP input: gold bottom border when active, mono 32px, auto-advance.
  */
 import React, { useRef, useState } from 'react';
+import { useTokens } from '../design-system';
 import {
     View,
     TextInput,
     StyleSheet,
     Platform,
 } from 'react-native';
-import { colors, radius, spacing } from '../design-system/tokens';
+
 
 const BOX_COUNT = 4;
 
 export default function OTPInput({ onComplete, onChange, value = '' }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const inputs = useRef([]);
     const [otp, setOtp] = useState(Array(BOX_COUNT).fill(''));
 
@@ -79,26 +82,26 @@ export default function OTPInput({ onComplete, onChange, value = '' }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     row: {
         flexDirection: 'row',
         justifyContent: 'center',
-        gap: spacing.sm,
+        gap: t.spacing.sm,
     },
     box: {
         width: 56,
         height: 64,
-        backgroundColor: colors.surface,
-        borderRadius: radius.md,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.md,
         borderBottomWidth: 2,
-        borderBottomColor: colors.text.muted,
-        color: colors.text.primary,
+        borderBottomColor: t.text.tertiary,
+        color: t.text.primary,
         fontSize: 32,
         fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
         textAlign: 'center',
         fontWeight: '700',
     },
     filled: {
-        borderBottomColor: colors.accent.primary,
+        borderBottomColor: t.brand.primary,
     },
 });

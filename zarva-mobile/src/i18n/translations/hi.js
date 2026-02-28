@@ -53,18 +53,6 @@ export default {
     professional_foundation: 'पेशेवर आधार',
     professional_foundation_desc: 'Zarva Pro नेटवर्क पर अपनी पहचान स्थापित करें।',
     identity: 'पहचान',
-    gender_male: 'पुरुष',
-    gender_female: 'महिला',
-    gender_other: 'अन्य',
-    expertise_years: 'अनुभव (वर्ष)',
-    eg_years: 'उदा. 5',
-    operational_radius: 'कार्य क्षेत्र (KM)',
-    radius_hint: 'यह आपके काम खोजने की सीमा निर्धारित करता है।',
-    km_suffix: 'KM',
-    mission_base: 'मिशन बेस (स्थान)',
-    initialize_profile: 'प्रोफ़ाइल प्रारंभ करें',
-
-    credentialing: 'क्रेडेंशियल्स',
     credentialing_desc: 'सुरक्षित बैकग्राउंड वेरिफिकेशन के लिए अपने आधिकारिक दस्तावेज़ जमा करें।',
     national_identifier: 'राष्ट्रीय पहचान (Aadhaar)',
     aadhaar_front: 'AADHAAR सामने का हिस्सा',
@@ -128,6 +116,46 @@ export default {
     security_validation: 'सुरक्षा सत्यापन',
     network_activation: 'नेटवर्क सक्रियण',
     return_to_terminal: 'टर्मिनल पर लौटें',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'पुनः लें',
+    remove: 'हटाएं',
+    uploaded_securely: 'सुरक्षित रूप से अपलोड किया गया',
+    remove_document: 'दस्तावेज़ हटाएं?',
+    confirm_remove_doc: 'क्या आप इस अपलोड को हटाना चाहते हैं?',
+    incomplete_info: 'अधूरा',
+    please_upload_all_docs: 'कृपया सभी दस्तावेज़ अपलोड करें और आधार नंबर दर्ज करें।',
+    uploading_documents: 'सुरक्षित अपलोड हो रहा है...',
+    submitting_application: 'नामांकन पूरा हो रहा है...',
+    protocol_required: 'प्रोटोकॉल आवश्यक है',
+    please_read_agreement: 'कृपया अनुबंध के अंत तक स्क्रॉल करें।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'खाता निलंबित',
+    account_blocked_desc: 'आपका खाता अस्थायी रूप से निलंबित किया गया है। सहायता के लिए संपर्क करें।',
+    blocked_reason_label: 'निलंबन का कारण',
+    contact_support_blocked: 'सहायता से संपर्क करें',
+    policy_enforcement: 'नीति प्रवर्तन',
+
+    // ── Document Upload UX ──────────────────────────────
+    retake: 'पुनः लें',
+    remove: 'हटाएं',
+    uploaded_securely: 'सुरक्षित रूप से अपलोड किया गया',
+    remove_document: 'दस्तावेज़ हटाएं?',
+    confirm_remove_doc: 'क्या आप इस अपलोड को हटाना चाहते हैं?',
+    incomplete_info: 'अधूरा',
+    please_upload_all_docs: 'कृपया सभी दस्तावेज़ अपलोड करें और आधार नंबर दर्ज करें।',
+    uploading_documents: 'सुरक्षित अपलोड हो रहा है...',
+    submitting_application: 'नामांकन पूरा हो रहा है...',
+    protocol_required: 'प्रोटोकॉल आवश्यक है',
+    please_read_agreement: 'कृपया अनुबंध के अंत तक स्क्रॉल करें।',
+
+    // ── Blocked Account ─────────────────────────────────
+    account_suspended: 'खाता निलंबित',
+    account_blocked_desc: 'आपका खाता अस्थायी रूप से निलंबित किया गया है। सहायता के लिए संपर्क करें।',
+    blocked_reason_label: 'निलंबन का कारण',
+    contact_support_blocked: 'सहायता से संपर्क करें',
+    policy_enforcement: 'नीति प्रवर्तन',
     notify_encrypted_channel: 'सक्रिय होने पर हम आपको एन्क्रिप्टेड चैनल के माध्यम से सूचित करेंगे।',
 
     // ── Worker Tabs & Overviews ──────────────────────

@@ -1,19 +1,21 @@
 import React from 'react';
+import { useTokens } from '../design-system';
 import { View, StyleSheet } from 'react-native';
-import { colors, radius, shadows, spacing } from '../design-system/tokens';
 
 export default function Card({ children, style }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     return (
-        <View style={[styles.card, shadows.premium, style]}>
+        <View style={[styles.card, tTheme.shadows.premium, style]}>
             {children}
         </View>
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (t) => StyleSheet.create({
     card: {
-        backgroundColor: colors.surface,
-        borderRadius: radius.lg,
-        padding: spacing.md,
+        backgroundColor: t.background.surface,
+        borderRadius: t.radius.lg,
+        padding: t.spacing.md,
     },
 });
