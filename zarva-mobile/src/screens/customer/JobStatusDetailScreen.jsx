@@ -401,11 +401,21 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     };
     const cfg = statusConfig[status] || statusConfig.searching;
 
+    const handleHeaderBack = () => {
+        // Guard against GO_BACK warning when this screen is opened as stack root (no history entry).
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        // Safe fallback: send customer to the main tabs when there is no back stack.
+        navigation.replace('CustomerTabs');
+    };
+
     return (
         <MainBackground>
             {/* ── Compact Header ── */}
             <View style={styles.header}>
-                <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                <PressableAnimated onPress={handleHeaderBack} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
                 <View style={styles.headerCenter}>
@@ -803,7 +813,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
 
                 {/* ── Inspection Extension Pending ── */}
-                {status === 'worker_arrived' && job?.inspection_extension_otp_hash && (
+                {status === 'inspection_active' && job?.inspection_extension_otp_hash && (
                     <FadeInView delay={200}>
                         <View style={[styles.actionCard, { borderColor: '#8B5CF644' }]}>
                             <Text style={styles.actionCardTitle}>⏳ Inspector Needs +10 Min</Text>
@@ -1139,4 +1149,3 @@ const createStyles = (t) => StyleSheet.create({
     billLabel: { color: t.text.secondary, fontSize: 13, fontWeight: '700', flex: 1 },
     billValue: { color: t.text.primary, fontSize: 14, fontWeight: '900', textAlign: 'right' },
 });
-
