@@ -38,7 +38,7 @@ router.post('/', async (req, res) => {
         const pool = getPool();
 
         // 2. Fetch job — guard completed + requester is customer/worker
-        const [jobs] = await pool.query(`SELECT customer_id, worker_id, status, work_ended_at
+        const [jobs] = await pool.query(`SELECT customer_id, worker_id, status, work_ended_at, job_ended_at, end_otp_verified_at, updated_at
              FROM jobs WHERE id = $1`, [job_id]
         );
         const job = jobs[0];
@@ -51,7 +51,12 @@ router.post('/', async (req, res) => {
         if (!isCustomer && !isWorker) return fail(res, 'Forbidden', 403, 'FORBIDDEN');
 
         // 3. Time window check
-        const completedAt = new Date(job.work_ended_at);
+        const completedSource = job.work_ended_at || job.job_ended_at || job.end_otp_verified_at || job.updated_at;
+        const completedAt = completedSource ? new Date(completedSource) : null;
+        if (!completedAt || Number.isNaN(completedAt.getTime())) {
+            return fail(res, 'Unable to determine completion time for review window', 400, 'INVALID_REVIEW_WINDOW');
+        }
+
         const windowMs = windowHours * 60 * 60 * 1000;
         if (Date.now() - completedAt.getTime() > windowMs) {
             return fail(res, 'Review window closed', 403, 'WINDOW_EXPIRED');
@@ -61,7 +66,10 @@ router.post('/', async (req, res) => {
         const reviewer_role = isCustomer ? 'customer' : 'worker';
         const reviewee_id = isCustomer ? job.worker_id : job.customer_id;
         const expectedKeys = reviewConf.category_scores[reviewer_role];
-        const providedKeys = Object.keys(category_scores);
+        const normalizedCategoryScores = (category_scores && typeof category_scores === 'object' && !Array.isArray(category_scores))
+            ? category_scores
+            : {};
+        const providedKeys = Object.keys(normalizedCategoryScores);
 
         const invalidKeys = providedKeys.filter(k => !expectedKeys.includes(k));
         if (invalidKeys.length > 0) {
@@ -76,7 +84,7 @@ router.post('/', async (req, res) => {
         // 6. INSERT (UNIQUE KEY on job_id+reviewer_id enforces single review — catch 1062 → 409)
         try {
             await pool.query(`INSERT INTO reviews (job_id, reviewer_id, reviewee_id, reviewer_role, score, category_scores, comment, is_flagged)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [job_id, userId, reviewee_id, reviewer_role, score, JSON.stringify(category_scores), comment || null, is_flagged]
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [job_id, userId, reviewee_id, reviewer_role, score, JSON.stringify(normalizedCategoryScores), comment || null, is_flagged]
             );
         } catch (insertErr) {
             if (insertErr.code === 'ER_DUP_ENTRY' || insertErr.code === '23505') {
@@ -104,7 +112,7 @@ router.post('/', async (req, res) => {
 
         return ok(res, {
             submitted: true,
-            is_flagged: is_flagged === 1,
+            is_flagged: !!is_flagged,
             reviewer_role
         }, 201);
 
