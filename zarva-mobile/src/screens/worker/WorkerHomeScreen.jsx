@@ -136,6 +136,15 @@ export default function WorkerHomeScreen({ navigation }) {
                 // Always coerce from DB — do not trust persisted value
                 setOnline(u.is_online === true || u.is_online === 1);
                 setAvailable(u.is_available === true || u.is_available === 1);
+
+                // Use profile.current_job_id (server source of truth) to keep Active Job tile persistent.
+                const currentJobId = u?.profile?.current_job_id || u?.current_job_id || null;
+                if (currentJobId) {
+                    await fetchActiveJob(currentJobId);
+                } else {
+                    // Explicitly clear stale persisted tile when worker has no ongoing assignment.
+                    setActiveJob(null);
+                }
             }
             if (statsRes.data?.stats) {
                 setStats(statsRes.data.stats);

@@ -34,7 +34,7 @@ export default function RatingScreen({ route, navigation }) {
             }
             try {
                 const res = await apiClient.get(`/api/jobs/${jobId}`);
-                const jobData = res.data?.job;
+                const jobData = res.data?.data?.job || res.data?.job;
                 setJob(jobData);
 
                 if (jobData?.is_reviewed && jobData.review) {
@@ -68,6 +68,14 @@ export default function RatingScreen({ route, navigation }) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         try {
+            // Re-check latest job status from server before submitting review to avoid 400 on stale UI state.
+            const latestJobRes = await apiClient.get(`/api/jobs/${jobId}`, { useLoader: false });
+            const latestJob = latestJobRes.data?.data?.job || latestJobRes.data?.job;
+            if (latestJob?.status !== 'completed') {
+                Alert.alert('Job Not Completed Yet', 'You can submit a review once the job is fully completed.');
+                return;
+            }
+
             await apiClient.post(`/api/reviews`, {
                 job_id: jobId,
                 overall_score: rating,
@@ -81,7 +89,8 @@ export default function RatingScreen({ route, navigation }) {
             navigation.replace('CustomerTabs');
         } catch (err) {
             console.error('Failed to submit review', err);
-            Alert.alert('Error', 'Failed to submit feedback. Please try again.');
+            const apiMessage = err?.response?.data?.message;
+            Alert.alert('Error', apiMessage || 'Failed to submit feedback. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -202,7 +211,7 @@ export default function RatingScreen({ route, navigation }) {
                 <View style={styles.footer}>
                     <PremiumButton
                         title={isReadOnly ? t('back_to_home') : t('submit_review')}
-                        isDisabled={!isReadOnly && rating === 0}
+                        disabled={!isReadOnly && rating === 0}
                         loading={loading}
                         onPress={handleSubmit}
                     />
