@@ -401,11 +401,21 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     };
     const cfg = statusConfig[status] || statusConfig.searching;
 
+    const handleHeaderBack = () => {
+        // Guard against GO_BACK warning when this screen is opened as stack root (no history entry).
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        // Safe fallback: send customer to the main tabs when there is no back stack.
+        navigation.replace('CustomerTabs');
+    };
+
     return (
         <MainBackground>
             {/* ── Compact Header ── */}
             <View style={styles.header}>
-                <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                <PressableAnimated onPress={handleHeaderBack} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
                 <View style={styles.headerCenter}>

@@ -68,6 +68,14 @@ export default function RatingScreen({ route, navigation }) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         try {
+            // Re-check latest job status from server before submitting review to avoid 400 on stale UI state.
+            const latestJobRes = await apiClient.get(`/api/jobs/${jobId}`, { useLoader: false });
+            const latestJob = latestJobRes.data?.data?.job || latestJobRes.data?.job;
+            if (latestJob?.status !== 'completed') {
+                Alert.alert('Job Not Completed Yet', 'You can submit a review once the job is fully completed.');
+                return;
+            }
+
             await apiClient.post(`/api/reviews`, {
                 job_id: jobId,
                 overall_score: rating,
