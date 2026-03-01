@@ -25,6 +25,7 @@ import Card from '../../components/Card';
 import MapPickerModal from '../../components/MapPickerModal';
 import NotCoveredView from '../../components/NotCoveredView';
 import ActivityCard from '../../components/ActivityCard';
+import ZarvaHeader from '../../components/ZarvaHeader';
 
 /**
  * HomeScreen.jsx - Standardized version to resolve tag mismatch and theme naming.
@@ -129,10 +130,11 @@ export default function HomeScreen({ navigation }) {
 
     return (
         <View style={styles.screen}>
-            {/* Animated Header */}
-            <Animated.View style={[styles.headerFloating, headerStyle]}>
-                <Text style={styles.headerTitle}>Zarva</Text>
-            </Animated.View>
+            {/* Fixed Zarva Header */}
+            <ZarvaHeader
+                subtitle="Home Services"
+                onPressNotification={null}
+            />
 
             <Animated.ScrollView
                 style={styles.scrollView}

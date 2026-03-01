@@ -360,6 +360,438 @@ class BillingService {
         }
     }
 
+    // ═══════════════════════════════════════════════════════
+    // INSPECTION EXTENSION METHODS
+    // ═══════════════════════════════════════════════════════
+
+    async requestInspectionExtension(jobId, workerId) {
+        const pool = getPool();
+        const [jobs] = await pool.query(
+            'SELECT status, worker_id, inspection_extension_count, inspection_expires_at, inspection_extended_until FROM jobs WHERE id = $1',
+            [jobId]
+        );
+        const job = jobs[0];
+        if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (job.status !== 'inspection_active') throw Object.assign(new Error('Not in inspection phase'), { status: 400 });
+        const count = parseInt(job.inspection_extension_count || 0, 10);
+        if (count >= 2) throw Object.assign(new Error('Maximum 2 inspection extensions allowed'), { status: 400 });
+
+        const crypto = (await import('crypto')).default;
+        const bcryptLib = (await import('bcrypt')).default;
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcryptLib.hash(otp, 10);
+
+        await pool.query('UPDATE jobs SET inspection_extension_otp_hash=$1 WHERE id=$2', [hash, jobId]);
+
+        const redis = (await import('../config/redis.js')).getRedisClient();
+        await redis.set(`zarva:otp:inspection_ext:${jobId}`, otp, 'EX', 1800);
+
+        const { updateJobNode } = await import('./firebase.service.js');
+        await updateJobNode(jobId, { inspection_ext_pending: true, inspection_ext_count: count });
+
+        return { requested: true, extension_number: count + 1 };
+    }
+
+    async approveInspectionExtension(jobId, otpInput, customerId) {
+        const pool = getPool();
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+        try {
+            const [jobs] = await conn.query(
+                'SELECT status, customer_id, inspection_extension_otp_hash, inspection_extension_count, inspection_extended_until, inspection_expires_at FROM jobs WHERE id = $1 FOR UPDATE',
+                [jobId]
+            );
+            const job = jobs[0];
+            if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (job.status !== 'inspection_active') throw Object.assign(new Error('Not in inspection'), { status: 400 });
+
+            const bcryptLib = (await import('bcrypt')).default;
+            const match = await bcryptLib.compare(String(otpInput), job.inspection_extension_otp_hash || '');
+            if (!match) throw Object.assign(new Error('Invalid extension code'), { status: 400 });
+
+            const base = job.inspection_extended_until || job.inspection_expires_at;
+            const newExpiry = new Date(new Date(base).getTime() + 10 * 60 * 1000);
+            const newCount = parseInt(job.inspection_extension_count || 0, 10) + 1;
+
+            await conn.query(
+                'UPDATE jobs SET inspection_extended_until=$1, inspection_extension_count=$2, inspection_extension_otp_hash=NULL WHERE id=$3',
+                [newExpiry.toISOString(), newCount, jobId]
+            );
+            await this._recordTimerEvent(conn, jobId, 'inspection_extended', 'customer', `Extension ${newCount} approved`);
+            await conn.commit();
+
+            const redis = (await import('../config/redis.js')).getRedisClient();
+            await redis.del(`zarva:otp:inspection_ext:${jobId}`);
+
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, {
+                inspection_ext_pending: false,
+                inspection_extended_until: newExpiry.getTime(),
+                inspection_extension_count: newCount,
+            });
+            return { approved: true, extended_until: newExpiry };
+        } catch (err) {
+            await conn.rollback(); throw err;
+        } finally { conn.release(); }
+    }
+
+    async rejectEstimate(jobId, customerId) {
+        const pool = getPool();
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+        try {
+            const [jobs] = await conn.query(
+                'SELECT status, customer_id, inspection_fee, travel_charge FROM jobs WHERE id=$1 FOR UPDATE', [jobId]
+            );
+            const job = jobs[0];
+            if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (job.status !== 'estimate_submitted') throw Object.assign(new Error('No estimate to reject'), { status: 400 });
+
+            const partialAmount = parseFloat(job.inspection_fee || 0) + parseFloat(job.travel_charge || 0);
+            await conn.query(
+                `UPDATE jobs SET status='cancelled', estimate_rejected_at=NOW(), final_amount=$1 WHERE id=$2`,
+                [partialAmount, jobId]
+            );
+            await this._recordTimerEvent(conn, jobId, 'estimate_rejected', 'customer', 'Customer rejected estimate');
+            await conn.commit();
+
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, { status: 'cancelled', cancellation_reason: 'estimate_rejected' });
+            return { cancelled: true, partial_charge: partialAmount };
+        } catch (err) {
+            await conn.rollback(); throw err;
+        } finally { conn.release(); }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // WORK PAUSE / RESUME METHODS
+    // ═══════════════════════════════════════════════════════
+
+    async requestPause(jobId, workerId, reason) {
+        const pool = getPool();
+        const [jobs] = await pool.query(
+            'SELECT status, worker_id, pause_count, total_paused_seconds FROM jobs WHERE id=$1', [jobId]
+        );
+        const job = jobs[0];
+        if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (job.status !== 'in_progress') throw Object.assign(new Error('Can only pause during active work'), { status: 400 });
+        if (parseInt(job.pause_count || 0, 10) >= 2) throw Object.assign(new Error('Max 2 pauses allowed per job'), { status: 400 });
+        if (parseInt(job.total_paused_seconds || 0, 10) >= 1800) throw Object.assign(new Error('Max 30 minutes total paused time reached'), { status: 400 });
+
+        const crypto = (await import('crypto')).default;
+        const bcryptLib = (await import('bcrypt')).default;
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcryptLib.hash(otp, 10);
+
+        await pool.query(
+            `UPDATE jobs SET status='pause_requested', pause_reason=$1, pause_otp_hash=$2 WHERE id=$3`,
+            [reason, hash, jobId]
+        );
+
+        const redis = (await import('../config/redis.js')).getRedisClient();
+        await redis.set(`zarva:otp:pause:${jobId}`, otp, 'EX', 900); // 15-min window
+
+        const { updateJobNode } = await import('./firebase.service.js');
+        await updateJobNode(jobId, { status: 'pause_requested', pause_reason: reason });
+        return { requested: true };
+    }
+
+    async approvePause(jobId, otpInput, customerId) {
+        const pool = getPool();
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+        try {
+            const [jobs] = await conn.query(
+                'SELECT status, customer_id, pause_otp_hash, pause_count FROM jobs WHERE id=$1 FOR UPDATE', [jobId]
+            );
+            const job = jobs[0];
+            if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (job.status !== 'pause_requested') throw Object.assign(new Error('No pause pending'), { status: 400 });
+
+            const bcryptLib = (await import('bcrypt')).default;
+            const match = await bcryptLib.compare(String(otpInput), job.pause_otp_hash || '');
+            if (!match) throw Object.assign(new Error('Invalid pause code'), { status: 400 });
+
+            const newCount = parseInt(job.pause_count || 0, 10) + 1;
+            await conn.query(
+                `UPDATE jobs SET status='work_paused', paused_at=NOW(), pause_count=$1, pause_otp_hash=NULL WHERE id=$2`,
+                [newCount, jobId]
+            );
+            await this._recordTimerEvent(conn, jobId, 'job_pause', 'customer', `Pause ${newCount} approved`);
+            await conn.commit();
+
+            const redis = (await import('../config/redis.js')).getRedisClient();
+            await redis.del(`zarva:otp:pause:${jobId}`);
+
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, { status: 'work_paused', timer_status: 'paused' });
+            return { approved: true };
+        } catch (err) {
+            await conn.rollback(); throw err;
+        } finally { conn.release(); }
+    }
+
+    async requestResume(jobId, workerId) {
+        const pool = getPool();
+        const [jobs] = await pool.query(
+            'SELECT status, worker_id FROM jobs WHERE id=$1', [jobId]
+        );
+        const job = jobs[0];
+        if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (job.status !== 'work_paused') throw Object.assign(new Error('Job is not paused'), { status: 400 });
+
+        const crypto = (await import('crypto')).default;
+        const bcryptLib = (await import('bcrypt')).default;
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcryptLib.hash(otp, 10);
+
+        await pool.query(
+            `UPDATE jobs SET status='resume_requested', resume_otp_hash=$1 WHERE id=$2`,
+            [hash, jobId]
+        );
+
+        const redis = (await import('../config/redis.js')).getRedisClient();
+        await redis.set(`zarva:otp:resume:${jobId}`, otp, 'EX', 900);
+
+        const { updateJobNode } = await import('./firebase.service.js');
+        await updateJobNode(jobId, { status: 'resume_requested' });
+        return { requested: true };
+    }
+
+    async approveResume(jobId, otpInput, customerId) {
+        const pool = getPool();
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+        try {
+            const [jobs] = await conn.query(
+                'SELECT status, customer_id, resume_otp_hash, paused_at, total_paused_seconds FROM jobs WHERE id=$1 FOR UPDATE', [jobId]
+            );
+            const job = jobs[0];
+            if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (job.status !== 'resume_requested') throw Object.assign(new Error('No resume pending'), { status: 400 });
+
+            const bcryptLib = (await import('bcrypt')).default;
+            const match = await bcryptLib.compare(String(otpInput), job.resume_otp_hash || '');
+            if (!match) throw Object.assign(new Error('Invalid resume code'), { status: 400 });
+
+            const pauseStart = new Date(job.paused_at).getTime();
+            const pausedSecs = Math.floor((Date.now() - pauseStart) / 1000);
+            const totalPaused = parseInt(job.total_paused_seconds || 0, 10) + pausedSecs;
+
+            await conn.query(
+                `UPDATE jobs SET status='in_progress', paused_at=NULL, total_paused_seconds=$1, resume_otp_hash=NULL WHERE id=$2`,
+                [totalPaused, jobId]
+            );
+            await this._recordTimerEvent(conn, jobId, 'job_resume', 'customer', `Resumed after ${pausedSecs}s`);
+            await conn.commit();
+
+            const redis = (await import('../config/redis.js')).getRedisClient();
+            await redis.del(`zarva:otp:resume:${jobId}`);
+
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, { status: 'in_progress', timer_status: 'running', total_paused_seconds: totalPaused });
+            return { resumed: true, paused_seconds_added: pausedSecs };
+        } catch (err) {
+            await conn.rollback(); throw err;
+        } finally { conn.release(); }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SUSPENSION / RESCHEDULE (requires customer OTP)
+    // ═══════════════════════════════════════════════════════
+
+    async requestSuspend(jobId, workerId, reason, rescheduleAt) {
+        const pool = getPool();
+        const [jobs] = await pool.query(
+            'SELECT status, worker_id FROM jobs WHERE id=$1', [jobId]
+        );
+        const job = jobs[0];
+        if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+        if (!['in_progress', 'work_paused'].includes(job.status)) throw Object.assign(new Error('Can only suspend during active/paused work'), { status: 400 });
+
+        const crypto = (await import('crypto')).default;
+        const bcryptLib = (await import('bcrypt')).default;
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcryptLib.hash(otp, 10);
+
+        await pool.query(
+            `UPDATE jobs SET status='suspend_requested', suspend_reason=$1, suspend_reschedule_at=$2, suspend_otp_hash=$3 WHERE id=$4`,
+            [reason, rescheduleAt, hash, jobId]
+        );
+
+        const redis = (await import('../config/redis.js')).getRedisClient();
+        await redis.set(`zarva:otp:suspend:${jobId}`, otp, 'EX', 900);
+
+        const { updateJobNode } = await import('./firebase.service.js');
+        await updateJobNode(jobId, {
+            status: 'suspend_requested',
+            suspend_reason: reason,
+            suspend_reschedule_at: new Date(rescheduleAt).getTime(),
+        });
+        return { requested: true };
+    }
+
+    async approveSuspend(jobId, otpInput, customerId) {
+        const pool = getPool();
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+        try {
+            const [jobs] = await conn.query(
+                'SELECT *, customer_id FROM jobs WHERE id=$1 FOR UPDATE', [jobId]
+            );
+            const job = jobs[0];
+            if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (job.status !== 'suspend_requested') throw Object.assign(new Error('No suspension pending'), { status: 400 });
+
+            const bcryptLib = (await import('bcrypt')).default;
+            const match = await bcryptLib.compare(String(otpInput), job.suspend_otp_hash || '');
+            if (!match) throw Object.assign(new Error('Invalid reschedule code'), { status: 400 });
+
+            // Bill today's work then suspend
+            const bill = await this.stopJobAndBill(jobId, 'worker', conn, 'suspended');
+            await conn.query('UPDATE jobs SET suspended_at=NOW() WHERE id=$1', [jobId]);
+            await this._recordTimerEvent(conn, jobId, 'job_suspended', 'customer', 'Reschedule approved');
+
+            // Create follow-up linked job
+            const crypto = (await import('crypto')).default;
+            const [newJobs] = await conn.query(
+                `INSERT INTO jobs (customer_id, worker_id, category, address, description,
+                    latitude, longitude, hourly_rate, status, scheduled_for)
+                 SELECT customer_id, worker_id, category, address, description,
+                    latitude, longitude, hourly_rate, 'assigned', $1
+                 FROM jobs WHERE id=$2
+                 RETURNING id`,
+                [job.suspend_reschedule_at, jobId]
+            );
+            const followupId = newJobs[0]?.id;
+            if (followupId) {
+                await conn.query('UPDATE jobs SET followup_job_id=$1 WHERE id=$2', [followupId, jobId]);
+            }
+
+            await conn.commit();
+
+            const redis = (await import('../config/redis.js')).getRedisClient();
+            await redis.del(`zarva:otp:suspend:${jobId}`);
+
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, { status: 'suspended', followup_job_id: followupId });
+            return { suspended: true, followup_job_id: followupId, bill };
+        } catch (err) {
+            await conn.rollback(); throw err;
+        } finally { conn.release(); }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CUSTOMER STOP EARLY
+    // ═══════════════════════════════════════════════════════
+
+    async customerStopWork(jobId, customerId) {
+        const pool = getPool();
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+        try {
+            const [jobs] = await conn.query(
+                'SELECT status, customer_id FROM jobs WHERE id=$1 FOR UPDATE', [jobId]
+            );
+            const job = jobs[0];
+            if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (!['in_progress', 'work_paused'].includes(job.status)) throw Object.assign(new Error('Job is not in progress'), { status: 400 });
+
+            const safeStopEnds = new Date(Date.now() + 5 * 60 * 1000);
+            await conn.query(
+                `UPDATE jobs SET status='customer_stopping', customer_stopped_at=NOW(), safe_stop_window_ends_at=$1 WHERE id=$2`,
+                [safeStopEnds.toISOString(), jobId]
+            );
+            await this._recordTimerEvent(conn, jobId, 'customer_stop_requested', 'customer', 'Customer initiated stop');
+            await conn.commit();
+
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, {
+                status: 'customer_stopping',
+                safe_stop_window_ends_at: safeStopEnds.getTime(),
+                timer_status: 'frozen',
+            });
+            return { stopping: true, safe_stop_window_ends_at: safeStopEnds };
+        } catch (err) {
+            await conn.rollback(); throw err;
+        } finally { conn.release(); }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // MATERIALS DECLARATION
+    // ═══════════════════════════════════════════════════════
+
+    async declareMaterials(jobId, workerId, items) {
+        const pool = getPool();
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+        try {
+            const [jobs] = await conn.query(
+                'SELECT status, worker_id FROM jobs WHERE id=$1 FOR UPDATE', [jobId]
+            );
+            const job = jobs[0];
+            if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (job.status !== 'pending_completion') throw Object.assign(new Error('Materials must be declared during completion phase'), { status: 400 });
+
+            // Remove any previous materials for this job and reinsert
+            await conn.query('DELETE FROM job_materials WHERE job_id=$1', [jobId]);
+
+            let totalMaterials = 0;
+            for (const item of (items || [])) {
+                const amt = parseFloat(item.amount || 0);
+                totalMaterials += amt;
+                await conn.query(
+                    'INSERT INTO job_materials (job_id, name, amount, receipt_url) VALUES ($1, $2, $3, $4)',
+                    [jobId, item.name, amt, item.receipt_url || null]
+                );
+            }
+
+            await conn.query(
+                'UPDATE jobs SET materials_declared=TRUE, materials_cost=$1 WHERE id=$2',
+                [totalMaterials, jobId]
+            );
+            await conn.commit();
+            return { declared: true, materials_cost: totalMaterials };
+        } catch (err) {
+            await conn.rollback(); throw err;
+        } finally { conn.release(); }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // BILL PREVIEW (10-min customer inspection window)
+    // ═══════════════════════════════════════════════════════
+
+    async generateBillPreview(jobId) {
+        const pool = getPool();
+        const [jobs] = await pool.query(
+            `SELECT j.*, 
+             COALESCE(json_agg(jm.*) FILTER (WHERE jm.id IS NOT NULL), '[]') AS materials_list
+             FROM jobs j
+             LEFT JOIN job_materials jm ON jm.job_id = j.id
+             WHERE j.id=$1
+             GROUP BY j.id`,
+            [jobId]
+        );
+        const job = jobs[0];
+        if (!job) throw Object.assign(new Error('Job not found'), { status: 404 });
+
+        const bill = await this.calculateJobBill(jobId);
+        const previewExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+        await pool.query('UPDATE jobs SET bill_preview_expires_at=$1 WHERE id=$2', [previewExpiry.toISOString(), jobId]);
+
+        return {
+            inspection_fee: parseFloat(job.inspection_fee || 0),
+            travel_charge: parseFloat(job.travel_charge || 0),
+            labor_cost: bill.totalAmount - parseFloat(job.inspection_fee || 0) - parseFloat(job.travel_charge || 0) - parseFloat(job.materials_cost || 0),
+            materials_cost: parseFloat(job.materials_cost || 0),
+            materials: job.materials_list || [],
+            total: bill.totalAmount + parseFloat(job.materials_cost || 0),
+            billed_minutes: bill.billedMinutes,
+            preview_expires_at: previewExpiry,
+        };
+    }
+
 }
 
 export default new BillingService();

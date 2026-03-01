@@ -22,7 +22,7 @@ if (__DEV__) {
         const expoConfig = Constants?.expoConfig || Constants?.manifest || {};
         const hostUri = expoConfig.hostUri;
         const debuggerHost = expoConfig.debuggerHost;
-        
+
         let detectedIP = null;
         if (hostUri) detectedIP = hostUri.split(':')[0];
         else if (debuggerHost) detectedIP = debuggerHost.split(':')[0];
@@ -87,7 +87,21 @@ apiClient.interceptors.response.use(
         const status = error?.response?.status;
         const originalRequest = error.config;
 
+        // ── Connectivity Monitoring ─────────────────────
+        if (status === 503) {
+            useUIStore.getState().setServerUp(false);
+        } else if (!status || error.code === 'ERR_NETWORK') {
+            // No response or network error: could be server down or no internet
+            // Let the ConnectivityOverlay's retry logic disambiguate
+            useUIStore.getState().setServerUp(false);
+        } else {
+            // Any other response (2xx, 4xx, 500) means server IS up
+            useUIStore.getState().setServerUp(true);
+            useUIStore.getState().setNetConnected(true);
+        }
+
         // Auto-retry network errors or 5xx server errors once (Issue #45)
+
         if ((!status || status >= 500) && originalRequest && !originalRequest._retry) {
             originalRequest._retry = true;
             try {
@@ -116,7 +130,12 @@ apiClient.interceptors.response.use(
             );
         }
         else if (error?.response?.data?.message && status >= 500) {
-            Alert.alert('Server Error', error.response?.data?.message, [{ text: 'OK' }]);
+            // Only show global Alert if we aren't about to auto-retry, or if it's the 2nd attempt
+            if (originalRequest && originalRequest._retry) {
+                Alert.alert('Server Error', error.response?.data?.message, [{ text: 'OK' }]);
+            } else if (!originalRequest) {
+                Alert.alert('Server Error', error.response?.data?.message, [{ text: 'OK' }]);
+            }
         }
 
         return Promise.reject(error);

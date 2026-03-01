@@ -9,6 +9,10 @@ export const useUIStore = create((set) => ({
     isLoading: false,
     loadingMessage: 'Processing...',
 
+
+    isNetConnected: true,
+    isServerUp: true,
+
     /**
      * Shows a global blocking loader
      * @param {string} message - Message to display
@@ -20,4 +24,17 @@ export const useUIStore = create((set) => ({
      * Hides the global loader
      */
     hideLoader: () => set({ isLoading: false }),
+
+    /**
+     * Sets the internet connection status
+     * @param {boolean} val 
+     */
+    setNetConnected: (val) => set({ isNetConnected: val }),
+
+    /**
+     * Sets the server status
+     * @param {boolean} val 
+     */
+    setServerUp: (val) => set({ isServerUp: val }),
 }));
+

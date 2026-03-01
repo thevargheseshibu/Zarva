@@ -261,10 +261,12 @@ router.get('/:id', async (req, res) => {
             return fail(res, 'Not found', 404, 'NOT_FOUND');
         }
 
-        // Clean out sensitive hashes
+        // Strip sensitive hashes from response
         delete job.start_otp_hash;
         delete job.end_otp_hash;
+        delete job.inspection_otp_hash;
 
+        // Build worker sub-object if a worker is assigned
         if (job.worker_id) {
             const bucket = process.env.AWS_BUCKET_NAME;
             const region = process.env.AWS_REGION;
@@ -277,7 +279,7 @@ router.get('/:id', async (req, res) => {
                 id: job.worker_id,
                 name: w_name,
                 category: job.worker_category || 'Service',
-                rating: job.worker_rating, // raw rating
+                rating: job.worker_rating,
                 photo: photoUrl,
                 completed_jobs: job.worker_jobs || 0,
                 lat: job.worker_lat,
@@ -286,35 +288,39 @@ router.get('/:id', async (req, res) => {
             };
         }
 
+        // Build review sub-object
         job.is_reviewed = !!job.is_reviewed;
         if (job.review_details && typeof job.review_details === 'string') {
-            try {
-                job.review = JSON.parse(job.review_details);
-            } catch (e) {
-                job.review = job.review_details; // fallback
-            }
+            try { job.review = JSON.parse(job.review_details); }
+            catch (e) { job.review = job.review_details; }
         } else {
             job.review = job.review_details || null;
         }
-        delete job.review_details;
-        delete job.rating_given;
 
         // Remove flattened fields
+        delete job.review_details;
+        delete job.rating_given;
         delete job.worker_name;
         delete job.worker_rating;
         delete job.worker_photo;
         delete job.worker_category;
         delete job.worker_verified;
+        delete job.worker_lat;
+        delete job.worker_lng;
+        delete job.worker_jobs;
 
-        // INJECT Redis OTPs based on Status
-        if (job.status === 'worker_arrived') {
-            const redisClient = getRedisClient();
-            const plaintextOtp = await redisClient.get(`zarva:otp:inspection:${job.id}`);
-            if (plaintextOtp) job.inspection_otp = plaintextOtp;
+        // Inject plaintext OTPs from Redis based on current job status
+        const redisClient = getRedisClient();
+        if (['worker_arrived', 'inspection_active'].includes(job.status)) {
+            try {
+                const otp = await redisClient.get(`zarva:otp:inspection:${job.id}`);
+                if (otp) job.inspection_otp = otp;
+            } catch (_e) { /* Redis unavailable */ }
         } else if (job.status === 'estimate_submitted') {
-            const redisClient = getRedisClient();
-            const plaintextOtp = await redisClient.get(`zarva:otp:start:${job.id}`);
-            if (plaintextOtp) job.start_otp = plaintextOtp;
+            try {
+                const otp = await redisClient.get(`zarva:otp:start:${job.id}`);
+                if (otp) job.start_otp = otp;
+            } catch (_e) { /* Redis unavailable */ }
         }
 
         return ok(res, { job });
@@ -640,7 +646,133 @@ router.post('/:id/stop', async (req, res) => {
     }
 });
 
+// ── NEW LIFECYCLE ROUTES ──────────────────────────────────────────────────────
+
+/**
+ * POST /api/jobs/:id/inspection/approve-extension
+ * Customer approves inspection extension with OTP
+ */
+router.post('/:id/inspection/approve-extension', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+    try {
+        const { otp } = req.body;
+        if (!otp) return fail(res, 'OTP is required', 400);
+        const { default: billingService } = await import('../services/billing.service.js');
+        const result = await billingService.approveInspectionExtension(req.params.id, otp, userId);
+        return ok(res, result);
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
+/**
+ * POST /api/jobs/:id/reject-estimate
+ * Customer rejects submitted estimate → cancel with inspection fee only
+ */
+router.post('/:id/reject-estimate', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+    try {
+        const { default: billingService } = await import('../services/billing.service.js');
+        const result = await billingService.rejectEstimate(req.params.id, userId);
+        return ok(res, result);
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
+/**
+ * POST /api/jobs/:id/approve-pause
+ * Customer approves worker's pause request via OTP
+ */
+router.post('/:id/approve-pause', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+    try {
+        const { otp } = req.body;
+        if (!otp) return fail(res, 'OTP is required', 400);
+        const { default: billingService } = await import('../services/billing.service.js');
+        const result = await billingService.approvePause(req.params.id, otp, userId);
+        return ok(res, result);
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
+/**
+ * POST /api/jobs/:id/approve-resume
+ * Customer approves worker's resume request via OTP
+ */
+router.post('/:id/approve-resume', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+    try {
+        const { otp } = req.body;
+        if (!otp) return fail(res, 'OTP is required', 400);
+        const { default: billingService } = await import('../services/billing.service.js');
+        const result = await billingService.approveResume(req.params.id, otp, userId);
+        return ok(res, result);
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
+/**
+ * POST /api/jobs/:id/approve-suspend
+ * Customer approves worker's reschedule/suspend request via OTP
+ */
+router.post('/:id/approve-suspend', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+    try {
+        const { otp } = req.body;
+        if (!otp) return fail(res, 'OTP is required', 400);
+        const { default: billingService } = await import('../services/billing.service.js');
+        const result = await billingService.approveSuspend(req.params.id, otp, userId);
+        return ok(res, result);
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
+/**
+ * POST /api/jobs/:id/customer-stop
+ * Customer stops work early — opens 5-min safe-stop window
+ */
+router.post('/:id/customer-stop', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+    try {
+        const { default: billingService } = await import('../services/billing.service.js');
+        const result = await billingService.customerStopWork(req.params.id, userId);
+        return ok(res, result);
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
+/**
+ * GET /api/jobs/:id/bill-preview
+ * Returns itemized bill preview (inspection+travel+labor+materials) with 10-min window
+ */
+router.get('/:id/bill-preview', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+    try {
+        const pool = getPool();
+        const [rows] = await pool.query('SELECT customer_id FROM jobs WHERE id=$1', [req.params.id]);
+        if (!rows[0] || rows[0].customer_id != userId) return fail(res, 'Forbidden', 403);
+        const { default: billingService } = await import('../services/billing.service.js');
+        const preview = await billingService.generateBillPreview(req.params.id);
+        return ok(res, { preview });
+    } catch (err) {
+        return fail(res, err.message, err.status || 500);
+    }
+});
+
 export default router;
+
 
 // ─── GET /api/jobs/:id/worker-location ────────────────────────────────────────
 // Customer: get live worker GPS for their active job

@@ -33,7 +33,11 @@ import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import { JobAlertService } from './src/services/JobAlertService';
 import GlobalLoader from './src/components/GlobalLoader';
+import ConnectivityOverlay from './src/components/ConnectivityOverlay';
+import ZarvaSplash from './src/components/ZarvaSplash';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+
 import messaging, {
   getToken,
   onMessage,
@@ -90,6 +94,7 @@ export default function App() {
   const { language, isLoaded, loadLanguage } = useLanguageStore();
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const [profileReady, setProfileReady] = React.useState(false);
+  const [showSplash, setShowSplash] = React.useState(true);
 
   // 1. Initial Data Load
   React.useEffect(() => {
@@ -279,13 +284,18 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <QueryClientProvider client={queryClient}>
-            <StatusBar style="light" />
-            <RootNavigator />
-            <GlobalLoader />
-          </QueryClientProvider>
+          <ConnectivityOverlay>
+            <QueryClientProvider client={queryClient}>
+              <StatusBar style="light" />
+              <RootNavigator />
+              <GlobalLoader />
+            </QueryClientProvider>
+          </ConnectivityOverlay>
         </ThemeProvider>
       </SafeAreaProvider>
+
+      {/* Zarva Splash — rendered ABOVE everything so it overlays on cold boot */}
+      {showSplash && <ZarvaSplash onDone={() => setShowSplash(false)} />}
     </GestureHandlerRootView>
   );
 }

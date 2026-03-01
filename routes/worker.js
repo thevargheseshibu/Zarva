@@ -338,18 +338,33 @@ router.post('/jobs/:id/arrived', (req, res) =>
         const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
         const hash = await bcrypt.hash(otp, 10);
 
-        // 3. MySQL Storage (Hash)
-        await pool.query(`UPDATE jobs SET inspection_otp_hash=$1, status='worker_arrived', arrived_at=NOW() WHERE id=$2`, [hash, jobId]
-        );
+        // 3. DB Storage (Hash + Expiry) — inspection_expires_at = 60 min from now
+        try {
+            await pool.query(
+                `UPDATE jobs SET inspection_otp_hash=$1, status='worker_arrived', arrived_at=NOW(), inspection_expires_at=NOW() + INTERVAL '60 minutes' WHERE id=$2`,
+                [hash, jobId]
+            );
+        } catch (dbErr) {
+            // If inspection_otp_hash column doesn't exist yet (pre-migration), fall back to base update
+            if (dbErr.code === '42703') {
+                console.warn('[Worker] inspection_otp_hash column missing — run migration 011. Falling back to base update.');
+                await pool.query(`UPDATE jobs SET status='worker_arrived', arrived_at=NOW() WHERE id=$1`, [jobId]);
+            } else {
+                throw dbErr;
+            }
+        }
 
-        // 4. Redis Storage (Plaintext Relayed to Customer) -> 60 min TTL (3600s)
+        // 4. Redis Storage (Plaintext Relayed to Customer) → 60 min TTL (3600s)
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:inspection:${jobId}`, otp, 'EX', 3600);
 
-        // Real Firebase Update
-        await updateJobNode(jobId, { status: 'worker_arrived' });
+        // 5. Firebase Update (status + OTP for instant customer refresh)
+        await updateJobNode(jobId, {
+            status: 'worker_arrived',
+            inspection_expires_at: Date.now() + 60 * 60 * 1000,
+        });
 
-        // Phase 12: Trigger Phone Push to Customer (Issue #1, #2)
+        // 6. Push Notification to Customer
         const { notifyCustomerWorkerArrived } = await import('../services/notification.service.js');
         await notifyCustomerWorkerArrived(jobId, otp);
 
@@ -529,6 +544,63 @@ router.post('/jobs/:id/extension/request', (req, res) =>
 );
 
 /**
+ * Worker Requests Inspection Extension (max 2 total, +10 min each)
+ */
+router.post('/jobs/:id/inspection/extend-request', (req, res) =>
+    handle(req, res, async (userId) => {
+        const billingService = (await import('../services/billing.service.js')).default;
+        return billingService.requestInspectionExtension(req.params.id, userId);
+    })
+);
+
+/**
+ * Worker Requests Pause (OTP-gated, max 2 per job, max 30 min total)
+ */
+router.post('/jobs/:id/pause-request', (req, res) =>
+    handle(req, res, async (userId) => {
+        const { reason } = req.body;
+        if (!reason?.trim()) throw Object.assign(new Error('Reason is required'), { status: 400 });
+        const billingService = (await import('../services/billing.service.js')).default;
+        return billingService.requestPause(req.params.id, userId, reason);
+    })
+);
+
+/**
+ * Worker Requests Resume from Pause
+ */
+router.post('/jobs/:id/resume-request', (req, res) =>
+    handle(req, res, async (userId) => {
+        const billingService = (await import('../services/billing.service.js')).default;
+        return billingService.requestResume(req.params.id, userId);
+    })
+);
+
+/**
+ * Worker Requests Suspension / Reschedule (requires customer OTP to confirm)
+ */
+router.post('/jobs/:id/suspend-request', (req, res) =>
+    handle(req, res, async (userId) => {
+        const { reason, reschedule_at } = req.body;
+        if (!reason?.trim()) throw Object.assign(new Error('Reason is required'), { status: 400 });
+        if (!reschedule_at) throw Object.assign(new Error('Reschedule date/time is required'), { status: 400 });
+        const billingService = (await import('../services/billing.service.js')).default;
+        return billingService.requestSuspend(req.params.id, userId, reason, reschedule_at);
+    })
+);
+
+/**
+ * Worker Declares Materials Used
+ * Body: { items: [{ name, amount, receipt_url? }] }
+ */
+router.post('/jobs/:id/materials', (req, res) =>
+    handle(req, res, async (userId) => {
+        const { items } = req.body;
+        const billingService = (await import('../services/billing.service.js')).default;
+        return billingService.declareMaterials(req.params.id, userId, items || []);
+    })
+);
+
+/**
  * 4.4 CANCELLATION ENGINE
  */
 
@@ -658,6 +730,29 @@ router.put('/location', (req, res) =>
         return { updated: true, lat, lng };
     })
 );
+
+// ─── GET /api/worker/skills ───────────────────────────────────────────────────
+// Returns the platform-wide skills catalog for workers to choose from.
+router.get('/skills', (req, res) => {
+    const SKILLS_CATALOG = {
+        plumbing: { label: 'Plumbing', icon: '🔧', category: 'plumber' },
+        electrical: { label: 'Electrical', icon: '⚡', category: 'electrician' },
+        carpentry: { label: 'Carpentry', icon: '🪚', category: 'carpenter' },
+        painting: { label: 'Painting', icon: '🖌️', category: 'painter' },
+        cleaning: { label: 'Cleaning', icon: '🧹', category: 'cleaning' },
+        ac_repair: { label: 'AC Repair', icon: '❄️', category: 'ac_technician' },
+        appliance: { label: 'Appliance Repair', icon: '🔌', category: 'appliance_repair' },
+        pest_control: { label: 'Pest Control', icon: '🐛', category: 'pest_control' },
+        moving: { label: 'Moving & Packing', icon: '📦', category: 'moving' },
+        gardening: { label: 'Gardening', icon: '🌿', category: 'gardener' },
+        security: { label: 'Security', icon: '🔒', category: 'security' },
+        tutoring: { label: 'Tutoring', icon: '📚', category: 'tutor' },
+        cooking: { label: 'Cooking', icon: '🍳', category: 'cook' },
+        beauty: { label: 'Beauty & Grooming', icon: '💈', category: 'beautician' },
+        driver: { label: 'Driver', icon: '🚗', category: 'driver' },
+    };
+    return res.status(200).json({ status: 'ok', skills: SKILLS_CATALOG });
+});
 
 // ─── PUT /api/worker/availability ───────────────────────────────────────────
 // Toggle worker online / offline

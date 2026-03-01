@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTokens } from '../../design-system';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, FlatList, TextInput, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -26,6 +26,7 @@ export default function CustomerProfileScreen() {
 
     const [isLangModalOpen, setIsLangModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [activeJob, setActiveJob] = useState(null);
 
     // Edit Profile State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -36,6 +37,23 @@ export default function CustomerProfileScreen() {
     });
     const [saving, setSaving] = useState(false);
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+    // Fetch active job to show inspection / start code
+    useEffect(() => {
+        const fetchActiveJob = async () => {
+            try {
+                const res = await apiClient.get('/api/jobs?status=active&limit=1');
+                const jobs = res.data?.jobs || [];
+                // Find any job that's in an OTP-relevant status
+                const otpJob = jobs.find(j =>
+                    ['worker_arrived', 'estimate_submitted'].includes(j.status)
+                );
+                setActiveJob(otpJob || null);
+            } catch (_) { }
+        };
+        fetchActiveJob();
+    }, []);
+
 
     const currentLangObj = SUPPORTED_LANGUAGES.find(l => l.code === language) || SUPPORTED_LANGUAGES[0];
 
@@ -196,6 +214,43 @@ export default function CustomerProfileScreen() {
                             </View>
                         </Card>
                     </FadeInView>
+
+                    {/* ── Active Job Inspection / Start Code ── */}
+                    {activeJob && (
+                        <FadeInView delay={260}>
+                            <Card style={[styles.heroCard, {
+                                borderColor: activeJob.status === 'worker_arrived'
+                                    ? tTheme.brand.primary + '66'
+                                    : tTheme.status.success.base + '66',
+                                padding: tTheme.spacing['2xl'],
+                            }]}>
+                                <Text style={[styles.sectionHeader, { marginBottom: 12, marginLeft: 0, color: tTheme.text.tertiary }]}>
+                                    {activeJob.status === 'worker_arrived' ? 'INSPECTION CODE' : 'START CODE'}
+                                </Text>
+                                <Text style={{ color: tTheme.text.secondary, fontSize: 12, marginBottom: 16, lineHeight: 18 }}>
+                                    {activeJob.status === 'worker_arrived'
+                                        ? 'Share this code with the professional to begin the assessment.'
+                                        : 'The pro has submitted an estimate. Share this code to begin work.'}
+                                </Text>
+                                <View style={styles.otpCodeBox}>
+                                    {(activeJob.status === 'worker_arrived'
+                                        ? (activeJob.inspection_otp || '----')
+                                        : (activeJob.start_otp || '----')
+                                    ).toString().split('').map((digit, i) => (
+                                        <View key={i} style={styles.otpDigitBox}>
+                                            <Text style={styles.otpDigitTxt}>{digit}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.viewJobBtn}
+                                    onPress={() => navigation.navigate('JobStatusDetail', { jobId: activeJob.id })}
+                                >
+                                    <Text style={styles.viewJobTxt}>View Full Job Details →</Text>
+                                </TouchableOpacity>
+                            </Card>
+                        </FadeInView>
+                    )}
 
                     <FadeInView delay={300} style={styles.section}>
                         <Text style={styles.sectionHeader}>ACCOUNT</Text>
@@ -428,6 +483,22 @@ const createStyles = (t) => StyleSheet.create({
     divider: { width: 1, height: '60%', backgroundColor: t.border.default + '22', alignSelf: 'center' },
     metricValue: { color: t.brand.primary, fontSize: 24, fontWeight: '900' },
     metricLabel: { color: t.text.tertiary, fontSize: 10, marginTop: 4, fontWeight: '800', letterSpacing: 1.5 },
+
+    // OTP Code Display
+    otpCodeBox: { flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 20 },
+    otpDigitBox: {
+        width: 52,
+        height: 60,
+        borderRadius: t.radius.md,
+        backgroundColor: t.background.surfaceRaised,
+        borderWidth: 1.5,
+        borderColor: t.brand.primary + '44',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    otpDigitTxt: { color: t.brand.primary, fontSize: 28, fontWeight: '900', letterSpacing: 2 },
+    viewJobBtn: { alignItems: 'center', paddingVertical: 10 },
+    viewJobTxt: { color: t.brand.primary, fontSize: 13, fontWeight: '800' },
 
     section: { gap: t.spacing.md },
     sectionHeader: { color: t.text.tertiary, fontSize: 11, fontWeight: '900', letterSpacing: 2, marginLeft: 8, marginBottom: 4 },

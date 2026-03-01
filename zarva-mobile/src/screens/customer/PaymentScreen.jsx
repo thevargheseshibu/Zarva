@@ -9,8 +9,6 @@ import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
 
-
-
 export default function PaymentScreen({ route, navigation }) {
     const tTheme = useTokens();
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
@@ -99,6 +97,12 @@ export default function PaymentScreen({ route, navigation }) {
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={{ color: tTheme.text.tertiary }}>Error generating invoice.</Text>
                 <PremiumButton title="Retry" onPress={() => navigation.replace('Payment', { jobId })} style={{ marginTop: 20 }} />
+                <PremiumButton
+                    title="Go Home"
+                    variant="ghost"
+                    onPress={() => navigation.replace('CustomerTabs')}
+                    style={{ marginTop: 12 }}
+                />
             </View>
         );
     }
@@ -107,9 +111,17 @@ export default function PaymentScreen({ route, navigation }) {
 
     return (
         <View style={styles.screen}>
-            {/* Header */}
+            {/* Header — uses replace not goBack since we arrived via replace */}
             <View style={styles.header}>
+                <TouchableOpacity
+                    style={styles.backBtn}
+                    onPress={() => navigation.replace('CustomerTabs')}
+                    activeOpacity={0.7}
+                >
+                    <Text style={styles.backBtnTxt}>← Home</Text>
+                </TouchableOpacity>
                 <Text style={styles.headerTitle}>{t('secure_checkout')}</Text>
+                <View style={{ width: 60 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -214,10 +226,28 @@ const createStyles = (t) => StyleSheet.create({
     header: {
         paddingTop: 60,
         paddingHorizontal: t.spacing['2xl'],
+        paddingBottom: t.spacing.lg,
+        flexDirection: 'row',
         alignItems: 'center',
-        paddingBottom: t.spacing.lg
+        justifyContent: 'space-between',
     },
-    headerTitle: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 3 },
+    headerTitle: {
+        color: t.brand.primary,
+        fontSize: 10,
+        fontWeight: t.typography.weight.bold,
+        letterSpacing: 3,
+        textAlign: 'center',
+        flex: 1,
+    },
+    backBtn: {
+        width: 60,
+        paddingVertical: 4,
+    },
+    backBtnTxt: {
+        color: t.text.secondary,
+        fontSize: 13,
+        fontWeight: '600',
+    },
 
     scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 

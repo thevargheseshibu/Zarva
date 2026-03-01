@@ -65,7 +65,7 @@ export default function WorkerProfileScreen({ navigation }) {
 
     const fetchAvailableSkills = async () => {
         try {
-            const res = await apiClient.get('/api/skills');
+            const res = await apiClient.get('/api/worker/skills');
             setAvailableSkills(res.data?.skills || {});
         } catch (err) {
             console.error('Failed to fetch skills', err);

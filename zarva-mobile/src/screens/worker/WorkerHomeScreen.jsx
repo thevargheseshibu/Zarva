@@ -13,6 +13,7 @@ import PressableAnimated from '../../design-system/components/PressableAnimated'
 import StatusPill from '../../components/StatusPill';
 import MapPickerModal from '../../components/MapPickerModal';
 import MainBackground from '../../components/MainBackground';
+import ZarvaHeader from '../../components/ZarvaHeader';
 
 /**
  * WorkerHomeScreen.jsx - Cleaned and Verified
@@ -113,6 +114,9 @@ export default function WorkerHomeScreen({ navigation }) {
 
     const loadData = useCallback(async () => {
         setRefreshing(true);
+        // Reset to false immediately — will be set from DB below.
+        // This prevents stale AsyncStorage value from showing.
+        setOnline(false);
         try {
             const [meRes, statsRes] = await Promise.all([
                 apiClient.get('/api/me'),
@@ -129,8 +133,9 @@ export default function WorkerHomeScreen({ navigation }) {
                     verified: u.kyc_status === 'verified',
                     photo: u.photo_url
                 });
-                setOnline(u.is_online);
-                setAvailable(u.is_available);
+                // Always coerce from DB — do not trust persisted value
+                setOnline(u.is_online === true || u.is_online === 1);
+                setAvailable(u.is_available === true || u.is_available === 1);
             }
             if (statsRes.data?.stats) {
                 setStats(statsRes.data.stats);
@@ -165,13 +170,20 @@ export default function WorkerHomeScreen({ navigation }) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
             const res = await apiClient.put('/api/worker/availability', { is_online: val });
-            const online = res.data?.is_online ?? val;
-            setOnline(online);
-            if (online) {
+            const newOnlineState = res.data?.is_online;
+            // Server returns the updated value — use it as the source of truth
+            setOnline(typeof newOnlineState === 'boolean' ? newOnlineState : val);
+            if (val) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
         } catch (err) {
-            Alert.alert('Error', err?.response?.data?.message || 'Failed to update status.');
+            const errMsg = err?.response?.data?.message || err?.response?.data?.error || 'Failed to update status.';
+            Alert.alert(
+                val ? 'Cannot Go Online' : 'Cannot Go Offline',
+                errMsg
+            );
+            // Reset to current DB value on error
+            loadData();
         } finally {
             setToggling(false);
         }
@@ -179,8 +191,11 @@ export default function WorkerHomeScreen({ navigation }) {
 
     return (
         <MainBackground>
+            {/* Zarva branded header */}
+            <ZarvaHeader subtitle="Worker Dashboard" />
             <View style={styles.header}>
                 <FadeInView delay={100} style={styles.headerTop}>
+
                     <View style={styles.profileRow}>
                         <View style={styles.photoWrap}>
                             <Image
@@ -308,7 +323,7 @@ export default function WorkerHomeScreen({ navigation }) {
                 initialLocation={location.lat ? { latitude: location.lat, longitude: location.lng } : null}
                 onSelectLocation={handleMapSelect}
             />
-        </MainBackground>
+        </MainBackground >
     );
 }
 
