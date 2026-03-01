@@ -39,10 +39,17 @@ export default function HomeScreen({ navigation }) {
     const [isLoadingServices, setIsLoadingServices] = useState(true);
     const [showAllServices, setShowAllServices] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const { activeJob, searchPhase, locationOverride, setLocationOverride, setLastKnownLocation } = useJobStore();
+    const { activeJob, searchPhase, locationOverride, setLocationOverride, setLastKnownLocation, setActiveJob, setSearchPhase } = useJobStore();
     const [location, setLocation] = useState(locationOverride || { address: 'Fetching location...', lat: null, lng: null });
     const [isMapVisible, setIsMapVisible] = useState(false);
     const [isServiceable, setIsServiceable] = useState(true);
+    // Only these statuses should be treated as an active request tile on Home.
+    const ACTIVE_REQUEST_STATUSES = [
+        'searching', 'assigned', 'worker_en_route', 'worker_arrived',
+        'inspection_active', 'estimate_submitted', 'in_progress',
+        'pause_requested', 'work_paused', 'resume_requested',
+        'suspend_requested', 'customer_stopping', 'pending_completion'
+    ];
 
     const scrollY = useSharedValue(0);
 
@@ -80,7 +87,20 @@ export default function HomeScreen({ navigation }) {
     const fetchHomescreenData = async () => {
         try {
             const res = await apiClient.get('/api/jobs');
-            setRecentJobs((res.data?.jobs || []).slice(0, 3));
+            const jobs = res.data?.jobs || [];
+            setRecentJobs(jobs.slice(0, 3));
+
+            // Keep a persistent Active Job tile by deriving ongoing job from server truth on every Home focus.
+            const ongoingJob = jobs.find((job) => ACTIVE_REQUEST_STATUSES.includes(job.status));
+
+            // Sync Zustand state so tile persists even after app relaunch/navigation reset.
+            if (ongoingJob) {
+                setActiveJob(ongoingJob);
+                setSearchPhase(ongoingJob.status);
+            } else {
+                setActiveJob(null);
+                setSearchPhase(null);
+            }
         } catch (err) { }
     };
 
@@ -162,7 +182,7 @@ export default function HomeScreen({ navigation }) {
                             <Text style={styles.subGreeting}>{t('premium_services_desc')}</Text>
                         </FadeInView>
 
-                        {activeJob && searchPhase && (
+                        {activeJob && searchPhase && ACTIVE_REQUEST_STATUSES.includes(searchPhase) && (
                             <FadeInView delay={200}>
                                 <Card glow style={styles.activeJobCard}>
                                     <View style={styles.activeHeader}>

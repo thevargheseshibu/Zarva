@@ -202,6 +202,7 @@ export default function ActiveJobScreen({ route, navigation }) {
             setJob(data);
             if (data.status) setStatus(data.status);
             if (data.end_otp) setEndOtp(data.end_otp);
+            setInspectExtRequested(Boolean(data.inspection_extension_otp_hash));
         } catch (err) {
             Alert.alert('Error', 'Could not load job details.');
         } finally {
@@ -270,6 +271,7 @@ export default function ActiveJobScreen({ route, navigation }) {
             const res = await apiClient.post(`/api/worker/jobs/${jobId}/verify-inspection-otp`, { otp: code });
             if (res.data?.verified || res.status === 200) {
                 setStatus('inspection_active');
+                await fetchJob();
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
         } catch (err) {
@@ -407,6 +409,21 @@ export default function ActiveJobScreen({ route, navigation }) {
     };
 
     const handlePickRescheduleDate = async () => {
+        // Small helper to let worker pick a practical time slot after selecting date.
+        const promptTimeSlot = (dateBase) => {
+            Alert.alert(
+                'Select Time',
+                'Choose a preferred start time',
+                [
+                    { text: '09:00 AM', onPress: () => setRescheduleDate(new Date(dateBase.getFullYear(), dateBase.getMonth(), dateBase.getDate(), 9, 0, 0, 0)) },
+                    { text: '12:00 PM', onPress: () => setRescheduleDate(new Date(dateBase.getFullYear(), dateBase.getMonth(), dateBase.getDate(), 12, 0, 0, 0)) },
+                    { text: '03:00 PM', onPress: () => setRescheduleDate(new Date(dateBase.getFullYear(), dateBase.getMonth(), dateBase.getDate(), 15, 0, 0, 0)) },
+                    { text: '06:00 PM', onPress: () => setRescheduleDate(new Date(dateBase.getFullYear(), dateBase.getMonth(), dateBase.getDate(), 18, 0, 0, 0)) },
+                    { text: 'Cancel', style: 'cancel' },
+                ]
+            );
+        };
+
         if (Platform.OS === 'android') {
             try {
                 const { action, year, month, day } = await DatePickerAndroid.open({
@@ -415,7 +432,8 @@ export default function ActiveJobScreen({ route, navigation }) {
                 });
                 if (action !== DatePickerAndroid.dismissedAction) {
                     const newDate = new Date(year, month, day, rescheduleDate.getHours(), rescheduleDate.getMinutes());
-                    setRescheduleDate(newDate);
+                    // Ask for time too (date-only picker alone caused fixed-time scheduling frustration).
+                    promptTimeSlot(newDate);
                 }
             } catch ({ code, message }) {
                 console.warn('Cannot open date picker', message);
@@ -429,19 +447,19 @@ export default function ActiveJobScreen({ route, navigation }) {
                     {
                         text: 'Tomorrow', onPress: () => {
                             const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0);
-                            setRescheduleDate(d);
+                            promptTimeSlot(d);
                         }
                     },
                     {
                         text: 'Day After Tomorrow', onPress: () => {
                             const d = new Date(); d.setDate(d.getDate() + 2); d.setHours(9, 0, 0, 0);
-                            setRescheduleDate(d);
+                            promptTimeSlot(d);
                         }
                     },
                     {
                         text: 'Next Week', onPress: () => {
                             const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(9, 0, 0, 0);
-                            setRescheduleDate(d);
+                            promptTimeSlot(d);
                         }
                     },
                     { text: 'Cancel', style: 'cancel' },
@@ -626,6 +644,22 @@ export default function ActiveJobScreen({ route, navigation }) {
                         disabled={!estimateData.minutes}
                         style={{ marginTop: 8 }}
                     />
+
+                    <PremiumButton
+                        title={`Request +10 min Inspection Time (${job?.inspection_extension_count || 0}/2 used)`}
+                        variant="secondary"
+                        onPress={handleRequestInspectionExtension}
+                        loading={actionLoading}
+                        disabled={
+                            actionLoading ||
+                            inspectExtRequested ||
+                            parseInt(job?.inspection_extension_count || 0, 10) >= 2
+                        }
+                        style={{ marginTop: 10 }}
+                    />
+                    {inspectExtRequested && (
+                        <Text style={[styles.phaseSub, { marginTop: 8, color: tTheme.status?.warning?.base }]}>Extension request sent. Ask customer to approve OTP in their app.</Text>
+                    )}
                 </View>
             </FadeInView>
         );
@@ -1265,4 +1299,3 @@ const createStyles = (t) => StyleSheet.create({
     datePickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.background.app, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: t.border.default + '44' },
     datePickerTxt: { flex: 1, color: t.text.primary, fontSize: 14, fontWeight: '700' },
 });
-

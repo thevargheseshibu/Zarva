@@ -34,7 +34,7 @@ export default function RatingScreen({ route, navigation }) {
             }
             try {
                 const res = await apiClient.get(`/api/jobs/${jobId}`);
-                const jobData = res.data?.job;
+                const jobData = res.data?.data?.job || res.data?.job;
                 setJob(jobData);
 
                 if (jobData?.is_reviewed && jobData.review) {
@@ -68,6 +68,12 @@ export default function RatingScreen({ route, navigation }) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         try {
+            // Refresh latest job snapshot for UI consistency, but do not hard-block submit on this client check.
+            // Server remains the source of truth and will validate final completion state reliably.
+            const latestJobRes = await apiClient.get(`/api/jobs/${jobId}`, { useLoader: false });
+            const latestJob = latestJobRes.data?.data?.job || latestJobRes.data?.job;
+            if (latestJob) setJob(latestJob);
+
             await apiClient.post(`/api/reviews`, {
                 job_id: jobId,
                 overall_score: rating,
@@ -81,7 +87,16 @@ export default function RatingScreen({ route, navigation }) {
             navigation.replace('CustomerTabs');
         } catch (err) {
             console.error('Failed to submit review', err);
-            Alert.alert('Error', 'Failed to submit feedback. Please try again.');
+            const apiCode = err?.response?.data?.code;
+            const apiMessage = err?.response?.data?.message;
+
+            // Show a precise recovery message when backend says completion is still pending.
+            if (apiCode === 'JOB_NOT_COMPLETED') {
+                Alert.alert('Almost There', 'The job is still closing on server. Please wait a few seconds and submit again.');
+                return;
+            }
+
+            Alert.alert('Error', apiMessage || 'Failed to submit feedback. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -202,7 +217,7 @@ export default function RatingScreen({ route, navigation }) {
                 <View style={styles.footer}>
                     <PremiumButton
                         title={isReadOnly ? t('back_to_home') : t('submit_review')}
-                        isDisabled={!isReadOnly && rating === 0}
+                        disabled={!isReadOnly && rating === 0}
                         loading={loading}
                         onPress={handleSubmit}
                     />
