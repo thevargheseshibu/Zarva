@@ -153,9 +153,9 @@ export default function WorkerHomeScreen({ navigation }) {
 
             if (u && u.id) {
                 const reviewsRes = await apiClient.get(`/api/reviews/worker/${u.id}`);
-                if (reviewsRes.data?.reviews) {
-                    setReviews(reviewsRes.data.reviews);
-                }
+                // Support both API shapes (`{ reviews }` and `{ data: { reviews } }`) for backward compatibility.
+                const workerReviews = reviewsRes.data?.data?.reviews || reviewsRes.data?.reviews || [];
+                setReviews(workerReviews);
             }
 
             captureAndSyncLocation();
