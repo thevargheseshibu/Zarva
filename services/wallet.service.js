@@ -11,6 +11,7 @@ import { getPool } from '../config/database.js';
 const MAX_SINGLE_JOB_PAISE = 1_000_000;   // ₹10,000
 const MAX_SINGLE_WITHDRAWAL_PAISE = 2_000_000;  // ₹20,000
 const MAX_DAILY_WITHDRAWAL_PAISE = 5_000_000;   // ₹50,000
+export const MIN_SINGLE_WITHDRAWAL_PAISE = 100_000;  // ₹1,000 minimum redeem
 
 /** Ensure user has user_account for given account_code, return id */
 async function getOrCreateUserAccount(pool, userId, accountCode) {
@@ -535,4 +536,4 @@ export async function postDisputeRefundEntries(jobId, refundAmountPaise, workerS
     return { transaction_id: txnId };
 }
 
-export { MAX_SINGLE_JOB_PAISE, MAX_SINGLE_WITHDRAWAL_PAISE, MAX_DAILY_WITHDRAWAL_PAISE };
+export { MAX_SINGLE_JOB_PAISE, MAX_SINGLE_WITHDRAWAL_PAISE, MAX_DAILY_WITHDRAWAL_PAISE, MIN_SINGLE_WITHDRAWAL_PAISE };

@@ -138,6 +138,23 @@ router.post('/onboarding/service-area', (req, res) =>
 );
 
 /**
+ * 7b. POST /onboarding/skills
+ * Skills-only update for WorkerProfileScreen (avoids full onboard/profile validation).
+ */
+router.post('/onboarding/skills', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const { skills } = req.body;
+        if (!Array.isArray(skills)) {
+            throw Object.assign(new Error('skills must be an array'), { status: 400 });
+        }
+        const [rows] = await pool.query('SELECT id FROM worker_profiles WHERE user_id = $1', [userId]);
+        if (!rows.length) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
+        await pool.query('UPDATE worker_profiles SET skills = $1 WHERE user_id = $2', [JSON.stringify(skills), userId]);
+        return { success: true, skills };
+    })
+);
+
+/**
  * 8. POST /onboard (Unified submission from monolithic mobile frontend)
  */
 router.post('/onboard', (req, res) =>

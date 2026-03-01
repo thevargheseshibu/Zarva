@@ -108,7 +108,7 @@ export default function WorkerHomeScreen({ navigation }) {
             }
         } catch (err) {
             console.error('[WorkerHome] Location sync failed:', err);
-            Alert.alert('Sync Error', 'Failed to update location on server.');
+            Alert.alert(t('sync_error'), t('sync_error_location'));
         }
     };
 

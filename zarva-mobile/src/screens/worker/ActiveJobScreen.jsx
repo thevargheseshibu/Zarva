@@ -19,6 +19,7 @@ import Card from '../../components/Card';
 import StatusPill from '../../components/StatusPill';
 import OTPInput from '../../components/OTPInput';
 import MainBackground from '../../components/MainBackground';
+import * as Location from 'expo-location';
 
 // ── Large End OTP Digit Display ──────────────────────────────────────────────
 function EndOtpDigits({ code = '----' }) {
@@ -129,16 +130,23 @@ export default function ActiveJobScreen({ route, navigation }) {
         const updateTimer = () => {
             if (!job) return;
             let total = 0;
+
+            // Inspection timer - runs when inspection is active
             if (job.inspection_started_at) {
                 const s = new Date(job.inspection_started_at).getTime();
                 const e = job.inspection_ended_at ? new Date(job.inspection_ended_at).getTime() : Date.now();
-                if (status === 'inspection_active' || job.inspection_ended_at)
+                // Only add time if inspection is currently active OR has been completed
+                if (status === 'inspection_active' || job.inspection_ended_at) {
                     total += Math.max(0, Math.floor((e - s) / 1000));
+                }
             }
+
+            // Job timer - runs when job is in progress
             if (job.job_started_at) {
                 const s = new Date(job.job_started_at).getTime();
                 const e = job.job_ended_at ? new Date(job.job_ended_at).getTime() : Date.now();
                 const paused = parseInt(job.total_paused_seconds || 0, 10);
+
                 // If currently paused, stop the timer at pause start
                 let elapsed;
                 if (['work_paused', 'pause_requested', 'resume_requested'].includes(status) && job.paused_at) {
@@ -150,12 +158,16 @@ export default function ActiveJobScreen({ route, navigation }) {
                 }
                 total += elapsed;
             }
+
             setTimeElapsed(total);
         };
-        if (['inspection_active', 'in_progress'].includes(status)) {
+
+        // Start timer when inspection is active OR job is in progress
+        if (status === 'inspection_active' || status === 'in_progress') {
             updateTimer();
             int = setInterval(updateTimer, 1000);
         }
+
         return () => clearInterval(int);
     }, [status, job]);
 
@@ -224,6 +236,20 @@ export default function ActiveJobScreen({ route, navigation }) {
         setActionLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
+            // Capture latest GPS and sync to backend so customer map sees accurate arrival point
+            const { status: perm } = await Location.requestForegroundPermissionsAsync();
+            if (perm === 'granted') {
+                try {
+                    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    await apiClient.put('/api/worker/location', {
+                        lat: loc.coords.latitude,
+                        lng: loc.coords.longitude
+                    });
+                } catch (e) {
+                    console.warn('[ActiveJob] Failed to capture arrival location', e);
+                }
+            }
+
             await apiClient.post(`/api/worker/jobs/${jobId}/arrived`);
             setStatus('worker_arrived');
             await fetchJob(); // refresh to get inspection_expires_at

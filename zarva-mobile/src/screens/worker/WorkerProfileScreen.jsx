@@ -44,6 +44,32 @@ export default function WorkerProfileScreen({ navigation }) {
         fetchAvailableSkills();
     }, []);
 
+    useEffect(() => {
+        (async () => {
+            if (locationOverride) {
+                setLocation(locationOverride);
+                return;
+            }
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    const [addressArr] = await Location.reverseGeocodeAsync({
+                        latitude: loc.coords.latitude,
+                        longitude: loc.coords.longitude
+                    });
+                    let addressText = 'Unknown Location';
+                    if (addressArr) {
+                        addressText = [addressArr.name, addressArr.city || addressArr.subregion, addressArr.region].filter(Boolean).join(', ');
+                    }
+                    setLocation({ address: addressText, lat: loc.coords.latitude, lng: loc.coords.longitude });
+                }
+            } catch (err) {
+                console.warn('Failed to get location in Worker Profile:', err);
+            }
+        })();
+    }, [locationOverride]);
+
     const fetchProfileData = async () => {
         try {
             const res = await apiClient.get('/api/me');
@@ -339,12 +365,19 @@ export default function WorkerProfileScreen({ navigation }) {
             <MapPickerModal
                 visible={isMapVisible}
                 onClose={() => setIsMapVisible(false)}
-                onSelectLocation={(loc) => {
+                initialLocation={location?.lat ? { latitude: location.lat, longitude: location.lng } : null}
+                onSelectLocation={async (loc) => {
                     const newLoc = { address: loc.address, lat: loc.latitude, lng: loc.longitude };
                     setLocation(newLoc);
                     setLocationOverride(newLoc);
                     setIsMapVisible(false);
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    try {
+                        await apiClient.put('/api/worker/location', { lat: loc.latitude, lng: loc.longitude });
+                    } catch (err) {
+                        console.error('Location sync failed:', err);
+                        Alert.alert(t('sync_error', { defaultValue: 'Sync Error' }), t('sync_error_location', { defaultValue: 'Failed to update location on server.' }));
+                    }
                 }}
             />
         </MainBackground>

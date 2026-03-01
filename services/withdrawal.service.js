@@ -10,6 +10,7 @@ import { encrypt } from '../utils/encryption.js';
 
 const MAX_SINGLE_WITHDRAWAL_PAISE = walletService.MAX_SINGLE_WITHDRAWAL_PAISE;
 const MAX_DAILY_WITHDRAWAL_PAISE = walletService.MAX_DAILY_WITHDRAWAL_PAISE;
+const MIN_SINGLE_WITHDRAWAL_PAISE = walletService.MIN_SINGLE_WITHDRAWAL_PAISE;
 
 /**
  * Add bank account (encrypted).
@@ -78,8 +79,8 @@ export async function removeBankAccount(workerId, accountId) {
  * Initiate withdrawal.
  */
 export async function initiateWithdrawal(workerId, amountPaise, bankAccountId, idempotencyKey) {
-    if (amountPaise <= 0 || amountPaise > MAX_SINGLE_WITHDRAWAL_PAISE) {
-        throw Object.assign(new Error(`Amount must be between 1 and ${MAX_SINGLE_WITHDRAWAL_PAISE} paise`), { status: 400 });
+    if (amountPaise < MIN_SINGLE_WITHDRAWAL_PAISE || amountPaise > MAX_SINGLE_WITHDRAWAL_PAISE) {
+        throw Object.assign(new Error(`Minimum withdrawal is ₹1,000. Maximum is ₹20,000 per transaction.`), { status: 400 });
     }
 
     const pool = getPool();

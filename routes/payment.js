@@ -11,6 +11,7 @@ import { getPool } from '../config/database.js';
 import configLoader from '../config/loader.js';
 import { authenticateJWT } from '../middleware/index.js';
 import { calculatePricing } from '../utils/pricingEngine.js';
+import PDFDocument from 'pdfkit';
 
 const router = express.Router();
 
@@ -34,8 +35,8 @@ const initRazorpay = () => {
 router.use((req, res, next) => {
     const isEnabled = configLoader.get('features')?.payment?.enabled ?? true;
 
-    // If the path isn't strictly Invoice read-only, intercept if disabled
-    if (!isEnabled && !req.path.startsWith('/invoice')) {
+    // If real gateway is disabled, short-circuit most routes except read-only invoice + internal mock-finalization
+    if (!isEnabled && !req.path.startsWith('/invoice') && !req.path.startsWith('/finalize-mock')) {
         return ok(res, {
             success: true,
             mock: true,
@@ -259,6 +260,165 @@ router.get('/invoice/:job_id', async (req, res) => {
                 balance_due: Number((totalAmount - paidAdvance).toFixed(2))
             }
         });
+    } catch (err) {
+        return fail(res, err.message, 500);
+    }
+});
+
+/**
+ * 5. GET /api/payment/invoice/:job_id/pdf
+ * Streams a simple PDF invoice for download.
+ */
+router.get('/invoice/:job_id/pdf', async (req, res) => {
+    const userId = req.user?.id;
+    const jobId = req.params.job_id;
+
+    try {
+        const pool = getPool();
+        const [jobs] = await pool.query(
+            'SELECT customer_id, worker_id, actual_hours, id FROM jobs WHERE id=$1',
+            [jobId]
+        );
+        const job = jobs[0];
+
+        if (!job || (job.customer_id !== userId && job.worker_id !== userId)) {
+            return fail(res, 'Forbidden', 403);
+        }
+
+        const [invoices] = await pool.query('SELECT * FROM job_invoices WHERE job_id=$1', [jobId]);
+        if (invoices.length === 0) return fail(res, 'Invoice not generated yet', 404);
+
+        const rawInv = invoices[0];
+
+        const [advances] = await pool.query(
+            `SELECT SUM(amount) as total FROM payments WHERE job_id=$1 AND type='advance' AND status='captured'`,
+            [jobId]
+        );
+        const paidAdvance = parseFloat(advances[0]?.total || 0);
+        const totalAmount = parseFloat(rawInv.total);
+        const balanceDue = Number((totalAmount - paidAdvance).toFixed(2));
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename=invoice_${rawInv.invoice_number || jobId}.pdf`
+        );
+
+        const doc = new PDFDocument({ margin: 50 });
+        doc.pipe(res);
+
+        doc.fontSize(18).text('ZARVA SERVICE INVOICE', { align: 'center' });
+        doc.moveDown();
+
+        doc.fontSize(12);
+        doc.text(`Invoice Number: ${rawInv.invoice_number}`, { continued: true }).text(
+            `    Job ID: ${jobId}`
+        );
+        doc.text(`Customer ID: ${job.customer_id}`);
+        doc.text(`Worker ID: ${job.worker_id}`);
+        if (job.actual_hours != null) {
+            doc.text(`Session Hours: ${job.actual_hours}`);
+        }
+        doc.moveDown();
+
+        doc.text(`Subtotal: ₹${parseFloat(rawInv.subtotal).toFixed(2)}`);
+        doc.text(`Travel Charge: ₹${parseFloat(rawInv.travel_charge).toFixed(2)}`);
+        doc.text(`Platform Fee: ₹${parseFloat(rawInv.platform_fee).toFixed(2)}`);
+        doc.text(`Discount: ₹${parseFloat(rawInv.discount).toFixed(2)}`);
+        doc.text(`Tax: ₹${parseFloat(rawInv.tax).toFixed(2)}`);
+        doc.text(`Total Amount: ₹${totalAmount.toFixed(2)}`);
+        doc.moveDown();
+
+        doc.text(`Advance Paid: ₹${paidAdvance.toFixed(2)}`);
+        doc.text(`Balance Due: ₹${balanceDue.toFixed(2)}`);
+
+        doc.moveDown(2);
+        doc.fontSize(10).text(
+            'Thank you for choosing Zarva. This invoice is system-generated and valid without a physical signature.'
+        );
+
+        doc.end();
+    } catch (err) {
+        return fail(res, err.message, 500);
+    }
+});
+
+/**
+ * 6. POST /api/payment/finalize-mock
+ * 
+ * Temporary stub: when the customer taps \"Pay Now\", we immediately mark the
+ * final balance as paid and post ledger entries using the wallet system,
+ * without hitting an external payment gateway.
+ */
+router.post('/finalize-mock', async (req, res) => {
+    const userId = req.user?.id;
+    const { job_id } = req.body;
+
+    if (!job_id) {
+        return fail(res, 'job_id is required', 400);
+    }
+
+    try {
+        const pool = getPool();
+
+        // Guard job ownership
+        const [jobs] = await pool.query('SELECT customer_id FROM jobs WHERE id=$1', [job_id]);
+        const job = jobs[0];
+        if (!job || job.customer_id !== userId) {
+            return fail(res, 'Job owner forbidden lock', 403);
+        }
+
+        // Compute final amount due exactly as in create-order (final)
+        const [invoices] = await pool.query('SELECT total FROM job_invoices WHERE job_id=$1', [job_id]);
+        if (invoices.length === 0) return fail(res, 'Invoice not finalized yet', 400);
+
+        const [advancePay] = await pool.query(
+            `SELECT SUM(amount) as adv FROM payments WHERE job_id=$1 AND type='advance' AND status='captured'`,
+            [job_id]
+        );
+        const advanceTotal = parseFloat(advancePay[0]?.adv || 0);
+        const totalAmount = parseFloat(invoices[0].total);
+        const amountToCharge = totalAmount - advanceTotal;
+
+        if (amountToCharge <= 0) {
+            return fail(res, 'Amount due is zero', 400);
+        }
+
+        const conn = await pool.getConnection();
+        try {
+            await conn.beginTransaction();
+
+            const idempotencyKey = `job_${job_id}_final_mock_${Date.now()}`;
+            const mockOrderId = `mock_order_${Date.now()}`;
+
+            const [inserted] = await conn.query(
+                `INSERT INTO payments (job_id, customer_id, type, method, status, amount, razorpay_order_id, idempotency_key) 
+                 VALUES ($1, $2, 'final', 'mock', 'captured', $3, $4, $5)
+                 RETURNING id`,
+                [job_id, userId, amountToCharge, mockOrderId, idempotencyKey]
+            );
+            const paymentId = inserted[0].id;
+
+            // Post to wallet/ledger as if gateway confirmed payment
+            const walletModule = await import('../services/wallet.service.js');
+            const amountPaise = Math.round(amountToCharge * 100);
+            await walletModule.postPaymentReceivedEntries(job.customer_id, amountPaise, `mock_${paymentId}`, job_id, conn);
+
+            await conn.commit();
+
+            return ok(res, {
+                success: true,
+                payment_id: paymentId,
+                amount: amountToCharge,
+                currency: 'INR',
+                mock: true
+            });
+        } catch (e) {
+            await conn.rollback();
+            throw e;
+        } finally {
+            conn.release();
+        }
     } catch (err) {
         return fail(res, err.message, 500);
     }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTokens } from '../../design-system';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
 import apiClient from '../../services/api/client';
@@ -36,20 +36,11 @@ export default function PaymentScreen({ route, navigation }) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
         try {
-            const res = await apiClient.post('/api/payment/create-order', { job_id: jobId, payment_type: 'final' });
-
-            if (res.data?.data?.mock) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert('Payment Successful', 'Transaction processed successfully.');
-                navigation.replace('Rating', { jobId });
-                return;
-            }
-
-            Alert.alert('Payment Gateway', 'Connecting to secure payment environment...');
-            setTimeout(() => {
-                navigation.replace('Rating', { jobId });
-            }, 1500);
-
+            // Temporary stub: directly mark payment as completed on the server
+            await apiClient.post('/api/payment/finalize-mock', { job_id: jobId });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert('Payment Successful', 'Transaction processed successfully.');
+            navigation.replace('Rating', { jobId });
         } catch (err) {
             Alert.alert('Payment Failed', 'Transaction could not be initiated. Please try again.');
         } finally {
@@ -82,6 +73,22 @@ export default function PaymentScreen({ route, navigation }) {
                 }
             ]
         );
+    };
+
+    const handleDownloadInvoicePdf = async () => {
+        if (!invoice) return;
+        try {
+            const baseURL = apiClient.defaults.baseURL || '';
+            const url = `${baseURL}/api/payment/invoice/${jobId}/pdf`;
+            const supported = await Linking.canOpenURL(url);
+            if (!supported) {
+                Alert.alert('Error', 'Cannot open invoice PDF on this device.');
+                return;
+            }
+            await Linking.openURL(url);
+        } catch (err) {
+            Alert.alert('Error', 'Failed to open invoice PDF.');
+        }
     };
 
     if (fetchingInvoice) {
@@ -214,6 +221,13 @@ export default function PaymentScreen({ route, navigation }) {
                             />
                         </FadeInView>
                     )}
+                    <FadeInView delay={550}>
+                        <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadInvoicePdf}>
+                            <Text style={styles.pdfBtnTxt}>
+                                {t('download_invoice_pdf', { defaultValue: 'Download Invoice PDF' })}
+                            </Text>
+                        </TouchableOpacity>
+                    </FadeInView>
                 </View>
 
             </ScrollView>
@@ -303,5 +317,7 @@ const createStyles = (t) => StyleSheet.create({
 
     footer: { marginTop: t.spacing[40], gap: t.spacing.lg },
     cashBtn: { paddingVertical: t.spacing.lg, alignItems: 'center' },
-    cashBtnTxt: { color: t.text.tertiary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.semibold, textDecorationLine: 'underline' }
+    cashBtnTxt: { color: t.text.tertiary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.semibold, textDecorationLine: 'underline' },
+    pdfBtn: { paddingVertical: t.spacing.sm, alignItems: 'center' },
+    pdfBtnTxt: { color: t.text.secondary, fontSize: 12, textDecorationLine: 'underline' }
 });

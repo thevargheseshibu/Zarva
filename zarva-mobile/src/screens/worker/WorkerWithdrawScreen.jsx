@@ -30,8 +30,9 @@ export default function WorkerWithdrawScreen({ navigation }) {
         }, [fetchBalance, fetchBankAccounts])
     );
 
+    const MIN_WITHDRAWAL_PAISE = 100_000; // ₹1,000 minimum
     const amountPaise = Math.round(parseFloat(String(amount || 0).replace(/[^0-9.]/g, '')) * 100) || 0;
-    const isValid = amountPaise > 0 && amountPaise <= availablePaise && selectedAccountId;
+    const isValid = amountPaise >= MIN_WITHDRAWAL_PAISE && amountPaise <= availablePaise && selectedAccountId;
     const verifiedAccounts = (bankAccounts || []);
 
     const handleConfirm = async () => {
@@ -78,6 +79,7 @@ export default function WorkerWithdrawScreen({ navigation }) {
                 <Text style={styles.amount}>{paiseToINR(availablePaise)}</Text>
 
                 <Text style={styles.inputLabel}>{t('amount_to_withdraw')}</Text>
+                <Text style={styles.minHint}>{t('min_withdrawal_hint')}</Text>
                 <TextInput
                     style={styles.input}
                     value={amount}
@@ -131,6 +133,7 @@ const createStyles = (t) => StyleSheet.create({
     label: { color: t.text.tertiary, fontSize: 12 },
     amount: { color: t.text.primary, fontSize: 28, fontWeight: '800', marginBottom: 24 },
     inputLabel: { color: t.text.secondary, fontSize: 14, marginBottom: 8 },
+    minHint: { color: t.text.tertiary, fontSize: 12, marginBottom: 4 },
     input: { backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 16, color: t.text.primary, fontSize: 18, marginBottom: 24 },
     accountCard: { backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 16, marginBottom: 12 },
     accountCardSelected: { borderColor: t.brand.primary },
