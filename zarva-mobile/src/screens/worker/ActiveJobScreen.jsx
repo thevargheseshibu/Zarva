@@ -202,6 +202,7 @@ export default function ActiveJobScreen({ route, navigation }) {
             setJob(data);
             if (data.status) setStatus(data.status);
             if (data.end_otp) setEndOtp(data.end_otp);
+            setInspectExtRequested(Boolean(data.inspection_extension_otp_hash));
         } catch (err) {
             Alert.alert('Error', 'Could not load job details.');
         } finally {
@@ -270,6 +271,7 @@ export default function ActiveJobScreen({ route, navigation }) {
             const res = await apiClient.post(`/api/worker/jobs/${jobId}/verify-inspection-otp`, { otp: code });
             if (res.data?.verified || res.status === 200) {
                 setStatus('inspection_active');
+                await fetchJob();
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
         } catch (err) {
@@ -626,6 +628,22 @@ export default function ActiveJobScreen({ route, navigation }) {
                         disabled={!estimateData.minutes}
                         style={{ marginTop: 8 }}
                     />
+
+                    <PremiumButton
+                        title={`Request +10 min Inspection Time (${job?.inspection_extension_count || 0}/2 used)`}
+                        variant="secondary"
+                        onPress={handleRequestInspectionExtension}
+                        loading={actionLoading}
+                        disabled={
+                            actionLoading ||
+                            inspectExtRequested ||
+                            parseInt(job?.inspection_extension_count || 0, 10) >= 2
+                        }
+                        style={{ marginTop: 10 }}
+                    />
+                    {inspectExtRequested && (
+                        <Text style={[styles.phaseSub, { marginTop: 8, color: tTheme.status?.warning?.base }]}>Extension request sent. Ask customer to approve OTP in their app.</Text>
+                    )}
                 </View>
             </FadeInView>
         );
@@ -1265,4 +1283,3 @@ const createStyles = (t) => StyleSheet.create({
     datePickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: t.background.app, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: t.border.default + '44' },
     datePickerTxt: { flex: 1, color: t.text.primary, fontSize: 14, fontWeight: '700' },
 });
-
