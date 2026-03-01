@@ -803,7 +803,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
 
                 {/* ── Inspection Extension Pending ── */}
-                {status === 'worker_arrived' && job?.inspection_extension_otp_hash && (
+                {status === 'inspection_active' && job?.inspection_extension_otp_hash && (
                     <FadeInView delay={200}>
                         <View style={[styles.actionCard, { borderColor: '#8B5CF644' }]}>
                             <Text style={styles.actionCardTitle}>⏳ Inspector Needs +10 Min</Text>
@@ -1139,4 +1139,3 @@ const createStyles = (t) => StyleSheet.create({
     billLabel: { color: t.text.secondary, fontSize: 13, fontWeight: '700', flex: 1 },
     billValue: { color: t.text.primary, fontSize: 14, fontWeight: '900', textAlign: 'right' },
 });
-
