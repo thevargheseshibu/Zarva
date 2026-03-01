@@ -6,6 +6,16 @@ import * as PricingService from './pricing.service.js';
 
 class BillingService {
 
+    // Compare OTP using DB hash when available; fallback to Redis plaintext (legacy/migration-safe path).
+    async _compareOtpWithFallback(jobId, otpInput, dbHash, redisKey) {
+        if (dbHash) {
+            return bcrypt.compare(String(otpInput), dbHash);
+        }
+        const redis = (await import('../config/redis.js')).getRedisClient();
+        const redisOtp = await redis.get(redisKey);
+        return String(redisOtp || '') === String(otpInput || '');
+    }
+
     _getConfig() {
         return configLoader.get('pricing');
     }
@@ -483,10 +493,22 @@ class BillingService {
         const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
         const hash = await bcryptLib.hash(otp, 10);
 
-        await pool.query(
-            `UPDATE jobs SET status='pause_requested', pause_reason=$1, pause_otp_hash=$2 WHERE id=$3`,
-            [reason, hash, jobId]
-        );
+        try {
+            await pool.query(
+                `UPDATE jobs SET status='pause_requested', pause_reason=$1, pause_otp_hash=$2 WHERE id=$3`,
+                [reason, hash, jobId]
+            );
+        } catch (err) {
+            // Graceful compatibility path when pause_otp_hash column is missing in older DBs.
+            if (err?.code === '42703') {
+                await pool.query(
+                    `UPDATE jobs SET status='pause_requested', pause_reason=$1 WHERE id=$2`,
+                    [reason, jobId]
+                );
+            } else {
+                throw err;
+            }
+        }
 
         const redis = (await import('../config/redis.js')).getRedisClient();
         await redis.set(`zarva:otp:pause:${jobId}`, otp, 'EX', 900); // 15-min window
@@ -508,8 +530,7 @@ class BillingService {
             if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
             if (job.status !== 'pause_requested') throw Object.assign(new Error('No pause pending'), { status: 400 });
 
-            const bcryptLib = (await import('bcrypt')).default;
-            const match = await bcryptLib.compare(String(otpInput), job.pause_otp_hash || '');
+            const match = await this._compareOtpWithFallback(jobId, otpInput, job.pause_otp_hash, `zarva:otp:pause:${jobId}`);
             if (!match) throw Object.assign(new Error('Invalid pause code'), { status: 400 });
 
             const newCount = parseInt(job.pause_count || 0, 10) + 1;
@@ -614,10 +635,22 @@ class BillingService {
         const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
         const hash = await bcryptLib.hash(otp, 10);
 
-        await pool.query(
-            `UPDATE jobs SET status='suspend_requested', suspend_reason=$1, suspend_reschedule_at=$2, suspend_otp_hash=$3 WHERE id=$4`,
-            [reason, rescheduleAt, hash, jobId]
-        );
+        try {
+            await pool.query(
+                `UPDATE jobs SET status='suspend_requested', suspend_reason=$1, suspend_reschedule_at=$2, suspend_otp_hash=$3 WHERE id=$4`,
+                [reason, rescheduleAt, hash, jobId]
+            );
+        } catch (err) {
+            // Graceful compatibility path when suspend_otp_hash column is missing in older DBs.
+            if (err?.code === '42703') {
+                await pool.query(
+                    `UPDATE jobs SET status='suspend_requested', suspend_reason=$1, suspend_reschedule_at=$2 WHERE id=$3`,
+                    [reason, rescheduleAt, jobId]
+                );
+            } else {
+                throw err;
+            }
+        }
 
         const redis = (await import('../config/redis.js')).getRedisClient();
         await redis.set(`zarva:otp:suspend:${jobId}`, otp, 'EX', 900);
@@ -643,8 +676,7 @@ class BillingService {
             if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
             if (job.status !== 'suspend_requested') throw Object.assign(new Error('No suspension pending'), { status: 400 });
 
-            const bcryptLib = (await import('bcrypt')).default;
-            const match = await bcryptLib.compare(String(otpInput), job.suspend_otp_hash || '');
+            const match = await this._compareOtpWithFallback(jobId, otpInput, job.suspend_otp_hash, `zarva:otp:suspend:${jobId}`);
             if (!match) throw Object.assign(new Error('Invalid reschedule code'), { status: 400 });
 
             // Bill today's work then suspend

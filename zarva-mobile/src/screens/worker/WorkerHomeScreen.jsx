@@ -129,13 +129,15 @@ export default function WorkerHomeScreen({ navigation }) {
                 setWorker({
                     id: u.id,
                     name: u.name || 'Worker',
-                    rating: parseFloat(u.rating) || 0,
-                    verified: u.kyc_status === 'verified',
+                    // Use server profile rating as source of truth for worker dashboard stats.
+                    rating: parseFloat(u?.profile?.average_rating ?? u.rating) || 0,
+                    // Derive verification from profile KYC status returned by /api/me.
+                    verified: (u?.profile?.kyc_status || u.kyc_status) === 'approved',
                     photo: u.photo_url
                 });
-                // Always coerce from DB — do not trust persisted value
-                setOnline(u.is_online === true || u.is_online === 1);
-                setAvailable(u.is_available === true || u.is_available === 1);
+                // Always coerce online/available from DB profile — do not trust persisted store state.
+                setOnline(u?.profile?.is_online === true || u?.profile?.is_online === 1 || u.is_online === true || u.is_online === 1);
+                setAvailable(u?.profile?.is_available === true || u?.profile?.is_available === 1 || u.is_available === true || u.is_available === 1);
 
                 // Use profile.current_job_id (server source of truth) to keep Active Job tile persistent.
                 const currentJobId = u?.profile?.current_job_id || u?.current_job_id || null;
@@ -178,10 +180,13 @@ export default function WorkerHomeScreen({ navigation }) {
         setToggling(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
-            const res = await apiClient.put('/api/worker/availability', { is_online: val });
+            // Keep is_online and is_available aligned so matching engine can pick the worker when online.
+            const res = await apiClient.put('/api/worker/availability', { is_online: val, is_available: val });
             const newOnlineState = res.data?.is_online;
             // Server returns the updated value — use it as the source of truth
             setOnline(typeof newOnlineState === 'boolean' ? newOnlineState : val);
+            // Mirror availability in local store to match backend toggles and prevent stale UI state.
+            setAvailable(typeof res.data?.is_available === 'boolean' ? res.data.is_available : val);
             if (val) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
@@ -276,7 +281,7 @@ export default function WorkerHomeScreen({ navigation }) {
                     <Text style={styles.locEdit}>{t('edit')}</Text>
                 </TouchableOpacity>
 
-                {activeJob ? (
+                {activeJob && !['completed', 'cancelled', 'no_worker_found', 'disputed'].includes(activeJob.status) ? (
                     <FadeInView delay={400} style={styles.section}>
                         <Text style={styles.sectionHeader}>{t('current_engagement')}</Text>
                         <Card style={styles.activeJobCard}>
@@ -308,7 +313,8 @@ export default function WorkerHomeScreen({ navigation }) {
                         reviews.slice(0, 3).map((review, idx) => (
                             <Card key={idx} style={styles.feedbackCard}>
                                 <View style={styles.fbHeader}>
-                                    <Text style={styles.fbStars}>{'★'.repeat(Math.round(review.rating))}</Text>
+                                    {/* API returns overall_score; keep fallback to rating for backward compatibility. */}
+                                    <Text style={styles.fbStars}>{'★'.repeat(Math.round(review.overall_score ?? review.rating ?? 0))}</Text>
                                     <Text style={styles.fbUser}>{review.reviewer_identifier}</Text>
                                 </View>
                                 <Text style={styles.fbComment} numberOfLines={2}>

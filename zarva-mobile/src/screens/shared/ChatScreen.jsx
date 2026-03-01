@@ -223,7 +223,8 @@ export default function ChatScreen({ route, navigation }) {
 
             {loading ? (
                 <View style={styles.loadingWrap}>
-                    <ActivityIndicator size="large" color={t.brand.primary} />
+                    {/* Use design tokens object from useTokens(); avoids undefined access crash in ChatScreen. */}
+                    <ActivityIndicator size="large" color={tTheme.brand.primary} />
                 </View>
             ) : (
                 <FlatList
@@ -236,7 +237,7 @@ export default function ChatScreen({ route, navigation }) {
                     showsVerticalScrollIndicator={false}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.5}
-                    ListFooterComponent={loadingMore ? <ActivityIndicator color={t.brand.primary} style={{ padding: 20 }} /> : null}
+                    ListFooterComponent={loadingMore ? <ActivityIndicator color={tTheme.brand.primary} style={{ padding: 20 }} /> : null}
                 />
             )}
 
@@ -245,7 +246,7 @@ export default function ChatScreen({ route, navigation }) {
                 <TextInput
                     style={styles.input}
                     placeholder={t('type_a_message')}
-                    placeholderTextColor={t.text.tertiary}
+                    placeholderTextColor={tTheme.text.tertiary}
                     value={input}
                     onChangeText={handleTextChange}
                     multiline

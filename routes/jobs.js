@@ -409,6 +409,11 @@ router.post('/:id/verify-end-otp', async (req, res) => {
             const job = jobs[0];
 
             if (!job || job.customer_id !== userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            // Idempotency guard: if client retries after success, return completed instead of forcing invalid-state path.
+            if (job.status === 'completed') {
+                await conn.commit();
+                return ok(res, { completed: true, invoice: null, message: 'Job already completed' });
+            }
             if (job.status !== 'pending_completion') throw Object.assign(new Error('Invalid state'), { status: 400 });
 
             // VALIDATE EXPIRES / ATTEMPTS

@@ -43,6 +43,13 @@ export default function HomeScreen({ navigation }) {
     const [location, setLocation] = useState(locationOverride || { address: 'Fetching location...', lat: null, lng: null });
     const [isMapVisible, setIsMapVisible] = useState(false);
     const [isServiceable, setIsServiceable] = useState(true);
+    // Only these statuses should be treated as an active request tile on Home.
+    const ACTIVE_REQUEST_STATUSES = [
+        'searching', 'assigned', 'worker_en_route', 'worker_arrived',
+        'inspection_active', 'estimate_submitted', 'in_progress',
+        'pause_requested', 'work_paused', 'resume_requested',
+        'suspend_requested', 'customer_stopping', 'pending_completion'
+    ];
 
     const scrollY = useSharedValue(0);
 
@@ -84,13 +91,7 @@ export default function HomeScreen({ navigation }) {
             setRecentJobs(jobs.slice(0, 3));
 
             // Keep a persistent Active Job tile by deriving ongoing job from server truth on every Home focus.
-            const ACTIVE_JOB_STATUSES = [
-                'searching', 'assigned', 'worker_en_route', 'worker_arrived',
-                'inspection_active', 'estimate_submitted', 'in_progress',
-                'pause_requested', 'work_paused', 'resume_requested',
-                'suspend_requested', 'customer_stopping', 'pending_completion'
-            ];
-            const ongoingJob = jobs.find((job) => ACTIVE_JOB_STATUSES.includes(job.status));
+            const ongoingJob = jobs.find((job) => ACTIVE_REQUEST_STATUSES.includes(job.status));
 
             // Sync Zustand state so tile persists even after app relaunch/navigation reset.
             if (ongoingJob) {
@@ -181,7 +182,7 @@ export default function HomeScreen({ navigation }) {
                             <Text style={styles.subGreeting}>{t('premium_services_desc')}</Text>
                         </FadeInView>
 
-                        {activeJob && searchPhase && (
+                        {activeJob && searchPhase && ACTIVE_REQUEST_STATUSES.includes(searchPhase) && (
                             <FadeInView delay={200}>
                                 <Card glow style={styles.activeJobCard}>
                                     <View style={styles.activeHeader}>

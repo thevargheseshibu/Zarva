@@ -862,7 +862,7 @@ router.get('/available-jobs', (req, res) =>
         if (hasLocation) {
             // Geo-sorted with Haversine
             [jobs] = await pool.query(`SELECT j.id, j.category, j.status, j.created_at, j.address,
-                        j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
+                        j.description, COALESCE(j.hourly_rate, j.rate_per_hour) as rate_per_hour, j.advance_amount, j.total_amount,
                         j.travel_charge, j.scheduled_at,
                         j.latitude, j.longitude, j.job_source,
                         c.name as customer_name,
@@ -882,7 +882,7 @@ router.get('/available-jobs', (req, res) =>
             // No location set — return all open jobs by date
             [jobs] = await pool.query(
                 `SELECT j.id, j.category, j.status, j.created_at, j.address,
-                        j.description, j.rate_per_hour, j.advance_amount, j.total_amount,
+                        j.description, COALESCE(j.hourly_rate, j.rate_per_hour) as rate_per_hour, j.advance_amount, j.total_amount,
                         j.latitude, j.longitude, j.job_source,
                         c.name as customer_name, NULL as distance_km
                  FROM jobs j
@@ -896,6 +896,7 @@ router.get('/available-jobs', (req, res) =>
 
         const mappedJobs = jobs.map(j => {
             const desc = j.description || j.address || 'Service Request';
+            // Prefer hourly_rate (new schema), fallback to legacy rate_per_hour.
             const rph = j.rate_per_hour || 0;
             const est = rph > 0 ? `₹${rph}/hr` : 'Price on completion';
 

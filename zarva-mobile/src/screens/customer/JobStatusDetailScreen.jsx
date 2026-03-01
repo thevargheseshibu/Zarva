@@ -161,7 +161,8 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const [workerLocation, setWorkerLocation] = useState(null); // { lat, lng }
     const pulseAnim = useRef(new Animated.Value(1)).current;
 
-    const status = searchPhase || job?.status || 'searching';
+    // Prefer latest API job.status over store searchPhase to avoid stale phase/timer UI after transitions.
+    const status = job?.status || searchPhase || 'searching';
     const currentStageIdx = STAGES.findIndex(s => s.key === status);
     const isMapStatus = ['assigned', 'worker_en_route', 'worker_arrived'].includes(status);
 
@@ -202,6 +203,11 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 mapRef.current?.injectJavaScript(
                     `(function(){ var e=new MessageEvent('message',{data:JSON.stringify({type:'UPDATE_WORKER',lat:${lat},lng:${lng}})}); document.dispatchEvent(e); window.dispatchEvent(e); })(); true;`
                 );
+            }
+
+            // Force refresh when inspection extension is requested so customer sees OTP approval card promptly.
+            if (data.inspection_ext_pending === true) {
+                fetchJobDetails();
             }
         });
 
