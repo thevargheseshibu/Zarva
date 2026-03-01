@@ -33,7 +33,8 @@ export default function LocationInput({ onChange, onLoading, initialData = {} })
     useEffect(() => {
         const emitChange = () => {
             const isValidPincode = /^\d{6}$/.test(fields.pincode);
-            const isValid = !!(fields.house && fields.street && fields.city && fields.state && isValidPincode);
+            // House is optional from GPS, but street, city, state and pincode are required for a valid dispatch
+            const isValid = !!(fields.street && fields.city && fields.state && isValidPincode);
 
             const fullAddress = [
                 fields.house, fields.street, fields.landmark,
@@ -73,10 +74,15 @@ export default function LocationInput({ onChange, onLoading, initialData = {} })
             });
 
             if (place) {
-                // expo-location has varying accuracy by region.
-                // subregion usually matches District in India. city matches City/Town.
-                const cityVal = place.city || place.subregion || place.region || '';
-                const districtVal = place.subregion || place.district || place.city || '';
+                // Better mapping for Indian administrative levels:
+                // city: usually the district or major city (e.g., Ernakulam or Kochi)
+                // subregion: often the specific locality or town (e.g., Manjapra)
+                // district: sometimes provides context
+
+                // If it's a known village in Kerala, subregion is often the town, city/district is larger
+                const districtVal = place.subregion || place.district || '';
+                const cityVal = place.city || place.subregion || '';
+                const stateVal = place.region || '';
 
                 const generatedGpsText = [place.name, place.street, districtVal, cityVal, place.region]
                     .filter(Boolean)
@@ -90,7 +96,7 @@ export default function LocationInput({ onChange, onLoading, initialData = {} })
                     street: place.street || prev.street,
                     district: districtVal || prev.district,
                     city: cityVal || prev.city,
-                    state: place.region || prev.state,
+                    state: stateVal || prev.state,
                     pincode: place.postalCode || prev.pincode
                 }));
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -107,7 +113,6 @@ export default function LocationInput({ onChange, onLoading, initialData = {} })
 
     return (
         <View style={styles.container}>
-            <ZLoader visible={loading} text="Fetching Location..." />
             <FadeInView delay={100}>
                 <PressableAnimated style={styles.gpsBtn} onPress={handleGpsPress} disabled={loading}>
                     <View style={styles.gpsBtnContent}>

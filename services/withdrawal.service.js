@@ -93,7 +93,7 @@ export async function initiateWithdrawal(workerId, amountPaise, bankAccountId, i
         }
 
         const [bankRows] = await conn.query(
-            `SELECT id FROM worker_bank_accounts WHERE id = $1 AND worker_id = $2 AND is_verified = TRUE`,
+            `SELECT id FROM worker_bank_accounts WHERE id = $1 AND worker_id = $2`,
             [bankAccountId, workerId]
         );
         if (!bankRows[0]) {

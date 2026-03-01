@@ -46,8 +46,8 @@ router.post('/', async (req, res) => {
         if (!job) return fail(res, 'Job not found', 404);
         if (job.status !== 'completed') return fail(res, 'Can only review completed jobs', 400, 'JOB_NOT_COMPLETED');
 
-        const isCustomer = job.customer_id === userId;
-        const isWorker = job.worker_id === userId;
+        const isCustomer = job.customer_id == userId;
+        const isWorker = job.worker_id == userId;
         if (!isCustomer && !isWorker) return fail(res, 'Forbidden', 403, 'FORBIDDEN');
 
         // 3. Time window check

@@ -31,7 +31,7 @@ export default function JobAlertBottomSheet({ navigation }) {
         if (pendingJobAlert && isAlertVisible) {
             const now = Date.now();
             const elapsed = Math.floor((now - (pendingJobAlert.timestamp || now)) / 1000);
-            const initialWindow = pendingJobAlert.acceptWindow || 30;
+            const initialWindow = pendingJobAlert.acceptWindow || 20;
             const remaining = Math.max(0, initialWindow - elapsed);
 
             setStatus('idle');

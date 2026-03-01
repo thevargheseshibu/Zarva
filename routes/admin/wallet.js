@@ -49,21 +49,33 @@ router.get('/audit-log', async (req, res) => {
     try {
         const { user_id, job_id, limit = 50 } = req.query;
         const pool = getPool();
-        let where = '1=1';
-        const params = [];
-        if (user_id) {
-            params.push(user_id);
-            where += ` AND (actor_user_id = $${params.length} OR affected_user_id = $${params.length})`;
+        const limitVal = Math.min(100, Math.max(1, Number(limit)));
+        let rows;
+        if (user_id && job_id) {
+            const [r] = await pool.query(
+                'SELECT * FROM wallet_audit_log WHERE (actor_user_id = $1 OR affected_user_id = $1) AND job_id = $2 ORDER BY created_at DESC LIMIT $3',
+                [user_id, job_id, limitVal]
+            );
+            rows = r;
+        } else if (user_id) {
+            const [r] = await pool.query(
+                'SELECT * FROM wallet_audit_log WHERE actor_user_id = $1 OR affected_user_id = $1 ORDER BY created_at DESC LIMIT $2',
+                [user_id, limitVal]
+            );
+            rows = r;
+        } else if (job_id) {
+            const [r] = await pool.query(
+                'SELECT * FROM wallet_audit_log WHERE job_id = $1 ORDER BY created_at DESC LIMIT $2',
+                [job_id, limitVal]
+            );
+            rows = r;
+        } else {
+            const [r] = await pool.query(
+                'SELECT * FROM wallet_audit_log ORDER BY created_at DESC LIMIT $1',
+                [limitVal]
+            );
+            rows = r;
         }
-        if (job_id) {
-            params.push(job_id);
-            where += ` AND job_id = $${params.length}`;
-        }
-        params.push(Math.min(100, Math.max(1, Number(limit))));
-        const [rows] = await pool.query(
-            `SELECT * FROM wallet_audit_log WHERE ${where} ORDER BY created_at DESC LIMIT $${params.length}`,
-            params
-        );
         return ok(res, { audit_log: rows });
     } catch (err) {
         return fail(res, err.message, 500);

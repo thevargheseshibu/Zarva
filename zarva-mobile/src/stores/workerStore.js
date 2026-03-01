@@ -24,14 +24,24 @@ export const useWorkerStore = create(
             setAvailable: (val) => set({ isAvailable: val }),
             setWorkerProfile: (profile) => set({ workerProfile: profile }),
             setEarnings: (data) => set({ earnings: data }),
-            setPendingJobAlert: (jobData) => set({
-                pendingJobAlert: jobData,
-                isAlertVisible: jobData !== null
-            }),
-            clearPendingJobAlert: () => set({
-                pendingJobAlert: null,
-                isAlertVisible: false
-            }),
+            setPendingJobAlert: (jobData) => {
+                set({
+                    pendingJobAlert: jobData,
+                    isAlertVisible: jobData !== null
+                });
+                if (jobData) {
+                    AsyncStorage.setItem('zarva:pending_job_alert', JSON.stringify(jobData)).catch(() => { });
+                } else {
+                    AsyncStorage.removeItem('zarva:pending_job_alert').catch(() => { });
+                }
+            },
+            clearPendingJobAlert: () => {
+                set({
+                    pendingJobAlert: null,
+                    isAlertVisible: false
+                });
+                AsyncStorage.removeItem('zarva:pending_job_alert').catch(() => { });
+            },
             setActiveJob: (job) => set({ activeJob: job }),
             setLocationOverride: (loc) => set({ locationOverride: loc }),
 

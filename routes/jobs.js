@@ -244,6 +244,7 @@ router.get('/:id', async (req, res) => {
                 wp.total_jobs as worker_jobs,
                 wp.last_location_lat as worker_lat,
                 wp.last_location_lng as worker_lng,
+                j.inspection_expires_at,
                 (wp.kyc_status = 'approved') as worker_verified,
                 (SELECT COUNT(*)::INT FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer') as is_reviewed,
                 (SELECT json_build_object('score', score, 'category_scores', category_scores, 'comment', comment) FROM reviews r WHERE r.job_id = j.id AND r.reviewer_role = 'customer' LIMIT 1) as review_details
@@ -411,12 +412,10 @@ router.post('/:id/verify-end-otp', async (req, res) => {
             if (match) {
                 // SUCCESS - INVOICE GENERATION
                 const { default: billingService } = await import('../services/billing.service.js');
-
-                // Advance to completed
-                await conn.query(`UPDATE jobs SET status='completed', chat_enabled=false WHERE id=$1`, [jobId]);
+                console.log(`[OTP Debug] Success for Job ${jobId}. OTP: ${otp}, Hash: ${job.end_otp_hash}`);
 
                 // Finalize exact times and pricing 
-                const billDetails = await billingService.stopJobAndBill(jobId, 'customer', conn);
+                const billDetails = await billingService.stopJobAndBill(jobId, 'customer', conn, 'completed');
 
                 // Draft Invoice Row (Using the BillingService breakdown)
                 const invNo = `INV-${Date.now()}-${jobId}`;
@@ -448,6 +447,7 @@ router.post('/:id/verify-end-otp', async (req, res) => {
                 return ok(res, { completed: true, invoice: billDetails });
 
             } else {
+                console.log(`[OTP Debug] Failed for Job ${jobId}. Input: ${otp}, Hash: ${job.end_otp_hash}`);
                 const attempts = job.end_otp_attempts + 1;
                 if (attempts >= 5) {
                     await conn.query(`UPDATE jobs SET status='disputed', end_otp_attempts=$1, dispute_raised_at=NOW(), auto_escalate_at=NOW() + INTERVAL '48 hours' WHERE id=$2`, [attempts, jobId]);

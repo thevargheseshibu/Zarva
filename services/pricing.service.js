@@ -147,9 +147,9 @@ export function calculateJobBill(timerEvents, hourlyRate, billingCapMinutes = 99
     // timerEvents: { event_type, server_timestamp }
     timerEvents.forEach(event => {
         const ts = new Date(event.server_timestamp).getTime();
-        if (event.event_type === 'job_start' || event.event_type === 'job_resume') {
+        if (event.event_type === 'job_start' || event.event_type === 'job_resume' || event.event_type === 'inspection_start') {
             lastStartTs = ts;
-        } else if (event.event_type === 'job_pause' || event.event_type === 'job_end') {
+        } else if (event.event_type === 'job_pause' || event.event_type === 'job_end' || event.event_type === 'inspection_end') {
             if (lastStartTs) {
                 totalElapsedMs += (ts - lastStartTs);
                 lastStartTs = null;

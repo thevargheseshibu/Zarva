@@ -1,33 +1,56 @@
 /**
  * src/components/StatusPill.jsx
- * Color-coded badge for job status.
+ * Ultra-Premium compact status badge with icon + short label.
  */
 import React from 'react';
 import { useTokens } from '../design-system';
 import { View, Text, StyleSheet } from 'react-native';
+import { useT } from '../hooks/useT';
+
+const STATUS_META = {
+    open: { icon: '◉', short: 'Open' },
+    searching: { icon: '⟳', short: 'Searching' },
+    assigned: { icon: '✓', short: 'Assigned' },
+    worker_en_route: { icon: '↗', short: 'En Route' },
+    worker_arrived: { icon: '📍', short: 'Arrived' },
+    in_progress: { icon: '▶', short: 'Active' },
+    pending: { icon: '⏸', short: 'Pending' },
+    pending_completion: { icon: '⏺', short: 'Review' },
+    completed: { icon: '✔', short: 'Done' },
+    cancelled: { icon: '✕', short: 'Cancelled' },
+    disputed: { icon: '⚑', short: 'Disputed' },
+    no_worker_found: { icon: '✕', short: 'No Match' },
+    emergency: { icon: '!', short: 'Emergency' },
+};
 
 export default function StatusPill({ status, label, style }) {
     const tTheme = useTokens();
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
 
-    const statusConfigs = {
-        assigned: { color: tTheme.brand.primary, label: 'Assigned' },
-        worker_en_route: { color: tTheme.brand.primary, label: 'En Route' },
-        worker_arrived: { color: tTheme.status.warning.base, label: 'Arrived' },
-        in_progress: { color: tTheme.brand.primary, label: 'In Progress' },
-        completed: { color: tTheme.status.success.base, label: 'Completed' },
-        cancelled: { color: tTheme.status.error.base, label: 'Cancelled' },
-        disputed: { color: tTheme.status.warning.base, label: 'Disputed' },
-        emergency: { color: tTheme.status.error.base, label: 'Emergency' },
+    const colorMap = {
+        open: tTheme.brand.primaryLight,
+        searching: tTheme.brand.primary,
+        assigned: tTheme.brand.primary,
+        worker_en_route: tTheme.brand.accent,
+        worker_arrived: tTheme.status.warning.base,
+        in_progress: tTheme.brand.secondary,
+        pending: tTheme.status.warning.base,
+        pending_completion: tTheme.status.warning.base,
+        completed: tTheme.status.success.base,
+        cancelled: tTheme.status.error.base,
+        disputed: tTheme.status.warning.base,
+        no_worker_found: tTheme.text.muted,
+        emergency: tTheme.status.error.base,
     };
 
-    const config = statusConfigs[status] || { color: tTheme.text.tertiary, label: status };
-    const displayLabel = label || config.label;
+    const meta = STATUS_META[status] || { icon: '·', short: status || 'Unknown' };
+    const color = colorMap[status] || tTheme.text.tertiary;
+    const displayLabel = label || meta.short;
 
     return (
-        <View style={[styles.pill, { backgroundColor: tTheme.background.surface }, style]}>
-            <View style={[styles.dot, { backgroundColor: config.color }]} />
-            <Text style={[styles.label, { color: config.color }]}>{displayLabel}</Text>
+        <View style={[styles.pill, { borderColor: color + '44', backgroundColor: color + '12' }, style]}>
+            <Text style={[styles.icon, { color }]}>{meta.icon}</Text>
+            <Text style={[styles.label, { color }]} numberOfLines={1}>{displayLabel}</Text>
         </View>
     );
 }
@@ -36,23 +59,23 @@ const createStyles = (t) => StyleSheet.create({
     pill: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: t.spacing.sm,
-        paddingVertical: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
         borderRadius: t.radius.full,
-        gap: t.spacing.xxs,
+        gap: 4,
         alignSelf: 'flex-start',
-        borderWidth: 0.5,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        maxWidth: 110,
     },
-    dot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+    icon: {
+        fontSize: 9,
+        fontWeight: '900',
+        lineHeight: 13,
     },
     label: {
-        fontSize: t.typography.size.micro,
-        fontWeight: t.typography.weight.bold,
-        letterSpacing: 0.2,
-        textTransform: 'uppercase',
+        fontSize: 10,
+        fontWeight: '700',
+        letterSpacing: 0.1,
+        flexShrink: 1,
     },
 });

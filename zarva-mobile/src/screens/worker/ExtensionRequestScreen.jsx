@@ -46,7 +46,7 @@ export default function ExtensionRequestScreen({ route, navigation }) {
         try {
             // Upload Photo First
             const formData = new FormData();
-            formData.append('image', {
+            formData.append('file', {
                 uri: photoUri,
                 name: `ext_${jobId}_${Date.now()}.jpg`,
                 type: 'image/jpeg'

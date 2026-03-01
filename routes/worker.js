@@ -248,7 +248,9 @@ router.get('/jobs/:id', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
         const [jobs] = await pool.query(`SELECT j.id, j.status, j.category, j.address, j.description, j.total_amount as amount,
-                    j.arrived_at, j.worker_id, j.customer_id,
+                    j.arrived_at, j.worker_id, j.customer_id, j.inspection_expires_at,
+                    j.inspection_started_at, j.inspection_ended_at, j.job_started_at, j.job_ended_at,
+                    j.work_started_at, j.work_ended_at,
                     c.name as customer_name, 
                     CASE WHEN j.worker_id = $2 THEN u.phone ELSE NULL END as customer_phone
              FROM jobs j

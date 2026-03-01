@@ -32,9 +32,10 @@ export default function LocationScheduleScreen({ route, navigation }) {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [isEmergency, setIsEmergency] = useState(false);
-    const { setGlobalLoading } = useUIStore();
+    const { showLoader, hideLoader } = useUIStore();
     const [isServiceable, setIsServiceable] = useState(true); // Default to true until checked
     const [coverageMsg, setCoverageMsg] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Auto-check coverage when a valid location is entered
     React.useEffect(() => {
@@ -80,7 +81,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
             }
         }
 
-        setGlobalLoading(true, `Finding nearby ${category} professionals...`);
+        showLoader(`Finding nearby ${category} professionals...`);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         try {
@@ -92,7 +93,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
             );
 
             if (!coverage.is_serviceable) {
-                setGlobalLoading(false);
+                hideLoader();
                 Alert.alert(
                     'Area Not Covered',
                     `We don't have ${category} professionals available in this area right now.\n\nNearest professional is ${coverage.nearest_worker_distance_km ? coverage.nearest_worker_distance_km.toFixed(1) : 'unknown'} km away.`
@@ -139,7 +140,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
                 console.error('[LocationSchedule] Firebase listener failed:', fbErr);
             }
 
-            setGlobalLoading(false);
+            hideLoader();
 
             navigation.reset({
                 index: 0,
@@ -149,7 +150,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
             console.error('Job dispatch error', e);
             Alert.alert('Error', 'Failed to dispatch request. Please try again.');
         } finally {
-            setGlobalLoading(false);
+            hideLoader();
         }
     };
 
@@ -260,8 +261,8 @@ export default function LocationScheduleScreen({ route, navigation }) {
                 <View style={styles.footer}>
                     <PremiumButton
                         title={t('search_for_pro')}
-                        loading={loading}
-                        isDisabled={!isReady || !isServiceable}
+                        loading={isLoading}
+                        disabled={!isReady || !isServiceable}
                         onPress={handleConfirm}
                     />
                 </View>

@@ -24,6 +24,7 @@ import RadarAnimation from '../../components/RadarAnimation';
 import Card from '../../components/Card';
 import MapPickerModal from '../../components/MapPickerModal';
 import NotCoveredView from '../../components/NotCoveredView';
+import ActivityCard from '../../components/ActivityCard';
 
 /**
  * HomeScreen.jsx - Standardized version to resolve tag mismatch and theme naming.
@@ -97,7 +98,12 @@ export default function HomeScreen({ navigation }) {
                     latitude: loc.coords.latitude,
                     longitude: loc.coords.longitude
                 });
-                let addressText = addressArr ? [addressArr.name, addressArr.city || addressArr.subregion].filter(Boolean).join(', ') : 'Unknown';
+                let addressText = addressArr
+                    ? [addressArr.name, addressArr.city, addressArr.subregion]
+                        .filter(Boolean)
+                        .filter((v, i, a) => a.indexOf(v) === i)
+                        .join(', ')
+                    : 'Unknown';
                 const newLoc = { address: addressText, lat: loc.coords.latitude, lng: loc.coords.longitude };
                 setLocation(newLoc);
                 setLastKnownLocation(newLoc);
@@ -255,21 +261,11 @@ export default function HomeScreen({ navigation }) {
                                 </View>
                                 {recentJobs.map((job, i) => (
                                     <FadeInView key={job.id} delay={200 + (i * 60)}>
-                                        <PressableAnimated
+                                        <ActivityCard
+                                            job={job}
                                             onPress={() => navigation.navigate('JobStatusDetail', { jobId: job.id })}
-                                            style={styles.recentRow}
-                                        >
-                                            <View style={styles.recentIconBox}>
-                                                <Text style={styles.recentIcon}>
-                                                    {services.find(s => s.id === job.category)?.icon || '🛠️'}
-                                                </Text>
-                                            </View>
-                                            <View style={styles.recentInfo}>
-                                                <Text style={styles.recentTitle}>{t(`cat_${job.category}`) || job.category}</Text>
-                                                <Text style={styles.recentDate}>{new Date(job.created_at).toLocaleDateString()}</Text>
-                                            </View>
-                                            <StatusPill status={job.status} />
-                                        </PressableAnimated>
+                                            categoryIcon={services.find(s => s.id === job.category)?.icon}
+                                        />
                                     </FadeInView>
                                 ))}
                             </View>

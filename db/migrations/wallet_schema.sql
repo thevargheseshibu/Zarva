@@ -102,26 +102,7 @@ CREATE INDEX IF NOT EXISTS idx_customer_pending_dues_customer ON customer_pendin
 CREATE INDEX IF NOT EXISTS idx_customer_pending_dues_status ON customer_pending_dues(status);
 
 -- ────────────────────────────────────────────────────────────
--- Withdrawal requests
--- ────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS withdrawal_requests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  worker_id BIGINT NOT NULL REFERENCES users(id),
-  amount_paise BIGINT NOT NULL,
-  bank_account_id UUID NOT NULL,
-  status VARCHAR(30) DEFAULT 'pending',
-  idempotency_key VARCHAR(255) UNIQUE NOT NULL,
-  initiated_at TIMESTAMPTZ DEFAULT NOW(),
-  processed_at TIMESTAMPTZ,
-  gateway_reference VARCHAR(255),
-  failure_reason TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_withdrawal_worker ON withdrawal_requests(worker_id);
-CREATE INDEX IF NOT EXISTS idx_withdrawal_status ON withdrawal_requests(status);
-
--- ────────────────────────────────────────────────────────────
--- Worker bank accounts
+-- Worker bank accounts (must exist before withdrawal_requests)
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS worker_bank_accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -137,6 +118,25 @@ CREATE TABLE IF NOT EXISTS worker_bank_accounts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_worker_bank_accounts_worker ON worker_bank_accounts(worker_id);
+
+-- ────────────────────────────────────────────────────────────
+-- Withdrawal requests
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS withdrawal_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  worker_id BIGINT NOT NULL REFERENCES users(id),
+  amount_paise BIGINT NOT NULL,
+  bank_account_id UUID NOT NULL REFERENCES worker_bank_accounts(id),
+  status VARCHAR(30) DEFAULT 'pending',
+  idempotency_key VARCHAR(255) UNIQUE NOT NULL,
+  initiated_at TIMESTAMPTZ DEFAULT NOW(),
+  processed_at TIMESTAMPTZ,
+  gateway_reference VARCHAR(255),
+  failure_reason TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_withdrawal_worker ON withdrawal_requests(worker_id);
+CREATE INDEX IF NOT EXISTS idx_withdrawal_status ON withdrawal_requests(status);
 
 -- ────────────────────────────────────────────────────────────
 -- Wallet audit log

@@ -49,7 +49,10 @@ export default function WorkerHomeScreen({ navigation }) {
             const { latitude, longitude } = loc.coords;
             const [addressArr] = await Location.reverseGeocodeAsync({ latitude, longitude });
             let addressText = 'Unknown Location';
-            if (addressArr) addressText = [addressArr.name, addressArr.city || addressArr.subregion, addressArr.region].filter(Boolean).join(', ');
+            if (addressArr) addressText = [addressArr.name, addressArr.city, addressArr.subregion, addressArr.region]
+                .filter(Boolean)
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .join(', ');
             const newLoc = { address: addressText, lat: latitude, lng: longitude };
             if (!locationOverride) {
                 setLocation(newLoc);

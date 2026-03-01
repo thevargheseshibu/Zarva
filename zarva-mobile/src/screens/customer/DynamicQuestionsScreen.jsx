@@ -32,6 +32,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
 
     const [config, setConfig] = useState(() => buildFallbackConfig(category));
     const [answers, setAnswers] = useState({});
+    const [photos, setPhotos] = useState([]);
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
 
@@ -52,9 +53,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                 const dynamicQuestions = [
                     { id: 'q1', type: 'text', label: catQuestions[0] || 'Describe the issue briefly', required: true },
                     { id: 'q2', type: 'text', label: catQuestions[1] || 'Any specific requirements?', required: false, skippable: true },
-                    { id: 'q3', type: 'image', label: 'Upload photo 1 (optional)', required: false, skippable: true },
-                    { id: 'q4', type: 'image', label: 'Upload photo 2 (optional)', required: false, skippable: true },
-                    { id: 'q5', type: 'image', label: 'Upload photo 3 (optional)', required: false, skippable: true }
+                    // Photos are handled separately now
                 ];
 
                 setConfig({ base_price: basePrice, breakdown: breakDownData, questions: dynamicQuestions });
@@ -73,7 +72,12 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         Haptics.selectionAsync();
     };
 
-    const handleImageUpload = async (questionId) => {
+    const handleAddPhoto = async () => {
+        if (photos.length >= 3) {
+            Alert.alert(t('action_blocked'), t('max_photos_reached'));
+            return;
+        }
+
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
             Alert.alert('Permission needed', 'Please allow access to your photo library.');
@@ -107,7 +111,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
             if (uploadRes.data.status !== 'ok') throw new Error(`Upload failed`);
 
             const public_url = uploadRes.data.url.split('?')[0];
-            handleAnswer(questionId, public_url);
+            setPhotos(prev => [...prev, public_url]);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         } catch (err) {
@@ -115,6 +119,11 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         } finally {
             setUploading(false);
         }
+    };
+
+    const removePhoto = (index) => {
+        setPhotos(prev => prev.filter((_, i) => i !== index));
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     };
 
     const isNextDisabled = config.questions.some(q => q.required && !answers[q.id]);
@@ -142,22 +151,6 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                         />
                     )}
 
-                    {q.type === 'image' && (
-                        <PressableAnimated
-                            style={[styles.uploadBox, answer && styles.uploadBoxDone]}
-                            onPress={() => handleImageUpload(q.id)}
-                        >
-                            {answer ? (
-                                <Image source={{ uri: answer }} style={styles.previewImage} />
-                            ) : (
-                                <View style={styles.uploadPlaceholder}>
-                                    <Text style={styles.uploadIcon}>{uploading ? '⏳' : '📸'}</Text>
-                                    <Text style={styles.uploadText}>{uploading ? t('uploading_dots') : t('add_photo_for_clarity')}</Text>
-                                </View>
-                            )}
-                        </PressableAnimated>
-                    )}
-
                     {!q.required && !answer && (
                         <TouchableOpacity
                             style={styles.skipBtn}
@@ -170,6 +163,39 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
             </FadeInView>
         );
     };
+
+    const renderPhotoSection = () => (
+        <FadeInView delay={300}>
+            <Card style={styles.photoContainer}>
+                <View style={styles.qHeader}>
+                    <Text style={styles.qLabel}>{t('add_photos')}</Text>
+                    <Text style={styles.photoCount}>{photos.length}/3</Text>
+                </View>
+                <Text style={styles.photoDesc}>{t('add_photos_desc')}</Text>
+
+                <View style={styles.photoGrid}>
+                    {photos.map((uri, idx) => (
+                        <View key={idx} style={styles.photoWrapper}>
+                            <Image source={{ uri }} style={styles.gridImage} />
+                            <TouchableOpacity style={styles.removeBtn} onPress={() => removePhoto(idx)}>
+                                <Text style={styles.removeIcon}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ))}
+
+                    {photos.length < 3 && (
+                        <PressableAnimated
+                            style={[styles.addSlot, uploading && styles.uploadingSlot]}
+                            onPress={handleAddPhoto}
+                            disabled={uploading}
+                        >
+                            <Text style={styles.addSlotIcon}>{uploading ? '⏳' : '+'}</Text>
+                        </PressableAnimated>
+                    )}
+                </View>
+            </Card>
+        </FadeInView>
+    );
 
     return (
         <View style={styles.screen}>
@@ -192,6 +218,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                 </FadeInView>
 
                 {config.questions.map((q, i) => renderQuestion(q, i))}
+                {renderPhotoSection()}
 
                 <FadeInView delay={400}>
                     <View style={styles.pricingPreview}>
@@ -215,11 +242,25 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                                 answer: answers[q.id] || (q.required ? '' : 'SKIPPED')
                             })).filter(a => a.answer !== '');
 
+                            // Add photos to structured answers
+                            photos.forEach((p, idx) => {
+                                structuredAnswers.push({
+                                    question: `Photo ${idx + 1}`,
+                                    answer: p
+                                });
+                            });
+
+                            // Ensure simple answers object still has q3, q4, q5 for compatibility if needed
+                            const finalAnswers = { ...answers };
+                            photos.forEach((p, idx) => {
+                                finalAnswers[`q${idx + 3}`] = p;
+                            });
+
                             navigation.navigate('LocationSchedule', {
                                 category,
                                 label,
                                 location,
-                                answers,
+                                answers: finalAnswers,
                                 structuredAnswers,
                                 basePrice: config.base_price,
                                 breakdown: config.breakdown
@@ -268,41 +309,28 @@ const styles = StyleSheet.create({
         borderColor: colors.surface
     },
 
-    uploadBox: {
-        height: 160,
+    footer: { marginTop: spacing[40] },
+
+    // Photo Grid Styles
+    photoContainer: { padding: spacing[24], marginBottom: spacing[24] },
+    photoCount: { color: colors.text.muted, fontSize: 12, fontWeight: '800' },
+    photoDesc: { color: colors.text.secondary, fontSize: 12, marginBottom: spacing[16], marginTop: 4 },
+    photoGrid: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
+    photoWrapper: { width: '30%', aspectRatio: 1, borderRadius: radius.md, overflow: 'hidden', position: 'relative' },
+    gridImage: { width: '100%', height: '100%' },
+    removeBtn: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.6)', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    removeIcon: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+    addSlot: {
+        width: '30%',
+        aspectRatio: 1,
+        borderRadius: radius.md,
         backgroundColor: colors.elevated,
-        borderRadius: radius.lg,
         borderWidth: 1,
         borderColor: colors.surface,
         borderStyle: 'dashed',
         justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden'
+        alignItems: 'center'
     },
-    uploadBoxDone: { borderStyle: 'solid', borderColor: colors.accent.primary + '44' },
-    uploadPlaceholder: { alignItems: 'center', gap: 8 },
-    uploadIcon: { fontSize: 32 },
-    uploadText: { color: colors.text.muted, fontSize: fontSize.caption, textAlign: 'center' },
-    previewImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-
-    skipBtn: { alignSelf: 'flex-end', marginTop: 4 },
-    skipTxt: { color: colors.text.muted, fontSize: fontSize.micro, fontWeight: fontWeight.bold, textDecorationLine: 'underline' },
-
-    pricingPreview: {
-        flexDirection: 'row',
-        backgroundColor: colors.surface,
-        padding: spacing[24],
-        borderRadius: radius.xl,
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginTop: spacing[8],
-        ...shadows.premium
-    },
-    pricingInfo: { gap: 4 },
-    priceLabel: { color: colors.accent.primary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 1.5 },
-    priceValue: { color: colors.text.primary, fontSize: 24, fontWeight: fontWeight.bold },
-    pricingHint: { flex: 0.8 },
-    hintTxt: { color: colors.text.muted, fontSize: 10, textAlign: 'right', fontStyle: 'italic' },
-
-    footer: { marginTop: spacing[40] }
+    uploadingSlot: { opacity: 0.5 },
+    addSlotIcon: { color: colors.accent.primary, fontSize: 24, fontWeight: '300' }
 });

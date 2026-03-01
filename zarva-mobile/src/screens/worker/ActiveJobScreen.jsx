@@ -33,6 +33,7 @@ export default function ActiveJobScreen({ route, navigation }) {
     const [timeElapsed, setTimeElapsed] = useState(0);
     const [endOtp, setEndOtp] = useState('----');
     const [otpExpirySeconds, setOtpExpirySeconds] = useState(null);
+    const [inspectionExpirySeconds, setInspectionExpirySeconds] = useState(null);
     const [chatUnread, setChatUnread] = useState(0);
 
     useEffect(() => {
@@ -56,11 +57,38 @@ export default function ActiveJobScreen({ route, navigation }) {
 
     useEffect(() => {
         let int;
-        if (timerActive || status === 'in_progress') {
-            int = setInterval(() => setTimeElapsed(p => p + 1), 1000);
+        const updateTimer = () => {
+            if (!job) return;
+
+            let totalSeconds = 0;
+
+            // 1. Inspection Phase
+            if (job.inspection_started_at) {
+                const start = new Date(job.inspection_started_at).getTime();
+                const end = job.inspection_ended_at ? new Date(job.inspection_ended_at).getTime() : Date.now();
+                if (status === 'inspection_active' || job.inspection_ended_at) {
+                    totalSeconds += Math.max(0, Math.floor((end - start) / 1000));
+                }
+            }
+
+            // 2. Job Phase
+            if (job.job_started_at) {
+                const start = new Date(job.job_started_at).getTime();
+                const end = job.job_ended_at ? new Date(job.job_ended_at).getTime() : Date.now();
+                if (status === 'in_progress' || job.job_ended_at) {
+                    totalSeconds += Math.max(0, Math.floor((end - start) / 1000));
+                }
+            }
+
+            setTimeElapsed(totalSeconds);
+        };
+
+        if (timerActive || status === 'inspection_active' || status === 'in_progress') {
+            updateTimer();
+            int = setInterval(updateTimer, 1000);
         }
         return () => clearInterval(int);
-    }, [timerActive, status]);
+    }, [timerActive, status, job]);
 
     useEffect(() => {
         let int;
@@ -75,6 +103,20 @@ export default function ActiveJobScreen({ route, navigation }) {
         }
         return () => clearInterval(int);
     }, [status, job?.start_otp_generated_at]);
+
+    useEffect(() => {
+        let int;
+        if (status === 'worker_arrived' && job?.inspection_expires_at) {
+            const expiryTime = new Date(job.inspection_expires_at).getTime();
+            const updateExpiry = () => {
+                const remaining = Math.max(0, Math.floor((expiryTime - Date.now()) / 1000));
+                setInspectionExpirySeconds(remaining);
+            };
+            updateExpiry();
+            int = setInterval(updateExpiry, 1000);
+        }
+        return () => clearInterval(int);
+    }, [status, job?.inspection_expires_at]);
 
     const fetchJob = async () => {
         try {
@@ -202,6 +244,7 @@ export default function ActiveJobScreen({ route, navigation }) {
     const renderActionView = () => {
         const isAssigned = status === 'assigned' || status === 'worker_en_route';
         const isArrived = status === 'worker_arrived';
+        const isInspection = status === 'inspection_active';
         const isEstimateSubmitted = status === 'estimate_submitted';
         const isInProgress = status === 'in_progress';
         const isPending = status === 'pending_completion';
@@ -224,61 +267,95 @@ export default function ActiveJobScreen({ route, navigation }) {
         }
 
         if (isArrived) {
-            if (showingEstimate) {
-                return (
-                    <FadeInView delay={200} style={styles.actionSection}>
-                        <Card style={styles.actionCard}>
-                            <Text style={styles.actionLabel}>{t('inspection') || 'INSPECTION'}</Text>
-                            <Text style={styles.actionTitle}>Service Estimate</Text>
-                            <Text style={styles.actionSub}>Provide an estimated duration and initial findings to the client.</Text>
-
-                            <View style={styles.estimateInputWrap}>
-                                <Text style={styles.inputLabel}>Estimated Minutes</Text>
-                                <TextInput
-                                    style={styles.textInput}
-                                    keyboardType="numeric"
-                                    placeholder="e.g. 60"
-                                    placeholderTextColor={tTheme.text.tertiary}
-                                    value={estimateData.minutes}
-                                    onChangeText={(val) => setEstimateData(prev => ({ ...prev, minutes: val }))}
-                                />
-                                <Text style={styles.inputLabel}>Notes / Findings (Optional)</Text>
-                                <TextInput
-                                    style={styles.textInputArea}
-                                    multiline
-                                    placeholder="What needs to be fixed?"
-                                    placeholderTextColor={tTheme.text.tertiary}
-                                    value={estimateData.notes}
-                                    onChangeText={(val) => setEstimateData(prev => ({ ...prev, notes: val }))}
-                                />
-                            </View>
-                            <PremiumButton
-                                title="Submit Estimate"
-                                onPress={handleSubmitEstimate}
-                                loading={actionLoading}
-                            />
-                        </Card>
-                    </FadeInView>
-                );
-            }
-
             return (
                 <FadeInView delay={200} style={styles.actionSection}>
-                    <Card style={styles.actionCard}>
-                        <Text style={styles.actionLabel}>{t('authentication')}</Text>
-                        <Text style={styles.actionTitle}>Verify Arrival</Text>
-                        <Text style={styles.actionSub}>Ask the customer for their Inspection Code to begin your assessment.</Text>
-                        <View style={styles.otpWrap}>
+                    <Card glow style={styles.premiumActionCard}>
+                        <View style={styles.luxuryHeader}>
+                            <View style={[styles.luxuryIconBox, { backgroundColor: tTheme.brand.primary + '11' }]}>
+                                <Text style={styles.luxuryIcon}>🔐</Text>
+                            </View>
+                            <View>
+                                <Text style={styles.luxuryLabel}>{t('authentication').toUpperCase()}</Text>
+                                <Text style={styles.luxuryTitle}>Secure Arrival</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.counterSection}>
+                            <View style={styles.countCircle}>
+                                <Text style={styles.countValue}>{inspectionExpirySeconds !== null ? formatTime(inspectionExpirySeconds) : '--:--'}</Text>
+                                <Text style={styles.countLabel}>INSPECTION TIME</Text>
+                            </View>
+                            <Text style={styles.counterHint}>Verify arrival with the customer within this window to start your assessment.</Text>
+                        </View>
+
+                        <View style={styles.otpLuxWrap}>
+                            <Text style={styles.otpLuxLabel}>ENTER INSPECTION CODE</Text>
                             <OTPInput
                                 disabled={actionLoading}
                                 onChange={(code) => setInspectionOtp(code.split('').concat(Array(4).fill('')).slice(0, 4))}
                             />
                         </View>
+
                         <PremiumButton
-                            title="Verify Arrival"
+                            title="Verify & Begin Inspection"
                             onPress={handleVerifyInspectionOtp}
                             loading={actionLoading}
                             disabled={inspectionOtp.join('').length < 4}
+                            style={styles.luxButton}
+                        />
+                    </Card>
+                </FadeInView>
+            );
+        }
+
+        if (isInspection) {
+            return (
+                <FadeInView delay={200} style={styles.actionSection}>
+                    <Card glow style={styles.premiumActionCard}>
+                        <View style={styles.luxuryHeader}>
+                            <View style={[styles.luxuryIconBox, { backgroundColor: '#00E0FF11' }]}>
+                                <Text style={styles.luxuryIcon}>📋</Text>
+                            </View>
+                            <View>
+                                <Text style={styles.luxuryLabel}>ASSESSMENT PHASE</Text>
+                                <Text style={styles.luxuryTitle}>Service Estimate</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.estimateFormLuxury}>
+                            <View style={styles.inputGroupLux}>
+                                <Text style={styles.luxInputLabel}>ESTIMATED MINUTES</Text>
+                                <View style={styles.luxInputContainer}>
+                                    <TextInput
+                                        style={styles.luxTextInput}
+                                        keyboardType="numeric"
+                                        placeholder="60"
+                                        placeholderTextColor={tTheme.text.tertiary}
+                                        value={estimateData.minutes}
+                                        onChangeText={(val) => setEstimateData(prev => ({ ...prev, minutes: val }))}
+                                    />
+                                    <View style={styles.luxUnitBox}><Text style={styles.luxUnitTxt}>MIN</Text></View>
+                                </View>
+                            </View>
+
+                            <View style={styles.inputGroupLux}>
+                                <Text style={styles.luxInputLabel}>FINDINGS & NOTES</Text>
+                                <TextInput
+                                    style={styles.luxTextArea}
+                                    multiline
+                                    placeholder="Describe the issue and proposed fix..."
+                                    placeholderTextColor={tTheme.text.tertiary}
+                                    value={estimateData.notes}
+                                    onChangeText={(val) => setEstimateData(prev => ({ ...prev, notes: val }))}
+                                />
+                            </View>
+                        </View>
+
+                        <PremiumButton
+                            title="Send Estimate to Client"
+                            onPress={handleSubmitEstimate}
+                            loading={actionLoading}
+                            style={styles.luxButton}
                         />
                     </Card>
                 </FadeInView>

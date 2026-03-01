@@ -111,7 +111,7 @@ const createStyles = (t) => StyleSheet.create({
     filterTxt: { color: t.text.tertiary, fontSize: 13 },
     filterTxtActive: { color: t.brand.primary, fontWeight: '600' },
     list: { padding: t.spacing['2xl'], paddingBottom: 120 },
-    txRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: t.border + '22' },
+    txRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: (t.border?.default || t.border || '#333') + '22' },
     txIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     txIconCredit: { backgroundColor: t.brand.primary + '22' },
     txIconDebit: { backgroundColor: t.background.surfaceRaised },
@@ -121,7 +121,7 @@ const createStyles = (t) => StyleSheet.create({
     txTime: { color: t.text.tertiary, fontSize: 11 },
     txJob: { color: t.text.tertiary, fontSize: 10, marginTop: 2 },
     txAmt: { color: t.text.primary, fontWeight: '600' },
-    txAmtCredit: { color: t.status?.success || '#10B981' },
+    txAmtCredit: { color: t.status?.success?.base || '#10B981' },
     loader: { padding: 40 },
     empty: { color: t.text.tertiary, fontSize: 14, fontStyle: 'italic', padding: 20 }
 });

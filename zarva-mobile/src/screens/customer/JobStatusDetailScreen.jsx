@@ -28,6 +28,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
     const [job, setJob] = useState(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [inspectionExpirySeconds, setInspectionExpirySeconds] = useState(null);
     const [verifyingEndOtp, setVerifyingEndOtp] = useState(false);
     const [chatUnread, setChatUnread] = useState(0);
 
@@ -67,20 +68,54 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         }
     }, [status]);
 
-    // Live Timer for In Progress
+    // Live Timer for In Progress & Inspection Total
     useEffect(() => {
         let int;
-        let startTime = job?.job_started_at || job?.work_started_at;
-        if (status === 'in_progress' && startTime) {
-            const startMs = new Date(startTime).getTime();
-            const updateTimer = () => {
-                setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
-            };
+        const updateTimer = () => {
+            if (!job) return;
+            let totalSeconds = 0;
+
+            // 1. Inspection Phase
+            if (job.inspection_started_at) {
+                const start = new Date(job.inspection_started_at).getTime();
+                const end = job.inspection_ended_at ? new Date(job.inspection_ended_at).getTime() : Date.now();
+                if (status === 'inspection_active' || job.inspection_ended_at) {
+                    totalSeconds += Math.max(0, Math.floor((end - start) / 1000));
+                }
+            }
+
+            // 2. Job Phase
+            if (job.job_started_at) {
+                const start = new Date(job.job_started_at).getTime();
+                const end = job.job_ended_at ? new Date(job.job_ended_at).getTime() : Date.now();
+                if (status === 'in_progress' || job.job_ended_at) {
+                    totalSeconds += Math.max(0, Math.floor((end - start) / 1000));
+                }
+            }
+            setElapsedSeconds(totalSeconds);
+        };
+
+        if (['inspection_active', 'in_progress'].includes(status) || job?.job_started_at) {
             updateTimer();
             int = setInterval(updateTimer, 1000);
         }
         return () => clearInterval(int);
     }, [status, job]);
+
+    // Inspection Timer
+    useEffect(() => {
+        let int;
+        if (status === 'worker_arrived' && job?.inspection_expires_at) {
+            const expiryTime = new Date(job.inspection_expires_at).getTime();
+            const updateExpiry = () => {
+                const remaining = Math.max(0, Math.floor((expiryTime - Date.now()) / 1000));
+                setInspectionExpirySeconds(remaining);
+            };
+            updateExpiry();
+            int = setInterval(updateExpiry, 1000);
+        }
+        return () => clearInterval(int);
+    }, [status, job?.inspection_expires_at]);
 
     const formatTime = (seconds) => {
         const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -241,11 +276,28 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 {/* Action Area */}
                 {status === 'worker_arrived' && (
                     <FadeInView delay={200}>
-                        <Card glow style={styles.actionCard}>
-                            <Text style={styles.actionTitle}>{t('share_service_code') || 'Share Inspection Code'}</Text>
-                            <Text style={styles.actionSub}>{t('share_service_code_desc') || 'Share this code with the worker to confirm their arrival so they can create an estimate.'}</Text>
-                            <View style={styles.otpDisplay}>
-                                <Text style={styles.otpTxt}>{job?.inspection_otp || '----'}</Text>
+                        <Card glow style={styles.premiumActionCard}>
+                            <View style={styles.luxuryHeader}>
+                                <View style={[styles.luxuryIconBox, { backgroundColor: tTheme.brand.primary + '11' }]}>
+                                    <Text style={styles.luxuryIcon}>🔐</Text>
+                                </View>
+                                <View>
+                                    <Text style={styles.luxuryLabel}>VERIFICATION PHASE</Text>
+                                    <Text style={styles.luxuryTitle}>{t('share_service_code') || 'Secure Arrival'}</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.counterSection}>
+                                <View style={styles.countCircle}>
+                                    <Text style={styles.countValue}>{inspectionExpirySeconds !== null ? formatTime(inspectionExpirySeconds) : '--:--'}</Text>
+                                    <Text style={styles.countLabel}>INSPECTION WINDOW</Text>
+                                </View>
+                                <Text style={styles.counterHint}>The professional has arrived. Share the code below to begin the assessment.</Text>
+                            </View>
+
+                            <View style={styles.otpLuxDisplay}>
+                                <Text style={styles.otpLuxLabel}>INSPECTION CODE</Text>
+                                <Text style={styles.otpLuxValue}>{job?.inspection_otp || '----'}</Text>
                             </View>
                         </Card>
                     </FadeInView>

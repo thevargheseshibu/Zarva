@@ -75,41 +75,57 @@ export default function MyJobsScreen({ navigation }) {
     const renderStandard = ({ item, index }) => {
         const { text: parsedDesc } = parseJobDescription(item.description);
         const desc = parsedDesc || 'Service Request';
+        const initial = item.category?.charAt(0).toUpperCase() || '?';
+        const accentColor = ['completed'].includes(item.status)
+            ? tTheme.status.success.base
+            : ['cancelled', 'disputed', 'no_worker_found'].includes(item.status)
+                ? tTheme.status.error.base
+                : tTheme.brand.primary;
 
         return (
             <FadeInView delay={index * 50}>
                 <PressableAnimated onPress={() => navigation.navigate('JobStatusDetail', { jobId: item.id })}>
                     <View style={styles.compactCard}>
-                        <View style={styles.cardHeader}>
-                            <View style={styles.jobTypeCircle}>
-                                <Text style={styles.jobTypeIcon}>{item.category?.charAt(0).toUpperCase()}</Text>
-                            </View>
-                            <View style={styles.jobMeta}>
-                                <Text style={styles.jobTitle}>{t(`cat_${item.category}`) || item.category}</Text>
-                                <Text style={styles.jobDate}>{dayjs(item.created_at).format('MMM D • h:mm A')}</Text>
-                            </View>
-                            <StatusPill status={item.status} />
-                        </View>
-
-                        <Text style={styles.jobDesc} numberOfLines={2}>"{desc}"</Text>
-
-                        <View style={styles.cardBottom}>
-                            {item.worker ? (
-                                <View style={styles.workerBrief}>
-                                    <Image source={{ uri: item.worker.photo }} style={styles.workerImg} />
-                                    <Text style={styles.workerName}>{item.worker.name}</Text>
+                        <View style={[styles.accentStrip, { backgroundColor: accentColor }]} />
+                        <View style={styles.cardInner}>
+                            <View style={styles.cardHeader}>
+                                <View style={[styles.jobTypeCircle, { backgroundColor: accentColor + '18' }]}>
+                                    <Text style={[styles.jobTypeIcon, { color: accentColor }]}>{initial}</Text>
                                 </View>
-                            ) : (
-                                <Text style={styles.searchingTxt}>{t('searching_for_worker')}</Text>
-                            )}
-
-                            <View style={styles.actions}>
+                                <View style={styles.jobMeta}>
+                                    <Text style={styles.jobTitle} numberOfLines={1}>{t(`cat_${item.category}`) || item.category}</Text>
+                                    <Text style={styles.jobDate}>{dayjs(item.created_at).format('MMM D · h:mm A')}</Text>
+                                </View>
                                 {['open', 'searching', 'no_worker_found'].includes(item.status) && (
                                     <TouchableOpacity onPress={() => handleDeleteJob(item.id)} style={styles.iconBtn}>
-                                        <Text style={{ fontSize: 14 }}>🗑️</Text>
+                                        <Text style={{ fontSize: 13 }}>🗑️</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
+
+                            <View style={styles.statusRow}>
+                                <StatusPill status={item.status} />
+                            </View>
+
+                            {desc !== 'Service Request' && (
+                                <Text style={styles.jobDesc} numberOfLines={2}>"{desc}"</Text>
+                            )}
+
+                            {item.worker ? (
+                                <View style={styles.workerRow}>
+                                    <Image source={{ uri: item.worker.photo }} style={styles.workerImg} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.workerLabel}>Assigned Pro</Text>
+                                        <Text style={styles.workerName}>{item.worker.name}</Text>
+                                    </View>
+                                    <Text style={styles.chevronTxt}>›</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.searchingRow}>
+                                    <View style={styles.searchingDot} />
+                                    <Text style={styles.searchingTxt}>{t('searching_for_worker') || 'Finding a professional...'}</Text>
+                                </View>
+                            )}
                         </View>
                     </View>
                 </PressableAnimated>
@@ -169,7 +185,7 @@ export default function MyJobsScreen({ navigation }) {
             <View style={styles.header}>
                 <View style={styles.headerTop}>
                     <Text style={styles.title}>{t('my_requests') || 'My Requests'}</Text>
-                    <PressableAnimated style={styles.createBtn} onPress={() => navigation.navigate(viewMode === 'standard' ? 'HomeScreen' : 'CreateCustomJob')}>
+                    <PressableAnimated style={styles.createBtn} onPress={() => navigation.navigate(viewMode === 'standard' ? 'Home' : 'CreateCustomJob')}>
                         <Text style={styles.createBtnTxt}>+ New</Text>
                     </PressableAnimated>
                 </View>
@@ -239,7 +255,7 @@ const createStyles = (t) => StyleSheet.create({
 
     segmentedControl: { flexDirection: 'row', backgroundColor: t.background.surfaceRaised, borderRadius: t.radius.lg, padding: 4, marginBottom: t.spacing.lg },
     segment: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: t.radius.md },
-    segmentActive: { backgroundColor: t.background.surface, ...t.shadows.medium },
+    segmentActive: { backgroundColor: t.background.surface },
     segmentTxt: { color: t.text.secondary, fontSize: 13, fontWeight: '700' },
     segmentTxtActive: { color: t.text.primary },
 
@@ -250,35 +266,113 @@ const createStyles = (t) => StyleSheet.create({
     filterText: { color: t.text.secondary, fontSize: 12, fontWeight: '600' },
     filterTextActive: { color: t.background.app },
 
-    listContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
+    listContent: { padding: t.spacing['2xl'], paddingBottom: 120, gap: t.spacing.lg },
+
+    // ── CARD ─────────────────────────────────────────
     compactCard: {
         backgroundColor: t.background.surface,
         borderRadius: t.radius.xl,
-        padding: t.spacing.lg,
-        marginBottom: t.spacing.lg,
         borderWidth: 1,
         borderColor: t.border.default + '33',
-        ...t.shadows.premium
+        overflow: 'hidden',
+        flexDirection: 'row',
+        ...t.shadows.premium,
     },
+    accentStrip: {
+        width: 4,
+        borderRadius: 2,
+        marginVertical: 0,
+    },
+    cardInner: {
+        flex: 1,
+        padding: t.spacing.lg,
+        gap: 10,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    jobTypeCircle: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    jobTypeIcon: { fontSize: 16, fontWeight: '900' },
+    jobMeta: { flex: 1, justifyContent: 'center' },
+    jobTitle: { color: t.text.primary, fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
+    jobDate: { color: t.text.tertiary, fontSize: 11, marginTop: 2, fontWeight: '500' },
+
+    statusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+
+    jobDesc: {
+        color: t.text.secondary,
+        fontSize: 12,
+        lineHeight: 17,
+        fontStyle: 'italic',
+        borderLeftWidth: 2,
+        borderLeftColor: t.border.default,
+        paddingLeft: 8,
+    },
+
+    // ── WORKER ROW ───────────────────────────────────
+    workerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: t.background.surfaceRaised,
+        borderRadius: t.radius.md,
+        padding: 10,
+    },
+    workerImg: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: t.border.default,
+    },
+    workerLabel: { color: t.text.muted, fontSize: 9, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+    workerName: { color: t.text.primary, fontSize: 13, fontWeight: '800' },
+    chevronTxt: { color: t.text.muted, fontSize: 22, fontWeight: '300', marginLeft: 'auto' },
+
+    // ── SEARCHING STATE ──────────────────────────────
+    searchingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    searchingDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 4,
+        backgroundColor: t.brand.primary,
+        opacity: 0.8,
+    },
+    searchingTxt: {
+        color: t.text.secondary,
+        fontSize: 12,
+        fontWeight: '600',
+        fontStyle: 'italic',
+    },
+
+    iconBtn: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: t.background.surfaceRaised,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    actions: { flexDirection: 'row', gap: 8 },
+
+    // ── CUSTOM CARD ──────────────────────────────────
     customCardTint: { borderColor: t.status.warning.base + '55', backgroundColor: t.background.surfaceRaised },
-
-    cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-    jobTypeCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: t.brand.primary + '15', justifyContent: 'center', alignItems: 'center' },
-    jobTypeIcon: { color: t.brand.primary, fontSize: 16, fontWeight: '900' },
-    jobMeta: { flex: 1 },
-    jobTitle: { color: t.text.primary, fontSize: 15, fontWeight: '800' },
-    jobDate: { color: t.text.tertiary, fontSize: 11, marginTop: 2, fontWeight: '600' },
-
-    jobDesc: { color: t.text.secondary, fontSize: 13, lineHeight: 18, marginBottom: 12, fontStyle: 'italic' },
-
     cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: t.background.surfaceRaised },
     workerBrief: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    workerImg: { width: 24, height: 24, borderRadius: 12, backgroundColor: t.border.default },
-    workerName: { color: t.text.primary, fontSize: 12, fontWeight: '700' },
-    searchingTxt: { color: t.brand.primary, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
-
-    actions: { flexDirection: 'row', gap: 8 },
-    iconBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
 
     rateBox: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: t.background.app, padding: 12, borderRadius: t.radius.md, marginBottom: 12 },
     rateLabel: { color: t.text.secondary, fontSize: 11, fontWeight: '700' },

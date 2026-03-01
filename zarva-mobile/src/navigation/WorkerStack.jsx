@@ -9,6 +9,11 @@ import WorkerNavigator from './WorkerNavigator';
 import JobDetailPreviewScreen from '../screens/worker/JobDetailPreviewScreen';
 import ActiveJobScreen from '../screens/worker/ActiveJobScreen';
 import EarningsScreen from '../screens/worker/EarningsScreen';
+import WorkerWalletScreen from '../screens/worker/WorkerWalletScreen';
+import WorkerTransactionHistoryScreen from '../screens/worker/WorkerTransactionHistoryScreen';
+import WorkerWithdrawScreen from '../screens/worker/WorkerWithdrawScreen';
+import WorkerBankAccountsScreen from '../screens/worker/WorkerBankAccountsScreen';
+import AddBankAccountScreen from '../screens/worker/AddBankAccountScreen';
 import AlertPreferencesScreen from '../screens/worker/AlertPreferencesScreen';
 import WorkerReputationScreen from '../screens/customer/WorkerReputationScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
@@ -27,6 +32,11 @@ export default function WorkerStack() {
             <Stack.Screen name="JobDetailPreview" component={JobDetailPreviewScreen} />
             <Stack.Screen name="ActiveJob" component={ActiveJobScreen} />
             <Stack.Screen name="EarningsDetail" component={EarningsScreen} />
+            <Stack.Screen name="WorkerWallet" component={WorkerWalletScreen} />
+            <Stack.Screen name="WorkerTransactionHistory" component={WorkerTransactionHistoryScreen} />
+            <Stack.Screen name="WorkerWithdraw" component={WorkerWithdrawScreen} />
+            <Stack.Screen name="WorkerBankAccounts" component={WorkerBankAccountsScreen} />
+            <Stack.Screen name="AddBankAccount" component={AddBankAccountScreen} />
             <Stack.Screen name="AlertPreferences" component={AlertPreferencesScreen} options={{ headerShown: true, title: 'Alert Settings' }} />
             <Stack.Screen name="WorkerReputation" component={WorkerReputationScreen} options={{ headerShown: true, title: 'My Reputation' }} />
             <Stack.Screen name="Chat" component={ChatScreen} />

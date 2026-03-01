@@ -92,14 +92,16 @@ router.post('/confirm', async (req, res) => {
  * Accepts a multipart/form-data image, compresses it natively via Sharp,
  * and pushes it directly to S3 without intermediary presigned links.
  */
-router.post('/image', upload.single('file'), async (req, res) => {
+router.post('/image', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'image', maxCount: 1 }]), async (req, res) => {
     const userId = req.user?.id;
     if (!userId) {
         return fail(res, 'Authentication required.', 401, 'UNAUTHORIZED');
     }
 
-    if (!req.file) {
-        return fail(res, 'No file provided in the "file" field.', 400, 'MISSING_FILE');
+    const file = req.files?.file?.[0] || req.files?.image?.[0];
+
+    if (!file) {
+        return fail(res, 'No file provided in the "file" or "image" field.', 400, 'MISSING_FILE');
     }
 
     const { purpose } = req.body;
@@ -112,7 +114,7 @@ router.post('/image', upload.single('file'), async (req, res) => {
         const pool = getPool();
 
         // Use Sharp to resize and compress the uploaded in-memory buffer
-        const compressedBuffer = await sharp(req.file.buffer)
+        const compressedBuffer = await sharp(file.buffer)
             .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
             .jpeg({ quality: 80, force: true }) // Convert almost everything to JPEG, preserving size
             .toBuffer();
@@ -120,7 +122,7 @@ router.post('/image', upload.single('file'), async (req, res) => {
         const result = await uploadBufferToS3(
             userId,
             purpose,
-            req.file.originalname,
+            file.originalname,
             'image/jpeg',
             compressedBuffer,
             pool

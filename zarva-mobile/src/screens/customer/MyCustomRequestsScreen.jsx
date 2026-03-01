@@ -10,7 +10,7 @@ import StatusPill from '../../components/StatusPill';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import SkeletonCard from '../../design-system/components/SkeletonCard';
-import PremiumButton from '../../design-system/components/PremiumButton';
+import PremiumButton from '../../components/PremiumButton';
 import { useWorkerStore } from '../../stores/workerStore';
 
 export default function MyCustomRequestsScreen({ navigation }) {

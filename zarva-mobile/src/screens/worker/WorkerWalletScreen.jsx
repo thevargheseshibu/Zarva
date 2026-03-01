@@ -79,6 +79,10 @@ export default function WorkerWalletScreen({ navigation }) {
                         disabled={availablePaise <= 0}
                         style={styles.withdrawBtn}
                     />
+                    <TouchableOpacity style={styles.bankLink} onPress={() => navigation.navigate('WorkerBankAccounts')}>
+                        <Text style={styles.bankLinkTxt}>{t('manage_bank_accounts', { defaultValue: 'Manage Bank Accounts' })}</Text>
+                        <Text style={styles.bankLinkChevron}>›</Text>
+                    </TouchableOpacity>
                 </FadeInView>
 
                 <FadeInView delay={150} style={styles.section}>
@@ -131,12 +135,15 @@ const createStyles = (t) => StyleSheet.create({
     row: { flexDirection: 'row', gap: 12, marginTop: 16 },
     badge: { backgroundColor: t.brand.primary + '22', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
     badgeTxt: { color: t.text.secondary, fontSize: 11 },
-    withdrawBtn: { marginBottom: t.spacing['2xl'] },
+    withdrawBtn: { marginBottom: 12 },
+    bankLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, marginBottom: t.spacing['2xl'] },
+    bankLinkTxt: { color: t.brand.primary, fontSize: 14 },
+    bankLinkChevron: { color: t.brand.primary, fontSize: 18, marginLeft: 4 },
     section: { marginTop: t.spacing.lg },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     sectionTitle: { color: t.brand.primary, fontSize: 12, fontWeight: '600' },
     viewAll: { color: t.brand.primary, fontSize: 12 },
-    txRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: t.border + '22' },
+    txRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: (t.border?.default || t.border || '#333') + '22' },
     txIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     txIconCredit: { backgroundColor: t.brand.primary + '22' },
     txIconDebit: { backgroundColor: t.background.surfaceRaised },
@@ -145,7 +152,7 @@ const createStyles = (t) => StyleSheet.create({
     txDesc: { color: t.text.primary, fontSize: 14 },
     txTime: { color: t.text.tertiary, fontSize: 11 },
     txAmt: { color: t.text.primary, fontWeight: '600' },
-    txAmtCredit: { color: t.status?.success || '#10B981' },
+    txAmtCredit: { color: t.status?.success?.base || '#10B981' },
     loaderBox: { padding: 40, alignItems: 'center' },
     empty: { color: t.text.tertiary, fontSize: 14, fontStyle: 'italic', padding: 20 }
 });

@@ -47,7 +47,7 @@ export default {
     role_cannot_change: 'Role cannot be changed.',
     splash_tagline: "Kerala's Premier Home Services",
     logout: 'Logout',
-    
+
     // ── Blocked Screen ──────────────────────────────
     account_suspended: 'Account Suspended',
     account_blocked_desc: 'Your access to the Zarva network has been restricted due to a policy violation or security concern.',
@@ -235,6 +235,48 @@ export default {
     recent_20: 'Recent 20',
     settled: 'SETTLED',
     no_historical_tx: 'No historical transactions recorded.',
+
+    // ── Wallet & Ledger ─────────────────────────────────
+    wallet: 'Wallet',
+    wallet_subtitle: 'Balance & Withdrawals',
+    available_balance: 'Available Balance',
+    pending: 'Pending',
+    lifetime_earnings: 'Lifetime Earnings',
+    withdraw: 'Withdraw',
+    recent_transactions: 'Recent Transactions',
+    view_all: 'View All',
+    no_transactions_yet: 'No transactions yet',
+    transaction: 'Transaction',
+    all: 'All',
+    earnings: 'Earnings',
+    withdrawals: 'Withdrawals',
+    amount_to_withdraw: 'Amount to Withdraw (₹)',
+    select_bank_account: 'Select Bank Account',
+    add_bank_account: 'Add Bank Account',
+    estimated_arrival: 'Estimated arrival',
+    usually_2_hours: 'Usually within 2 hours on business days',
+    confirm_withdrawal: 'Confirm Withdrawal',
+    withdrawal_confirm_msg: 'Withdraw {{amount}} to your bank account? Funds typically arrive {{time}}.',
+    confirm: 'Confirm',
+    success: 'Success',
+    withdrawal_initiated: 'Withdrawal initiated. Funds will arrive shortly.',
+    processing: 'Processing...',
+    bank_accounts: 'Bank Accounts',
+    add_new_account: 'Add New Account',
+    primary: 'Primary',
+    verification_pending: 'Verification Pending',
+    remove_account: 'Remove Account',
+    remove_account_confirm: 'Are you sure you want to remove this bank account?',
+    remove: 'Remove',
+    no_bank_accounts: 'No bank accounts added yet.',
+    confirm_account_number: 'Confirm Account Number',
+    bank_name: 'Bank Name',
+    optional: 'Optional',
+    set_as_primary: 'Set as primary account',
+    save_and_verify: 'Save & Verify',
+    saving: 'Saving...',
+    penny_drop_hint: "We'll send ₹1 to verify your account. This is a one-time verification.",
+    manage_bank_accounts: 'Manage Bank Accounts',
 
     // ── Remaining Worker Screens ──────────────────────
     job_specification: 'Job Specification',
@@ -596,14 +638,24 @@ export default {
 
     // ── Job Status Labels ─────────────────────────────
     status_open: 'Open',
+    status_finding_prof: 'Finding Professional...',
     status_assigned: 'Assigned',
-    status_worker_en_route: 'En Route',
-    status_worker_arrived: 'Arrived',
+    status_en_route: 'En Route',
+    status_at_doorstep: 'At Your Doorstep',
     status_in_progress: 'In Progress',
-    status_pending_completion: 'Pending Completion',
-    status_completed: 'Completed',
+    status_reviewing: 'Reviewing Completion',
+    status_complete: 'Service Complete',
     status_cancelled: 'Cancelled',
     status_disputed: 'Disputed',
+    status_emergency: 'Emergency Dispatch',
+
+    // ── Photo Upload Redesign ─────────────────────────
+    add_photos: 'Add Photos',
+    add_photos_desc: 'Add up to 3 photos to help professionals understand the task.',
+    photo_required: 'At least one photo is required.',
+    max_photos_reached: 'Maximum 3 photos reached.',
+    tap_to_remove: 'Tap to remove',
+
 
     // ── My Jobs ───────────────────────────────────────
     my_jobs_title: 'My Jobs',

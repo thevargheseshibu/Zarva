@@ -32,7 +32,7 @@ export default function WorkerWithdrawScreen({ navigation }) {
 
     const amountPaise = Math.round(parseFloat(String(amount || 0).replace(/[^0-9.]/g, '')) * 100) || 0;
     const isValid = amountPaise > 0 && amountPaise <= availablePaise && selectedAccountId;
-    const verifiedAccounts = (bankAccounts || []).filter((a) => a.is_verified);
+    const verifiedAccounts = (bankAccounts || []);
 
     const handleConfirm = async () => {
         if (!isValid) return;
@@ -89,7 +89,7 @@ export default function WorkerWithdrawScreen({ navigation }) {
 
                 <Text style={styles.inputLabel}>{t('select_bank_account')}</Text>
                 {verifiedAccounts.length === 0 ? (
-                    <TouchableOpacity style={styles.addAccount} onPress={() => navigation.navigate('AddBankAccount')}>
+                    <TouchableOpacity style={styles.addAccount} onPress={() => navigation.navigate('AddBankAccount', { returnTo: 'WorkerWithdraw' })}>
                         <Text style={styles.addAccountTxt}>{t('add_bank_account')}</Text>
                     </TouchableOpacity>
                 ) : (

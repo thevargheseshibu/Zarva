@@ -147,10 +147,20 @@ export default function App() {
       if (data) {
         try {
           const parsed = JSON.parse(data);
-          const store = useWorkerStore.getState();
-          store.setPendingJobAlert(parsed);
-          JobAlertService.startAlertLoop().catch(console.warn);
-          AsyncStorage.removeItem('zarva:pending_job_alert');
+
+          // Only recover if alert is fresh (< 30s old)
+          const now = Date.now();
+          const elapsed = (now - (parsed.timestamp || 0)) / 1000;
+          const window = parsed.acceptWindow || 20;
+
+          if (elapsed < window) {
+            const store = useWorkerStore.getState();
+            store.setPendingJobAlert(parsed);
+            JobAlertService.startAlertLoop().catch(console.warn);
+          } else {
+            console.log('[KilledState] Ignoring stale alert:', elapsed, 's old');
+            AsyncStorage.removeItem('zarva:pending_job_alert').catch(() => { });
+          }
         } catch (e) {
           console.error('[KilledState] Recovery failed', e);
         }
@@ -212,8 +222,8 @@ export default function App() {
 
       const authState = useAuthStore.getState();
       if (!authState.isAuthenticated || authState.user?.active_role !== 'worker') {
-          console.log('[FCM] Ignoring NEW_JOB_ALERT: user not authenticated or not in worker role');
-          return;
+        console.log('[FCM] Ignoring NEW_JOB_ALERT: user not authenticated or not in worker role');
+        return;
       }
 
       const data = remoteMessage.data;

@@ -204,6 +204,19 @@ export default function WorkerProfileScreen({ navigation }) {
 
                         <View style={styles.innerDivider} />
 
+                        <PressableAnimated style={styles.settingRow} onPress={() => navigation.navigate('WorkerWallet')}>
+                            <View style={styles.rowIcon}>
+                                <Text style={styles.iconTxt}>💰</Text>
+                            </View>
+                            <View style={styles.rowInfo}>
+                                <Text style={styles.rowTitle}>{t('wallet')}</Text>
+                                <Text style={styles.rowSub}>{t('wallet_subtitle', { defaultValue: 'Balance & Withdrawals' })}</Text>
+                            </View>
+                            <Text style={styles.rowChevron}>›</Text>
+                        </PressableAnimated>
+
+                        <View style={styles.innerDivider} />
+
                         <PressableAnimated style={styles.settingRow} onPress={() => navigation.navigate('AlertPreferences')}>
                             <View style={styles.rowIcon}>
                                 <Text style={styles.iconTxt}>🔔</Text>

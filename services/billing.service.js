@@ -129,7 +129,8 @@ class BillingService {
                  SET status = 'estimate_submitted',
                      estimated_duration_minutes = $1,
                      billing_cap_minutes = $1,
-                     issue_notes = $2
+                     issue_notes = $2,
+                     inspection_ended_at = NOW()
                  WHERE id = $3`,
                 [expectedMinutes, notes, jobId]
             );
@@ -200,7 +201,7 @@ class BillingService {
         }
     }
 
-    async stopJobAndBill(jobId, triggeredByRole, connProvided = null) {
+    async stopJobAndBill(jobId, triggeredByRole, connProvided = null, targetStatus = 'pending_completion') {
         const _conn = connProvided || await getPool().getConnection();
         const doTransaction = !connProvided;
 
@@ -213,18 +214,18 @@ class BillingService {
 
             await _conn.query(
                 `UPDATE jobs 
-                 SET status = 'pending_completion',
+                 SET status = $1,
                      job_ended_at = NOW(),
-                     final_billed_minutes = $1,
-                     final_amount = $2,
-                     exceeded_estimate = $3
-                 WHERE id = $4`,
-                [bill.billedMinutes, bill.totalAmount, bill.exceededEstimate, jobId]
+                     final_billed_minutes = $2,
+                     final_amount = $3,
+                     exceeded_estimate = $4
+                 WHERE id = $5`,
+                [targetStatus, bill.billedMinutes, bill.totalAmount, bill.exceededEstimate, jobId]
             );
 
             if (doTransaction) await _conn.commit();
 
-            await updateJobNode(jobId, { status: 'pending_completion', final_cost: bill.totalAmount });
+            await updateJobNode(jobId, { status: targetStatus, final_cost: bill.totalAmount });
 
             return bill;
         } catch (err) {
