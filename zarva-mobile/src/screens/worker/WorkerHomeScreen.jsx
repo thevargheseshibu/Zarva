@@ -281,7 +281,7 @@ export default function WorkerHomeScreen({ navigation }) {
                     <Text style={styles.locEdit}>{t('edit')}</Text>
                 </TouchableOpacity>
 
-                {activeJob && !['completed', 'cancelled', 'no_worker_found', 'disputed'].includes(activeJob.status) ? (
+                {activeJob && !['completed', 'cancelled', 'no_worker_found', 'disputed', 'pending_completion'].includes(activeJob.status) ? (
                     <FadeInView delay={400} style={styles.section}>
                         <Text style={styles.sectionHeader}>{t('current_engagement')}</Text>
                         <Card style={styles.activeJobCard}>

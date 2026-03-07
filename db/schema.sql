@@ -272,6 +272,30 @@ CREATE TABLE IF NOT EXISTS jobs (
   
   cancelled_by            cancel_actor_enum   NULL,
   cancel_reason           VARCHAR(255)        NULL,
+  
+  -- PAUSE / RESUME / SUSPEND
+  pause_otp_hash          VARCHAR(255)        NULL,
+  resume_otp_hash         VARCHAR(255)        NULL,
+  suspend_otp_hash        VARCHAR(255)        NULL,
+  inspection_extension_otp_hash VARCHAR(255)  NULL,
+  total_paused_seconds    INT                 DEFAULT 0,
+  paused_at               TIMESTAMPTZ         NULL,
+  pause_reason            TEXT                NULL,
+  suspend_reason          TEXT                NULL,
+  suspend_reschedule_at   TIMESTAMPTZ         NULL,
+  followup_job_id         BIGINT              NULL REFERENCES jobs(id),
+  safe_stop_window_ends_at TIMESTAMPTZ        NULL,
+  customer_stopped_at     TIMESTAMPTZ         NULL,
+  materials_declared      BOOLEAN             DEFAULT FALSE,
+  materials_cost          NUMERIC(10,2)       DEFAULT 0,
+  inspection_extended_until TIMESTAMPTZ       NULL,
+  inspection_extension_count SMALLINT         DEFAULT 0,
+  
+  -- CHAT AGGREGATES
+  customer_unread_count   SMALLINT            DEFAULT 0,
+  worker_unread_count     SMALLINT            DEFAULT 0,
+  last_message_at         TIMESTAMPTZ         NULL,
+
   created_at              TIMESTAMPTZ        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at              TIMESTAMPTZ        NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -282,6 +306,40 @@ CREATE INDEX idx_jobs_status ON jobs(status);
 CREATE INDEX idx_jobs_category_status ON jobs(category, status);
 CREATE INDEX idx_jobs_city_status ON jobs(city, status);
 CREATE INDEX idx_jobs_location ON jobs USING GIST (job_location);
+
+-- ────────────────────────────────────────────────────────────
+--  X1. job_messages (Postgres Compatible)
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS job_messages (
+    id                BIGSERIAL PRIMARY KEY,
+    job_id            BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    sender_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sender_role       VARCHAR(20) NOT NULL, -- 'customer' or 'worker'
+    message_type      VARCHAR(20) NOT NULL DEFAULT 'text',
+    content           TEXT NULL,
+    s3_key            VARCHAR(512) NULL,
+    is_deleted        BOOLEAN DEFAULT FALSE,
+    deleted_at        TIMESTAMPTZ NULL,
+    client_message_id VARCHAR(36) NULL,
+    delivered_at      TIMESTAMPTZ NULL,
+    read_at           TIMESTAMPTZ NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT idx_client_message_id UNIQUE (job_id, client_message_id)
+);
+CREATE INDEX idx_job_messages_job_created ON job_messages(job_id, created_at DESC);
+
+-- ────────────────────────────────────────────────────────────
+--  X2. job_materials
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS job_materials (
+    id          BIGSERIAL PRIMARY KEY,
+    job_id      BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    name        VARCHAR(200) NOT NULL,
+    amount      NUMERIC(10,2) NOT NULL DEFAULT 0,
+    receipt_url VARCHAR(512) NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_job_materials_job ON job_materials(job_id);
 
 -- Add cyclic FK constraint to worker_profiles now that jobs exist
 ALTER TABLE worker_profiles

@@ -91,6 +91,7 @@ export default function ActiveJobScreen({ route, navigation }) {
     const [materialsVisible, setMaterialsVisible] = useState(false);
     const [materials, setMaterials] = useState([{ name: '', amount: '' }]);
     const [inspectExtRequested, setInspectExtRequested] = useState(false);
+    const [inspectExtOtp, setInspectExtOtp] = useState(null);
 
 
     // Firebase listeners
@@ -194,6 +195,18 @@ export default function ActiveJobScreen({ route, navigation }) {
         return () => clearInterval(int);
     }, [status, job?.start_otp_generated_at]);
 
+    useEffect(() => {
+        if (jobId) {
+            console.log(`[ActiveJob] JobID changed to ${jobId}. Resetting states & fetching...`);
+            // Reset phase-specific states for clean transition
+            setInspectExtRequested(false);
+            setInspectExtOtp(null);
+            setEndOtp(null);
+            setStartOtp(['', '', '', '']);
+            fetchJob();
+        }
+    }, [jobId]);
+
     const fetchJob = async () => {
         try {
             setLoading(true);
@@ -202,7 +215,17 @@ export default function ActiveJobScreen({ route, navigation }) {
             setJob(data);
             if (data.status) setStatus(data.status);
             if (data.end_otp) setEndOtp(data.end_otp);
-            setInspectExtRequested(Boolean(data.inspection_extension_otp_hash));
+            const isExtPending = Boolean(data.inspection_extension_otp_hash);
+            setInspectExtRequested(isExtPending);
+
+            if (isExtPending) {
+                try {
+                    const extRes = await apiClient.get(`/api/worker/jobs/${jobId}/inspection/extension-otp`, { useLoader: false });
+                    if (extRes.data?.otp) setInspectExtOtp(extRes.data.otp);
+                } catch (e) {
+                    console.log('[ActiveJob] Could not recover extension OTP:', e.message);
+                }
+            }
         } catch (err) {
             Alert.alert('Error', 'Could not load job details.');
         } finally {
@@ -344,8 +367,9 @@ export default function ActiveJobScreen({ route, navigation }) {
         setActionLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
-            await apiClient.post(`/api/worker/jobs/${jobId}/inspection/extend-request`);
+            const res = await apiClient.post(`/api/worker/jobs/${jobId}/inspection/extend-request`);
             setInspectExtRequested(true);
+            if (res.data?.otp) setInspectExtOtp(res.data.otp);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             Alert.alert('✅ Extension Requested', 'The customer will see an OTP to approve +10 more minutes.');
         } catch (err) {
@@ -657,7 +681,21 @@ export default function ActiveJobScreen({ route, navigation }) {
                         }
                         style={{ marginTop: 10 }}
                     />
-                    {inspectExtRequested && (
+
+                    {inspectExtOtp && (
+                        <View style={{ marginTop: 12, alignItems: 'center', backgroundColor: tTheme.brand.primary + '08', padding: 12, borderRadius: 16, borderWidth: 1, borderColor: tTheme.brand.primary + '15' }}>
+                            <Text style={{ color: tTheme.text.tertiary, fontSize: 9, fontWeight: '900', letterSpacing: 1.5, marginBottom: 8 }}>SHARE THIS CODE TO APPROVE +10 MIN:</Text>
+                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                {inspectExtOtp.split('').map((digit, idx) => (
+                                    <View key={idx} style={{ width: 44, height: 52, borderRadius: 12, backgroundColor: tTheme.background.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: tTheme.brand.primary + '33' }}>
+                                        <Text style={{ color: tTheme.brand.primary, fontSize: 22, fontWeight: '900' }}>{digit}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+
+                    {inspectExtRequested && !inspectExtOtp && (
                         <Text style={[styles.phaseSub, { marginTop: 8, color: tTheme.status?.warning?.base }]}>Extension request sent. Ask customer to approve OTP in their app.</Text>
                     )}
                 </View>

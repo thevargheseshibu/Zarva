@@ -46,7 +46,7 @@ export default function MyWorkScreen({ navigation }) {
     const filtered = useMemo(() => {
         let result = history.filter(h => {
             if (filter === t('filter_all')) return true;
-            if (filter === t('filter_active')) return ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion'].includes(h.status);
+            if (filter === t('filter_active')) return ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress'].includes(h.status);
 
             // Map the localized filter back to internal status
             const filterToStatus = {

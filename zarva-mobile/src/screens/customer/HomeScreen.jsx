@@ -48,7 +48,7 @@ export default function HomeScreen({ navigation }) {
         'searching', 'assigned', 'worker_en_route', 'worker_arrived',
         'inspection_active', 'estimate_submitted', 'in_progress',
         'pause_requested', 'work_paused', 'resume_requested',
-        'suspend_requested', 'customer_stopping', 'pending_completion'
+        'suspend_requested', 'customer_stopping'
     ];
 
     const scrollY = useSharedValue(0);

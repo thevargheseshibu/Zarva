@@ -37,11 +37,8 @@ async function handle(req, res, action) {
         const result = await action(userId, pool);
         return ok(res, result);
     } catch (err) {
+        console.error(`[Worker Route Error] ${req.method} ${req.originalUrl}:`, err);
         const status = err.status ?? 500;
-        if (status >= 500) {
-            console.error(`[Worker] 500 for U:${userId} — ${err.message}`);
-            console.error(err.stack || err);
-        }
         const msg = status < 500 ? err.message : 'Internal Server Error.';
         return fail(res, msg, status, 'WORKER_ERROR');
     }
@@ -514,24 +511,31 @@ router.post('/jobs/:id/complete', (req, res) =>
         const job = jobs[0];
 
         if (!job || job.worker_id != userId) throw Object.assign(new Error('Forbidden'), { status: 403 });
-        if (job.status !== 'in_progress') throw Object.assign(new Error('Invalid job state'), { status: 400 });
+
+        // Idempotency: If already pending_completion, recover OTP from Redis
+        if (job.status === 'pending_completion') {
+            const redisClient = getRedisClient();
+            const existingOtp = await redisClient.get(`zarva:otp:end:${jobId}`);
+            if (existingOtp) return { end_otp: existingOtp };
+            // If not in redis, we proceed to re-generate (safe since it's same state)
+        } else if (job.status !== 'in_progress') {
+            throw Object.assign(new Error('Invalid job state'), { status: 400 });
+        }
 
         const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
         const hash = await bcrypt.hash(otp, 10);
 
-        await pool.query(`UPDATE jobs SET end_otp_hash=$1, status='pending_completion', work_ended_at=NOW() WHERE id=$2`, [hash, jobId]
-        );
+        await pool.query(`UPDATE jobs SET end_otp_hash=$1, status='pending_completion', work_ended_at=COALESCE(work_ended_at, NOW()) WHERE id=$2`, [hash, jobId]);
 
-        // Record timer end
-        const billingService = (await import('../services/billing.service.js')).default;
-        await billingService._recordTimerEvent(pool, jobId, 'job_end', 'worker', 'Worker requested completion');
+        // NOTE: We do NOT record job_end here. The timer event must be written
+        // at the moment billing is finalized (when the customer verifies the OTP),
+        // otherwise the billed time is calculated from this premature timestamp.
 
         // Redis Storage (Relayed to Worker to SHOW Customer) 180m TTL (10800s)
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800);
 
         await updateJobNode(jobId, { status: 'pending_completion', timer_status: 'stopped' });
-        // console.log(`[Push Notification Mock] -> Customer: "Worker is done - enter completion code"`);
 
         return { end_otp: otp }; // Worker SEES this in their app to show customer
     })
@@ -569,6 +573,19 @@ router.post('/jobs/:id/inspection/extend-request', (req, res) =>
     handle(req, res, async (userId) => {
         const billingService = (await import('../services/billing.service.js')).default;
         return billingService.requestInspectionExtension(req.params.id, userId);
+    })
+);
+
+/**
+ * Worker Retrieves Pending Inspection Extension OTP
+ */
+router.get('/jobs/:id/inspection/extension-otp', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const redisClient = (await import('../config/redis.js')).getRedisClient();
+        const otp = await redisClient.get(`zarva:otp:inspection_ext:${jobId}`);
+        if (!otp) throw Object.assign(new Error('No pending extension or OTP expired'), { status: 404 });
+        return { otp };
     })
 );
 

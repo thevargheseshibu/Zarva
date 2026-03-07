@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getPool } from '../config/database.js';
 
 // Limits (paise)
-const MAX_SINGLE_JOB_PAISE = 1_000_000;   // ₹10,000
+const MAX_SINGLE_JOB_PAISE = 2_000_000;   // ₹20,000
 const MAX_SINGLE_WITHDRAWAL_PAISE = 2_000_000;  // ₹20,000
 const MAX_DAILY_WITHDRAWAL_PAISE = 5_000_000;   // ₹50,000
 const MIN_SINGLE_WITHDRAWAL_PAISE = 100_000;  // ₹1,000 minimum redeem
@@ -44,7 +44,8 @@ async function insertEntry(pool, entry) {
           transaction_id, entry_sequence, account_id, user_account_id,
           entry_type, amount_paise, event_type, job_id, payment_id,
           idempotency_key, description, triggered_by_user_id, triggered_by_system
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ON CONFLICT (idempotency_key) DO NOTHING`,
         [
             entry.transaction_id, entry.entry_sequence, entry.account_id, entry.user_account_id ?? null,
             entry.entry_type, entry.amount_paise, entry.event_type, entry.job_id ?? null, entry.payment_id ?? null,
@@ -53,11 +54,20 @@ async function insertEntry(pool, entry) {
     );
 }
 
-/** Check idempotency - if key exists, return existing transaction_id or null */
+/** Check idempotency by exact key */
 async function checkIdempotency(pool, idempotencyKey) {
     const [rows] = await pool.query(
         `SELECT transaction_id FROM ledger_entries WHERE idempotency_key = $1 LIMIT 1`,
         [idempotencyKey]
+    );
+    return rows[0]?.transaction_id ?? null;
+}
+
+/** Check if any entry with a given prefix exists (e.g. for job completion retries) */
+async function checkIdempotencyPrefix(pool, prefix) {
+    const [rows] = await pool.query(
+        `SELECT transaction_id FROM ledger_entries WHERE idempotency_key LIKE $1 LIMIT 1`,
+        [`${prefix}_%`]
     );
     return rows[0]?.transaction_id ?? null;
 }
@@ -191,18 +201,45 @@ export async function postJobStartEntries(jobId, estimatedAmountPaise, customerI
  * EVENT 2: Job completes
  * Release escrow, split to worker/platform/gateway/gst
  */
-export async function postJobCompleteEntries(jobId, finalAmountPaise, customerId, workerId, pool) {
+export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAmountPaise, customerId, workerId, pool) {
+    const finalAmountPaise = laborAmountPaise + materialAmountPaise;
+
     if (finalAmountPaise <= 0 || finalAmountPaise > MAX_SINGLE_JOB_PAISE) {
         throw new Error('Invalid final amount');
     }
     const idempotencyKey = `job_complete_${jobId}`;
-    const existing = await checkIdempotency(pool, idempotencyKey);
+    // Check if ANY entry for this job's completion already exists (idempotency)
+    const existing = await checkIdempotencyPrefix(pool, idempotencyKey);
     if (existing) return { transaction_id: existing };
 
-    const workerSharePaise = Math.floor(finalAmountPaise * 0.70);
-    const platformSharePaise = Math.floor(finalAmountPaise * 0.25);
-    const gatewayFeePaise = Math.floor(finalAmountPaise * 0.02);
-    const gstPaise = finalAmountPaise - workerSharePaise - platformSharePaise - gatewayFeePaise;
+    // ─── Correct Split Architecture ──────────────────────────────────────────
+    // Materials = pure pass-through. No gateway fee or GST charged on them.
+    // ALL fees are calculated ONLY on the labor portion:
+    //   70% worker labor share + 25% platform + 2% gateway + ~3% GST remainder
+    // This guarantees: credits always = finalAmountPaise, regardless of labor ratio.
+    const workerLaborSharePaise = Math.floor(laborAmountPaise * 0.70);
+    const platformSharePaise = Math.floor(laborAmountPaise * 0.25);
+    const gatewayFeePaise = Math.floor(laborAmountPaise * 0.02);
+    // GST = remainder of labor (always >= 0 since 70+25+2=97%, remainder=3+ rounding)
+    const gstFromLaborPaise = laborAmountPaise - workerLaborSharePaise - platformSharePaise - gatewayFeePaise;
+    // Worker total = labor share + 100% of materials
+    const workerTotalSharePaise = workerLaborSharePaise + materialAmountPaise;
+
+    console.log(`[Wallet] Job ${jobId} Complete Split:`, {
+        labor: laborAmountPaise,
+        materials: materialAmountPaise,
+        finalTotal: finalAmountPaise,
+        workerShare: workerTotalSharePaise,
+        platformShare: platformSharePaise,
+        gatewayFee: gatewayFeePaise,
+        gst: gstFromLaborPaise,
+        checkSum: workerTotalSharePaise + platformSharePaise + gatewayFeePaise + gstFromLaborPaise,
+    });
+
+    // Sanity guard — must always balance before touching the DB
+    if (workerTotalSharePaise + platformSharePaise + gatewayFeePaise + gstFromLaborPaise !== finalAmountPaise) {
+        throw new Error(`[Wallet] Ledger would be unbalanced for job ${jobId}. Aborting.`);
+    }
 
     const escrowId = await getAccountId(pool, 'ESCROW');
     const customerPayableId = await getAccountId(pool, 'CUSTOMER_PAYABLE');
@@ -210,96 +247,75 @@ export async function postJobCompleteEntries(jobId, finalAmountPaise, customerId
     const platformRevenueId = await getAccountId(pool, 'PLATFORM_REVENUE');
     const gatewayFeesId = await getAccountId(pool, 'PAYMENT_GATEWAY_FEES');
     const gstId = await getAccountId(pool, 'GST_COLLECTED');
+
     const customerAccountId = await getOrCreateUserAccount(pool, customerId, 'CUSTOMER_PAYABLE');
     const workerAccountId = await getOrCreateUserAccount(pool, workerId, 'WORKER_EARNINGS');
+
     const txnId = uuidv4();
     let seq = 1;
 
-    // Step A: Release escrow — CREDIT customer_payable (decrease debt), DEBIT escrow (decrease)
-    const entries = [
-        { entry_type: 'credit', account: customerPayableId, user_account: customerAccountId, amount: finalAmountPaise, desc: 'Release customer payable' },
-        { entry_type: 'debit', account: escrowId, user_account: null, amount: finalAmountPaise, desc: 'Release escrow' }
-    ];
-    for (const e of entries) {
-        await insertEntry(pool, {
-            transaction_id: txnId,
-            entry_sequence: seq++,
-            account_id: e.account,
-            user_account_id: e.user_account,
-            entry_type: e.entry_type,
-            amount_paise: e.amount,
-            event_type: 'job_complete',
-            job_id: jobId,
-            idempotency_key: `${idempotencyKey}_${seq}`,
-            description: `Job ${jobId} complete – ${e.desc}`,
-            triggered_by_system: true
-        });
-    }
+    // Only insert if amount > 0 — DB has CHECK (amount_paise > 0)
+    const maybeInsert = async (entry) => {
+        if (entry.amount_paise <= 0) {
+            console.log(`[Wallet] Skipping zero-value entry: ${entry.idempotency_key}`);
+            return;
+        }
+        await insertEntry(pool, entry);
+    };
 
+    // DEBIT: Release full amount from escrow
     await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: seq++,
-        account_id: escrowId,
-        user_account_id: null,
-        entry_type: 'debit',
-        amount_paise: finalAmountPaise,
-        event_type: 'job_complete',
-        job_id: jobId,
-        idempotency_key: `${idempotencyKey}_split_debit`,
-        description: `Job ${jobId} complete – split from escrow`,
-        triggered_by_system: true
+        transaction_id: txnId, entry_sequence: seq++,
+        account_id: escrowId, user_account_id: null,
+        entry_type: 'debit', amount_paise: finalAmountPaise,
+        event_type: 'job_complete', job_id: jobId,
+        idempotency_key: `${idempotencyKey}_escrow_debit`,
+        description: `Job ${jobId} – release from escrow`,
+        triggered_by_system: true,
     });
+
+    // CREDIT: Worker earnings (labor share + full material reimbursement)
     await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: seq++,
-        account_id: workerEarningsId,
-        user_account_id: workerAccountId,
-        entry_type: 'credit',
-        amount_paise: workerSharePaise,
-        event_type: 'job_complete',
-        job_id: jobId,
+        transaction_id: txnId, entry_sequence: seq++,
+        account_id: workerEarningsId, user_account_id: workerAccountId,
+        entry_type: 'credit', amount_paise: workerTotalSharePaise,
+        event_type: 'job_complete', job_id: jobId,
         idempotency_key: `${idempotencyKey}_worker`,
-        description: `Job ${jobId} complete – worker share 70%`,
-        triggered_by_system: true
+        description: `Job ${jobId} – worker (70% labor + 100% materials)`,
+        triggered_by_system: true,
     });
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: seq++,
-        account_id: platformRevenueId,
-        user_account_id: null,
-        entry_type: 'credit',
-        amount_paise: platformSharePaise,
-        event_type: 'job_complete',
-        job_id: jobId,
+
+    // CREDIT: Platform commission (only on labor, skipped if labor=0)
+    await maybeInsert({
+        transaction_id: txnId, entry_sequence: seq++,
+        account_id: platformRevenueId, user_account_id: null,
+        entry_type: 'credit', amount_paise: platformSharePaise,
+        event_type: 'job_complete', job_id: jobId,
         idempotency_key: `${idempotencyKey}_platform`,
-        description: `Job ${jobId} complete – platform 25%`,
-        triggered_by_system: true
+        description: `Job ${jobId} – platform 25% of labor`,
+        triggered_by_system: true,
     });
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: seq++,
-        account_id: gatewayFeesId,
-        user_account_id: null,
-        entry_type: 'credit',
-        amount_paise: gatewayFeePaise,
-        event_type: 'job_complete',
-        job_id: jobId,
+
+    // CREDIT: Payment gateway fee (only on labor, skipped if labor=0)
+    await maybeInsert({
+        transaction_id: txnId, entry_sequence: seq++,
+        account_id: gatewayFeesId, user_account_id: null,
+        entry_type: 'credit', amount_paise: gatewayFeePaise,
+        event_type: 'job_complete', job_id: jobId,
         idempotency_key: `${idempotencyKey}_gateway`,
-        description: `Job ${jobId} complete – gateway 2%`,
-        triggered_by_system: true
+        description: `Job ${jobId} – gateway 2% of labor`,
+        triggered_by_system: true,
     });
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: seq++,
-        account_id: gstId,
-        user_account_id: null,
-        entry_type: 'credit',
-        amount_paise: gstPaise,
-        event_type: 'job_complete',
-        job_id: jobId,
+
+    // CREDIT: GST remainder from labor (skipped if labor=0)
+    await maybeInsert({
+        transaction_id: txnId, entry_sequence: seq++,
+        account_id: gstId, user_account_id: null,
+        entry_type: 'credit', amount_paise: gstFromLaborPaise,
+        event_type: 'job_complete', job_id: jobId,
         idempotency_key: `${idempotencyKey}_gst`,
-        description: `Job ${jobId} complete – GST`,
-        triggered_by_system: true
+        description: `Job ${jobId} – GST remainder from labor`,
+        triggered_by_system: true,
     });
 
     await pool.query(
@@ -536,4 +552,78 @@ export async function postDisputeRefundEntries(jobId, refundAmountPaise, workerS
     return { transaction_id: txnId };
 }
 
+/**
+ * EVENT 7: Admin resolves a flagged material line item
+ * resolution = 'release' (pay worker) | 'refund' (refund customer)
+ */
+export async function postMaterialDisputeResolution(jobId, materialId, amountPaise, resolution, workerId, customerId, pool) {
+    if (!['release', 'refund'].includes(resolution)) throw new Error('Invalid resolution type');
+    if (amountPaise <= 0) throw new Error('Invalid amount for dispute resolution');
+
+    const idempotencyKey = `material_dispute_${materialId}_${resolution}`;
+    const existing = await checkIdempotency(pool, idempotencyKey);
+    if (existing) return { transaction_id: existing };
+
+    const escrowId = await getAccountId(pool, 'ESCROW');
+    const workerEarningsId = await getAccountId(pool, 'WORKER_EARNINGS');
+    const customerPayableId = await getAccountId(pool, 'CUSTOMER_PAYABLE');
+    const txnId = uuidv4();
+
+    if (resolution === 'release') {
+        // Worker wins: release escrow → worker earnings
+        const workerAccountId = await getOrCreateUserAccount(pool, workerId, 'WORKER_EARNINGS');
+        await insertEntry(pool, {
+            transaction_id: txnId, entry_sequence: 1,
+            account_id: escrowId, user_account_id: null,
+            entry_type: 'credit', amount_paise: amountPaise,
+            event_type: 'dispute_resolved', job_id: jobId,
+            idempotency_key: idempotencyKey,
+            description: `Material ${materialId} dispute resolved: release to worker`,
+            triggered_by_system: true,
+        });
+        await insertEntry(pool, {
+            transaction_id: txnId, entry_sequence: 2,
+            account_id: workerEarningsId, user_account_id: workerAccountId,
+            entry_type: 'debit', amount_paise: amountPaise,
+            event_type: 'dispute_resolved', job_id: jobId,
+            idempotency_key: `${idempotencyKey}_worker`,
+            description: `Material ${materialId} released to worker from escrow`,
+            triggered_by_system: true,
+        });
+        await recomputeBalanceCache(workerAccountId);
+    } else {
+        // Customer wins: release escrow → reduce customer payable (refund)
+        const customerAccountId = await getOrCreateUserAccount(pool, customerId, 'CUSTOMER_PAYABLE');
+        await insertEntry(pool, {
+            transaction_id: txnId, entry_sequence: 1,
+            account_id: escrowId, user_account_id: null,
+            entry_type: 'credit', amount_paise: amountPaise,
+            event_type: 'dispute_resolved', job_id: jobId,
+            idempotency_key: idempotencyKey,
+            description: `Material ${materialId} dispute resolved: refund to customer`,
+            triggered_by_system: true,
+        });
+        await insertEntry(pool, {
+            transaction_id: txnId, entry_sequence: 2,
+            account_id: customerPayableId, user_account_id: customerAccountId,
+            entry_type: 'debit', amount_paise: amountPaise,
+            event_type: 'dispute_resolved', job_id: jobId,
+            idempotency_key: `${idempotencyKey}_customer`,
+            description: `Material ${materialId} refunded to customer from escrow`,
+            triggered_by_system: true,
+        });
+        await recomputeBalanceCache(customerAccountId);
+    }
+
+    // Mark the material as resolved
+    await pool.query(
+        `UPDATE job_materials SET status=$1, verified_at=NOW() WHERE id=$2`,
+        [resolution === 'release' ? 'accepted' : 'refunded', materialId]
+    );
+
+    console.log(`[Wallet] Material ${materialId} dispute resolved: ${resolution}, ${amountPaise} paise`);
+    return { transaction_id: txnId };
+}
+
 export { MAX_SINGLE_JOB_PAISE, MAX_SINGLE_WITHDRAWAL_PAISE, MAX_DAILY_WITHDRAWAL_PAISE, MIN_SINGLE_WITHDRAWAL_PAISE };
+

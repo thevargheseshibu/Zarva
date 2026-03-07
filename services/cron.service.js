@@ -32,9 +32,9 @@ export function initCronJobs() {
     // Daily reconciliation (2:00 AM)
     cron.schedule('0 2 * * *', async () => {
         try {
-            const { report, hasError } = await reconciliationService.runDailyReconciliation();
-            if (hasError) {
-                console.error('[Cron] Reconciliation FAILED:', JSON.stringify(report, null, 2));
+            const report = await reconciliationService.runDailyReconciliation();
+            if (report.status !== 'ok') {
+                console.error('[Cron] Reconciliation FAILED:', JSON.stringify(report.errors, null, 2));
                 // TODO: Send alert to engineering + finance
             } else {
                 console.log('[Cron] Daily reconciliation passed.');
@@ -43,6 +43,7 @@ export function initCronJobs() {
             console.error('[Cron] Reconciliation error:', err);
         }
     });
+
 
     // Start Live Billing Background Tracker 
     startLiveBillingSync();

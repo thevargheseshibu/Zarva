@@ -145,11 +145,13 @@ export function calculateJobBill(timerEvents, hourlyRate, billingCapMinutes = 99
     let lastStartTs = null;
 
     // timerEvents: { event_type, server_timestamp }
+    // NOTE: We exclude inspection_start/end here because labor billing starts 
+    // strictly AFTER the inspection phase is verified and approved.
     timerEvents.forEach(event => {
         const ts = new Date(event.server_timestamp).getTime();
-        if (event.event_type === 'job_start' || event.event_type === 'job_resume' || event.event_type === 'inspection_start') {
+        if (event.event_type === 'job_start' || event.event_type === 'job_resume') {
             lastStartTs = ts;
-        } else if (event.event_type === 'job_pause' || event.event_type === 'job_end' || event.event_type === 'inspection_end') {
+        } else if (event.event_type === 'job_pause' || event.event_type === 'job_end') {
             if (lastStartTs) {
                 totalElapsedMs += (ts - lastStartTs);
                 lastStartTs = null;
@@ -157,7 +159,8 @@ export function calculateJobBill(timerEvents, hourlyRate, billingCapMinutes = 99
         }
     });
 
-    const actualMinutes = Math.floor(totalElapsedMs / 60000);
+    let actualMinutes = Math.floor(totalElapsedMs / 60000);
+    if (isNaN(actualMinutes) || actualMinutes < 0) actualMinutes = 0;
 
     // Apply Cap
     let billedMinutes = Math.min(actualMinutes, billingCapMinutes);
@@ -165,6 +168,7 @@ export function calculateJobBill(timerEvents, hourlyRate, billingCapMinutes = 99
 
     // Apply Minimum Block
     billedMinutes = Math.max(billedMinutes, minMinutes);
+    if (isNaN(billedMinutes)) billedMinutes = minMinutes;
 
     // Round up to nearest increment
     if (billedMinutes > minMinutes) {
@@ -173,7 +177,8 @@ export function calculateJobBill(timerEvents, hourlyRate, billingCapMinutes = 99
         billedMinutes = minMinutes + (units * incrementMinutes);
     }
 
-    const billedAmount = Math.ceil((billedMinutes / 60) * hourlyRate);
+    let billedAmount = Math.ceil((billedMinutes / 60) * (hourlyRate || 0));
+    if (isNaN(billedAmount) || billedAmount < 0) billedAmount = 0;
 
     return {
         actual_minutes: actualMinutes,

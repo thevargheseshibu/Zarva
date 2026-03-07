@@ -8,11 +8,121 @@
     "billing": {
         "minimum_block_minutes": 30,
         "increment_block_minutes": 15,
-        "max_job_duration_hours": 4,
+        "max_job_duration_hours": 8,
         "estimate_is_billing_cap": true
     },
     "safety_flags": {
         "flag_if_exceeds_category_average_multiplier": 2.0,
         "flag_worker_if_consistently_exceeds_average": true
+    },
+    "materials": {
+        "photo_required_above_paise": 50000,
+        "category_limits": {
+            "electrician": {
+                "max_material_claim_paise": 500000,
+                "photo_required_above_paise": 50000
+            },
+            "plumber": {
+                "max_material_claim_paise": 400000,
+                "photo_required_above_paise": 50000
+            },
+            "carpenter": {
+                "max_material_claim_paise": 800000,
+                "photo_required_above_paise": 50000
+            },
+            "mason": {
+                "max_material_claim_paise": 1000000,
+                "photo_required_above_paise": 100000
+            },
+            "painter": {
+                "max_material_claim_paise": 600000,
+                "photo_required_above_paise": 50000
+            },
+            "welder": {
+                "max_material_claim_paise": 700000,
+                "photo_required_above_paise": 50000
+            },
+            "ac_repair": {
+                "max_material_claim_paise": 1500000,
+                "photo_required_above_paise": 100000
+            },
+            "appliance_repair": {
+                "max_material_claim_paise": 1200000,
+                "photo_required_above_paise": 100000
+            },
+            "cleaning": {
+                "max_material_claim_paise": 200000,
+                "photo_required_above_paise": 50000
+            },
+            "pest_control": {
+                "max_material_claim_paise": 300000,
+                "photo_required_above_paise": 50000
+            },
+            "driver": {
+                "max_material_claim_paise": 100000,
+                "photo_required_above_paise": 50000
+            },
+            "vehicle_repair": {
+                "max_material_claim_paise": 1000000,
+                "photo_required_above_paise": 100000
+            },
+            "helper": {
+                "max_material_claim_paise": 150000,
+                "photo_required_above_paise": 50000
+            },
+            "movers_packers": {
+                "max_material_claim_paise": 300000,
+                "photo_required_above_paise": 50000
+            },
+            "cook": {
+                "max_material_claim_paise": 200000,
+                "photo_required_above_paise": 50000
+            },
+            "babysitter": {
+                "max_material_claim_paise": 50000,
+                "photo_required_above_paise": 50000
+            },
+            "elder_care": {
+                "max_material_claim_paise": 100000,
+                "photo_required_above_paise": 50000
+            },
+            "gardener": {
+                "max_material_claim_paise": 200000,
+                "photo_required_above_paise": 50000
+            },
+            "security_guard": {
+                "max_material_claim_paise": 100000,
+                "photo_required_above_paise": 50000
+            },
+            "waterproofing": {
+                "max_material_claim_paise": 1500000,
+                "photo_required_above_paise": 100000
+            },
+            "tank_cleaning": {
+                "max_material_claim_paise": 300000,
+                "photo_required_above_paise": 50000
+            },
+            "solar_technician": {
+                "max_material_claim_paise": 2000000,
+                "photo_required_above_paise": 100000
+            },
+            "cctv_installation": {
+                "max_material_claim_paise": 2000000,
+                "photo_required_above_paise": 100000
+            },
+            "delivery": {
+                "max_material_claim_paise": 100000,
+                "photo_required_above_paise": 50000
+            },
+            "_default": {
+                "max_material_claim_paise": 500000,
+                "photo_required_above_paise": 50000
+            }
+        }
+    },
+    "reconciliation": {
+        "mismatch_threshold_paise": 100,
+        "alert_email": "ops@zarva.in",
+        "auto_pause_withdrawals_on_mismatch": true
     }
 }

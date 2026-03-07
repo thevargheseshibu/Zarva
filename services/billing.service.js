@@ -13,7 +13,8 @@ class BillingService {
         }
         const redis = (await import('../config/redis.js')).getRedisClient();
         const redisOtp = await redis.get(redisKey);
-        return String(redisOtp || '') === String(otpInput || '');
+        if (!redisOtp || !otpInput) return false;
+        return String(redisOtp) === String(otpInput);
     }
 
     _getConfig() {
@@ -56,14 +57,18 @@ class BillingService {
 
         const bill = PricingService.calculateJobBill(events, job.hourly_rate, job.billing_cap_minutes);
 
+        if (!job.hourly_rate || parseFloat(job.hourly_rate) === 0) {
+            console.warn(`[BillingService] ⚠️  Job ${jobId} has NULL/zero hourly_rate — labor will be charged at minimum. Check job creation flow.`);
+        }
+
         return {
-            actualElapsedMinutes: bill.actual_minutes,
-            billedMinutes: bill.billed_minutes,
+            actualElapsedMinutes: bill.actual_minutes || 0,
+            billedMinutes: bill.billed_minutes || 0,
             exceededEstimate: bill.cap_applied,
-            jobAmount: bill.billed_amount,
+            jobAmount: bill.billed_amount || 0,
             inspectionFee: parseFloat(job.inspection_fee || 0),
             travelCharge: parseFloat(job.travel_charge || 0),
-            totalAmount: bill.billed_amount + parseFloat(job.inspection_fee || 0) + parseFloat(job.travel_charge || 0)
+            totalAmount: (bill.billed_amount || 0) + parseFloat(job.inspection_fee || 0) + parseFloat(job.travel_charge || 0)
         };
     }
 
@@ -92,7 +97,7 @@ class BillingService {
             if (!job) throw Object.assign(new Error('Job not found'), { status: 404 });
             if (job.status !== 'worker_arrived') throw Object.assign(new Error('Job is not ready for inspection'), { status: 400 });
 
-            const match = await bcrypt.compare(String(otpInput), job.inspection_otp_hash);
+            const match = await this._compareOtpWithFallback(jobId, otpInput, job.inspection_otp_hash, `zarva:otp:inspection:${jobId}`);
             if (!match) throw Object.assign(new Error('Invalid Inspection Code'), { status: 400 });
 
             // Re-calculate fee just to be safe, or pull from existing field if set
@@ -173,7 +178,7 @@ class BillingService {
             if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
             if (job.status !== 'estimate_submitted') throw Object.assign(new Error('Estimate must be submitted first'), { status: 400 });
 
-            const match = await bcrypt.compare(String(otpInput), job.start_otp_hash);
+            const match = await this._compareOtpWithFallback(jobId, otpInput, job.start_otp_hash, `zarva:otp:start:${jobId}`);
             if (!match) throw Object.assign(new Error('Invalid Start Code'), { status: 400 });
 
             await conn.query(
@@ -218,7 +223,14 @@ class BillingService {
         if (doTransaction) await _conn.beginTransaction();
 
         try {
-            await this._recordTimerEvent(_conn, jobId, 'job_end', triggeredByRole);
+            // Check for existing job_end to avoid duplicate triggers (sudden completion bug)
+            const [existingEnd] = await _conn.query(
+                `SELECT id FROM job_timer_events WHERE job_id = $1 AND event_type = 'job_end' LIMIT 1`,
+                [jobId]
+            );
+            if (!existingEnd || existingEnd.length === 0) {
+                await this._recordTimerEvent(_conn, jobId, 'job_end', triggeredByRole);
+            }
 
             const bill = await this.calculateJobBill(jobId, _conn);
 
@@ -306,7 +318,7 @@ class BillingService {
             const ext = extensions[0];
             if (!ext) throw Object.assign(new Error('No pending extension request'), { status: 400 });
 
-            const match = await bcrypt.compare(String(otpInput), ext.otp_hash);
+            const match = await this._compareOtpWithFallback(jobId, otpInput, ext.otp_hash, `zarva:otp:extension:${jobId}`);
             if (!match) throw Object.assign(new Error('Invalid Extension Code'), { status: 400 });
 
             // Approve it
@@ -399,7 +411,7 @@ class BillingService {
         const { updateJobNode } = await import('./firebase.service.js');
         await updateJobNode(jobId, { inspection_ext_pending: true, inspection_ext_count: count });
 
-        return { requested: true, extension_number: count + 1 };
+        return { requested: true, extension_number: count + 1, otp };
     }
 
     async approveInspectionExtension(jobId, otpInput, customerId) {
@@ -416,7 +428,7 @@ class BillingService {
             if (job.status !== 'inspection_active') throw Object.assign(new Error('Not in inspection'), { status: 400 });
 
             const bcryptLib = (await import('bcrypt')).default;
-            const match = await bcryptLib.compare(String(otpInput), job.inspection_extension_otp_hash || '');
+            const match = await this._compareOtpWithFallback(jobId, otpInput, job.inspection_extension_otp_hash, `zarva:otp:inspection_ext:${jobId}`);
             if (!match) throw Object.assign(new Error('Invalid extension code'), { status: 400 });
 
             const base = job.inspection_extended_until || job.inspection_expires_at;
@@ -759,32 +771,54 @@ class BillingService {
         await conn.beginTransaction();
         try {
             const [jobs] = await conn.query(
-                'SELECT status, worker_id FROM jobs WHERE id=$1 FOR UPDATE', [jobId]
+                'SELECT status, worker_id, category FROM jobs WHERE id=$1 FOR UPDATE', [jobId]
             );
             const job = jobs[0];
             if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
             if (job.status !== 'pending_completion') throw Object.assign(new Error('Materials must be declared during completion phase'), { status: 400 });
 
-            // Remove any previous materials for this job and reinsert
+            // ─── Config-driven validation ────────────────────────────
+            const pricingCfg = configLoader.get('pricing');
+            const catLimits = pricingCfg?.materials?.category_limits || {};
+            const limits = catLimits[job.category] || catLimits['_default'] || {};
+            const maxClaimPaise = limits.max_material_claim_paise ?? 500000;
+            const photoThresholdPaise = limits.photo_required_above_paise ?? 50000;
+
+            let totalPaise = 0;
+            for (const item of (items || [])) {
+                const amtPaise = Math.round(parseFloat(item.amount || 0) * 100);
+                if (amtPaise <= 0) throw Object.assign(new Error(`Item "${item.name}" has zero or invalid amount`), { status: 400 });
+                if (amtPaise > photoThresholdPaise && !item.receipt_s3_key)
+                    throw Object.assign(new Error(`Receipt photo required for item "${item.name}" above ₹${photoThresholdPaise / 100}`), { status: 400 });
+                totalPaise += amtPaise;
+            }
+            if (totalPaise > maxClaimPaise)
+                throw Object.assign(new Error(`Total material claim ₹${totalPaise / 100} exceeds allowed ₹${maxClaimPaise / 100} for ${job.category}`), { status: 400 });
+
+            // Remove any previous materials and reinsert
             await conn.query('DELETE FROM job_materials WHERE job_id=$1', [jobId]);
 
-            let totalMaterials = 0;
+            let totalRupees = 0;
             for (const item of (items || [])) {
                 const amt = parseFloat(item.amount || 0);
-                totalMaterials += amt;
+                totalRupees += amt;
                 await conn.query(
-                    'INSERT INTO job_materials (job_id, name, amount, receipt_url) VALUES ($1, $2, $3, $4)',
-                    [jobId, item.name, amt, item.receipt_url || null]
+                    `INSERT INTO job_materials (job_id, name, amount, receipt_url, receipt_s3_key, status)
+                     VALUES ($1, $2, $3, $4, $5, 'accepted')`,
+                    [jobId, item.name, amt, item.receipt_url || null, item.receipt_s3_key || null]
                 );
             }
 
             await conn.query(
-                'UPDATE jobs SET materials_declared=TRUE, materials_cost=$1 WHERE id=$2',
-                [totalMaterials, jobId]
+                `UPDATE jobs SET materials_declared=TRUE, materials_cost=$1,
+                 final_material_paise=$2 WHERE id=$3`,
+                [totalRupees, totalPaise, jobId]
             );
             await conn.commit();
-            return { declared: true, materials_cost: totalMaterials };
+            console.log(`[BillingService] Materials declared for Job ${jobId}: ₹${totalRupees} (${totalPaise} paise)`);
+            return { declared: true, materials_cost: totalRupees, materials_paise: totalPaise };
         } catch (err) {
+            console.error(`[BillingService] declareMaterials error for Job ${jobId}:`, err.message);
             await conn.rollback(); throw err;
         } finally { conn.release(); }
     }
@@ -796,8 +830,14 @@ class BillingService {
     async generateBillPreview(jobId) {
         const pool = getPool();
         const [jobs] = await pool.query(
-            `SELECT j.*, 
-             COALESCE(json_agg(jm.*) FILTER (WHERE jm.id IS NOT NULL), '[]') AS materials_list
+            `SELECT j.*,
+             COALESCE(json_agg(
+               json_build_object(
+                 'id', jm.id, 'name', jm.name, 'amount', jm.amount,
+                 'receipt_url', jm.receipt_url, 'receipt_s3_key', jm.receipt_s3_key,
+                 'status', jm.status
+               )
+             ) FILTER (WHERE jm.id IS NOT NULL), '[]') AS materials_list
              FROM jobs j
              LEFT JOIN job_materials jm ON jm.job_id = j.id
              WHERE j.id=$1
@@ -809,18 +849,79 @@ class BillingService {
 
         const bill = await this.calculateJobBill(jobId);
         const previewExpiry = new Date(Date.now() + 10 * 60 * 1000);
+        const materialsList = job.materials_list || [];
+        const materialsCostRupees = parseFloat(job.materials_cost || 0);
+        const materialsPaise = Math.round(materialsCostRupees * 100);
+        const laborPaise = Math.round(bill.totalAmount * 100);
+        const grandTotalPaise = laborPaise + materialsPaise;
+        const settlement = this.computeSettlement(laborPaise, materialsPaise);
 
-        await pool.query('UPDATE jobs SET bill_preview_expires_at=$1 WHERE id=$2', [previewExpiry.toISOString(), jobId]);
+        await pool.query(
+            'UPDATE jobs SET bill_preview_expires_at=$1, final_labor_paise=$2, grand_total_paise=$3 WHERE id=$4',
+            [previewExpiry.toISOString(), laborPaise, grandTotalPaise, jobId]
+        );
 
         return {
-            inspection_fee: parseFloat(job.inspection_fee || 0),
-            travel_charge: parseFloat(job.travel_charge || 0),
-            labor_cost: bill.totalAmount - parseFloat(job.inspection_fee || 0) - parseFloat(job.travel_charge || 0) - parseFloat(job.materials_cost || 0),
-            materials_cost: parseFloat(job.materials_cost || 0),
-            materials: job.materials_list || [],
-            total: bill.totalAmount + parseFloat(job.materials_cost || 0),
+            job_id: jobId,
             billed_minutes: bill.billedMinutes,
+            hourly_rate: parseFloat(job.hourly_rate || 0),
+            inspection_fee: parseFloat(job.inspection_fee || 0),
+            inspection_fee_paise: Math.round(parseFloat(job.inspection_fee || 0) * 100),
+            travel_charge: parseFloat(job.travel_charge || 0),
+            travel_charge_paise: Math.round(parseFloat(job.travel_charge || 0) * 100),
+            labor_paise: laborPaise,
+            materials_paise: materialsPaise,
+            materials: materialsList,
+            grand_total_paise: grandTotalPaise,
+            settlement,
             preview_expires_at: previewExpiry,
+        };
+    }
+
+    /**
+     * Pure settlement formula — no DB side effects.
+     * Returns all four figures plus a verification boolean.
+     * Materials are 100% pass-through — no fees apply to them.
+     */
+    computeSettlement(laborPaise, materialPaise) {
+        const grandTotalPaise = laborPaise + materialPaise;
+        const workerLaborShare = Math.floor(laborPaise * 0.70);
+        const platformShare = Math.floor(laborPaise * 0.25);
+        const gatewayFee = Math.floor(grandTotalPaise * 0.02);
+        // GST = remainder — eliminates any rounding error
+        const gst = grandTotalPaise - (workerLaborShare + materialPaise) - platformShare - gatewayFee;
+        const workerTotal = workerLaborShare + materialPaise;
+        const checkSum = workerTotal + platformShare + gatewayFee + gst;
+        const balanced = checkSum === grandTotalPaise;
+        return { workerTotal, platformShare, gatewayFee, gst, grandTotalPaise, laborPaise, materialPaise, balanced, checkSum };
+    }
+
+    /**
+     * Compute labor from timer event log in paise.
+     */
+    async computeLaborFromEvents(jobId) {
+        const bill = await this.calculateJobBill(jobId);
+        return {
+            billedMinutes: bill.billedMinutes,
+            actualMinutes: bill.actualElapsedMinutes,
+            laborPaise: Math.round(bill.totalAmount * 100),
+        };
+    }
+
+    /**
+     * Sum accepted material line items in paise.
+     */
+    async computeMaterialTotal(jobId) {
+        const pool = getPool();
+        const [rows] = await pool.query(
+            `SELECT COALESCE(SUM(ROUND(amount * 100)), 0)::BIGINT AS total_paise,
+                    COUNT(*) AS item_count
+             FROM job_materials WHERE job_id=$1 AND status != 'flagged'`,
+            [jobId]
+        );
+        return {
+            materialPaise: Number(rows[0]?.total_paise ?? 0),
+            itemCount: Number(rows[0]?.item_count ?? 0),
         };
     }
 
