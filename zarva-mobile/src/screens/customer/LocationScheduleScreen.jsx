@@ -106,10 +106,12 @@ export default function LocationScheduleScreen({ route, navigation }) {
                 description: structuredAnswers && structuredAnswers.length > 0
                     ? JSON.stringify(structuredAnswers)
                     : (answers && Object.keys(answers).length > 0 ? JSON.stringify(answers) : null),
-                customer_address: customerLocation.full_address,
-                customer_lat: customerLocation.lat,
-                customer_lng: customerLocation.lng,
+                address: customerLocation.full_address,
+                latitude: customerLocation.lat,
+                longitude: customerLocation.lng,
                 pincode: customerLocation.pincode,
+                city: customerLocation.city,
+                district: customerLocation.district,
                 customer_address_detail: {
                     house: customerLocation.house,
                     street: customerLocation.street,
@@ -119,7 +121,7 @@ export default function LocationScheduleScreen({ route, navigation }) {
                     state: customerLocation.state,
                     pincode: customerLocation.pincode
                 },
-                scheduled_for: scheduleType === 'now' ? null : dayjs(scheduledDate).format('YYYY-MM-DD HH:mm:ss'),
+                scheduled_at: scheduleType === 'now' ? null : dayjs(scheduledDate).format('YYYY-MM-DD HH:mm:ss'),
                 is_emergency: isEmergency ? 1 : 0
             };
 

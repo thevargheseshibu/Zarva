@@ -48,17 +48,29 @@ async function run() {
                 headers: { 'x-idempotency-key': 'test' }
             };
             const res = {
-                status: (s) => ({
-                    json: (data) => resolve({ status: s, body: data })
-                })
+                statusCode: 200,
+                status: function(s) {
+                    this.statusCode = s;
+                    return this;
+                },
+                json: function(data) {
+                    resolve({ status: this.statusCode, body: data });
+                }
             };
 
             // Very simplified routing interceptor matching the static string path
             const route = router.stack.find(r => r.route?.path === path && r.route?.methods[method.toLowerCase()]);
-            if (!route) resolve({ status: 404, body: { message: 'Route not found' } });
+            if (!route) {
+                resolve({ status: 404, body: { message: 'Route not found' } });
+                return;
+            }
 
             // Execute the handler
-            route.route.stack[0].handle(req, res, () => { });
+            try {
+                route.route.stack[0].handle(req, res, () => { });
+            } catch (error) {
+                resolve({ status: 500, body: { message: error.message } });
+            }
         });
     };
 
@@ -76,11 +88,11 @@ async function run() {
         await pool.query(`INSERT INTO users (id, phone, role) VALUES (99991, '+919999000001', 'customer')`);
         await pool.query(`INSERT INTO customer_profiles (user_id, total_jobs) VALUES (99991, 0)`);
         await pool.query(`INSERT INTO users (id, phone, role) VALUES (99992, '+919999000002', 'worker')`);
-        await pool.query(`INSERT INTO worker_profiles (user_id, name, category, is_verified) VALUES (99992, 'OTP Worker', 'electrician', 1)`);
+        await pool.query(`INSERT INTO worker_profiles (user_id, name, category, is_verified) VALUES (99992, 'OTP Worker', 'electrician', TRUE)`);
 
         // Start Job at 'worker_en_route'
-        await pool.query(`INSERT INTO jobs (id, customer_id, worker_id, category, idempotency_key, address, latitude, longitude, rate_per_hour, status) 
-                          VALUES (99991, 99991, 99992, 'electrician', 'test-otp', 'Loc', 10, 10, 300, 'worker_en_route')`);
+        await pool.query(`INSERT INTO jobs (id, customer_id, worker_id, category, idempotency_key, address, latitude, longitude, job_location, pincode, city, rate_per_hour, status) 
+                          VALUES (99991, 99991, 99992, 'electrician', 'test-otp', 'Loc', 10, 10, ST_SetSRID(ST_MakePoint(10, 10), 4326), '682001', 'Kochi', 300, 'worker_en_route')`);
 
 
         console.log('\n--- Test 1. Worker Arrival (Start OTP Generation) ---');
@@ -90,7 +102,7 @@ async function run() {
         assert(arrivalRes.body.arrived === true || arrivalRes.body.data?.arrived === true, "Response confirms arrival without leaking OTP natively");
 
         // CHECK DB
-        const [job1] = await pool.query('SELECT status, start_otp_hash, start_otp_generated_at FROM jobs WHERE id = 99991');
+        const [job1] = await pool.query('SELECT status, start_otp_hash, start_otp_attempts FROM jobs WHERE id = 99991');
         assert(job1[0].status === 'worker_arrived', "DB status progressed to 'worker_arrived'");
         assert(job1[0].start_otp_hash.startsWith('$2b$'), "DB start_otp_hash is definitively a bcrypt string");
 

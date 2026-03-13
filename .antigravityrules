@@ -1,5 +1,8 @@
 # ZARVA CORE ARCHITECTURE PROTOCOL (ZCAP)
 
+
+
+
 This is the permanent constitution of the ZARVA codebase. This is NOT a suggestion guide; it is a strict structural mandate. Every new feature, bug fix, or AI task MUST pass through this protocol before a single line of code is written. 
 
 When I give a development command, you must clearly differentiate what belongs to React Native (mobile app) and what belongs to the Node.js server. We are building a secure production-grade application. All secrets, sensitive logic, and core processing must remain inside the Node.js backend. The mobile app should handle only UI, user input, and API communication. Do not mix responsibilities. Keep business logic, validation, matching algorithms, pricing, authentication control, and all sensitive operations strictly on the server. Always structure responses by clearly separating: 📱 Mobile (React Native) 🖥 Server (Node.js) 🔐 Security considerations (if applicable) The server must always be the source of truth

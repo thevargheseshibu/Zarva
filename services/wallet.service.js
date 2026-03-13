@@ -205,12 +205,44 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
     const finalAmountPaise = laborAmountPaise + materialAmountPaise;
 
     if (finalAmountPaise <= 0 || finalAmountPaise > MAX_SINGLE_JOB_PAISE) {
-        throw new Error('Invalid final amount');
+        throw new Error(`Invalid final amount: ${finalAmountPaise} paise (labor: ${laborAmountPaise}, materials: ${materialAmountPaise})`);
     }
+    
+    // Validate that the amounts are consistent with job data to prevent double ledger issues
+    const [jobCheck] = await pool.query(`
+        SELECT final_labor_paise, final_material_paise, grand_total_paise, status
+        FROM jobs WHERE id = $1
+    `, [jobId]);
+    
+    if (jobCheck.length > 0) {
+        const job = jobCheck[0];
+        const expectedTotal = (job.final_labor_paise || 0) + (job.final_material_paise || 0);
+        const declaredTotal = job.grand_total_paise || 0;
+        
+        if (laborAmountPaise !== (job.final_labor_paise || 0) || 
+            materialAmountPaise !== (job.final_material_paise || 0) ||
+            finalAmountPaise !== declaredTotal) {
+            console.warn(`[Wallet] Amount mismatch detected for job ${jobId}: 
+                labor expected ${job.final_labor_paise}, got ${laborAmountPaise}
+                materials expected ${job.final_material_paise}, got ${materialAmountPaise}
+                total expected ${declaredTotal}, got ${finalAmountPaise}`);
+            
+            // Use the job's declared amounts to prevent ledger imbalance
+            laborAmountPaise = job.final_labor_paise || 0;
+            materialAmountPaise = job.final_material_paise || 0;
+            finalAmountPaise = declaredTotal;
+            
+            console.log(`[Wallet] Using corrected amounts for job ${jobId}: labor=${laborAmountPaise}, materials=${materialAmountPaise}, total=${finalAmountPaise}`);
+        }
+    }
+    
     const idempotencyKey = `job_complete_${jobId}`;
     // Check if ANY entry for this job's completion already exists (idempotency)
     const existing = await checkIdempotencyPrefix(pool, idempotencyKey);
-    if (existing) return { transaction_id: existing };
+    if (existing) {
+        console.log(`[Wallet] Job completion entries already exist for job ${jobId}, skipping duplicate ledger entries`);
+        return { transaction_id: existing };
+    }
 
     // ─── Correct Split Architecture ──────────────────────────────────────────
     // Materials = pure pass-through. No gateway fee or GST charged on them.

@@ -18,10 +18,7 @@ function buildFallbackConfig(category, basePrice = 300) {
         base_price: basePrice,
         questions: [
             { id: 'q1', type: 'text', label: DEFAULT_QUESTIONS[0], required: true },
-            { id: 'q2', type: 'text', label: DEFAULT_QUESTIONS[1], required: false, skippable: true },
-            { id: 'q3', type: 'image', label: 'Upload photo 1 (optional)', required: false, skippable: true },
-            { id: 'q4', type: 'image', label: 'Upload photo 2 (optional)', required: false, skippable: true },
-            { id: 'q5', type: 'image', label: 'Upload photo 3 (optional)', required: false, skippable: true }
+            { id: 'q2', type: 'text', label: DEFAULT_QUESTIONS[1], required: false, skippable: true }
         ]
     };
 }
@@ -332,5 +329,5 @@ const styles = StyleSheet.create({
         alignItems: 'center'
     },
     uploadingSlot: { opacity: 0.5 },
-    addSlotIcon: { color: colors.accent.primary, fontSize: 24, fontWeight: '300' }
+    addSlotIcon: { color: colors.accent.primary, fontSize: 28, fontWeight: '300', lineHeight: 28, textAlign: 'center' }
 });

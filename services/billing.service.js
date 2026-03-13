@@ -925,6 +925,129 @@ class BillingService {
         };
     }
 
+    /**
+     * Finalize job - creates invoice and triggers wallet ledger entries
+     * This function handles the complete job completion flow
+     */
+    async finalizeJob(jobId) {
+        const pool = getPool();
+        const conn = await pool.getConnection();
+        
+        await conn.beginTransaction();
+        try {
+            // Get job with final amounts
+            const [jobs] = await conn.query(`
+                SELECT j.*, 
+                       COALESCE(SUM(CASE WHEN jm.status != 'flagged' THEN ROUND(jm.amount * 100) ELSE 0 END), 0)::BIGINT as actual_materials_paise,
+                       u.id as customer_id, u.phone as customer_phone,
+                       w.id as worker_id, wp.name as worker_name
+                FROM jobs j
+                LEFT JOIN job_materials jm ON jm.job_id = j.id
+                LEFT JOIN users u ON u.id = j.customer_id
+                LEFT JOIN users w ON w.id = j.worker_id
+                LEFT JOIN worker_profiles wp ON wp.user_id = j.worker_id
+                WHERE j.id = $1
+                GROUP BY j.id, u.id, u.phone, w.id, wp.name
+            `, [jobId]);
+            
+            const job = jobs[0];
+            if (!job) throw new Error('Job not found');
+            
+            // Double-check final amounts to prevent ledger issues
+            const expectedMaterialPaise = job.actual_materials_paise || 0;
+            const declaredMaterialPaise = job.final_material_paise || 0;
+            const expectedTotal = (job.final_labor_paise || 0) + expectedMaterialPaise;
+            const declaredTotal = job.grand_total_paise || 0;
+            
+            if (expectedMaterialPaise !== declaredMaterialPaise || expectedTotal !== declaredTotal) {
+                console.warn(`[BillingService] Amount mismatch for job ${jobId}: materials expected ${expectedMaterialPaise}, declared ${declaredMaterialPaise}, total expected ${expectedTotal}, declared ${declaredTotal}. Correcting...`);
+                
+                // Correct the final amounts
+                await conn.query(`
+                    UPDATE jobs 
+                    SET final_material_paise = $1,
+                        grand_total_paise = $2,
+                        final_amount = $2 / 100,
+                        materials_cost = $1 / 100
+                    WHERE id = $3
+                `, [expectedMaterialPaise, expectedTotal, jobId]);
+                
+                job.final_material_paise = expectedMaterialPaise;
+                job.grand_total_paise = expectedTotal;
+                job.final_amount = expectedTotal / 100;
+            }
+            
+            // Create invoice with corrected amounts
+            const invoiceNumber = `INV-${Date.now()}-${jobId}`;
+            const laborAmount = (job.final_labor_paise || 0) / 100;
+            const materialAmount = (job.final_material_paise || 0) / 100;
+            const totalAmount = (job.grand_total_paise || 0) / 100;
+            
+            await conn.query(`
+                INSERT INTO job_invoices (job_id, invoice_number, subtotal, materials_cost, total, created_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())
+                ON CONFLICT (job_id) DO UPDATE SET
+                    invoice_number = EXCLUDED.invoice_number,
+                    subtotal = EXCLUDED.subtotal,
+                    materials_cost = EXCLUDED.materials_cost,
+                    total = EXCLUDED.total,
+                    updated_at = NOW()
+            `, [jobId, invoiceNumber, laborAmount, materialAmount, totalAmount]);
+            
+            // Record job_end timer event if not already recorded
+            const [existingEnd] = await conn.query(
+                `SELECT id FROM job_timer_events WHERE job_id = $1 AND event_type = 'job_end' LIMIT 1`,
+                [jobId]
+            );
+            if (!existingEnd || existingEnd.length === 0) {
+                await this._recordTimerEvent(conn, jobId, 'job_end', 'system', 'Job finalized');
+            }
+            
+            // Trigger wallet ledger entries
+            const { postJobCompleteEntries } = await import('./wallet.service.js');
+            await postJobCompleteEntries(
+                jobId, 
+                job.final_labor_paise || 0, 
+                job.final_material_paise || 0, 
+                job.customer_id, 
+                job.worker_id, 
+                conn
+            );
+            
+            // Update worker and customer profiles
+            await conn.query(`
+                UPDATE worker_profiles 
+                SET total_jobs = total_jobs + 1, current_job_id = NULL 
+                WHERE user_id = $1
+            `, [job.worker_id]);
+            
+            await conn.query(`
+                UPDATE customer_profiles 
+                SET total_jobs = total_jobs + 1 
+                WHERE user_id = $1
+            `, [job.customer_id]);
+            
+            await conn.commit();
+            
+            console.log(`[BillingService] Job ${jobId} finalized successfully: labor=${job.final_labor_paise}, materials=${job.final_material_paise}, total=${job.grand_total_paise}`);
+            
+            return { 
+                success: true, 
+                invoice_number: invoiceNumber,
+                final_amount: totalAmount,
+                labor_amount: laborAmount,
+                material_amount: materialAmount
+            };
+            
+        } catch (err) {
+            await conn.rollback();
+            console.error(`[BillingService] Error finalizing job ${jobId}:`, err);
+            throw err;
+        } finally {
+            conn.release();
+        }
+    }
+
 }
 
 export default new BillingService();

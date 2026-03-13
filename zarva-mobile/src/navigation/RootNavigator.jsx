@@ -1,11 +1,3 @@
-/**
- * src/navigation/RootNavigator.jsx
- *
- * Auth-gated root: reads authStore.user.active_role and renders the correct navigator.
- *   no user     → AuthNavigator
- *   customer    → CustomerNavigator
- *   worker      → WorkerNavigator  (or OnboardingNavigator if incomplete)
- */
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import AuthNavigator from './AuthNavigator';
@@ -100,7 +92,9 @@ export default function RootNavigator() {
             }
         });
 
-        return () => sub.remove();
+        return () => {
+            if (sub) sub.remove();
+        };
     }, [isHydrated]);
 
     const renderNavigator = () => {
@@ -128,6 +122,16 @@ export default function RootNavigator() {
         const profile = user.profile || {};
         const onboardingDone = user.onboarding_complete;
 
+        // Debug logging to help diagnose the issue
+        console.log('[RootNavigator] User status:', {
+            role,
+            onboardingDone,
+            kyc_status: profile.kyc_status,
+            is_blocked: user.is_blocked,
+            profileExists: !!profile,
+            userId: user.id
+        });
+
         if (user.is_blocked) {
             return (
                 <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -140,7 +144,10 @@ export default function RootNavigator() {
 
         if (role === 'worker' && !onboardingDone) return <OnboardingNavigator />;
 
-        if (role === 'worker' && profile.kyc_status !== 'approved') {
+        // FIXED: Only show verification pending for workers who are NOT approved
+        // This prevents approved workers from being stuck in verification pending
+        if (role === 'worker' && profile.kyc_status && profile.kyc_status !== 'approved') {
+            console.log('[RootNavigator] Showing verification pending - KYC status:', profile.kyc_status);
             return (
                 <Stack.Navigator screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="VerificationPending" component={VerificationPendingScreen} />
