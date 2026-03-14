@@ -375,10 +375,21 @@ router.post('/onboarding/skills', handle(async (userId, pool, req) => {
  */
 router.get('/history', handle(async (userId, pool) => {
     const [rows] = await pool.query(`
-        SELECT id, category, status, address, final_amount as amount, job_ended_at as date, items
-        FROM jobs
-        WHERE worker_id = $1 AND status IN ('completed', 'cancelled')
-        ORDER BY updated_at DESC
+        SELECT 
+            j.id,
+            j.category,
+            j.status,
+            j.address,
+            j.final_amount as amount,
+            j.job_ended_at as date,
+            j.items,
+            -- Use profile name as the canonical customer display name (users table has no name column).
+            cp.name as customer_name
+        FROM jobs j
+        -- Keep this as LEFT JOIN so legacy jobs without a profile still appear in history.
+        LEFT JOIN customer_profiles cp ON cp.user_id = j.customer_id
+        WHERE j.worker_id = $1 AND j.status IN ('completed', 'cancelled')
+        ORDER BY j.updated_at DESC
         LIMIT 50
     `, [userId]);
     return { history: rows };
