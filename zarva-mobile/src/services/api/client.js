@@ -11,6 +11,7 @@ import { Alert, Platform } from 'react-native';
 import { useAuthStore } from '../../stores/authStore';
 import { useUIStore } from '../../stores/uiStore';
 import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system/legacy';
 
 let BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
 
@@ -141,5 +142,40 @@ apiClient.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+export const uploadFileRaw = async (endpoint, fileUri, purpose) => {
+    const token = useAuthStore.getState().token;
+    const url = `${BASE_URL}${endpoint}`;
+
+    useUIStore.getState().showLoader('Uploading...');
+
+    try {
+        const uploadResponse = await FileSystem.uploadAsync(url, fileUri, {
+            httpMethod: 'POST',
+            uploadType: 1, // FileSystemUploadType.MULTIPART
+            fieldName: 'file',
+            mimeType: 'image/jpeg',
+            parameters: {
+                purpose: purpose || 'job_photo'
+            },
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        });
+
+        const data = JSON.parse(uploadResponse.body);
+
+        if (uploadResponse.status !== 200 && uploadResponse.status !== 201) {
+            throw new Error(data.message || 'Upload failed with status ' + uploadResponse.status);
+        }
+
+        // Return wrapping structure mimicking Axios so downstream uses `.data.url`
+        return { data };
+    } catch (err) {
+        console.error('[api/client] FileSystem.uploadAsync error:', err);
+        throw err;
+    } finally {
+        useUIStore.getState().hideLoader();
+    }
+};
 
 export default apiClient;

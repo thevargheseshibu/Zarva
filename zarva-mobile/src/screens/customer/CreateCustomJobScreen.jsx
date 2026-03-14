@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useT } from '../../hooks/useT';
-import apiClient from '../../services/api/client';
+import apiClient, { uploadFileRaw } from '../../services/api/client';
 import { useTokens } from '../../design-system';
 
 import PremiumButton from '../../components/PremiumButton';
@@ -34,24 +34,22 @@ export default function CreateCustomJobScreen({ navigation }) {
 
         setIsSubmitting(true);
         try {
-            const formData = new FormData();
-            formData.append('title', title);
-            formData.append('description', description);
-            formData.append('hourly_rate', parseFloat(hourlyRate));
+            const uploadedPhotoUrls = [];
+            for (let i = 0; i < images.length; i++) {
+                const res = await uploadFileRaw('/api/uploads/image', images[i], 'job_photo');
+                if (res.data.status === 'ok') {
+                    uploadedPhotoUrls.push(res.data.url.split('?')[0]);
+                }
+            }
 
-            images.forEach((img, i) => {
-                const uriParts = img.split('.');
-                const fileType = uriParts[uriParts.length - 1];
-                formData.append('photos', {
-                    uri: img,
-                    name: `photo_${i}.${fileType}`,
-                    type: `image/${fileType}`
-                });
-            });
+            const payload = {
+                title,
+                description,
+                hourly_rate: parseFloat(hourlyRate),
+                photos: uploadedPhotoUrls
+            };
 
-            await apiClient.post('/api/custom-jobs/templates', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            await apiClient.post('/api/custom-jobs/templates', payload);
 
             Alert.alert('Submitted for Review', 'Your custom request has been sent for admin review. Once approved, you can post it live for workers!', [
                 { text: 'OK', onPress: () => navigation.goBack() }

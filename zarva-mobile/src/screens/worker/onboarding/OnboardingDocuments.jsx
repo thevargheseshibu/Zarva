@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 
 
 import PremiumButton from '../../../components/PremiumButton';
-import apiClient from '../../../services/api/client';
+import apiClient, { uploadFileRaw } from '../../../services/api/client';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';

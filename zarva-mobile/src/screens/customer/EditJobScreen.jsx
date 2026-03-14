@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useT } from '../../hooks/useT';
-import apiClient from '../../services/api/client';
+import apiClient, { uploadFileRaw } from '../../services/api/client';
 
 
 import LocationInput from '../../components/LocationInput';
@@ -118,9 +118,7 @@ export default function EditJobScreen({ route, navigation }) {
                 type: 'image/jpeg'
             });
 
-            const uploadRes = await apiClient.post('/api/uploads/image', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const uploadRes = await uploadFileRaw('/api/uploads/image', formData);
 
             if (uploadRes.data.status !== 'ok') throw new Error(`Upload failed`);
 
@@ -129,7 +127,7 @@ export default function EditJobScreen({ route, navigation }) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err) {
             console.error('Upload error', err);
-            Alert.alert('Upload Failed', 'Could not save photo.');
+            Alert.alert('Upload Failed', err.message || 'Could not save photo.');
         } finally {
             setUploading(false);
         }

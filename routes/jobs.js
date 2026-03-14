@@ -209,26 +209,40 @@ router.post('/', async (req, res) => {
         const startOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
         const startOtpHash = await bcrypt.hash(startOtp, 10);
 
+        const idempotencyKey = req.headers['x-idempotency-key'] || `job-${userId}-${Date.now()}`;
+
         const jobId = await pool.query(`
             INSERT INTO jobs (
+                idempotency_key,
                 customer_id, category, description, scheduled_at,
-                latitude, longitude, address, pincode, city, district,
+                job_location, latitude, longitude, address, pincode, city, district,
+                customer_address_detail,
                 start_otp_hash, status, inspection_required, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'created', $12, NOW(), NOW())
+            ) VALUES (
+                $1,
+                $2, $3, $4, $5,
+                ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography, $6, $7, $8, $9, $10, $11,
+                $12,
+                $13, 'open', $14, NOW(), NOW()
+            )
             RETURNING id
         `, [
+            idempotencyKey,
             userId, category, JSON.stringify(description), scheduled_at,
             latitude, longitude, address, pincode, city, district,
-            startOtpHash, inspection_required
+            JSON.stringify(req.body.customer_address_detail || null),
+            startOtpHash, inspection_required ?? false
         ]).then(r => r.rows[0].id);
 
         // Store start OTP in Redis for worker verification
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:start:${jobId}`, startOtp, 'EX', 10800); // 3 hours
 
-        // Notify matching engine
-        const { default: MatchingEngine } = await import('../services/matchingEngine.js');
-        await MatchingEngine.notifyNewJob(jobId);
+        // Update status to 'searching' then trigger matching engine
+        await pool.query(`UPDATE jobs SET status = 'searching' WHERE id = $1`, [jobId]);
+        const { startMatching, updateJobStatus } = await import('../services/matchingEngine.js');
+        // Fire-and-forget — matching runs async in background
+        startMatching(jobId).catch(e => console.error('[Jobs] Async matching failed:', e.message));
 
         return { job_id: jobId, start_otp: startOtp };
     } catch (err) {

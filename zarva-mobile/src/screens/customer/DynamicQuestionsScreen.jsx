@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image,
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
-import apiClient from '../../services/api/client';
+import apiClient, { uploadFileRaw } from '../../services/api/client';
 import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
@@ -93,17 +93,7 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
         const localUri = result.assets[0].uri;
 
         try {
-            const formData = new FormData();
-            formData.append('purpose', 'job_photo');
-            formData.append('file', {
-                uri: localUri,
-                name: `job_photo_${Date.now()}.jpg`,
-                type: 'image/jpeg'
-            });
-
-            const uploadRes = await apiClient.post('/api/uploads/image', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const uploadRes = await uploadFileRaw('/api/uploads/image', localUri, 'job_photo');
 
             if (uploadRes.data.status !== 'ok') throw new Error(`Upload failed`);
 

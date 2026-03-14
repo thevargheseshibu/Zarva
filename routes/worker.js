@@ -48,7 +48,7 @@ router.get('/jobs/:id', (req, res) =>
         const jobId = req.params.id;
         const [jobs] = await pool.query(`SELECT j.id, j.status, j.category, j.address, j.description, j.total_amount as amount,
                     j.arrived_at, j.worker_id, j.customer_id, j.inspection_expires_at,
-                    j.inspection_started_at, j.inspection_ended_at, j.job_started_at, j.job_ended_at,
+                    j.inspection_started_at, j.job_started_at, j.job_ended_at,
                     j.work_started_at, j.work_ended_at,
                     -- Include inspection extension fields so worker UI can lock/unlock request button correctly after refresh.
                     j.inspection_extension_otp_hash, j.inspection_extension_count, j.inspection_extended_until,

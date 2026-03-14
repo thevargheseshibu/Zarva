@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, Alert, Image } from 'react-native';
 import { useTokens } from '../../design-system';
 import { useT } from '../../hooks/useT';
 import * as ImagePicker from 'expo-image-picker';
-import apiClient from '../../services/api/client';
+import apiClient, { uploadFileRaw } from '../../services/api/client';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 
@@ -45,16 +45,7 @@ export default function ExtensionRequestScreen({ route, navigation }) {
         setLoading(true);
         try {
             // Upload Photo First
-            const formData = new FormData();
-            formData.append('file', {
-                uri: photoUri,
-                name: `ext_${jobId}_${Date.now()}.jpg`,
-                type: 'image/jpeg'
-            });
-
-            const uploadRes = await apiClient.post('/api/uploads/image', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const uploadRes = await uploadFileRaw('/api/uploads/image', photoUri, 'extension_proof');
             const photoUrl = uploadRes.data.url;
 
             // Submit Extension

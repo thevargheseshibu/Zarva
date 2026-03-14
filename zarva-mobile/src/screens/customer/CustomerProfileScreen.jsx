@@ -8,7 +8,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useLanguageStore } from '../../i18n';
 import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 import { useT } from '../../hooks/useT';
-import apiClient from '../../services/api/client';
+import apiClient, { uploadFileRaw } from '../../services/api/client';
 import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
@@ -123,17 +123,7 @@ export default function CustomerProfileScreen() {
         const localUri = result.assets[0].uri;
 
         try {
-            const formData = new FormData();
-            formData.append('purpose', 'profile_photo');
-            formData.append('file', {
-                uri: localUri,
-                name: `profile_${Date.now()}.jpg`,
-                type: 'image/jpeg'
-            });
-
-            const uploadRes = await apiClient.post('/api/uploads/image', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const uploadRes = await uploadFileRaw('/api/uploads/image', localUri, 'profile_photo');
 
             if (uploadRes.data.status !== 'ok') throw new Error('Upload failed');
 
