@@ -332,7 +332,8 @@ export default function ActiveJobScreen({ route, navigation }) {
         setActionLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         try {
-            await apiClient.post(`/api/worker/jobs/${jobId}/verify-start-otp`, { code });
+            // CHANGE: Backend expects `otp` field; sending `code` always fails verification.
+            await apiClient.post(`/api/worker/jobs/${jobId}/verify-start-otp`, { otp: code });
             setStatus('in_progress');
             await fetchJob();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

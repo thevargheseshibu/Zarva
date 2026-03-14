@@ -14,6 +14,28 @@ import configLoader from '../config/loader.js';
 
 const router = express.Router();
 
+// CHANGE: Centralize customer cancel behavior so both POST and DELETE stay in sync.
+async function cancelJobByCustomer(jobId, userId) {
+    const pool = getPool();
+    const [jobs] = await pool.query('SELECT status, customer_id FROM jobs WHERE id = $1', [jobId]);
+    const job = jobs[0];
+
+    if (!job || job.customer_id != userId) {
+        throw Object.assign(new Error('Job not found'), { status: 404, code: 'NOT_FOUND' });
+    }
+
+    const CANCELLABLE = ['open', 'searching', 'no_worker_found'];
+    if (!CANCELLABLE.includes(job.status)) {
+        throw Object.assign(new Error('Job cannot be cancelled in current state'), { status: 400, code: 'INVALID_STATE' });
+    }
+
+    await pool.query("UPDATE jobs SET status = 'cancelled', cancelled_by = 'customer' WHERE id = $1", [jobId]);
+
+    // CHANGE: Keep Firebase mirror aligned with SQL source of truth for cancellation.
+    const { updateJobNode } = await import('../services/firebase.service.js');
+    await updateJobNode(jobId, { status: 'cancelled' }).catch(() => { });
+}
+
 // ─── GET /api/jobs/config ──────────────────────────────────────────────────
 // Returns categories and global pricing for the Home Screen
 router.get('/config', (req, res) => {
@@ -403,7 +425,8 @@ router.post('/:id/verify-start', async (req, res) => {
             job_started_at: new Date().toISOString()
         });
 
-        return { success: true };
+        // CHANGE: Send explicit HTTP response (plain return object does not reach Express clients).
+        return res.status(200).json({ status: 'ok', success: true });
     } catch (err) {
         console.error('[Jobs] POST /:id/verify-start error:', err);
         return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
@@ -496,7 +519,8 @@ router.post('/:id/verify-end', async (req, res) => {
             end_otp_verified_at: new Date().toISOString()
         });
 
-        return { success: true, final_amount: expectedTotal / 100 };
+        // CHANGE: Send explicit HTTP response so mobile clients don't hang waiting for body.
+        return res.status(200).json({ status: 'ok', success: true, final_amount: expectedTotal / 100 });
     } catch (err) {
         console.error('[Jobs] POST /:id/verify-end error:', err);
         return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
@@ -515,29 +539,157 @@ router.delete('/:id', async (req, res) => {
             return fail(res, 'Not found', 404, 'NOT_FOUND');
         }
 
-        const pool = getPool();
-        const [jobs] = await pool.query('SELECT status, customer_id FROM jobs WHERE id = $1', [jobId]);
-        const job = jobs[0];
-
-        if (!job || job.customer_id != userId) {
-            return fail(res, 'Job not found', 404, 'NOT_FOUND');
-        }
-
-        const CANCELLABLE = ['open', 'searching', 'no_worker_found'];
-        if (!CANCELLABLE.includes(job.status)) {
-            return fail(res, 'Job cannot be cancelled in current state', 400, 'INVALID_STATE');
-        }
-
-        await pool.query("UPDATE jobs SET status = 'cancelled', cancelled_by = 'customer' WHERE id = $1", [jobId]);
-        
-        // Clean up Firebase
-        const { updateJobNode } = await import('../services/firebase.service.js');
-        await updateJobNode(jobId, { status: 'cancelled' }).catch(() => {});
+        // CHANGE: Reuse shared cancellation logic to avoid divergence between HTTP methods.
+        await cancelJobByCustomer(jobId, userId);
 
         return res.status(200).json({ status: 'ok', message: 'Job cancelled' });
     } catch (err) {
         console.error('[Jobs] DELETE /:id error:', err);
         return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
+    }
+});
+
+// CHANGE: Support POST /cancel because mobile currently calls this route.
+router.post('/:id/cancel', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const jobId = req.params.id;
+        if (!jobId || !/^\d+$/.test(jobId)) {
+            return fail(res, 'Not found', 404, 'NOT_FOUND');
+        }
+
+        await cancelJobByCustomer(jobId, userId);
+        return res.status(200).json({ status: 'ok', message: 'Job cancelled' });
+    } catch (err) {
+        if (err.status) return fail(res, err.message, err.status, err.code || 'BAD_REQUEST');
+        console.error('[Jobs] POST /:id/cancel error:', err);
+        return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
+    }
+});
+
+// CHANGE: Backward-compatible alias for mobile endpoint /verify-end-otp.
+router.post('/:id/verify-end-otp', async (req, res, next) => {
+    req.url = `/${req.params.id}/verify-end`;
+    return router.handle(req, res, next);
+});
+
+// CHANGE: Add customer bill preview endpoint consumed by JobStatusDetail + BillReview screens.
+router.get('/:id/bill-preview', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const jobId = req.params.id;
+        if (!jobId || !/^\d+$/.test(jobId)) {
+            return fail(res, 'Not found', 404, 'NOT_FOUND');
+        }
+
+        const pool = getPool();
+        const [jobs] = await pool.query('SELECT id, customer_id FROM jobs WHERE id = $1', [jobId]);
+        if (!jobs[0] || jobs[0].customer_id != userId) return fail(res, 'Not found', 404, 'NOT_FOUND');
+
+        const { default: BillingService } = await import('../services/billing.service.js');
+        const preview = await BillingService.generateBillPreview(jobId);
+        return res.status(200).json({ status: 'ok', preview });
+    } catch (err) {
+        console.error('[Jobs] GET /:id/bill-preview error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
+// CHANGE: Add estimate rejection route expected by customer detail screen.
+router.post('/:id/reject-estimate', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const { default: BillingService } = await import('../services/billing.service.js');
+        const result = await BillingService.rejectEstimate(req.params.id, userId);
+        return res.status(200).json({ status: 'ok', ...result });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/reject-estimate error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
+// CHANGE: Add customer stop-work route expected by customer detail screen.
+router.post('/:id/customer-stop', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const { default: BillingService } = await import('../services/billing.service.js');
+        const result = await BillingService.customerStopWork(req.params.id, userId);
+        return res.status(200).json({ status: 'ok', ...result });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/customer-stop error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
+// CHANGE: Add inspection extension approval route expected by customer detail screen.
+router.post('/:id/inspection/approve-extension', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const { otp } = req.body;
+        const { default: BillingService } = await import('../services/billing.service.js');
+        const result = await BillingService.approveInspectionExtension(req.params.id, otp, userId);
+        return res.status(200).json({ status: 'ok', ...result });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/inspection/approve-extension error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
+// CHANGE: Add pause approval route expected by customer detail screen.
+router.post('/:id/approve-pause', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const { otp } = req.body;
+        const { default: BillingService } = await import('../services/billing.service.js');
+        const result = await BillingService.approvePause(req.params.id, otp, userId);
+        return res.status(200).json({ status: 'ok', ...result });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/approve-pause error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
+// CHANGE: Add resume approval route expected by customer detail screen.
+router.post('/:id/approve-resume', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const { otp } = req.body;
+        const { default: BillingService } = await import('../services/billing.service.js');
+        const result = await BillingService.approveResume(req.params.id, otp, userId);
+        return res.status(200).json({ status: 'ok', ...result });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/approve-resume error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
+// CHANGE: Add suspend/reschedule approval route expected by customer detail screen.
+router.post('/:id/approve-suspend', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const { otp } = req.body;
+        const { default: BillingService } = await import('../services/billing.service.js');
+        const result = await BillingService.approveSuspend(req.params.id, otp, userId);
+        return res.status(200).json({ status: 'ok', ...result });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/approve-suspend error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
     }
 });
 
