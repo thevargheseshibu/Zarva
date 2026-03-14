@@ -11,6 +11,7 @@ import configLoader from '../config/loader.js';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { v4 as uuid } from 'uuid';
+import { calculateTravelCharge } from '../utils/pricingEngine.js';
 
 const router = express.Router();
 
@@ -100,6 +101,114 @@ router.get('/jobs/:id', (req, res) =>
         }
 
         return { job };
+    })
+);
+
+/**
+ * Worker accepts a pending job
+ * POST /api/worker/jobs/:id/accept
+ */
+router.post('/jobs/:id/accept', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        if (!/^\d+$/.test(jobId)) {
+            throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
+        }
+
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        try {
+            // 1. Lock and verify job
+            const [jobs] = await conn.query(
+                'SELECT id, status, category, job_location, rate_per_hour, advance_amount FROM jobs WHERE id = $1 FOR UPDATE',
+                [jobId]
+            );
+            const job = jobs[0];
+
+            if (!job) throw Object.assign(new Error('Job not found'), { status: 404 });
+            if (job.status !== 'open' && job.status !== 'searching') {
+                throw Object.assign(new Error('Job is no longer available'), { status: 409 });
+            }
+
+            // 2. Check worker's current status
+            const [profiles] = await conn.query(
+                'SELECT current_job_id, last_location_lat, last_location_lng FROM worker_profiles WHERE user_id = $1 FOR UPDATE',
+                [userId]
+            );
+            const wp = profiles[0];
+            if (!wp) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
+            if (wp.current_job_id) {
+                // If the worker has an active job, verify it's not THIS job already accepted (idempotency)
+                if (parseInt(wp.current_job_id) === parseInt(jobId)) {
+                    await conn.rollback();
+                    return { success: true, already_accepted: true };
+                }
+                throw Object.assign(new Error('You already have an active job'), { status: 400 });
+            }
+
+            // 3. Calculate travel charge based on latest known location
+            let travelCharge = 0;
+            let distanceKm = 0;
+            if (wp.last_location_lat && wp.last_location_lng) {
+                const [distRows] = await conn.query(`
+                    SELECT ST_Distance(
+                        ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, 
+                        $3::geography
+                    ) / 1000 as distance_km
+                `, [wp.last_location_lng, wp.last_location_lat, job.job_location]);
+                distanceKm = distRows[0]?.distance_km || 0;
+
+                const jobsCfg = configLoader.get('jobs');
+                if (jobsCfg.global_pricing?.travel) {
+                    travelCharge = calculateTravelCharge(
+                        distanceKm,
+                        jobsCfg.global_pricing.travel.free_km_radius || 0,
+                        jobsCfg.global_pricing.travel.petrol_rate_per_km || 0,
+                        jobsCfg.global_pricing.travel.min_travel_charge,
+                        jobsCfg.global_pricing.travel.max_travel_charge
+                    );
+                }
+            }
+
+            // 4. Update Job status
+            await conn.query(`
+                UPDATE jobs 
+                SET worker_id = $1, 
+                    status = 'worker_en_route',
+                    accepted_at = NOW(),
+                    travel_charge = $2
+                WHERE id = $3
+            `, [userId, travelCharge, jobId]);
+
+            // 5. Update Worker Profile
+            await conn.query(`
+                UPDATE worker_profiles 
+                SET current_job_id = $1 
+                WHERE user_id = $2
+            `, [jobId, userId]);
+
+            await conn.commit();
+
+            // 6. Firebase Sync for real-time customer updates
+            try {
+                const { updateJobNode } = await import('../services/firebaseSync.js');
+                await updateJobNode(jobId, { 
+                    status: 'worker_en_route', 
+                    worker_id: userId,
+                    accepted_at: new Date().toISOString()
+                });
+            } catch (fbErr) {
+                console.warn('[Worker Accept] Firebase sync failed:', fbErr.message);
+            }
+
+            return { success: true, status: 'worker_en_route' };
+        } catch (err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
     })
 );
 
@@ -336,8 +445,10 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
  * GET /api/worker/skills
  */
 router.get('/skills', handle(async (userId, pool) => {
-    const jobsCfg = configLoader.get('jobs');
-    return { skills: jobsCfg.categories };
+    const [rows] = await pool.query('SELECT skills FROM worker_profiles WHERE user_id = $1', [userId]);
+    const skills = rows[0]?.skills || [];
+    console.log(`[Worker] Fetched skills for user ${userId}:`, skills);
+    return { skills };
 }));
 
 /**
@@ -374,24 +485,25 @@ router.post('/onboarding/skills', handle(async (userId, pool, req) => {
  * GET /api/worker/history
  */
 router.get('/history', handle(async (userId, pool) => {
+    console.log(`[Worker] Fetching history for userId: ${userId}`);
+    
+    // Debug: Check total jobs for this worker regardless of status
+    const [debugCount] = await pool.query(`SELECT COUNT(*) as count FROM jobs WHERE worker_id = $1`, [userId]);
+    console.log(`[Worker] Total jobs in DB for this worker_id: ${debugCount[0].count}`);
+
     const [rows] = await pool.query(`
         SELECT 
-            j.id,
-            j.category,
-            j.status,
-            j.address,
-            j.final_amount as amount,
+            j.id, j.category, j.status, j.address, 
+            COALESCE(j.final_amount, 0) as amount, 
             j.job_ended_at as date,
-            j.items,
-            -- Use profile name as the canonical customer display name (users table has no name column).
             cp.name as customer_name
         FROM jobs j
-        -- Keep this as LEFT JOIN so legacy jobs without a profile still appear in history.
-        LEFT JOIN customer_profiles cp ON cp.user_id = j.customer_id
+        LEFT JOIN customer_profiles cp ON j.customer_id = cp.user_id
         WHERE j.worker_id = $1 AND j.status IN ('completed', 'cancelled')
         ORDER BY j.updated_at DESC
         LIMIT 50
     `, [userId]);
+    console.log(`[Worker] Found ${rows.length} completed/cancelled history items for userId: ${userId}`);
     return { history: rows };
 }));
 
@@ -420,15 +532,24 @@ router.get('/earnings', handle(async (userId, pool) => {
 router.get('/available-jobs', handle(async (userId, pool) => {
     // 1. Get worker's category and service area
     const [profiles] = await pool.query(`
-        SELECT category, service_area, is_verified, is_online
+        SELECT category, service_area, is_verified, is_online, current_location
         FROM worker_profiles
         WHERE user_id = $1
     `, [userId]);
 
     const wp = profiles[0];
     if (!wp) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
-    if (!wp.is_verified) return { jobs: [], message: 'Account pending verification' };
-    if (!wp.is_online) return { jobs: [], message: 'Go online to see available jobs' };
+    
+    console.log(`[Worker] Available Jobs request for userId: ${userId}`);
+    console.log(`[Worker] Category: ${wp.category}, Online: ${wp.is_online}, Verified: ${wp.is_verified}`);
+    console.log(`[Worker] Has Service Area: ${!!wp.service_area}`);
+
+    if (!wp.is_verified) return { jobs: [], is_online: wp.is_online, is_verified: false, message: 'Account pending verification' };
+    if (!wp.is_online) return { jobs: [], is_online: false, is_verified: wp.is_verified, message: 'Go online to see available jobs' };
+
+    // Debug: Check total 'searching' jobs in this category globally
+    const [categoryCount] = await pool.query(`SELECT COUNT(*) as count FROM jobs WHERE status = 'searching' AND category = $1`, [wp.category]);
+    console.log(`[Worker] Global 'searching' jobs for category ${wp.category}: ${categoryCount[0].count}`);
 
     // 2. Find jobs that intersect with service area
     const [jobs] = await pool.query(`
@@ -443,7 +564,8 @@ router.get('/available-jobs', handle(async (userId, pool) => {
         LIMIT 20
     `, [userId, wp.category]);
 
-    return { jobs };
+    console.log(`[Worker] Found ${jobs.length} available jobs matching category and service area.`);
+    return { jobs, is_online: true, is_verified: true };
 }));
 
 /**
