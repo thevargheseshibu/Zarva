@@ -50,6 +50,53 @@ router.post('/estimate', async (req, res) => {
     }
 });
 
+// ─── GET /api/jobs ──────────────────────────────────────────────────────────
+// List jobs for the current customer
+router.get('/', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const pool = getPool();
+        const [rows] = await pool.query(`
+            SELECT 
+                j.*,
+                wp.name as worker_name,
+                wp.profile_s3_key as worker_photo
+            FROM jobs j
+            LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
+            WHERE j.customer_id = $1
+            ORDER BY j.created_at DESC
+            LIMIT 50
+        `, [userId]);
+
+        // Process results for frontend
+        const jobs = rows.map(job => {
+            if (job.worker_id) {
+                const bucket = process.env.AWS_BUCKET_NAME;
+                const region = process.env.AWS_REGION;
+                const photoUrl = job.worker_photo
+                    ? `https://${bucket}.s3.${region}.amazonaws.com/${job.worker_photo}`
+                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(job.worker_name || 'Worker')}&background=random`;
+
+                job.worker = {
+                    id: job.worker_id,
+                    name: job.worker_name,
+                    photo: photoUrl
+                };
+            }
+            delete job.worker_name;
+            delete job.worker_photo;
+            return job;
+        });
+
+        return res.status(200).json({ status: 'ok', jobs });
+    } catch (err) {
+        console.error('[Jobs] GET / error:', err);
+        return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
+    }
+});
+
 // ─── GET /api/jobs/:id ─────────────────────────────────────────────────────
 // Get single job (customer view)
 router.get('/:id', async (req, res) => {
@@ -58,8 +105,11 @@ router.get('/:id', async (req, res) => {
 
     try {
         const jobId = req.params.id;
-        if (!jobId || isNaN(parseInt(jobId, 10))) {
-            return fail(res, 'Invalid Job ID', 400, 'INVALID_ID');
+        
+        // Strict numeric check for bigint columns to prevent PG type mismatch errors
+        if (!jobId || !/^\d+$/.test(jobId)) {
+            console.warn(`[Jobs] Invalid Job ID format: ${jobId}`);
+            return fail(res, 'Not found', 404, 'NOT_FOUND');
         }
 
         const pool = getPool();
@@ -211,28 +261,43 @@ router.post('/', async (req, res) => {
 
         const idempotencyKey = req.headers['x-idempotency-key'] || `job-${userId}-${Date.now()}`;
 
-        const jobId = await pool.query(`
-            INSERT INTO jobs (
-                idempotency_key,
-                customer_id, category, description, scheduled_at,
-                job_location, latitude, longitude, address, pincode, city, district,
-                customer_address_detail,
-                start_otp_hash, status, inspection_required, created_at, updated_at
-            ) VALUES (
-                $1,
-                $2, $3, $4, $5,
-                ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography, $6, $7, $8, $9, $10, $11,
-                $12,
-                $13, 'open', $14, NOW(), NOW()
-            )
-            RETURNING id
-        `, [
-            idempotencyKey,
-            userId, category, JSON.stringify(description), scheduled_at,
-            latitude, longitude, address, pincode, city, district,
-            JSON.stringify(req.body.customer_address_detail || null),
-            startOtpHash, inspection_required ?? false
-        ]).then(r => r.rows[0].id);
+        let jobId;
+        try {
+            const [rows] = await pool.query(`
+                INSERT INTO jobs (
+                    idempotency_key,
+                    customer_id, category, description, scheduled_at,
+                    job_location, latitude, longitude, address, pincode, city, district,
+                    customer_address_detail,
+                    start_otp_hash, status, inspection_required, created_at, updated_at
+                ) VALUES (
+                    $1,
+                    $2, $3, $4, $5,
+                    ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography, $6, $7, $8, $9, $10, $11,
+                    $12,
+                    $13, 'open', $14, NOW(), NOW()
+                )
+                RETURNING id
+            `, [
+                idempotencyKey,
+                userId, category, JSON.stringify(description), scheduled_at,
+                latitude, longitude, address, pincode, city, district,
+                JSON.stringify(req.body.customer_address_detail || null),
+                startOtpHash, inspection_required ?? false
+            ]);
+            jobId = rows[0]?.id;
+        } catch (insertErr) {
+            if (insertErr.code === '23505') {
+                // Duplicate idempotency key — return the existing job
+                const [existing] = await pool.query(`SELECT id FROM jobs WHERE idempotency_key = $1`, [idempotencyKey]);
+                if (existing[0]) {
+                    return res.status(200).json({ status: 'ok', job: { id: existing[0].id }, duplicate: true });
+                }
+            }
+            throw insertErr;
+        }
+
+        if (!jobId) throw new Error('Failed to get job ID after INSERT');
 
         // Store start OTP in Redis for worker verification
         const redisClient = getRedisClient();
@@ -240,11 +305,12 @@ router.post('/', async (req, res) => {
 
         // Update status to 'searching' then trigger matching engine
         await pool.query(`UPDATE jobs SET status = 'searching' WHERE id = $1`, [jobId]);
-        const { startMatching, updateJobStatus } = await import('../services/matchingEngine.js');
+        const { startMatching } = await import('../services/matchingEngine.js');
         // Fire-and-forget — matching runs async in background
         startMatching(jobId).catch(e => console.error('[Jobs] Async matching failed:', e.message));
 
-        return { job_id: jobId, start_otp: startOtp };
+        return res.status(201).json({ status: 'ok', job: { id: jobId } });
+
     } catch (err) {
         console.error('[Jobs] POST / error:', err);
         return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
@@ -259,6 +325,9 @@ router.post('/:id/verify-start', async (req, res) => {
 
     try {
         const jobId = req.params.id;
+        if (!jobId || !/^\d+$/.test(jobId)) {
+            return fail(res, 'Not found', 404, 'NOT_FOUND');
+        }
         const { otp } = req.body;
 
         if (!otp || !/^[0-9]{4}$/.test(otp)) {
@@ -317,6 +386,9 @@ router.post('/:id/verify-end', async (req, res) => {
 
     try {
         const jobId = req.params.id;
+        if (!jobId || !/^\d+$/.test(jobId)) {
+            return fail(res, 'Not found', 404, 'NOT_FOUND');
+        }
         const { otp } = req.body;
 
         if (!otp || !/^[0-9]{4}$/.test(otp)) {
@@ -395,6 +467,44 @@ router.post('/:id/verify-end', async (req, res) => {
         return { success: true, final_amount: expectedTotal / 100 };
     } catch (err) {
         console.error('[Jobs] POST /:id/verify-end error:', err);
+        return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
+    }
+});
+
+// ─── DELETE /api/jobs/:id ──────────────────────────────────────────────────
+// Cancel/Remove a job before matching or during searching
+router.delete('/:id', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const jobId = req.params.id;
+        if (!jobId || !/^\d+$/.test(jobId)) {
+            return fail(res, 'Not found', 404, 'NOT_FOUND');
+        }
+
+        const pool = getPool();
+        const [jobs] = await pool.query('SELECT status, customer_id FROM jobs WHERE id = $1', [jobId]);
+        const job = jobs[0];
+
+        if (!job || job.customer_id != userId) {
+            return fail(res, 'Job not found', 404, 'NOT_FOUND');
+        }
+
+        const CANCELLABLE = ['open', 'searching', 'no_worker_found'];
+        if (!CANCELLABLE.includes(job.status)) {
+            return fail(res, 'Job cannot be cancelled in current state', 400, 'INVALID_STATE');
+        }
+
+        await pool.query("UPDATE jobs SET status = 'cancelled', cancelled_by = 'customer' WHERE id = $1", [jobId]);
+        
+        // Clean up Firebase
+        const { clearJobNode } = await import('../services/firebaseSync.js');
+        await clearJobNode(jobId).catch(() => {});
+
+        return res.status(200).json({ status: 'ok', message: 'Job cancelled' });
+    } catch (err) {
+        console.error('[Jobs] DELETE /:id error:', err);
         return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
     }
 });

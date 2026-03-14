@@ -113,7 +113,9 @@ export default function OnboardingSkills({ data, onNext }) {
                                             style={StyleSheet.absoluteFill}
                                         />
                                     )}
-                                    <Text style={[styles.skillTxt, active && styles.skillTxtActive]}>{c.label.toUpperCase()}</Text>
+                                    <Text style={[styles.skillTxt, active && styles.skillTxtActive]}>
+                                        {t(`cat_${c.id}`, { defaultValue: c.label }).toUpperCase()}
+                                    </Text>
                                 </TouchableOpacity>
                             );
                         })}

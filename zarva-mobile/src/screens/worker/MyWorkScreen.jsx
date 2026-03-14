@@ -94,7 +94,7 @@ export default function MyWorkScreen({ navigation }) {
                 <Card style={styles.historyCard}>
                     <View style={styles.cardTop}>
                         <View style={styles.catBox}>
-                            <Text style={styles.catTxt}>{item.category || t('cat_service')}</Text>
+                            <Text style={styles.catTxt}>{t(`cat_${item.category}`, { defaultValue: item.category || t('cat_service') })}</Text>
                         </View>
                         <Text style={styles.amtTxt}>₹{item.amount || item.total_amount}</Text>
                     </View>

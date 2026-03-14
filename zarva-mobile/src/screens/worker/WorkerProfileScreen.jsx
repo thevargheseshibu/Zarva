@@ -284,7 +284,9 @@ export default function WorkerProfileScreen({ navigation }) {
                             ) : (
                                 skills.map(sk => (
                                     <View key={sk} style={styles.skillPill}>
-                                        <Text style={styles.skillLabel}>{availableSkills[sk]?.label || sk}</Text>
+                                        <Text style={styles.skillLabel}>
+                                            {t(`cat_${sk}`, { defaultValue: availableSkills[sk]?.label || sk })}
+                                        </Text>
                                         <TouchableOpacity style={styles.skillClose} onPress={() => handleRemoveSkill(sk)}>
                                             <Text style={styles.closeIcon}>×</Text>
                                         </TouchableOpacity>
@@ -353,7 +355,9 @@ export default function WorkerProfileScreen({ navigation }) {
                             keyExtractor={([k]) => k}
                             renderItem={({ item: [key, val] }) => (
                                 <TouchableOpacity style={styles.skillPick} onPress={() => handleAddSkill(key)}>
-                                    <Text style={styles.skillPickTxt}>{val.label}</Text>
+                                    <Text style={styles.skillPickTxt}>
+                                        {t(`cat_${key}`, { defaultValue: val.label })}
+                                    </Text>
                                     <Text style={styles.skillAddIcon}>+</Text>
                                 </TouchableOpacity>
                             )}

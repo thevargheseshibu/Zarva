@@ -5,8 +5,9 @@
  */
 
 import express from 'express';
-import { getPool, handle } from '../lib/db.js';
+import { getPool, handle, fail } from '../lib/db.js';
 import { getRedisClient } from '../lib/redis.js';
+import configLoader from '../config/loader.js';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { v4 as uuid } from 'uuid';
@@ -46,6 +47,9 @@ router.get('/stats', handle(async (userId, pool) => {
 router.get('/jobs/:id', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
+        if (!/^\d+$/.test(jobId)) {
+            throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
+        }
         const [jobs] = await pool.query(`SELECT j.id, j.status, j.category, j.address, j.description, j.total_amount as amount,
                     j.arrived_at, j.worker_id, j.customer_id, j.inspection_expires_at,
                     j.inspection_started_at, j.job_started_at, j.job_ended_at,
@@ -106,6 +110,9 @@ router.get('/jobs/:id', (req, res) =>
 router.post('/jobs/:id/complete', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
+        if (!/^\d+$/.test(jobId)) {
+            throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
+        }
 
         // Fetch job and verify ownership with materials and final amounts
         const [jobs] = await pool.query(`
@@ -221,6 +228,9 @@ router.post('/jobs/:id/complete', (req, res) =>
 router.post('/jobs/:id/arrived', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
+        if (!/^\d+$/.test(jobId)) {
+            throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
+        }
 
         // Fetch job and verify ownership
         const [jobs] = await pool.query('SELECT id, status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
@@ -261,6 +271,9 @@ router.post('/jobs/:id/arrived', (req, res) =>
 router.post('/jobs/:id/verify-start-otp', (req, res) =>
     handle(req, res, async (userId, pool) => {
         const jobId = req.params.id;
+        if (!/^\d+$/.test(jobId)) {
+            throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
+        }
         const { otp } = req.body;
 
         if (!otp || !/^[0-9]{4}$/.test(otp)) {
@@ -317,5 +330,202 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         return { success: true };
     })
 );
+
+/**
+ * Get available skills/categories
+ * GET /api/worker/skills
+ */
+router.get('/skills', handle(async (userId, pool) => {
+    const jobsCfg = configLoader.get('jobs');
+    return { skills: jobsCfg.categories };
+}));
+
+/**
+ * Update worker skills
+ * POST /api/worker/onboarding/skills
+ */
+router.post('/onboarding/skills', handle(async (userId, pool, req) => {
+    const { skills } = req.body;
+    console.log(`[Worker] Updating skills for user ${userId}:`, skills);
+
+    if (!Array.isArray(skills)) {
+        console.error(`[Worker] Skills update failed for user ${userId}: skills is not an array`, skills);
+        throw Object.assign(new Error('Skills must be an array'), { status: 400 });
+    }
+
+    try {
+        await pool.query(`
+            UPDATE worker_profiles 
+            SET skills = $1::jsonb,
+                updated_at = NOW()
+            WHERE user_id = $2
+        `, [JSON.stringify(skills), userId]);
+        console.log(`[Worker] Successfully updated skills for user ${userId}`);
+    } catch (err) {
+        console.error(`[Worker] DB Error updating skills for user ${userId}:`, err);
+        throw err;
+    }
+
+    return { success: true };
+}));
+
+/**
+ * Get worker's job history
+ * GET /api/worker/history
+ */
+router.get('/history', handle(async (userId, pool) => {
+    const [rows] = await pool.query(`
+        SELECT id, category, status, address, final_amount as amount, job_ended_at as date, items
+        FROM jobs
+        WHERE worker_id = $1 AND status IN ('completed', 'cancelled')
+        ORDER BY updated_at DESC
+        LIMIT 50
+    `, [userId]);
+    return { history: rows };
+}));
+
+/**
+ * Get worker's earnings summary
+ * GET /api/worker/earnings
+ */
+router.get('/earnings', handle(async (userId, pool) => {
+    const query = `
+        SELECT 
+            COALESCE(SUM(final_amount) FILTER (WHERE job_ended_at >= CURRENT_DATE), 0) as today,
+            COALESCE(SUM(final_amount) FILTER (WHERE job_ended_at >= date_trunc('week', CURRENT_DATE)), 0) as this_week,
+            COALESCE(SUM(final_amount) FILTER (WHERE job_ended_at >= date_trunc('month', CURRENT_DATE)), 0) as this_month,
+            COALESCE(SUM(final_amount), 0) as total
+        FROM jobs
+        WHERE worker_id = $1 AND status = 'completed'
+    `;
+    const [rows] = await pool.query(query, [userId]);
+    return { earnings: rows[0] };
+}));
+
+/**
+ * Get available jobs matching worker's category and service area
+ * GET /api/worker/available-jobs
+ */
+router.get('/available-jobs', handle(async (userId, pool) => {
+    // 1. Get worker's category and service area
+    const [profiles] = await pool.query(`
+        SELECT category, service_area, is_verified, is_online
+        FROM worker_profiles
+        WHERE user_id = $1
+    `, [userId]);
+
+    const wp = profiles[0];
+    if (!wp) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
+    if (!wp.is_verified) return { jobs: [], message: 'Account pending verification' };
+    if (!wp.is_online) return { jobs: [], message: 'Go online to see available jobs' };
+
+    // 2. Find jobs that intersect with service area
+    const [jobs] = await pool.query(`
+        SELECT j.id, j.category, j.address, j.description, j.latitude, j.longitude, j.created_at,
+               ST_Distance(j.job_location, wp.current_location) / 1000 as distance_km
+        FROM jobs j
+        JOIN worker_profiles wp ON wp.user_id = $1
+        WHERE j.status = 'searching' 
+          AND j.category = $2
+          AND ST_Intersects(j.job_location, wp.service_area)
+        ORDER BY j.created_at DESC
+        LIMIT 20
+    `, [userId, wp.category]);
+
+    return { jobs };
+}));
+
+/**
+ * Get worker onboarding status
+ * GET /api/worker/onboard/status
+ */
+router.get('/onboard/status', handle(async (userId, pool) => {
+    const { getOnboardingStatus } = await import('../services/worker.service.js');
+    return await getOnboardingStatus(userId, pool);
+}));
+
+/**
+ * Update worker's current location
+ * PUT /api/worker/location
+ */
+router.put('/location', handle(async (userId, pool, req) => {
+    const { lat, lng } = req.body;
+    if (lat === undefined || lng === undefined) {
+        throw Object.assign(new Error('Latitude and longitude are required'), { status: 400 });
+    }
+
+    await pool.query(`
+        UPDATE worker_profiles 
+        SET current_location = ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+            last_location_lat = $1,
+            last_location_lng = $2,
+            location_updated_at = NOW(),
+            updated_at = NOW()
+        WHERE user_id = $3
+    `, [lat, lng, userId]);
+
+    return { success: true };
+}));
+
+/**
+ * Update worker availability and online status
+ * PUT /api/worker/availability
+ */
+router.put('/availability', handle(async (userId, pool, req) => {
+    const { is_online, is_available } = req.body;
+    
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    if (is_online !== undefined) {
+        updates.push(`is_online = $${idx++}`);
+        values.push(!!is_online);
+    }
+    if (is_available !== undefined) {
+        updates.push(`is_available = $${idx++}`);
+        values.push(!!is_available);
+    }
+
+    if (updates.length === 0) {
+        throw Object.assign(new Error('No update fields provided'), { status: 400 });
+    }
+
+    values.push(userId);
+    await pool.query(`
+        UPDATE worker_profiles 
+        SET ${updates.join(', ')}, updated_at = NOW()
+        WHERE user_id = $${idx}
+    `, values);
+
+    // Fetch updated state
+    const [rows] = await pool.query('SELECT is_online, is_available FROM worker_profiles WHERE user_id = $1', [userId]);
+    return rows[0];
+}));
+
+/**
+ * Update worker service area (Base Location)
+ * POST /api/worker/onboarding/service-area
+ */
+router.post('/onboarding/service-area', handle(async (userId, pool, req) => {
+    const { latitude, longitude, radius_km } = req.body;
+    if (!latitude || !longitude) {
+        throw Object.assign(new Error('Location is required'), { status: 400 });
+    }
+
+    // Default to 15km if not provided or too small
+    const radius = Math.max(parseFloat(radius_km || 15), 5);
+
+    await pool.query(`
+        UPDATE worker_profiles 
+        SET service_center = ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
+            service_radius_km = $3,
+            updated_at = NOW()
+        WHERE user_id = $4
+    `, [latitude, longitude, radius, userId]);
+
+    // Note: The service_area polygon is automatically updated by the DB trigger
+    return { success: true, radius_km: radius };
+}));
 
 export default router;
