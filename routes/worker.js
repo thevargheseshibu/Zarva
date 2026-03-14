@@ -355,21 +355,154 @@ router.post('/jobs/:id/arrived', (req, res) =>
 
         await pool.query(`
             UPDATE jobs 
-            SET start_otp_hash = $1, 
+            SET inspection_otp_hash = $1, 
                 status = 'worker_arrived',
-                arrived_at = NOW()
+                arrived_at = NOW(),
+                inspection_expires_at = NOW() + INTERVAL '15 minutes'
             WHERE id = $2
         `, [hash, jobId]);
 
         // Store OTP in Redis for customer verification (3 hours TTL)
         const redisClient = getRedisClient();
-        await redisClient.set(`zarva:otp:start:${jobId}`, otp, 'EX', 10800);
+        await redisClient.set(`zarva:otp:inspection:${jobId}`, otp, 'EX', 10800);
         console.log(`[Worker] Generated start OTP for job ${jobId}: ${otp}`);
 
         const { updateJobNode } = await import('../services/firebaseSync.js');
         await updateJobNode(jobId, { status: 'worker_arrived', arrived_at: new Date().toISOString() });
 
         return { arrived: true };
+    })
+);
+
+/**
+ * Worker verifies customer's inspection OTP to begin assessment
+ * POST /api/worker/jobs/:id/verify-inspection-otp
+ */
+router.post('/jobs/:id/verify-inspection-otp', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { otp } = req.body;
+
+        if (!otp || !/^\d{4}$/.test(otp)) {
+            throw Object.assign(new Error('Invalid OTP format'), { status: 400 });
+        }
+
+        const [jobs] = await pool.query('SELECT status, worker_id, inspection_otp_hash FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+        const job = jobs[0];
+
+        if (!job) throw Object.assign(new Error('Job not found'), { status: 404 });
+        if (job.status !== 'worker_arrived') {
+            throw Object.assign(new Error('Invalid job state for inspection'), { status: 400 });
+        }
+
+        const isValid = await bcrypt.compare(otp, job.inspection_otp_hash);
+        if (!isValid) throw Object.assign(new Error('Invalid inspection code'), { status: 401 });
+
+        await pool.query(`
+            UPDATE jobs 
+            SET status = 'inspection_active', 
+                inspection_started_at = NOW() 
+            WHERE id = $1
+        `, [jobId]);
+
+        const { updateJobNode } = await import('../services/firebaseSync.js');
+        await updateJobNode(jobId, { status: 'inspection_active', inspection_started_at: new Date().toISOString() });
+
+        return { verified: true };
+    })
+);
+
+/**
+ * Worker submits professional estimate
+ * POST /api/worker/jobs/:id/inspection/estimate
+ */
+router.post('/jobs/:id/inspection/estimate', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { estimated_minutes, notes } = req.body;
+
+        if (!estimated_minutes || isNaN(estimated_minutes)) {
+            throw Object.assign(new Error('Valid estimated minutes required'), { status: 400 });
+        }
+
+        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+        if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+        if (jobs[0].status !== 'inspection_active') {
+            throw Object.assign(new Error('Not in inspection phase'), { status: 400 });
+        }
+
+        const startOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(startOtp, 10);
+
+        await pool.query(`
+            UPDATE jobs 
+            SET status = 'estimate_submitted',
+                inspection_ended_at = NOW(),
+                estimated_duration_minutes = $1,
+                issue_notes = $2,
+                start_otp_hash = $3,
+                start_otp_generated_at = NOW()
+            WHERE id = $4
+        `, [estimated_minutes, notes, hash, jobId]);
+
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:start:${jobId}`, startOtp, 'EX', 3600);
+
+        const { updateJobNode } = await import('../services/firebaseSync.js');
+        await updateJobNode(jobId, { 
+            status: 'estimate_submitted', 
+            estimated_minutes,
+            start_otp_generated_at: new Date().toISOString()
+        });
+
+        return { success: true };
+    })
+);
+
+/**
+ * Worker requests 10 min inspection extension
+ * POST /api/worker/jobs/:id/inspection/extend-request
+ */
+router.post('/jobs/:id/inspection/extend-request', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const [jobs] = await pool.query('SELECT status, worker_id, inspection_extension_count FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+        const job = jobs[0];
+
+        if (!job) throw Object.assign(new Error('Job not found'), { status: 404 });
+        if (job.status !== 'inspection_active' && job.status !== 'worker_arrived') {
+            throw Object.assign(new Error('Cannot extend at this stage'), { status: 400 });
+        }
+        if ((job.inspection_extension_count || 0) >= 2) {
+            throw Object.assign(new Error('Maximum extensions reached'), { status: 403 });
+        }
+
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(otp, 10);
+
+        await pool.query(`
+            UPDATE jobs 
+            SET inspection_extension_otp_hash = $1
+            WHERE id = $2
+        `, [hash, jobId]);
+
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:inspect-ext:${jobId}`, otp, 'EX', 600);
+
+        return { otp };
+    })
+);
+
+/**
+ * Recover extension OTP
+ * GET /api/worker/jobs/:id/inspection/extension-otp
+ */
+router.get('/jobs/:id/inspection/extension-otp', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const redisClient = getRedisClient();
+        const otp = await redisClient.get(`zarva:otp:inspect-ext:${jobId}`);
+        return { otp };
     })
 );
 
@@ -441,6 +574,157 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
 );
 
 /**
+ * Worker requests to pause the work (needs customer approval)
+ * POST /api/worker/jobs/:id/pause-request
+ */
+router.post('/jobs/:id/pause-request', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { reason } = req.body;
+
+        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+        if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+        if (jobs[0].status !== 'in_progress') {
+            throw Object.assign(new Error('Only in-progress jobs can be paused'), { status: 400 });
+        }
+
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(otp, 10);
+
+        await pool.query(`
+            UPDATE jobs 
+            SET status = 'pause_requested',
+                pause_reason = $1,
+                pause_otp_hash = $2
+            WHERE id = $3
+        `, [reason, hash, jobId]);
+
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:pause:${jobId}`, otp, 'EX', 1800);
+
+        const { updateJobNode } = await import('../services/firebaseSync.js');
+        await updateJobNode(jobId, { status: 'pause_requested', pause_reason: reason });
+
+        return { success: true, otp };
+    })
+);
+
+/**
+ * Worker requests to resume paused work
+ * POST /api/worker/jobs/:id/resume-request
+ */
+router.post('/jobs/:id/resume-request', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+        if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+        if (jobs[0].status !== 'work_paused') {
+            throw Object.assign(new Error('Job is not paused'), { status: 400 });
+        }
+
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(otp, 10);
+
+        await pool.query(`
+            UPDATE jobs 
+            SET status = 'resume_requested',
+                resume_otp_hash = $1
+            WHERE id = $2
+        `, [hash, jobId]);
+
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:resume:${jobId}`, otp, 'EX', 1800);
+
+        const { updateJobNode } = await import('../services/firebaseSync.js');
+        await updateJobNode(jobId, { status: 'resume_requested' });
+
+        return { success: true, otp };
+    })
+);
+
+/**
+ * Worker requests to suspend/reschedule (Customer approval via OTP)
+ * POST /api/worker/jobs/:id/suspend-request
+ */
+router.post('/jobs/:id/suspend-request', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { reason, reschedule_at } = req.body;
+
+        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+        if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(otp, 10);
+
+        await pool.query(`
+            UPDATE jobs 
+            SET status = 'suspend_requested',
+                suspend_reason = $1,
+                suspend_reschedule_at = $2,
+                suspend_otp_hash = $3
+            WHERE id = $4
+        `, [reason, reschedule_at, hash, jobId]);
+
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:suspend:${jobId}`, otp, 'EX', 1800);
+
+        const { updateJobNode } = await import('../services/firebaseSync.js');
+        await updateJobNode(jobId, { status: 'suspend_requested', suspend_reason: reason });
+
+        return { success: true, otp };
+    })
+);
+
+/**
+ * Register materials used for the job
+ * POST /api/worker/jobs/:id/materials
+ */
+router.post('/jobs/:id/materials', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { items } = req.body; // Array of { name, amount }
+
+        if (!Array.isArray(items)) throw Object.assign(new Error('Items must be an array'), { status: 400 });
+
+        // Verify ownership
+        const [jobs] = await pool.query('SELECT id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+        if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+
+        try {
+            // Remove existing unflagged materials if updating
+            await conn.query('DELETE FROM job_materials WHERE job_id = $1', [jobId]);
+
+            let totalMaterials = 0;
+            for (const item of items) {
+                const amount = parseFloat(item.amount);
+                if (isNaN(amount) || amount < 0) continue;
+                
+                await conn.query(
+                    'INSERT INTO job_materials (job_id, name, amount) VALUES ($1, $2, $3)',
+                    [jobId, item.name, amount]
+                );
+                totalMaterials += amount;
+            }
+
+            // Update materials_cost and materials_declared in jobs table
+            await conn.query('UPDATE jobs SET materials_cost = $1, materials_declared = true WHERE id = $2', [totalMaterials, jobId]);
+
+            await conn.commit();
+            return { success: true, total: totalMaterials };
+        } catch (err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
+    })
+);
+
+/**
  * Get available skills/categories
  * GET /api/worker/skills
  */
@@ -496,14 +780,16 @@ router.get('/history', handle(async (userId, pool) => {
             j.id, j.category, j.status, j.address, 
             COALESCE(j.final_amount, 0) as amount, 
             j.job_ended_at as date,
+            j.created_at,
             cp.name as customer_name
         FROM jobs j
         LEFT JOIN customer_profiles cp ON j.customer_id = cp.user_id
-        WHERE j.worker_id = $1 AND j.status IN ('completed', 'cancelled')
+        WHERE j.worker_id = $1 
+          AND j.status NOT IN ('searching', 'open', 'no_worker_found')
         ORDER BY j.updated_at DESC
         LIMIT 50
     `, [userId]);
-    console.log(`[Worker] Found ${rows.length} completed/cancelled history items for userId: ${userId}`);
+    console.log(`[Worker] Found ${rows.length} relevant items for userId: ${userId}`);
     return { history: rows };
 }));
 
@@ -551,18 +837,18 @@ router.get('/available-jobs', handle(async (userId, pool) => {
     const [categoryCount] = await pool.query(`SELECT COUNT(*) as count FROM jobs WHERE status = 'searching' AND category = $1`, [wp.category]);
     console.log(`[Worker] Global 'searching' jobs for category ${wp.category}: ${categoryCount[0].count}`);
 
-    // 2. Find jobs that intersect with service area
+    // 2. Find jobs that match category OR skills AND intersect with service area
     const [jobs] = await pool.query(`
         SELECT j.id, j.category, j.address, j.description, j.latitude, j.longitude, j.created_at,
                ST_Distance(j.job_location, wp.current_location) / 1000 as distance_km
         FROM jobs j
         JOIN worker_profiles wp ON wp.user_id = $1
         WHERE j.status = 'searching' 
-          AND j.category = $2
+          AND (j.category = wp.category OR (wp.skills IS NOT NULL AND wp.skills::jsonb @> jsonb_build_array(j.category::text)))
           AND ST_Intersects(j.job_location, wp.service_area)
         ORDER BY j.created_at DESC
         LIMIT 20
-    `, [userId, wp.category]);
+    `, [userId]);
 
     console.log(`[Worker] Found ${jobs.length} available jobs matching category and service area.`);
     return { jobs, is_online: true, is_verified: true };

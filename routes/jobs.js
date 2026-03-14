@@ -140,6 +140,20 @@ router.get('/:id', async (req, res) => {
             return fail(res, 'Not found', 404, 'NOT_FOUND');
         }
 
+        // If job is in worker_arrived, fetch the inspection OTP
+        if (job.status === 'worker_arrived') {
+            const redisClient = getRedisClient();
+            const inspectionOtp = await redisClient.get(`zarva:otp:inspection:${jobId}`);
+            if (inspectionOtp) job.inspection_otp = inspectionOtp;
+        }
+
+        // If job is in estimate_submitted, fetch the start OTP
+        if (job.status === 'estimate_submitted') {
+            const redisClient = getRedisClient();
+            const startOtp = await redisClient.get(`zarva:otp:start:${jobId}`);
+            if (startOtp) job.start_otp = startOtp;
+        }
+
         // If job is in pending_completion, fetch the END OTP from Redis to show to the customer
         if (job.status === 'pending_completion') {
             console.log(`[Customer] Job ${jobId} is pending_completion, fetching end OTP...`);
@@ -304,10 +318,14 @@ router.post('/', async (req, res) => {
         await redisClient.set(`zarva:otp:start:${jobId}`, startOtp, 'EX', 10800); // 3 hours
 
         // Update status to 'searching' then trigger matching engine
+        console.log(`[JobService] Job ${jobId} inserted successfully. Moving to searching status...`);
         await pool.query(`UPDATE jobs SET status = 'searching' WHERE id = $1`, [jobId]);
+        console.log(`[JobService] Job ${jobId} moved to 'searching'. Triggering matching engine...`);
         const { startMatching } = await import('../services/matchingEngine.js');
         // Fire-and-forget — matching runs async in background
-        startMatching(jobId).catch(e => console.error('[Jobs] Async matching failed:', e.message));
+        startMatching(jobId).catch(err => {
+            console.error(`[JobService] Failed to start matching engine for Job ${jobId}:`, err);
+        });
 
         return res.status(201).json({ status: 'ok', job: { id: jobId } });
 
