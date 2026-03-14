@@ -250,7 +250,7 @@ router.get('/:id', async (req, res) => {
         delete job.worker_lng;
         delete job.worker_verified;
 
-        return { job };
+        return res.status(200).json({ status: 'ok', job });
     } catch (err) {
         console.error('[Jobs] GET /:id error:', err);
         return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');

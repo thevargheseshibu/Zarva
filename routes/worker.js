@@ -440,8 +440,7 @@ router.post('/jobs/:id/inspection/estimate', (req, res) =>
                 inspection_ended_at = NOW(),
                 estimated_duration_minutes = $1,
                 issue_notes = $2,
-                start_otp_hash = $3,
-                start_otp_generated_at = NOW()
+                start_otp_hash = $3
             WHERE id = $4
         `, [estimated_minutes, notes, hash, jobId]);
 
@@ -516,7 +515,7 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         if (!/^\d+$/.test(jobId)) {
             throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
         }
-        const { otp } = req.body;
+        const otp = req.body.code || req.body.otp;
 
         if (!otp || !/^[0-9]{4}$/.test(otp)) {
             throw Object.assign(new Error('Invalid OTP format'), { status: 400 });
