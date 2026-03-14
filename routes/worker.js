@@ -192,7 +192,7 @@ router.post('/jobs/:id/accept', (req, res) =>
 
             // 6. Firebase Sync for real-time customer updates
             try {
-                const { updateJobNode } = await import('../services/firebaseSync.js');
+                const { updateJobNode } = await import('../services/firebase.service.js');
                 await updateJobNode(jobId, { 
                     status: 'worker_en_route', 
                     worker_id: userId,
@@ -274,7 +274,7 @@ router.post('/jobs/:id/complete', (req, res) =>
                 await redisClient.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800);
                 console.log(`[Worker] Regenerated OTP for job ${jobId} with updated amounts: ${otp}`);
                 
-                const { updateJobNode } = await import('../services/firebaseSync.js');
+                const { updateJobNode } = await import('../services/firebase.service.js');
                 await updateJobNode(jobId, { status: 'pending_completion', timer_status: 'stopped' });
                 
                 return { end_otp: otp, amount_updated: true, new_final_amount: newFinalAmount / 100 };
@@ -323,7 +323,7 @@ router.post('/jobs/:id/complete', (req, res) =>
         await redisClient.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800);
         console.log(`[Worker] Generated new OTP for job ${jobId}: ${otp}, Final amounts: labor=${job.final_labor_paise}, materials=${materialsPaise}, total=${(job.final_labor_paise || 0) + materialsPaise}`);
 
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { status: 'pending_completion', timer_status: 'stopped' });
 
         return { end_otp: otp, final_materials: materialsRupees, final_total: ((job.final_labor_paise || 0) + materialsPaise) / 100 };
@@ -367,7 +367,7 @@ router.post('/jobs/:id/arrived', (req, res) =>
         await redisClient.set(`zarva:otp:inspection:${jobId}`, otp, 'EX', 10800);
         console.log(`[Worker] Generated start OTP for job ${jobId}: ${otp}`);
 
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { status: 'worker_arrived', arrived_at: new Date().toISOString() });
 
         return { arrived: true };
@@ -405,7 +405,7 @@ router.post('/jobs/:id/verify-inspection-otp', (req, res) =>
             WHERE id = $1
         `, [jobId]);
 
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { status: 'inspection_active', inspection_started_at: new Date().toISOString() });
 
         return { verified: true };
@@ -448,7 +448,7 @@ router.post('/jobs/:id/inspection/estimate', (req, res) =>
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:start:${jobId}`, startOtp, 'EX', 3600);
 
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { 
             status: 'estimate_submitted', 
             estimated_minutes,
@@ -541,7 +541,7 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
             // After 5 failed attempts, escalate to disputed
             if (newAttempts >= 5) {
                 await pool.query('UPDATE jobs SET status = $1 WHERE id = $2', ['disputed', jobId]);
-                const { updateJobNode } = await import('../services/firebaseSync.js');
+                const { updateJobNode } = await import('../services/firebase.service.js');
                 await updateJobNode(jobId, { status: 'disputed' });
                 throw Object.assign(new Error('Maximum OTP attempts exceeded - job disputed'), { status: 403 });
             }
@@ -562,7 +562,7 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         const redisClient = getRedisClient();
         await redisClient.del(`zarva:otp:start:${jobId}`);
 
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { 
             status: 'in_progress',
             timer_status: 'running',
@@ -602,7 +602,7 @@ router.post('/jobs/:id/pause-request', (req, res) =>
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:pause:${jobId}`, otp, 'EX', 1800);
 
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { status: 'pause_requested', pause_reason: reason });
 
         return { success: true, otp };
@@ -635,7 +635,7 @@ router.post('/jobs/:id/resume-request', (req, res) =>
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:resume:${jobId}`, otp, 'EX', 1800);
 
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { status: 'resume_requested' });
 
         return { success: true, otp };
@@ -669,7 +669,7 @@ router.post('/jobs/:id/suspend-request', (req, res) =>
         const redisClient = getRedisClient();
         await redisClient.set(`zarva:otp:suspend:${jobId}`, otp, 'EX', 1800);
 
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { status: 'suspend_requested', suspend_reason: reason });
 
         return { success: true, otp };

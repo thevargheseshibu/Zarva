@@ -395,7 +395,7 @@ router.post('/:id/verify-start', async (req, res) => {
         `, [jobId]);
 
         // Update Firebase
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { 
             status: 'in_progress',
             timer_status: 'running',
@@ -487,7 +487,7 @@ router.post('/:id/verify-end', async (req, res) => {
         await BillingService.finalizeJob(jobId);
 
         // Update Firebase
-        const { updateJobNode } = await import('../services/firebaseSync.js');
+        const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { 
             status: 'completed',
             timer_status: 'stopped',
@@ -530,8 +530,8 @@ router.delete('/:id', async (req, res) => {
         await pool.query("UPDATE jobs SET status = 'cancelled', cancelled_by = 'customer' WHERE id = $1", [jobId]);
         
         // Clean up Firebase
-        const { clearJobNode } = await import('../services/firebaseSync.js');
-        await clearJobNode(jobId).catch(() => {});
+        const { updateJobNode } = await import('../services/firebase.service.js');
+        await updateJobNode(jobId, { status: 'cancelled' }).catch(() => {});
 
         return res.status(200).json({ status: 'ok', message: 'Job cancelled' });
     } catch (err) {
