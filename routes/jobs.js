@@ -140,8 +140,9 @@ router.get('/:id', async (req, res) => {
             return fail(res, 'Not found', 404, 'NOT_FOUND');
         }
 
-        // If job is in worker_arrived, fetch the inspection OTP
-        if (job.status === 'worker_arrived') {
+        // CHANGE: Keep inspection OTP available throughout the full inspection handoff window.
+        // CHANGE: Customer can still need to read/share the OTP even after status moves to inspection_active.
+        if (['worker_arrived', 'inspection_active'].includes(job.status)) {
             const redisClient = getRedisClient();
             let inspectionOtp = await redisClient.get(`zarva:otp:inspection:${jobId}`);
 
