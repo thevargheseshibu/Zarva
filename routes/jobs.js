@@ -143,7 +143,20 @@ router.get('/:id', async (req, res) => {
         // If job is in worker_arrived, fetch the inspection OTP
         if (job.status === 'worker_arrived') {
             const redisClient = getRedisClient();
-            const inspectionOtp = await redisClient.get(`zarva:otp:inspection:${jobId}`);
+            let inspectionOtp = await redisClient.get(`zarva:otp:inspection:${jobId}`);
+
+            // CHANGE: Recover from missing Redis OTP so the customer always sees a valid inspection code.
+            if (!inspectionOtp) {
+                // CHANGE: Regenerate a fresh inspection OTP and persist its hash in MySQL (source of truth).
+                inspectionOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+                const inspectionOtpHash = await bcrypt.hash(inspectionOtp, 10);
+                await pool.query('UPDATE jobs SET inspection_otp_hash = $1 WHERE id = $2', [inspectionOtpHash, jobId]);
+
+                // CHANGE: Rehydrate Redis cache so both customer (display) and worker (verification) stay in sync.
+                await redisClient.set(`zarva:otp:inspection:${jobId}`, inspectionOtp, 'EX', 10800);
+            }
+
+            // CHANGE: Return the OTP to customer UI so the inspection phase card can render it reliably.
             if (inspectionOtp) job.inspection_otp = inspectionOtp;
         }
 
