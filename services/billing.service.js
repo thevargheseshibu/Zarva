@@ -474,6 +474,12 @@ class BillingService {
                 `UPDATE jobs SET status='cancelled', estimate_rejected_at=NOW(), final_amount=$1 WHERE id=$2`,
                 [partialAmount, jobId]
             );
+
+            // CHANGE: Clear worker active job on rejection to prevent "ghost job" blocking new matches.
+            if (job.worker_id) {
+                await conn.query('UPDATE worker_profiles SET current_job_id = NULL WHERE user_id = $1', [job.worker_id]);
+            }
+
             await this._recordTimerEvent(conn, jobId, 'estimate_rejected', 'customer', 'Customer rejected estimate');
             await conn.commit();
 
@@ -963,14 +969,23 @@ class BillingService {
                 console.warn(`[BillingService] Amount mismatch for job ${jobId}: materials expected ${expectedMaterialPaise}, declared ${declaredMaterialPaise}, total expected ${expectedTotal}, declared ${declaredTotal}. Correcting...`);
                 
                 // Correct the final amounts
+                // $1: materials_paise (BIGINT), $2: total_paise (BIGINT)
+                // $3: materials (NUMERIC), $4: total (NUMERIC)
+                // $5: jobId (BIGINT)
                 await conn.query(`
                     UPDATE jobs 
-                    SET final_material_paise = $1,
-                        grand_total_paise = $2,
-                        final_amount = $2 / 100,
-                        materials_cost = $1 / 100
-                    WHERE id = $3
-                `, [expectedMaterialPaise, expectedTotal, jobId]);
+                    SET final_material_paise = $1::BIGINT,
+                        grand_total_paise = $2::BIGINT,
+                        final_amount = $4::NUMERIC,
+                        materials_cost = $3::NUMERIC
+                    WHERE id = $5::BIGINT
+                `, [
+                    expectedMaterialPaise, 
+                    expectedTotal, 
+                    expectedMaterialPaise / 100, 
+                    expectedTotal / 100, 
+                    jobId
+                ]);
                 
                 job.final_material_paise = expectedMaterialPaise;
                 job.grand_total_paise = expectedTotal;

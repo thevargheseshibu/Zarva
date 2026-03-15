@@ -31,6 +31,11 @@ async function cancelJobByCustomer(jobId, userId) {
 
     await pool.query("UPDATE jobs SET status = 'cancelled', cancelled_by = 'customer' WHERE id = $1", [jobId]);
 
+    // CHANGE: Clear worker active job on cancellation to prevent "ghost job" blocking new matches.
+    if (job.worker_id) {
+        await pool.query('UPDATE worker_profiles SET current_job_id = NULL WHERE user_id = $1', [job.worker_id]);
+    }
+
     // CHANGE: Keep Firebase mirror aligned with SQL source of truth for cancellation.
     const { updateJobNode } = await import('../services/firebase.service.js');
     await updateJobNode(jobId, { status: 'cancelled' }).catch(() => { });
@@ -499,24 +504,6 @@ router.post('/:id/verify-end', async (req, res) => {
         if (!isValid) {
             await pool.query('UPDATE jobs SET end_otp_attempts = end_otp_attempts + 1 WHERE id = $1', [jobId]);
             return fail(res, 'Invalid OTP', 400, 'INVALID_OTP');
-        }
-
-        // Double-check final amounts match to prevent ledger issues
-        const expectedTotal = (job.final_labor_paise || 0) + (job.current_materials_paise || 0);
-        const declaredTotal = job.grand_total_paise || 0;
-        
-        if (expectedTotal !== declaredTotal && job.current_materials_paise > 0) {
-            console.warn(`[Customer] Amount mismatch for job ${jobId}: expected ${expectedTotal}, declared ${declaredTotal}. Updating final amounts...`);
-            
-            // Update final amounts to match actual materials
-            await pool.query(`
-                UPDATE jobs 
-                SET final_material_paise = $1,
-                    grand_total_paise = $2,
-                    final_amount = $2 / 100,
-                    materials_cost = $1 / 100
-                WHERE id = $3
-            `, [job.current_materials_paise, expectedTotal, jobId]);
         }
 
         // Update job status and finalize billing

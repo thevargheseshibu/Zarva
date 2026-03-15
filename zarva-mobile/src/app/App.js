@@ -169,7 +169,7 @@ export default function App() {
         }
       }
     }).catch(console.warn);
-  }, [isLoaded]);
+  }, [isLoaded, isAuthenticated]);
 
   // 3. FCM Token Sync (Reactive to Auth)
   React.useEffect(() => {

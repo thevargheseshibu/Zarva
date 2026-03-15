@@ -95,7 +95,7 @@ export default function MaterialDeclarationScreen({ navigation, route }) {
     const submitMaterials = async (withNoMaterials = false) => {
         setSubmitting(true);
         try {
-            await apiClient.post(`/api/jobs/${jobId}/materials`, {
+            await apiClient.post(`/api/worker/jobs/${jobId}/materials`, {
                 items: withNoMaterials ? [] : items,
             });
             navigation.replace('JobCompleteSummary', { jobId });

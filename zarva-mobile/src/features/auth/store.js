@@ -82,6 +82,11 @@ export const useAuthStore = create(
         }),
 
       /**
+       * Replaces the user object (compatibility alias for App.js).
+       */
+      setUser: (user) => set({ user }),
+
+      /**
        * Called on app start after SecureStore hydration.
        * Marks loading as done regardless of outcome.
        */
@@ -100,7 +105,7 @@ export const useAuthStore = create(
         isAuthenticated: state.isAuthenticated,
         user: state.user,
         activeRole: state.activeRole,
-        // NOTE: token is NOT persisted here — it's in SecureStore
+        token: state.token, // Persist token for session continuity
       }),
     }
   )

@@ -132,15 +132,15 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
                         <TextInput
                             style={styles.input}
                             placeholder={t('type_details_here')}
-                            placeholderTextColor={colors.text.muted}
+                            placeholderTextColor={tTheme.text.muted}
                             value={answer || ''}
                             onChangeText={(txt) => handleAnswer(q.id, txt)}
                             multiline
-                            selectionColor={colors.accent.primary}
+                            selectionColor={tTheme.brand.primary}
                         />
                     )}
 
-                    {!q.required && !answer && (
+                    {!q.required && (answer === undefined || answer === null || answer === '') && (
                         <TouchableOpacity
                             style={styles.skipBtn}
                             onPress={() => handleAnswer(q.id, 'SKIPPED')}
@@ -295,7 +295,25 @@ const createStyles = (t) => StyleSheet.create({
         minHeight: 120,
         textAlignVertical: 'top',
         borderWidth: 1,
-        borderColor: t.background.surface,
+        borderColor: t.border.default + '22',
+    },
+
+    skipBtn: {
+        alignSelf: 'center',
+        marginTop: t.spacing.md,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: t.radius.full,
+        backgroundColor: t.background.surface,
+        borderWidth: 1,
+        borderColor: t.brand.accent + '44',
+    },
+    skipTxt: {
+        color: t.brand.accent,
+        fontSize: 10,
+        fontWeight: t.typography.weight.bold,
+        letterSpacing: 1,
+        textTransform: 'uppercase'
     },
 
     footer: { marginTop: t.spacing[40] || 40 },

@@ -141,12 +141,19 @@ export default function AvailableJobsScreen({ navigation }) {
                         navigation.navigate('JobDetailPreview', { job: item });
                     }}
                 >
-                    <Card style={styles.jobCard}>
+                    <Card style={[styles.jobCard, item.is_match && styles.matchedCard]}>
                         <View style={styles.cardHeader}>
-                            <View style={[styles.catBox, viewMode === 'custom' && styles.catBoxCustom]}>
-                                <Text style={[styles.catTxt, viewMode === 'custom' && styles.catTxtCustom]}>
-                                    {viewMode === 'custom' ? 'CUSTOM REQUEST' : (item.category || t('professional_service'))}
-                                </Text>
+                            <View style={styles.headerLeft}>
+                                <View style={[styles.catBox, viewMode === 'custom' && styles.catBoxCustom]}>
+                                    <Text style={[styles.catTxt, viewMode === 'custom' && styles.catTxtCustom]}>
+                                        {viewMode === 'custom' ? 'CUSTOM REQUEST' : (item.category || t('professional_service'))}
+                                    </Text>
+                                </View>
+                                {item.status === 'no_worker_found' && (
+                                    <View style={[styles.statusTag, { backgroundColor: tTheme.status.error.base + '22' }]}>
+                                        <Text style={[styles.statusTagTxt, { color: tTheme.status.error.dark }]}>RE-OPENED</Text>
+                                    </View>
+                                )}
                             </View>
                             <View style={{ alignItems: 'flex-end' }}>
                                 <Text style={styles.timeTxt}>{dayjs(item.created_at || item.time).fromNow()}</Text>
@@ -162,7 +169,7 @@ export default function AvailableJobsScreen({ navigation }) {
                         <View style={styles.statsRow}>
                             <View style={styles.statLine}>
                                 <Text style={styles.statIcon}>📍</Text>
-                                <Text style={styles.statTxt}>{formatDistance(item.dist) || '—'}{t('away_suffix')}</Text>
+                                <Text style={styles.statTxt}>{formatDistance(item.dist || item.distance_km) || '—'}{t('away_suffix')}</Text>
                             </View>
                             <View style={styles.rewardBox}>
                                 <Text style={styles.rewardLabel}>{viewMode === 'custom' ? 'HOURLY RATE' : t('est_payout')}</Text>
@@ -171,7 +178,7 @@ export default function AvailableJobsScreen({ navigation }) {
                         </View>
 
                         <View style={styles.cardFooter}>
-                            <Text style={styles.clientLabel}>{t('requested_by')}{item.customer_name?.split(' ')[0] || 'Client'}</Text>
+                            <Text style={styles.clientLabel}>{item.is_match ? '🔥 PROFICIENT MATCH' : t('available_in_area')}</Text>
                             <Text style={styles.viewMore}>{t('acquire_request')}</Text>
                         </View>
                     </Card>
@@ -346,7 +353,11 @@ const createStyles = (t) => StyleSheet.create({
 
     listContent: { padding: t.spacing['2xl'], paddingBottom: 120, gap: t.spacing.lg, flexGrow: 1 },
     jobCard: { padding: t.spacing['2xl'], gap: t.spacing.lg, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.background.surface },
+    matchedCard: { borderColor: t.brand.primary + '44', backgroundColor: t.brand.primary + '05' },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    statusTag: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+    statusTagTxt: { fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
     catBox: { backgroundColor: t.brand.primary + '11', paddingHorizontal: 10, paddingVertical: 4, borderRadius: t.radius.md },
     catBoxCustom: { backgroundColor: t.status.warning.base + '15' },
     catTxt: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, textTransform: 'uppercase' },

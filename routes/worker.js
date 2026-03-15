@@ -127,7 +127,7 @@ router.post('/jobs/:id/accept', (req, res) =>
             const job = jobs[0];
 
             if (!job) throw Object.assign(new Error('Job not found'), { status: 404 });
-            if (job.status !== 'open' && job.status !== 'searching') {
+            if (job.status !== 'open' && job.status !== 'searching' && job.status !== 'no_worker_found') {
                 throw Object.assign(new Error('Job is no longer available'), { status: 409 });
             }
 
@@ -556,6 +556,7 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         await pool.query(`
             UPDATE jobs 
             SET status = 'in_progress',
+                job_started_at = NOW(),
                 work_started_at = NOW(),
                 start_otp_attempts = 0
             WHERE id = $1
@@ -569,6 +570,7 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         await updateJobNode(jobId, { 
             status: 'in_progress',
             timer_status: 'running',
+            job_started_at: new Date().toISOString(),
             work_started_at: new Date().toISOString()
         });
 
@@ -840,17 +842,20 @@ router.get('/available-jobs', handle(async (userId, pool) => {
     const [categoryCount] = await pool.query(`SELECT COUNT(*) as count FROM jobs WHERE status = 'searching' AND category = $1`, [wp.category]);
     console.log(`[Worker] Global 'searching' jobs for category ${wp.category}: ${categoryCount[0].count}`);
 
-    // 2. Find jobs that match category OR skills AND intersect with service area
+    // 2. Find jobs that match status ('searching' or 'no_worker_found') AND intersect with service area
+    // Remove strict category filter, but add is_match flag for UI highlighting.
     const [jobs] = await pool.query(`
-        SELECT j.id, j.category, j.address, j.description, j.latitude, j.longitude, j.created_at,
-               ST_Distance(j.job_location, wp.current_location) / 1000 as distance_km
+        SELECT j.id, j.category, j.status, j.address, j.description, j.latitude, j.longitude, j.created_at, j.total_amount,
+               c.name as customer_name,
+               ST_Distance(j.job_location, wp.current_location) / 1000 as distance_km,
+               (j.category = wp.category OR (wp.skills IS NOT NULL AND wp.skills::jsonb @> jsonb_build_array(j.category::text)))::boolean as is_match
         FROM jobs j
         JOIN worker_profiles wp ON wp.user_id = $1
-        WHERE j.status = 'searching' 
-          AND (j.category = wp.category OR (wp.skills IS NOT NULL AND wp.skills::jsonb @> jsonb_build_array(j.category::text)))
+        LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
+        WHERE j.status IN ('searching', 'no_worker_found')
           AND ST_Intersects(j.job_location, wp.service_area)
-        ORDER BY j.created_at DESC
-        LIMIT 20
+        ORDER BY is_match DESC, j.created_at DESC
+        LIMIT 50
     `, [userId]);
 
     console.log(`[Worker] Found ${jobs.length} available jobs matching category and service area.`);

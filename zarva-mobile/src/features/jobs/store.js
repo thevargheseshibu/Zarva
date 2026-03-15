@@ -54,11 +54,24 @@ export const useJobStore = create(
       // ── Recent Jobs (for history tab) ─────────────────────────────────
       recentJobIds: [],
 
+      /** UI State for Searching screen */
+      canMinimize: false,
+      waveNumber: 1,
+
       // ──────────────────────────────────────────────────────────────────
       // ACTIONS
       // ──────────────────────────────────────────────────────────────────
 
       setActiveJobId: (id) => set({ activeJobId: id }),
+      setActiveJob: ({ id, category }) => set({ 
+        activeJobId: id, 
+        searchPhase: 'searching',
+        canMinimize: false,
+        waveNumber: 1
+      }),
+
+      setCanMinimize: (val) => set({ canMinimize: val }),
+      setWaveNumber: (num) => set({ waveNumber: num }),
 
       setSearchPhase: (phase) => set({ searchPhase: phase }),
 
@@ -95,6 +108,8 @@ export const useJobStore = create(
           searchPhase: null,
           assignedWorker: null,
           isListening: false,
+          canMinimize: false,
+          waveNumber: 1
         });
       },
 

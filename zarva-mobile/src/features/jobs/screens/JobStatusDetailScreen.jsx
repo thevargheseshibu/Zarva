@@ -213,6 +213,11 @@ export default function JobStatusDetailScreen({ route, navigation }) {
             if (data.inspection_ext_pending === true) {
                 fetchJobDetails();
             }
+
+            // RE-FETCH ON STATUS CHANGE: Ensure we have latest OTPs and timestamps
+            if (data.status) {
+                fetchJobDetails();
+            }
         });
 
         return () => {
@@ -712,7 +717,11 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                             navigation.replace('Payment', { jobId });
                                         } catch (err) {
                                             if (!navigated) {
-                                                Alert.alert('Invalid Code', t('invalid_code') || 'The code entered is incorrect. Please try again.');
+                                                const errData = err.response?.data;
+                                                const title = errData?.code === 'INVALID_OTP' ? 'Invalid Code' : 'Error';
+                                                const message = errData?.message || t('invalid_code') || 'The code entered is incorrect. Please try again.';
+                                                
+                                                Alert.alert(title, message);
                                                 // Clear boxes so customer can re-enter the correct code
                                                 endOtpRef.current?.reset();
                                             }

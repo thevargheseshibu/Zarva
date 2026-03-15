@@ -108,6 +108,8 @@ export default function ActiveJobScreen({ route, navigation }) {
                 const currentJob = useWorkerStore.getState().activeJob;
                 if (currentJob && currentJob.id == jobId) {
                     useWorkerStore.getState().setActiveJob({ ...currentJob, status: data.status });
+                    // RE-FETCH FULL JOB: Get latest OTPs, timestamps, and cost data from REST API
+                    fetchJob();
                 }
             }
         });
@@ -512,7 +514,7 @@ export default function ActiveJobScreen({ route, navigation }) {
         setActionLoading(true);
         try {
             const validItems = skip ? [] : materials.filter(m => m.name.trim() && parseFloat(m.amount) > 0);
-            await apiClient.post(`/api/jobs/${jobId}/materials`, { items: validItems });
+            await apiClient.post(`/api/worker/jobs/${jobId}/materials`, { items: validItems });
             setMaterialsVisible(false);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err) {

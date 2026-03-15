@@ -76,7 +76,7 @@ export default function RatingScreen({ route, navigation }) {
 
             await apiClient.post(`/api/reviews`, {
                 job_id: jobId,
-                score: rating,
+                overall_score: rating,
                 category_scores: {
                     punctuality,
                     communication,
@@ -157,11 +157,18 @@ export default function RatingScreen({ route, navigation }) {
                 <FadeInView delay={50} style={styles.profileBox}>
                     <View style={styles.photoContainer}>
                         <Image source={{ uri: workerPhoto }} style={styles.photo} />
-                        <View style={styles.ratingBadge}>
+                    <View style={styles.ratingBadge}>
                             <Text style={styles.ratingBadgeTxt}>⭐ {parseFloat(worker.rating || 0).toFixed(1)}</Text>
                         </View>
                     </View>
-                    <Text style={styles.title}>{isReadOnly ? t('your_review') : t('rate_name').replace('%{name}', worker.name)}</Text>
+                    <Text style={styles.title}>
+                        {isReadOnly 
+                            ? t('your_review') 
+                            : (typeof t('rate_name') === 'string' && t('rate_name').includes('%{name}')
+                                ? t('rate_name').replace('%{name}', worker.name)
+                                : `${t('rate_name')} ${worker.name}`)
+                        }
+                    </Text>
                     <Text style={styles.sub}>
                         {isReadOnly ? t('thank_you_feedback') : t('how_was_experience')}
                     </Text>
@@ -240,7 +247,7 @@ const createStyles = (t) => StyleSheet.create({
     },
     headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
     headerBtnTxt: { color: t.text.primary, fontSize: 18 },
-    skipTxt: { color: t.brand.primary, fontSize: 12, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
+    skipTxt: { color: t.brand.accent, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1.2, textTransform: 'uppercase' },
 
     scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
