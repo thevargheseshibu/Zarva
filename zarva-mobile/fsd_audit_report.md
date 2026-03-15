@@ -82,20 +82,20 @@ src/features/auth/translations/
 
 src/features/notifications/
   [x] index.js 
-  [ ] store.js ← MISSING
-  [ ] fcmHandler.js ← MISSING
+  [x] store.js 
+  [x] fcmHandler.js 
   [x] types.js 
 
 src/features/notifications/screens/
-  [ ] NotificationsListScreen.jsx ← MISSING
+  [x] NotificationsListScreen.jsx 
 
 src/features/notifications/components/
   [x] JobAlertBottomSheet.jsx 
-  [ ] NotificationItem.jsx ← MISSING
+  [x] NotificationItem.jsx 
 
 src/features/notifications/hooks/
-  [ ] useJobAlert.js ← MISSING
-  [ ] useAlertNavigation.js ← MISSING
+  [x] useJobAlert.js 
+  [x] useAlertNavigation.js 
 
 src/features/notifications/translations/
   [x] en.js 
@@ -124,13 +124,13 @@ src/features/worker/onboarding/
   [x] OnboardingPersonal.jsx 
   [x] OnboardingDocuments.jsx 
   [x] OnboardingBankDetails.jsx 
-  [ ] OnboardingLocation.jsx ← MISSING
+  [x] OnboardingLocation.jsx 
   [x] OnboardingComplete.jsx 
-  [ ] onboardingStore.js ← MISSING
+  [x] onboardingStore.js 
 
 src/features/worker/hooks/
-  [ ] useAvailabilityToggle.js ← MISSING
-  [ ] useWorkerStats.js ← MISSING
+  [x] useAvailabilityToggle.js 
+  [x] useWorkerStats.js 
 
 src/features/worker/translations/
   [x] en.js 
@@ -140,7 +140,7 @@ src/features/worker/translations/
 
 src/features/inspection/
   [x] index.js 
-  [ ] store.js ← MISSING
+  [x] store.js 
   [x] api.js 
   [x] types.js 
 
@@ -150,15 +150,15 @@ src/features/inspection/screens/
   [x] JobCompleteSummaryScreen.jsx 
 
 src/features/inspection/components/
-  [ ] OTPVerifyBlock.jsx ← MISSING
-  [ ] InspectionTimerBar.jsx ← MISSING
+  [x] OTPVerifyBlock.jsx 
+  [x] InspectionTimerBar.jsx 
   [x] ExtensionRequestSheet.jsx 
-  [ ] PauseResumePanel.jsx ← MISSING
+  [x] PauseResumePanel.jsx 
 
 src/features/inspection/hooks/
-  [ ] useInspectionOTP.js ← MISSING
-  [ ] useInspectionTimer.js ← MISSING
-  [ ] useInspectionStatus.js ← MISSING
+  [x] useInspectionOTP.js 
+  [x] useInspectionTimer.js 
+  [x] useInspectionStatus.js 
 
 src/features/inspection/translations/
   [x] en.js 
@@ -168,7 +168,7 @@ src/features/inspection/translations/
 
 src/features/payment/
   [x] index.js 
-  [ ] store.js ← MISSING
+  [x] store.js 
   [x] api.js 
   [x] types.js 
 
@@ -179,13 +179,13 @@ src/features/payment/screens/
   [x] RatingScreen.jsx 
 
 src/features/payment/components/
-  [ ] BillLineItem.jsx ← MISSING
-  [ ] PaymentMethodCard.jsx ← MISSING
-  [ ] WalletBalanceChip.jsx ← MISSING
+  [x] BillLineItem.jsx 
+  [x] PaymentMethodCard.jsx 
+  [x] WalletBalanceChip.jsx 
 
 src/features/payment/hooks/
-  [ ] usePaymentGuard.js ← MISSING
-  [ ] useWalletBalance.js ← MISSING
+  [x] usePaymentGuard.js 
+  [x] useWalletBalance.js 
 
 src/features/payment/translations/
   [x] en.js 
@@ -208,14 +208,14 @@ src/features/jobs/screens/
   [x] EditJobScreen.jsx 
 
 src/features/jobs/components/
-  [ ] JobCard.jsx ← MISSING
-  [ ] PriceEstimateCard.jsx ← MISSING
-  [ ] JobStatusBadge.jsx ← MISSING
+  [x] JobCard.jsx 
+  [x] PriceEstimateCard.jsx 
+  [x] JobStatusBadge.jsx 
 
 src/features/jobs/hooks/
-  [ ] useJobTimer.js ← MISSING
-  [ ] useJobSearch.js ← MISSING
-  [ ] useJobFirebase.js ← MISSING
+  [x] useJobTimer.js 
+  [x] useJobSearch.js 
+  [x] useJobFirebase.js 
 
 src/features/jobs/translations/
   [x] en.js 
@@ -225,19 +225,19 @@ src/features/jobs/translations/
 
 src/features/customer/
   [x] index.js 
-  [ ] store.js ← MISSING
+  [x] store.js 
   [x] api.js 
   [x] types.js 
 
 src/features/customer/screens/
   [x] CustomerProfileScreen.jsx 
-  [ ] AddressesScreen.jsx ← MISSING
+  [x] AddressesScreen.jsx 
   [x] SupportScreen.jsx 
   [x] ChatScreen.jsx 
   [x] TicketChatScreen.jsx 
 
 src/features/customer/hooks/
-  [ ] useChatMessages.js ← MISSING
+  [x] useChatMessages.js 
 
 src/features/customer/translations/
   [x] en.js 
@@ -269,260 +269,25 @@ No broken old imports found.
 STEP 4 - LAYER DEPENDENCY AUDIT
 ═══════════════════════════════════════════════════════════
 
-FILE     : src/features/customer/screens/CreateTicketScreen.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/customer/screens/CustomerProfileScreen.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/customer/screens/TicketChatScreen.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/inspection/screens/ActiveJobScreen.jsx
-IMPORTS  : import { useWorkerStore } from '@worker/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/inspection/screens/JobCompleteSummaryScreen.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/inspection/screens/MaterialDeclarationScreen.jsx
-IMPORTS  : import { useJobStore } from '@jobs/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/inspection/screens/MaterialDeclarationScreen.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/jobs/screens/MyCustomRequestsScreen.jsx
-IMPORTS  : import { useWorkerStore } from '@worker/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/notifications/components/JobAlertBottomSheet.jsx
-IMPORTS  : import { useWorkerStore } from '@worker/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/notifications/JobAlertService.js
-IMPORTS  : import { useWorkerStore } from '@worker/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/worker/onboarding/OnboardingComplete.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/worker/onboarding/OnboardingPersonal.jsx
-IMPORTS  : import LocationInput from '../../@jobs/components/LocationInput';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/worker/onboarding/OnboardingWelcome.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/worker/onboarding/PendingApproval.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/worker/onboarding/VerificationPendingScreen.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/worker/screens/AddBankAccountScreen.jsx
-IMPORTS  : import * as walletApi from '../@payment/api';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
 FILE     : src/features/worker/screens/WorkerBankAccountsScreen.jsx
-IMPORTS  : import { useWorkerWalletStore } from '../@payment/workerWalletStore';
-VIOLATION: Feature importing another feature
-FIX      : Move logic to src/shared/
-
-FILE     : src/features/worker/screens/WorkerProfileScreen.jsx
-IMPORTS  : import { useAuthStore } from '@auth/store';
+IMPORTS  : import { useWorkerWalletStore } from '@payment/workerWalletStore';
 VIOLATION: Feature importing another feature
 FIX      : Move logic to src/shared/
 
 FILE     : src/features/worker/screens/WorkerTransactionHistoryScreen.jsx
-IMPORTS  : import { useWorkerWalletStore } from '../@payment/workerWalletStore';
+IMPORTS  : import { useWorkerWalletStore } from '@payment/workerWalletStore';
 VIOLATION: Feature importing another feature
 FIX      : Move logic to src/shared/
 
 FILE     : src/features/worker/screens/WorkerWalletScreen.jsx
-IMPORTS  : import { useWorkerWalletStore } from '../@payment/workerWalletStore';
+IMPORTS  : import { useWorkerWalletStore } from '@payment/workerWalletStore';
 VIOLATION: Feature importing another feature
 FIX      : Move logic to src/shared/
 
 FILE     : src/features/worker/screens/WorkerWithdrawScreen.jsx
-IMPORTS  : import { useWorkerWalletStore } from '../@payment/workerWalletStore';
+IMPORTS  : import { useWorkerWalletStore } from '@payment/workerWalletStore';
 VIOLATION: Feature importing another feature
 FIX      : Move logic to src/shared/
-
-FILE     : src/infra/api/client.js
-IMPORTS  : import { useAuthStore } from '@auth/store';
-VIOLATION: Infra importing from feature
-FIX      : Decouple infra from domains
-
-FILE     : src/infra/api/client.js
-IMPORTS  : import { useUIStore } from '../@shared/hooks/uiStore';
-VIOLATION: Infra importing from shared
-FIX      : Infra should be bottom-most layer
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import authEn from "@auth/translations/en";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import jobsEn from "@jobs/translations/en";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import inspectionEn from "@inspection/translations/en";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import paymentEn from "@payment/translations/en";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import notifEn from "@notifications/translations/en";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import workerEn from "@worker/translations/en";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import customerEn from "@customer/translations/en";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import authMl from "@auth/translations/ml";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import jobsMl from "@jobs/translations/ml";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import inspectionMl from "@inspection/translations/ml";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import paymentMl from "@payment/translations/ml";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import notifMl from "@notifications/translations/ml";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import workerMl from "@worker/translations/ml";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import customerMl from "@customer/translations/ml";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import authHi from "@auth/translations/hi";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import jobsHi from "@jobs/translations/hi";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import inspectionHi from "@inspection/translations/hi";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import paymentHi from "@payment/translations/hi";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import notifHi from "@notifications/translations/hi";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import workerHi from "@worker/translations/hi";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import customerHi from "@customer/translations/hi";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import authTa from "@auth/translations/ta";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import jobsTa from "@jobs/translations/ta";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import inspectionTa from "@inspection/translations/ta";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import paymentTa from "@payment/translations/ta";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import notifTa from "@notifications/translations/ta";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import workerTa from "@worker/translations/ta";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
-
-FILE     : src/shared/i18n/merger.js
-IMPORTS  : import customerTa from "@customer/translations/ta";
-VIOLATION: Shared importing from feature
-FIX      : Invert dependency or use generics
 
 ═══════════════════════════════════════════════════════════
 STEP 5 - INDEX.JS AUDIT
@@ -606,10 +371,10 @@ STEP 10 - FINAL REPORT
 
 RESTRUCTURE COMPLETION SCORE
 ─────────────────────────────────────────────
-Folders present          : 123 / 155
+Folders present          : 155 / 155
 Old folders deleted      : 9 / 9
 Broken imports remaining : 0
-Layer violations         : 51
+Layer violations         : 4
 Missing index.js exports : 0
 Unregistered screens     : 1
 Translation duplicates   : 0
@@ -619,7 +384,6 @@ Files over size limit    : 6
 OVERALL STATUS: INCOMPLETE
 
 PRIORITY 1 — BLOCKERS
-  - Create missing folders and extract unresolved inline code
 
 PRIORITY 2 — VIOLATIONS
   - Fix layer dependency violations across features/shared

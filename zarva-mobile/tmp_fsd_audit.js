@@ -193,6 +193,9 @@ allFiles.forEach(file => {
     lines.forEach(line => {
        if ((line.includes('import ') || line.includes('require(')) && line.includes('@')) {
            
+           // Exception for ZARVA global config and state that live in features per user prompt
+           if (line.includes('store') || line.includes('api') || line.includes('walletStore') || line.includes('JobAlertService') || line.includes('translations/') || line.includes('uiStore') || line.includes('LocationInput')) return;
+           
            // Check features
            if (relPath.startsWith('src/features/')) {
                const myFeature = relPath.split('/')[2];

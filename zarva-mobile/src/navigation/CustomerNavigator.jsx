@@ -6,10 +6,9 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
-import { colors } from '../design-system/tokens';
-import HomeScreen from '@shared/screens/customer/HomeScreen';
-import MyJobsScreen from '@shared/screens/customer/MyJobsScreen';
-import ProfileScreen from '@shared/screens/customer/CustomerProfileScreen';
+import HomeScreen from '@jobs/screens/CustomerHomeScreen';
+import MyJobsScreen from '@jobs/screens/MyJobsScreen';
+import ProfileScreen from '@customer/screens/CustomerProfileScreen';
 import PremiumTabBar from '@shared/ui/PremiumTabBar';
 
 const Tab = createBottomTabNavigator();

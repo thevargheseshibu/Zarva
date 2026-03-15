@@ -1,159 +1,137 @@
 /**
- * src/stores/jobStore.js
+ * src/features/jobs/store.js
+ * Zustand store for the customer jobs / job-lifecycle feature.
+ *
+ * State owns:
+ *   - The current job being posted (post-flow form data)
+ *   - The active job the customer is tracking (id, status, worker)
+ *   - The real-time search phase (searching → assigned → in_progress → completed)
+ *   - The assigned worker object (shown on JobStatusDetailScreen)
+ *   - Firebase listener handles (managed externally via useJobFirebase hook)
+ *
+ * This store is the single source of truth for the customer-facing job lifecycle.
+ * The worker-facing equivalent is useInspectionStore.
  */
 import { create } from 'zustand';
-import { ref, onValue, off } from 'firebase/database';
-import { db } from '@infra/firebase/app';
-import * as Notifications from 'expo-notifications';
-import { AppState } from 'react-native';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Configure how notifications behave when the app is foregrounded
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-    }),
-});
+export const useJobStore = create(
+  persist(
+    (set, get) => ({
+      // ── Active Job Tracking ────────────────────────────────────────────
+      /** The jobId the customer is currently watching */
+      activeJobId: null,
 
-let firebaseListenerRef = null;
-let firebaseJobRefVal = null;
+      /**
+       * Current search/job phase from Firebase:
+       * 'searching' | 'assigned' | 'worker_en_route' | 'worker_arrived'
+       * | 'inspection_active' | 'estimate_submitted' | 'in_progress'
+       * | 'pending_completion' | 'completed' | 'cancelled' | 'no_worker_found'
+       */
+      searchPhase: null,
 
-export const useJobStore = create((set, get) => ({
-    activeJob: null,        // Full job object
-    searchPhase: null,      // null | 'searching' | 'assigned' | 'worker_arrived' | 'in_progress' | 'pending_completion' | 'completed' | 'cancelled' | 'no_worker_found'
-    assignedWorker: null,   // Holds worker profile assigned via Firebase
-    canMinimize: false,     // Toggles UI minimize state after 5 sec
-    jobHistory: [],
-    waveNumber: 1,          // 1, 2, or 3 from matching engine expansions
-    lastKnownLocation: null, // { address, lat, lng }
-    locationOverride: null,  // User-picked { address, lat, lng }
-    chatUnreadCount: 0,
-    activeChatJobId: null,
+      /** Worker object assigned to the active job { id, name, rating, photo, lat, lng, phone } */
+      assignedWorker: null,
 
-    setActiveJob: (job) => set({ activeJob: job }),
-    setSearchPhase: (phase) => set({ searchPhase: phase }),
-    setCanMinimize: (val) => set({ canMinimize: val }),
-    clearActiveJob: () => set({ activeJob: null, searchPhase: null, assignedWorker: null, canMinimize: false, jobHistory: [], waveNumber: 1, chatUnreadCount: 0, activeChatJobId: null }),
-    setJobHistory: (history) => set({ jobHistory: history }),
-    setLocationOverride: (loc) => set({ locationOverride: loc, lastKnownLocation: loc }),
-    setLastKnownLocation: (loc) => set({ lastKnownLocation: loc }),
-    setActiveChatJobId: (jobId) => set({ activeChatJobId: jobId }),
-    clearActiveChatJobId: () => set({ activeChatJobId: null }),
-    setChatUnreadCount: (count) => set({ chatUnreadCount: count }),
+      /** Whether the Firebase listener is currently active */
+      isListening: false,
 
-    startListening: (jobId) => {
-        // Stop any existing listener
-        get().stopListening();
+      // ── Job Post Form (multi-step form cache) ─────────────────────────
+      postDraft: {
+        category: null,
+        categoryIcon: null,
+        description: '',
+        address: '',
+        latitude: null,
+        longitude: null,
+        images: [],           // array of local image URIs before upload
+        imageUrls: [],        // array of uploaded image URLs from server
+        urgency: 'normal',    // 'normal' | 'emergency'
+        scheduled_at: null,   // ISO datetime or null (null = ASAP)
+      },
 
-        const jobRef = ref(db, `active_jobs/${jobId}`);
-        firebaseJobRefVal = jobRef;
+      // ── Recent Jobs (for history tab) ─────────────────────────────────
+      recentJobIds: [],
 
-        firebaseListenerRef = onValue(jobRef, async (snapshot) => {
-            const data = snapshot.val();
-            if (!data) return;
+      // ──────────────────────────────────────────────────────────────────
+      // ACTIONS
+      // ──────────────────────────────────────────────────────────────────
 
-            if (data.worker) {
-                set({ assignedWorker: data.worker });
-            }
+      setActiveJobId: (id) => set({ activeJobId: id }),
 
-            if (data.wave_number) {
-                set({ waveNumber: data.wave_number });
-            }
+      setSearchPhase: (phase) => set({ searchPhase: phase }),
 
-            const prevPhase = get().searchPhase;
-            const newPhase = data.status;
+      setAssignedWorker: (worker) => set({ assignedWorker: worker }),
 
-            if (newPhase && newPhase !== prevPhase) {
-                set({ searchPhase: newPhase });
+      setListening: (val) => set({ isListening: val }),
 
-                let title = '';
-                let body = '';
+      /**
+       * Called by useJobFirebase when the real-time snapshot fires.
+       * Updates both phase and worker if present.
+       */
+      onFirebaseUpdate: ({ status, worker }) => {
+        set((state) => ({
+          searchPhase: status ?? state.searchPhase,
+          assignedWorker: worker ?? state.assignedWorker,
+        }));
+      },
 
-                // Prevent false notifications on load when prevPhase is null
-                if (prevPhase === null) return;
+      /**
+       * Start listening — convenience method, actual Firebase setup is
+       * in useJobFirebase (keeps store pure).
+       */
+      startListening: (jobId) => {
+        set({ activeJobId: jobId, isListening: true });
+      },
 
-                switch (newPhase) {
-                    case 'assigned':
-                        title = 'Worker found! 🎉';
-                        body = `A worker is on the way for your job.`;
-                        break;
-                    case 'worker_arrived':
-                        title = 'Worker has arrived 📍';
-                        body = 'Please provide the start code to begin work.';
-                        break;
-                    case 'in_progress':
-                        title = 'Work started 🔧';
-                        body = 'Your service is currently in progress.';
-                        break;
-                    case 'pending_completion':
-                        title = 'Work complete ✅';
-                        body = 'Enter the end code to finalize the payment.';
-                        break;
-                    case 'completed':
-                        title = 'Job Completed';
-                        body = 'Thank you for using Zarva!';
-                        break;
-                    case 'cancelled':
-                        title = 'Job Cancelled';
-                        body = 'This job has been cancelled.';
-                        break;
-                    case 'no_worker_found':
-                        title = 'No worker found 😔';
-                        body = 'We could not find a worker nearby. Please try again.';
-                        break;
-                }
+      stopListening: () => {
+        set({ isListening: false });
+      },
 
-                if (title) {
-                    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-                    let finalStatus = existingStatus;
-                    if (existingStatus !== 'granted') {
-                        const { status } = await Notifications.requestPermissionsAsync();
-                        finalStatus = status;
-                    }
-
-                    if (finalStatus === 'granted') {
-                        await Notifications.scheduleNotificationAsync({
-                            content: { title, body },
-                            trigger: null, // Send immediately
-                        });
-                    }
-                }
-
-                // If terminal state, delay clearing slightly to let UI re-render the final state
-                if (['completed', 'cancelled', 'no_worker_found', 'disputed'].includes(newPhase)) {
-                    setTimeout(() => {
-                        // Check if we haven't started listening to another job in the meantime
-                        const currentRef = ref(db, `active_jobs/${jobId}`);
-                        if (firebaseJobRefVal?.toString() === currentRef.toString()) {
-                            get().stopListening();
-                        }
-                    }, 5000);
-                }
-            }
+      clearActiveJob: () => {
+        set({
+          activeJobId: null,
+          searchPhase: null,
+          assignedWorker: null,
+          isListening: false,
         });
-    },
+      },
 
-    stopListening: () => {
-        if (firebaseJobRefVal && firebaseListenerRef) {
-            off(firebaseJobRefVal, 'value', firebaseListenerRef);
-            firebaseListenerRef = null;
-            firebaseJobRefVal = null;
-        }
-    }
-}));
+      // ── Post form actions ────────────────────────────────────────────
+      updatePostDraft: (partial) =>
+        set((s) => ({ postDraft: { ...s.postDraft, ...partial } })),
 
-// Reconnect Firebase listeners when the app returns to foreground (Issue #33)
-AppState.addEventListener('change', (nextAppState) => {
-    if (nextAppState === 'active') {
-        const store = useJobStore.getState();
-        if (store.activeJob?.id && store.searchPhase) {
-            const phase = store.searchPhase;
-            if (!['completed', 'cancelled', 'no_worker_found'].includes(phase)) {
-                console.log('[JobStore] App foregrounded. Reconnecting Firebase listener for:', store.activeJob.id);
-                store.startListening(store.activeJob.id);
-            }
-        }
+      clearPostDraft: () =>
+        set({
+          postDraft: {
+            category: null,
+            categoryIcon: null,
+            description: '',
+            address: '',
+            latitude: null,
+            longitude: null,
+            images: [],
+            imageUrls: [],
+            urgency: 'normal',
+            scheduled_at: null,
+          },
+        }),
+
+      addRecentJobId: (id) =>
+        set((s) => ({
+          recentJobIds: [id, ...s.recentJobIds.filter((jid) => jid !== id)].slice(0, 20),
+        })),
+    }),
+    {
+      name: 'zarva-jobs-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        // Only persist the active job pointer and recent history (not draft)
+        activeJobId: state.activeJobId,
+        searchPhase: state.searchPhase,
+        recentJobIds: state.recentJobIds,
+      }),
     }
-});
+  )
+);

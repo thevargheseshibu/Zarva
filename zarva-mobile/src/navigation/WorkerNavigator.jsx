@@ -6,10 +6,10 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
-import WorkerHomeScreen from '@shared/screens/worker/WorkerHomeScreen';
-import AvailableJobsScreen from '@shared/screens/worker/AvailableJobsScreen';
-import MyWorkScreen from '@shared/screens/worker/MyWorkScreen';
-import WorkerProfileScreen from '@shared/screens/worker/WorkerProfileScreen';
+import WorkerHomeScreen from '@worker/screens/WorkerHomeScreen';
+import AvailableJobsScreen from '@worker/screens/AvailableJobsScreen';
+import MyWorkScreen from '@worker/screens/MyWorkScreen';
+import WorkerProfileScreen from '@worker/screens/WorkerProfileScreen';
 import JobAlertBottomSheet from '@notifications/components/JobAlertBottomSheet';
 import PremiumTabBar from '@shared/ui/PremiumTabBar';
 import { useNavigation } from '@react-navigation/native';

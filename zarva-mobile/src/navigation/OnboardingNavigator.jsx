@@ -1,6 +1,6 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import OnboardingWelcome from '@shared/screens/worker/OnboardingWelcome';
+import OnboardingWelcome from '@worker/onboarding/OnboardingWelcome';
 
 const Stack = createStackNavigator();
 
