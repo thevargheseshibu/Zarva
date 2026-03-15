@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { useTokens } from '@shared/design-system';
 import { useT } from '@shared/i18n/useTranslation';
 import { useWorkerWalletStore } from '@payment/workerWalletStore';
-import { paiseToINR } from '../../utils/paiseToINR';
+import { paiseToINR } from '@shared/utils/paiseToINR';
 import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 
 const FILTERS = ['all', 'earnings', 'withdrawals'];

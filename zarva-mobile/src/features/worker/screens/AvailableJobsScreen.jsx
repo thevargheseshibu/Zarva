@@ -15,7 +15,7 @@ import PressableAnimated from '@shared/design-system/components/PressableAnimate
 import MainBackground from '@shared/ui/MainBackground';
 
 
-import { haversineKm, formatDistance } from '../../utils/distance';
+import { haversineKm, formatDistance } from '@shared/utils/distance';
 import { parseJobDescription } from '@shared/utils/jobParser';
 
 dayjs.extend(relativeTime);

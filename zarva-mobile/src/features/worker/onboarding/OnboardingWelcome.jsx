@@ -8,13 +8,13 @@ import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';
 import MainBackground from '@shared/ui/MainBackground';
-import OnboardingBasicInfo from './onboarding/OnboardingBasicInfo';
-import OnboardingSkills from './onboarding/OnboardingSkills';
-import ServiceAreaSetupScreen from './onboarding/ServiceAreaSetupScreen';
-import OnboardingPayment from './onboarding/OnboardingPayment';
-import OnboardingDocuments from './onboarding/OnboardingDocuments';
-import OnboardingAgreement from './onboarding/OnboardingAgreement';
-import PendingApproval from './onboarding/PendingApproval';
+import OnboardingBasicInfo from './OnboardingPersonal';
+import OnboardingSkills from './OnboardingSkills';
+import ServiceAreaSetupScreen from '../screens/ServiceAreaSetupScreen';
+import OnboardingPayment from './OnboardingBankDetails';
+import OnboardingDocuments from './OnboardingDocuments';
+import OnboardingAgreement from './OnboardingComplete';
+import PendingApproval from './PendingApproval';
 
 const STEPS = 6;
 const SCREEN_MAP = [

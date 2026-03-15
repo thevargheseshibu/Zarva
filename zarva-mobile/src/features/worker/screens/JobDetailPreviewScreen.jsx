@@ -14,7 +14,7 @@ import PressableAnimated from '@shared/design-system/components/PressableAnimate
 import Card from '@shared/ui/ZCard';
 
 
-import { haversineKm, formatDistance, calculateTravelCharge } from '../../utils/distance';
+import { haversineKm, formatDistance, calculateTravelCharge } from '@shared/utils/distance';
 import { parseJobDescription } from '@shared/utils/jobParser';
 
 dayjs.extend(relativeTime);
