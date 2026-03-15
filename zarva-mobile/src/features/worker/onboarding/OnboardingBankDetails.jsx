@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useTokens } from '../@shared/design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -7,8 +7,8 @@ import * as Haptics from 'expo-haptics';
 import PremiumButton from '@shared/ui/PremiumButton';
 import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
-import PressableAnimated from '../@shared/design-system/components/PressableAnimated';
-import { useT } from '../@shared/i18n/useTranslation';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
+import { useT } from '@shared/i18n/useTranslation';
 import { useUIStore } from '@shared/hooks/uiStore';
 import MainBackground from '@shared/ui/MainBackground';
 import { LinearGradient } from 'expo-linear-gradient';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useTokens } from '../@shared/design-system';
+import { useTokens } from '@shared/design-system';
 import {
     View, Text, StyleSheet, TextInput, KeyboardAvoidingView,
     Platform, ScrollView, Alert, ActivityIndicator, TouchableOpacity
@@ -7,7 +7,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
-import { useT } from '../@shared/i18n/useTranslation';
+import { useT } from '@shared/i18n/useTranslation';
 import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';
 import PremiumHeader from '@shared/ui/PremiumHeader';

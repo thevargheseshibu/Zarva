@@ -1,16 +1,24 @@
 $root = "c:\Users\theva\OneDrive\Desktop\App\Zarva\zarva-mobile\src\features"
-$files = Get-ChildItem -Path $root -Include *.js, *.jsx -Recurse
+$items = Get-ChildItem -Path $root -Include *.js, *.jsx -Recurse
 
-foreach ($f in $files) {
-    $txt = [System.IO.File]::ReadAllText($f.FullName)
-    $original = $txt
+foreach ($item in $items) {
+    $text = [System.IO.File]::ReadAllText($item.FullName)
+    $lines = $text -split "`r?`n"
+    $changed = $false
+    $newLines = foreach ($line in $lines) {
+        if ($line -match "from ['\"]\.*\/+@") {
+            # Replace things like from "../@shared" with from "@shared"
+            $newLine = $line -replace "from ['\"]\.*\/+@", "from '@"
+            $changed = $true
+            $newLine
+        } else {
+            $line
+        }
+    }
     
-    # Fix instances where an alias was prefixed with relative paths like ../@shared
-    # This often happens during blind regex replacements
-    $txt = [regex]::Replace($txt, "from ['\"]\.*\/+(@app|@shared|@features|@infra|@navigation|@auth|@worker|@customer|@jobs|@payment|@inspection|@notifications)", "from '$1")
-    
-    if ($txt -ne $original) {
-        Write-Host "Fixed malformed alias in $($f.FullName)"
-        [System.IO.File]::WriteAllText($f.FullName, $txt)
+    if ($changed) {
+        Write-Host "Fixed alias in $($item.FullName)"
+        $outputText = $newLines -join [System.Environment]::NewLine
+        [System.IO.File]::WriteAllText($item.FullName, $outputText)
     }
 }

@@ -1,12 +1,12 @@
 import React from 'react';
-import { useTokens } from '../@shared/design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 
-import { useT } from '../@shared/i18n/useTranslation';
+import { useT } from '@shared/i18n/useTranslation';
 import MainBackground from '@shared/ui/MainBackground';
-import PressableAnimated from '../@shared/design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import FadeInView from '@shared/ui/FadeInView';
 import PremiumHeader from '@shared/ui/PremiumHeader';
 

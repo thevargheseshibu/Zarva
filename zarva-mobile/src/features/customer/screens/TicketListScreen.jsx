@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTokens } from '../@shared/design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 
-import { useT } from '../@shared/i18n/useTranslation';
+import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import PremiumHeader from '@shared/ui/PremiumHeader';
 import MainBackground from '@shared/ui/MainBackground';
-import PressableAnimated from '../@shared/design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 
 export default function TicketListScreen() {
     const tTheme = useTokens();

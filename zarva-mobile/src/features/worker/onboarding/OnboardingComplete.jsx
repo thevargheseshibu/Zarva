@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useTokens } from '../@shared/design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, ScrollView, TextInput, Alert, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -9,7 +9,7 @@ import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
 import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';
-import { useT } from '../@shared/i18n/useTranslation';
+import { useT } from '@shared/i18n/useTranslation';
 import { useUIStore } from '@shared/hooks/uiStore';
 import MainBackground from '@shared/ui/MainBackground';
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useTokens } from '../@shared/design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
