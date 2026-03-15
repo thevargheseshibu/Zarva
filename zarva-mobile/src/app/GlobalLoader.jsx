@@ -4,7 +4,7 @@
  * Top-level blocking loader that listens to useUIStore.
  */
 import React from 'react';
-import ZLoader from './ZLoader';
+import ZLoader from '@shared/ui/ZLoader';
 import { useUIStore } from '@shared/hooks/uiStore';
 
 export default function GlobalLoader() {

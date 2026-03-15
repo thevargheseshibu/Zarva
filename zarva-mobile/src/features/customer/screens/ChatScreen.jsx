@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ActivityIndicator, Keyboard } from 'react-native';
 import { ref, onValue, off } from 'firebase/database';
 import { db } from '@infra/firebase/app';
 import * as chatApi from '@customer/api';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 
 
-import PressableAnimated from '../../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import dayjs from 'dayjs';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';

@@ -1,12 +1,12 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Linking } from 'react-native';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 
 import PremiumButton from '@shared/ui/PremiumButton';
 import MainBackground from '@shared/ui/MainBackground';
 import { useAuthStore } from '@auth/store';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 
 export default function VerificationPendingScreen() {
     const tTheme = useTokens();

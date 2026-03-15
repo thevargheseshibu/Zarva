@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
@@ -8,8 +8,8 @@ import { useWorkerStore } from '@worker/store';
 
 import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
-import { useT } from '../../hooks/useT';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
+import { useT } from '@shared/i18n/useTranslation';
 
 export default function AlertPreferencesScreen() {
     const tTheme = useTokens();

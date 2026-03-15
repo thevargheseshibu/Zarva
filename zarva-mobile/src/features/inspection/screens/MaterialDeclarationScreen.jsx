@@ -10,7 +10,7 @@ import {
     Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Image
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { useJobStore } from '@jobs/store';
 import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';

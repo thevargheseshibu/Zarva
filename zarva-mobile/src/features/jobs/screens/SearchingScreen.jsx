@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, BackHandler, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import { useJobStore } from '@jobs/store';
 import apiClient from '@infra/api/client';
 import FadeInView from '@shared/ui/FadeInView';
 import PremiumButton from '@shared/ui/PremiumButton';
 import RadarAnimation from '@shared/ui/RadarAnimation';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 
 
 

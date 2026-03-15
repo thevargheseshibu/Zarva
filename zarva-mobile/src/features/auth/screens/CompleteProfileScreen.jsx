@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, TextInput, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import GoldButton from '@shared/ui/GoldButton';
 import apiClient from '@infra/api/client';
 import { useAuthStore } from '@auth/store';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 
 export default function CompleteProfileScreen() {
     const tTheme = useTokens();

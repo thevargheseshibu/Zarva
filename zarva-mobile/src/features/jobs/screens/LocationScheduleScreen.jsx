@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import coverageApi from '@infra/api/coverageApi';
 
@@ -14,7 +14,7 @@ import { useJobStore } from '@jobs/store';
 import { useUIStore } from '@shared/hooks/uiStore';
 import LocationInput from '@jobs/components/LocationInput';
 import PremiumButton from '@shared/ui/PremiumButton';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
 

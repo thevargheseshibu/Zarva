@@ -7,7 +7,7 @@
  *   - SafeAreaProvider        (safe area insets)
  *   - RootNavigator           (auth-gated navigation)
  */
-import 'react-native-gesture-handler';
+// import 'react-native-gesture-handler'; (moved to index.js)
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, LogBox, Platform } from 'react-native';
@@ -28,7 +28,7 @@ import { useAuthStore } from '@auth/store';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import { JobAlertService } from '@notifications/JobAlertService'; // Wait, JobAlertService wasn't moved? I should check this
+import { JobAlertService } from '@notifications/JobAlertService';
 import GlobalLoader from './GlobalLoader';
 import ZarvaSplash from '@shared/ui/ZarvaSplash';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -81,11 +81,7 @@ Notifications.setNotificationHandler({
 // Background/killed message handler is registered in index.js to ensure it runs
 // as early as possible before the React application lifecycle starts.
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
-  },
-});
+
 
 export default function App() {
   const { language, isLoaded, loadLanguage } = useLanguageStore();

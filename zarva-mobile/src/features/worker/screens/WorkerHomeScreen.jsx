@@ -1,15 +1,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert, RefreshControl, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import { useWorkerStore } from '@worker/store';
 import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import StatusPill from '@shared/ui/StatusPill';
 import MapPickerModal from '@shared/ui/MapPickerModal';
 import MainBackground from '@shared/ui/MainBackground';

@@ -16,10 +16,10 @@ import Animated, {
     withTiming, Easing, FadeInDown,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import MainBackground from '@shared/ui/MainBackground';
 import { useAuthStore } from '@auth/store';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import { useNavigation } from '@react-navigation/native';
 

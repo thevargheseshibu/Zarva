@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback } from 'react';
-import { useTokens } from '../../../design-system';
+import { useTokens } from '../@shared/design-system';
 import { View, Text, StyleSheet, BackHandler, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
@@ -18,7 +18,7 @@ import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';
 import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
-import { useT } from '../../../hooks/useT';
+import { useT } from '../@shared/i18n/useTranslation';
 import MainBackground from '@shared/ui/MainBackground';
 
 export default function PendingApproval() {

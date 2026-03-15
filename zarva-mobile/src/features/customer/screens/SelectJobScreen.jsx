@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useTokens } from '../../../design-system';
+import { useTokens } from '../@shared/design-system';
 import { View, Text, StyleSheet, SectionList, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
-import { useT } from '../../../hooks/useT';
+import { useT } from '../@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import PremiumHeader from '@shared/ui/PremiumHeader';
 import MainBackground from '@shared/ui/MainBackground';

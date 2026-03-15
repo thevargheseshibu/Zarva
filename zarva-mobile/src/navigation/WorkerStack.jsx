@@ -19,7 +19,7 @@ import AddBankAccountScreen from '@worker/screens/AddBankAccountScreen';
 import AlertPreferencesScreen from '@worker/screens/AlertPreferencesScreen';
 import WorkerReputationScreen from '@customer/screens/WorkerReputationScreen';
 import ChatScreen from '@customer/screens/ChatScreen';
-import SupportNavigator from '@customer/screens/SupportNavigator';
+import SupportNavigator from '@app/SupportNavigator';
 import ExtensionRequestScreen from '@inspection/components/ExtensionRequestSheet';
 
 const Stack = createStackNavigator();

@@ -1,11 +1,11 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 
-import SupportHomeScreen from './SupportHomeScreen';
-import SelectJobScreen from './SelectJobScreen';
-import CreateTicketScreen from './CreateTicketScreen';
-import TicketListScreen from './TicketListScreen';
-import TicketChatScreen from './TicketChatScreen';
+import SupportHomeScreen from '@customer/screens/SupportScreen';
+import SelectJobScreen from '@customer/screens/SelectJobScreen';
+import CreateTicketScreen from '@customer/screens/CreateTicketScreen';
+import TicketListScreen from '@customer/screens/TicketListScreen';
+import TicketChatScreen from '@customer/screens/TicketChatScreen';
 
 const Stack = createStackNavigator();
 

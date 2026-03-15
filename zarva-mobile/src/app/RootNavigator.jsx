@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import AuthNavigator from './AuthNavigator';
+import AuthNavigator from '@navigation/AuthNavigator';
 import { createStackNavigator } from '@react-navigation/stack';
-import CustomerStack from './CustomerStack';
-import WorkerStack from './WorkerStack';
-import OnboardingNavigator from './OnboardingNavigator';
+import CustomerStack from '@navigation/CustomerStack';
+import WorkerStack from '@navigation/WorkerStack';
+import OnboardingNavigator from '@navigation/OnboardingNavigator';
 import RoleSelection from '@auth/screens/RoleSelectionScreen';
 import CompleteProfileScreen from '@auth/screens/CompleteProfileScreen';
 import VerificationPendingScreen from '@worker/onboarding/VerificationPendingScreen';

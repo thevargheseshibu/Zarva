@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useTokens } from '../../../design-system';
+import { useTokens } from '../@shared/design-system';
 import { View, Text, StyleSheet, TextInput, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ref, onValue, off } from 'firebase/database';
@@ -7,7 +7,7 @@ import { database } from '@infra/firebase/app';
 
 
 import { useAuthStore } from '@auth/store';
-import { useT } from '../../../hooks/useT';
+import { useT } from '../@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import PremiumHeader from '@shared/ui/PremiumHeader';
 import MainBackground from '@shared/ui/MainBackground';

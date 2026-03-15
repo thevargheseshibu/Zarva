@@ -9,7 +9,7 @@ import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     TextInput, ActivityIndicator, Alert, Image, Animated
 } from 'react-native';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import apiClient from '@infra/api/client';
 
 function formatPaise(paise) {

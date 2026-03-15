@@ -20,7 +20,7 @@ import EditJobScreen from '@jobs/screens/EditJobScreen';
 import CreateCustomJobScreen from '@jobs/screens/CreateCustomJobScreen';
 import MyCustomRequestsScreen from '@jobs/screens/MyCustomRequestsScreen';
 import ChatScreen from '@customer/screens/ChatScreen';
-import SupportNavigator from '@customer/screens/SupportNavigator';
+import SupportNavigator from '@app/SupportNavigator';
 
 const Stack = createStackNavigator();
 

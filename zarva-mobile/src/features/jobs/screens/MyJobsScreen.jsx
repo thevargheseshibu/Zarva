@@ -1,15 +1,15 @@
 import React, { useState, useCallback } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, FlatList, RefreshControl, Alert, Image, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import dayjs from 'dayjs';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
-import { parseJobDescription } from '../../utils/jobParser';
+import { parseJobDescription } from '@shared/utils/jobParser';
 import FadeInView from '@shared/ui/FadeInView';
 import StatusPill from '@shared/ui/StatusPill';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
-import SkeletonCard from '../../design-system/components/SkeletonCard';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
+import SkeletonCard from '@shared/design-system/components/SkeletonCard';
 import MainBackground from '@shared/ui/MainBackground';
 
 const FILTERS = ['All', 'Active', 'Completed', 'Cancelled'];

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Location from 'expo-location';
 import { useFocusEffect } from '@react-navigation/native';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import { useJobStore } from '@jobs/store';
 import apiClient from '@infra/api/client';
 import coverageApi from '@infra/api/coverageApi';
@@ -17,9 +17,9 @@ import FadeInView from '@shared/ui/FadeInView';
 import PremiumButton from '@shared/ui/PremiumButton';
 
 
-import { durations } from '../../design-system/motion';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
-import SkeletonCard from '../../design-system/components/SkeletonCard';
+import { durations } from '@shared/design-system/motion';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
+import SkeletonCard from '@shared/design-system/components/SkeletonCard';
 import StatusPill from '@shared/ui/StatusPill';
 import RadarAnimation from '@shared/ui/RadarAnimation';
 import Card from '@shared/ui/ZCard';

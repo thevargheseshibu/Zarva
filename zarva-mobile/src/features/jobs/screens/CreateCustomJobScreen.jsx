@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import apiClient, { uploadFileRaw } from '@infra/api/client';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 
 import PremiumButton from '@shared/ui/PremiumButton';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 
 export default function CreateCustomJobScreen({ navigation }) {
     const tTheme = useTokens();

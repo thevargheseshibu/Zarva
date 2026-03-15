@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     Image, BackHandler, Alert, Animated, Linking, Platform
@@ -7,18 +7,18 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import dayjs from 'dayjs';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import { ref, onValue, off } from 'firebase/database';
 import { db } from '@infra/firebase/app';
 import { useJobStore } from '@jobs/store';
 import apiClient from '@infra/api/client';
-import { parseJobDescription } from '../../utils/jobParser';
+import { parseJobDescription } from '@shared/utils/jobParser';
 import FadeInView from '@shared/ui/FadeInView';
 import StatusPill from '@shared/ui/StatusPill';
 import OTPInput from '@shared/ui/OTPInput';
 import PremiumButton from '@shared/ui/PremiumButton';
 import Card from '@shared/ui/ZCard';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import MainBackground from '@shared/ui/MainBackground';
 
 // ── Stage pipeline ──────────────────────────────────────────────────────────

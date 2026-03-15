@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useTokens } from '../../../design-system';
+import { useTokens } from '../@shared/design-system';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Alert, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -9,8 +9,8 @@ import PremiumButton from '@shared/ui/PremiumButton';
 import apiClient, { uploadFileRaw } from '@infra/api/client';
 import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
-import PressableAnimated from '../../../design-system/components/PressableAnimated';
-import { useT } from '../../../hooks/useT';
+import PressableAnimated from '../@shared/design-system/components/PressableAnimated';
+import { useT } from '../@shared/i18n/useTranslation';
 import { useUIStore } from '@shared/hooks/uiStore';
 import MainBackground from '@shared/ui/MainBackground';
 

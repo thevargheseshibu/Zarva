@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useTokens } from '../../../design-system';
+import { useTokens } from '../@shared/design-system';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -8,7 +8,7 @@ import PremiumButton from '@shared/ui/PremiumButton';
 import LocationInput from '@jobs/components/LocationInput';
 import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
-import { useT } from '../../../hooks/useT';
+import { useT } from '../@shared/i18n/useTranslation';
 import { useUIStore } from '@shared/hooks/uiStore';
 import apiClient from '@infra/api/client';
 import MainBackground from '@shared/ui/MainBackground';

@@ -1,22 +1,22 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, FlatList, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import { useWorkerStore } from '@worker/store';
 import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import MainBackground from '@shared/ui/MainBackground';
 
 
 import { haversineKm, formatDistance } from '../../utils/distance';
-import { parseJobDescription } from '../../utils/jobParser';
+import { parseJobDescription } from '@shared/utils/jobParser';
 
 dayjs.extend(relativeTime);
 

@@ -6,12 +6,12 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { useTokens } from '../../design-system';
-import { useT } from '../../hooks/useT';
+import { useTokens } from '@shared/design-system';
+import { useT } from '@shared/i18n/useTranslation';
 import { useWorkerWalletStore } from '@payment/workerWalletStore';
 import { paiseToINR } from '../../utils/paiseToINR';
 import PremiumButton from '@shared/ui/PremiumButton';
-import PressableAnimated from '../../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 
 export default function WorkerWithdrawScreen({ navigation }) {
     const tTheme = useTokens();

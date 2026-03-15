@@ -1,17 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import {
     View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, ScrollView
 } from 'react-native';
 
 
 import { useAuthStore } from '@auth/store';
-import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
-import { useLanguageStore } from '../../i18n';
+import { SUPPORTED_LANGUAGES } from '@shared/i18n/languages';
+import { useLanguageStore } from '@shared/i18n';
 import MainBackground from '@shared/ui/MainBackground';
 import PremiumButton from '@shared/ui/PremiumButton';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import FadeInView from '@shared/ui/FadeInView';
 
 const FEATURED_LANGS = ['ml', 'en', 'hi'];

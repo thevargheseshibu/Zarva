@@ -17,7 +17,7 @@
  * 🔐 Security: No OTP codes exist on mobile. All validation is server-side.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useTokens } from '../../design-system';
+import { useTokens } from '@shared/design-system';
 import {
     View, Text, TextInput, TouchableOpacity,
     StyleSheet, Platform, Alert,
@@ -27,7 +27,7 @@ import PremiumButton from '@shared/ui/PremiumButton';
 import { useAuthStore } from '@auth/store';
 import { useOtpStore } from '@auth/otpStore';
 import apiClient from '@infra/api/client';
-import { useT } from '../../hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 import MainBackground from '@shared/ui/MainBackground';
 import auth, { getAuth, signInWithPhoneNumber } from '@react-native-firebase/auth';
 
