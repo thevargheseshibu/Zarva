@@ -28,9 +28,9 @@ import { useAuthStore } from '@auth/store';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import { JobAlertService } from '../services/JobAlertService'; // Wait, JobAlertService wasn't moved? I should check this
+import { JobAlertService } from '@notifications/JobAlertService'; // Wait, JobAlertService wasn't moved? I should check this
 import GlobalLoader from './GlobalLoader';
-import ZarvaSplash from '../components/ZarvaSplash';
+import ZarvaSplash from '@shared/ui/ZarvaSplash';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import palette from '@shared/design-system/tokens/colors';
 

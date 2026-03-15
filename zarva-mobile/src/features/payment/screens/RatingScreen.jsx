@@ -4,10 +4,10 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image,
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';
-import FadeInView from '../../components/FadeInView';
-import PremiumButton from '../../components/PremiumButton';
+import FadeInView from '../@shared/ui/FadeInView';
+import PremiumButton from '../@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import Card from '../../components/Card';
+import Card from '../@shared/ui/ZCard';
 
 
 

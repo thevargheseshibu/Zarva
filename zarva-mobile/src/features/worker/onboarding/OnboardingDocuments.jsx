@@ -5,14 +5,14 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 
 
-import PremiumButton from '../../../components/PremiumButton';
+import PremiumButton from '../../@shared/ui/PremiumButton';
 import apiClient, { uploadFileRaw } from '@infra/api/client';
-import FadeInView from '../../../components/FadeInView';
-import Card from '../../../components/Card';
+import FadeInView from '../../@shared/ui/FadeInView';
+import Card from '../../@shared/ui/ZCard';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
 import { useT } from '../../../hooks/useT';
-import { useUIStore } from '../../../stores/uiStore';
-import MainBackground from '../../../components/MainBackground';
+import { useUIStore } from '../../@shared/hooks/uiStore';
+import MainBackground from '../../@shared/ui/MainBackground';
 
 async function uploadImage(uri, docKey) {
     // Use uploadFileRaw (expo-file-system based) for consistent cross-platform upload.

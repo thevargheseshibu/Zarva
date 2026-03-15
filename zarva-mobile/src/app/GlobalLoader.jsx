@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import ZLoader from './ZLoader';
-import { useUIStore } from '../stores/uiStore';
+import { useUIStore } from '@shared/hooks/uiStore';
 
 export default function GlobalLoader() {
     const isLoading = useUIStore(state => state.isLoading);

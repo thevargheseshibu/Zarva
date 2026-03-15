@@ -3,7 +3,7 @@ import { useTokens } from '../../design-system';
 import { View, Text, TextInput, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-import GoldButton from '../../components/GoldButton';
+import GoldButton from '../@shared/ui/GoldButton';
 import apiClient from '@infra/api/client';
 import { useAuthStore } from '@auth/store';
 import { useT } from '../../hooks/useT';

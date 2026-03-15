@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useWorkerStore } from '@worker/store';
 import apiClient from '@infra/api/client';
-import { JobAlertService } from '../services/JobAlertService';
+import { JobAlertService } from '@notifications/JobAlertService';
 import { navigationRef } from '../navigation/RootNavigator';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);

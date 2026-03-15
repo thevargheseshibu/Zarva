@@ -13,13 +13,13 @@ import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';
 import { useWorkerStore } from '@worker/store';
 import { db } from '@infra/firebase/app';
-import FadeInView from '../../components/FadeInView';
-import PremiumButton from '../../components/PremiumButton';
+import FadeInView from '../@shared/ui/FadeInView';
+import PremiumButton from '../@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import Card from '../../components/Card';
-import StatusPill from '../../components/StatusPill';
-import OTPInput from '../../components/OTPInput';
-import MainBackground from '../../components/MainBackground';
+import Card from '../@shared/ui/ZCard';
+import StatusPill from '../@shared/ui/StatusPill';
+import OTPInput from '../@shared/ui/OTPInput';
+import MainBackground from '../@shared/ui/MainBackground';
 import * as Location from 'expo-location';
 
 // ── Large End OTP Digit Display ──────────────────────────────────────────────

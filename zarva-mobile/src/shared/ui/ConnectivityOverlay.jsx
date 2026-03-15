@@ -6,7 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { useUIStore } from '../stores/uiStore';
+import { useUIStore } from '@shared/hooks/uiStore';
 import { useTokens } from '../design-system';
 
 const { width, height } = Dimensions.get('window');
@@ -34,7 +34,7 @@ const ConnectivityOverlay = ({ children }) => {
         setIsChecking(true);
         try {
             // Check server by calling health endpoint
-            const { default: apiClient } = await import('../services/api/client');
+            const { default: apiClient } = await import('@infra/api/client');
             const serverRes = await apiClient.get('/api/health').catch(() => null);
             const up = serverRes?.status === 200;
             setServerUp(up);

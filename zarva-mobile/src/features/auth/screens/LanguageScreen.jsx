@@ -8,11 +8,11 @@ import {
 import { useAuthStore } from '@auth/store';
 import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 import { useLanguageStore } from '../../i18n';
-import MainBackground from '../../components/MainBackground';
-import PremiumButton from '../../components/PremiumButton';
+import MainBackground from '../@shared/ui/MainBackground';
+import PremiumButton from '../@shared/ui/PremiumButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useT } from '../../hooks/useT';
-import FadeInView from '../../components/FadeInView';
+import FadeInView from '../@shared/ui/FadeInView';
 
 const FEATURED_LANGS = ['ml', 'en', 'hi'];
 

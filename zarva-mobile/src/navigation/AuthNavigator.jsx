@@ -4,10 +4,10 @@
  */
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import SplashScreen from '../screens/auth/SplashScreen';
-import LanguageScreen from '../screens/auth/LanguageScreen';
-import PhoneScreen from '../screens/auth/PhoneScreen';
-import OTPScreen from '../screens/auth/OTPScreen';
+import SplashScreen from '@shared/screens/auth/SplashScreen';
+import LanguageScreen from '@shared/screens/auth/LanguageScreen';
+import PhoneScreen from '@shared/screens/auth/PhoneScreen';
+import OTPScreen from '@shared/screens/auth/OTPScreen';
 
 const Stack = createStackNavigator();
 

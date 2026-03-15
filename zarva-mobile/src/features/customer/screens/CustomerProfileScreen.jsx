@@ -9,11 +9,11 @@ import { useLanguageStore } from '../../i18n';
 import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 import { useT } from '../../hooks/useT';
 import apiClient, { uploadFileRaw } from '@infra/api/client';
-import FadeInView from '../../components/FadeInView';
-import PremiumButton from '../../components/PremiumButton';
+import FadeInView from '../@shared/ui/FadeInView';
+import PremiumButton from '../@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import Card from '../../components/Card';
-import MainBackground from '../../components/MainBackground';
+import Card from '../@shared/ui/ZCard';
+import MainBackground from '../@shared/ui/MainBackground';
 import { useNavigation } from '@react-navigation/native';
 
 export default function CustomerProfileScreen() {

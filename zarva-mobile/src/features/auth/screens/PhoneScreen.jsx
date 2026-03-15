@@ -21,12 +21,12 @@ import {
     StyleSheet, KeyboardAvoidingView, Platform, Alert
 } from 'react-native';
 
-import PremiumButton from '../../components/PremiumButton';
+import PremiumButton from '../@shared/ui/PremiumButton';
 import apiClient from '@infra/api/client';
 import { useAuthStore } from '@auth/store';
-import { useOtpStore } from '../../stores/otpStore';
+import { useOtpStore } from '../@auth/otpStore';
 import { useT } from '../../hooks/useT';
-import MainBackground from '../../components/MainBackground';
+import MainBackground from '../@shared/ui/MainBackground';
 import auth, { getAuth, signInWithPhoneNumber } from '@react-native-firebase/auth';
 
 // --- FIREBASE SETUP ---

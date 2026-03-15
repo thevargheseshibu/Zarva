@@ -6,21 +6,21 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import WorkerNavigator from './WorkerNavigator';
 
-import JobDetailPreviewScreen from '../screens/worker/JobDetailPreviewScreen';
-import ActiveJobScreen from '../screens/worker/ActiveJobScreen';
-import MaterialDeclarationScreen from '../screens/worker/MaterialDeclarationScreen';
-import JobCompleteSummaryScreen from '../screens/worker/JobCompleteSummaryScreen';
-import EarningsScreen from '../screens/worker/EarningsScreen';
-import WorkerWalletScreen from '../screens/worker/WorkerWalletScreen';
-import WorkerTransactionHistoryScreen from '../screens/worker/WorkerTransactionHistoryScreen';
-import WorkerWithdrawScreen from '../screens/worker/WorkerWithdrawScreen';
-import WorkerBankAccountsScreen from '../screens/worker/WorkerBankAccountsScreen';
-import AddBankAccountScreen from '../screens/worker/AddBankAccountScreen';
-import AlertPreferencesScreen from '../screens/worker/AlertPreferencesScreen';
-import WorkerReputationScreen from '../screens/customer/WorkerReputationScreen';
-import ChatScreen from '../screens/shared/ChatScreen';
-import SupportNavigator from '../screens/shared/support/SupportNavigator';
-import ExtensionRequestScreen from '../screens/worker/ExtensionRequestScreen';
+import JobDetailPreviewScreen from '@shared/screens/worker/JobDetailPreviewScreen';
+import ActiveJobScreen from '@shared/screens/worker/ActiveJobScreen';
+import MaterialDeclarationScreen from '@shared/screens/worker/MaterialDeclarationScreen';
+import JobCompleteSummaryScreen from '@shared/screens/worker/JobCompleteSummaryScreen';
+import EarningsScreen from '@shared/screens/worker/EarningsScreen';
+import WorkerWalletScreen from '@shared/screens/worker/WorkerWalletScreen';
+import WorkerTransactionHistoryScreen from '@shared/screens/worker/WorkerTransactionHistoryScreen';
+import WorkerWithdrawScreen from '@shared/screens/worker/WorkerWithdrawScreen';
+import WorkerBankAccountsScreen from '@shared/screens/worker/WorkerBankAccountsScreen';
+import AddBankAccountScreen from '@shared/screens/worker/AddBankAccountScreen';
+import AlertPreferencesScreen from '@shared/screens/worker/AlertPreferencesScreen';
+import WorkerReputationScreen from '@shared/screens/customer/WorkerReputationScreen';
+import ChatScreen from '@shared/screens/shared/ChatScreen';
+import SupportNavigator from '@shared/screens/shared/support/SupportNavigator';
+import ExtensionRequestScreen from '@shared/screens/worker/ExtensionRequestScreen';
 
 const Stack = createStackNavigator();
 

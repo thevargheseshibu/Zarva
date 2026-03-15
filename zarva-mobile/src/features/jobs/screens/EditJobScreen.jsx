@@ -9,11 +9,11 @@ import { useT } from '../../hooks/useT';
 import apiClient, { uploadFileRaw } from '@infra/api/client';
 
 
-import LocationInput from '../../components/LocationInput';
-import PremiumButton from '../../components/PremiumButton';
+import LocationInput from '../@jobs/components/LocationInput';
+import PremiumButton from '../@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import FadeInView from '../../components/FadeInView';
-import Card from '../../components/Card';
+import FadeInView from '../@shared/ui/FadeInView';
+import Card from '../@shared/ui/ZCard';
 
 export default function EditJobScreen({ route, navigation }) {
     const tTheme = useTokens();

@@ -6,21 +6,21 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import CustomerNavigator from './CustomerNavigator';
 
-import DynamicQuestionsScreen from '../screens/customer/DynamicQuestionsScreen';
-import PriceEstimateScreen from '../screens/customer/PriceEstimateScreen';
-import LocationScheduleScreen from '../screens/customer/LocationScheduleScreen';
-import SearchingScreen from '../screens/customer/SearchingScreen';
-import JobStatusDetailScreen from '../screens/customer/JobStatusDetailScreen';
-import BillReviewScreen from '../screens/customer/BillReviewScreen';
-import PaymentConfirmScreen from '../screens/customer/PaymentConfirmScreen';
-import PaymentScreen from '../screens/customer/PaymentScreen';
-import RatingScreen from '../screens/customer/RatingScreen';
-import WorkerReputationScreen from '../screens/customer/WorkerReputationScreen';
-import EditJobScreen from '../screens/customer/EditJobScreen';
-import CreateCustomJobScreen from '../screens/customer/CreateCustomJobScreen';
-import MyCustomRequestsScreen from '../screens/customer/MyCustomRequestsScreen';
-import ChatScreen from '../screens/shared/ChatScreen';
-import SupportNavigator from '../screens/shared/support/SupportNavigator';
+import DynamicQuestionsScreen from '@shared/screens/customer/DynamicQuestionsScreen';
+import PriceEstimateScreen from '@shared/screens/customer/PriceEstimateScreen';
+import LocationScheduleScreen from '@shared/screens/customer/LocationScheduleScreen';
+import SearchingScreen from '@shared/screens/customer/SearchingScreen';
+import JobStatusDetailScreen from '@shared/screens/customer/JobStatusDetailScreen';
+import BillReviewScreen from '@shared/screens/customer/BillReviewScreen';
+import PaymentConfirmScreen from '@shared/screens/customer/PaymentConfirmScreen';
+import PaymentScreen from '@shared/screens/customer/PaymentScreen';
+import RatingScreen from '@shared/screens/customer/RatingScreen';
+import WorkerReputationScreen from '@shared/screens/customer/WorkerReputationScreen';
+import EditJobScreen from '@shared/screens/customer/EditJobScreen';
+import CreateCustomJobScreen from '@shared/screens/customer/CreateCustomJobScreen';
+import MyCustomRequestsScreen from '@shared/screens/customer/MyCustomRequestsScreen';
+import ChatScreen from '@shared/screens/shared/ChatScreen';
+import SupportNavigator from '@shared/screens/shared/support/SupportNavigator';
 
 const Stack = createStackNavigator();
 
