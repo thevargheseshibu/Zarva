@@ -10,10 +10,10 @@ import Animated, {
     withTiming,
     withSequence
 } from 'react-native-reanimated';
-import { useT } from '@shared/hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 
 
-import PremiumButton from './PremiumButton';
+import PremiumButton from '@shared/ui/PremiumButton';
 
 const { width } = Dimensions.get('window');
 
@@ -46,7 +46,7 @@ export default function NotCoveredView({ locationName, onRetry }) {
             >
                 <View style={styles.glowCircle} />
                 <Image
-                    source={require('../../assets/not_covered_premium.png')}
+                    source={require('@assets/not_covered_premium.png')}
                     style={styles.graphic}
                     resizeMode="contain"
                 />

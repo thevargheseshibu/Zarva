@@ -5,9 +5,9 @@ import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 
 import PressableAnimated from '@shared/design-system/components/PressableAnimated';
-import Card from './Card';
-import FadeInView from './FadeInView';
-import ZLoader from './ZLoader';
+import Card from '@shared/ui/ZCard';
+import FadeInView from '@shared/ui/FadeInView';
+import ZLoader from '@shared/ui/ZLoader';
 
 export default function LocationInput({ onChange, onLoading, initialData = {} }) {
     const tTheme = useTokens();

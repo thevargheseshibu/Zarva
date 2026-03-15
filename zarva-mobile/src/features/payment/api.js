@@ -3,7 +3,7 @@
  * ZARVA Wallet API calls.
  */
 
-import apiClient from './client';
+import apiClient from '@infra/api/client';
 
 /** Worker: get balance */
 export function getWorkerBalance() {

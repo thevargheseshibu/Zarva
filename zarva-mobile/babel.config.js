@@ -17,7 +17,8 @@ module.exports = function (api) {
                     '@notifications': './src/features/notifications',
                     '@worker': './src/features/worker',
                     '@customer': './src/features/customer',
-                    '@navigation': './src/navigation'
+                    '@navigation': './src/navigation',
+                    '@assets': './assets'
                 }
             }],
             'react-native-reanimated/plugin',

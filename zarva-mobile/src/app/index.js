@@ -3,7 +3,7 @@ import 'react-native-get-random-values';
 import { registerRootComponent } from 'expo';
 import messaging from '@react-native-firebase/messaging';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import App from '@app/App';
+import App from './App';
 
 // Handle background/killed state FCM messages and store them for the UI to pick up on mount
 messaging().setBackgroundMessageHandler(async (remoteMessage) => {

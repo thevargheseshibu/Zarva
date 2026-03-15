@@ -2,10 +2,10 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTokens } from '@shared/design-system';
-import { useT } from '@shared/hooks/useT';
-import Card from './Card';
+import { useT } from '@shared/i18n/useTranslation';
+import Card from '@shared/ui/ZCard';
 import PressableAnimated from '@shared/design-system/components/PressableAnimated';
-import StatusPill from './StatusPill';
+import StatusPill from '@shared/ui/StatusPill';
 
 export default function ActivityCard({ job, onPress, categoryIcon }) {
     const tTheme = useTokens();

@@ -1,7 +1,7 @@
 /**
  * src/services/api/chatApi.js
  */
-import apiClient from './client';
+import apiClient from '@infra/api/client';
 
 export const getMessages = async (jobId, beforeMessageId = null) => {
     let url = `/api/jobs/${jobId}/chat/messages`;

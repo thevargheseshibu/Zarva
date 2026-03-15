@@ -7,7 +7,7 @@ import { useTokens } from '@shared/design-system';
 import { View, Text, Image, StyleSheet } from 'react-native';
 
 
-import Card from './Card';
+import Card from '@shared/ui/ZCard';
 
 export default function WorkerCard({ worker, distance, onPress }) {
     const tTheme = useTokens();

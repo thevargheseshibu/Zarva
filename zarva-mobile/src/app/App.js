@@ -28,7 +28,7 @@ import { useAuthStore } from '@auth/store';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import { JobAlertService } from '@notifications/JobAlertService';
+import { JobAlertService } from '@notifications';
 import GlobalLoader from './GlobalLoader';
 import ZarvaSplash from '@shared/ui/ZarvaSplash';
 import AsyncStorage from '@react-native-async-storage/async-storage';

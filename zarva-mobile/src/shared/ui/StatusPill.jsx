@@ -5,7 +5,7 @@
 import React from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet } from 'react-native';
-import { useT } from '@shared/hooks/useT';
+import { useT } from '@shared/i18n/useTranslation';
 
 const STATUS_META = {
     open: { icon: '◉', short: 'Open' },
