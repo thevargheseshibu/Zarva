@@ -7,7 +7,7 @@ import * as Notifications from 'expo-notifications';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
-import { useWorkerStore } from '../stores/workerStore';
+import { useWorkerStore } from '@worker/store';
 
 // Configuration for looping sound/haptics
 let soundObject = null;

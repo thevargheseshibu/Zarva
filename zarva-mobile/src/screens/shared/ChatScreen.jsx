@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ActivityIndicator, Keyboard } from 'react-native';
 import { ref, onValue, off } from 'firebase/database';
-import { db } from '../../utils/firebase';
+import { db } from '@infra/firebase/app';
 import * as chatApi from '../../services/api/chatApi';
 import { useT } from '../../hooks/useT';
 

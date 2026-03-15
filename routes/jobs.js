@@ -186,7 +186,21 @@ router.get('/:id', async (req, res) => {
         // If job is in estimate_submitted, fetch the start OTP
         if (job.status === 'estimate_submitted') {
             const redisClient = getRedisClient();
-            const startOtp = await redisClient.get(`zarva:otp:start:${jobId}`);
+            let startOtp = await redisClient.get(`zarva:otp:start:${jobId}`);
+            
+            // CHANGE: Recover from missing Redis OTP so the customer always sees a valid start code.
+            if (!startOtp) {
+                console.log(`[Customer] Start OTP missing for job ${jobId}. Regenerating recovery OTP...`);
+                startOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+                const startOtpHash = await bcrypt.hash(startOtp, 10);
+                
+                // Update DB with new hash
+                await pool.query('UPDATE jobs SET start_otp_hash = $1 WHERE id = $2', [startOtpHash, jobId]);
+                
+                // Rehydrate Redis (1 hour TTL for start_otp)
+                await redisClient.set(`zarva:otp:start:${jobId}`, startOtp, 'EX', 3600);
+            }
+
             if (startOtp) job.start_otp = startOtp;
         }
 
@@ -305,6 +319,11 @@ router.post('/', async (req, res) => {
 
         const pool = getPool();
         
+        // Fetch current rate for the category from config
+        const jobsConfig = configLoader.get('jobs');
+        const catConfig = jobsConfig.categories[category];
+        const hourlyRate = catConfig?.rate_per_hour || 0;
+
         // Generate start OTP for job
         const startOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
         const startOtpHash = await bcrypt.hash(startOtp, 10);
@@ -319,13 +338,15 @@ router.post('/', async (req, res) => {
                     customer_id, category, description, scheduled_at,
                     job_location, latitude, longitude, address, pincode, city, district,
                     customer_address_detail,
-                    start_otp_hash, status, inspection_required, created_at, updated_at
+                    start_otp_hash, status, inspection_required, 
+                    hourly_rate, created_at, updated_at
                 ) VALUES (
                     $1,
                     $2, $3, $4, $5,
                     ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography, $6, $7, $8, $9, $10, $11,
                     $12,
-                    $13, 'open', $14, NOW(), NOW()
+                    $13, 'open', $14, 
+                    $15, NOW(), NOW()
                 )
                 RETURNING id
             `, [
@@ -333,7 +354,8 @@ router.post('/', async (req, res) => {
                 userId, category, JSON.stringify(description), scheduled_at,
                 latitude, longitude, address, pincode, city, district,
                 JSON.stringify(req.body.customer_address_detail || null),
-                startOtpHash, inspection_required ?? false
+                startOtpHash, inspection_required ?? false,
+                hourlyRate
             ]);
             jobId = rows[0]?.id;
         } catch (insertErr) {

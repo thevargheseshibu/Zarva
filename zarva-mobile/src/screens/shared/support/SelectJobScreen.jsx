@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
 import { useT } from '../../../hooks/useT';
-import apiClient from '../../../services/api/client';
+import apiClient from '@infra/api/client';
 import PremiumHeader from '../../../components/PremiumHeader';
 import MainBackground from '../../../components/MainBackground';
 import FadeInView from '../../../components/FadeInView';

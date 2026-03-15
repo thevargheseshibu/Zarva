@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 import { useT } from '../../hooks/useT';
-import apiClient from '../../services/api/client';
+import apiClient from '@infra/api/client';
 import FadeInView from '../../components/FadeInView';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';

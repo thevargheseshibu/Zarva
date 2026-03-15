@@ -8,8 +8,8 @@ import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, UIManager, P
 
 
 import PremiumButton from '../../components/PremiumButton';
-import { useAuthStore } from '../../stores/authStore';
-import apiClient from '../../services/api/client';
+import { useAuthStore } from '@auth/store';
+import apiClient from '@infra/api/client';
 import { useT } from '../../hooks/useT';
 import MainBackground from '../../components/MainBackground';
 import { LinearGradient } from 'expo-linear-gradient';

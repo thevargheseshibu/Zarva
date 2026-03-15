@@ -12,7 +12,7 @@ const idx = fs.readFileSync('index.js', 'utf8');
 const app = fs.readFileSync('App.js', 'utf8');
 const cfg = JSON.parse(fs.readFileSync('app.json', 'utf8'));
 assert(idx.includes('registerRootComponent'), 'index.js: registerRootComponent called');
-assert(idx.includes("import App from './App'"), 'index.js: imports App.js');
+assert(idx.includes("import App from '@app/App'"), 'index.js: imports App.js');
 assert(app.includes('GestureHandlerRootView'), 'App.js: GestureHandlerRootView wrapper');
 assert(app.includes('QueryClientProvider'), 'App.js: QueryClientProvider wrapper');
 assert(app.includes('SafeAreaProvider'), 'App.js: SafeAreaProvider wrapper');

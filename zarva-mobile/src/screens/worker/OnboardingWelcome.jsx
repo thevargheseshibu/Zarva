@@ -5,8 +5,8 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
 
-import { useAuthStore } from '../../stores/authStore';
-import apiClient from '../../services/api/client';
+import { useAuthStore } from '@auth/store';
+import apiClient from '@infra/api/client';
 import MainBackground from '../../components/MainBackground';
 import OnboardingBasicInfo from './onboarding/OnboardingBasicInfo';
 import OnboardingSkills from './onboarding/OnboardingSkills';

@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import PremiumButton from '../../../components/PremiumButton';
-import apiClient from '../../../services/api/client';
+import apiClient from '@infra/api/client';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import { useT } from '../../../hooks/useT';

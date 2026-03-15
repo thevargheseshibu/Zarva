@@ -72,6 +72,16 @@ function getFirebaseApp() {
     });
 
     console.log('[Firebase] Admin SDK initialised from ENV for project:', projectId);
+
+    // Diagnostic: Check for clock skew which causes "Invalid JWT Signature"
+    const now = Date.now();
+    const systemTime = new Date().toISOString();
+    console.log(`[Firebase Diagnostic] System time: ${systemTime} (${now}ms)`);
+    // If the time is before 2024, it's definitely out of sync
+    if (now < 1704067200000) { 
+        console.warn('[Firebase Diagnostic] ⚠️ CRITICAL: System clock appears to be out of sync. This will cause JWT signature errors!');
+    }
+
     return _app;
 }
 

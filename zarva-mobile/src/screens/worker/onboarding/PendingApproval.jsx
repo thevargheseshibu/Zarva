@@ -14,8 +14,8 @@ import * as Haptics from 'expo-haptics';
 
 
 import PremiumButton from '../../../components/PremiumButton';
-import { useAuthStore } from '../../../stores/authStore';
-import apiClient from '../../../services/api/client';
+import { useAuthStore } from '@auth/store';
+import apiClient from '@infra/api/client';
 import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import { useT } from '../../../hooks/useT';

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useT } from '../../hooks/useT';
-import apiClient, { uploadFileRaw } from '../../services/api/client';
+import apiClient, { uploadFileRaw } from '@infra/api/client';
 import { useTokens } from '../../design-system';
 
 import PremiumButton from '../../components/PremiumButton';

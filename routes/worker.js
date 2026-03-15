@@ -527,6 +527,10 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         if (!job) throw Object.assign(new Error('Job not found or not accessible'), { status: 404 });
 
         if (job.status !== 'estimate_submitted') {
+            // IDEMPOTENCY: If the job is already in_progress, return success instead of erroring.
+            if (job.status === 'in_progress') {
+                return { success: true, already_started: true };
+            }
             throw Object.assign(new Error('Invalid job state for start verification'), { status: 400 });
         }
 

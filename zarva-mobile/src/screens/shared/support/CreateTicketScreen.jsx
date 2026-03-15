@@ -8,8 +8,8 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
 import { useT } from '../../../hooks/useT';
-import { useAuthStore } from '../../../stores/authStore';
-import apiClient from '../../../services/api/client';
+import { useAuthStore } from '@auth/store';
+import apiClient from '@infra/api/client';
 import PremiumHeader from '../../../components/PremiumHeader';
 import MainBackground from '../../../components/MainBackground';
 import PremiumButton from '../../../components/PremiumButton';

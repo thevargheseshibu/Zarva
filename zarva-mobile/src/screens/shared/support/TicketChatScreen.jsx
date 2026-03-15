@@ -3,12 +3,12 @@ import { useTokens } from '../../../design-system';
 import { View, Text, StyleSheet, TextInput, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { ref, onValue, off } from 'firebase/database';
-import { database } from '../../../utils/firebase';
+import { database } from '@infra/firebase/app';
 
 
-import { useAuthStore } from '../../../stores/authStore';
+import { useAuthStore } from '@auth/store';
 import { useT } from '../../../hooks/useT';
-import apiClient from '../../../services/api/client';
+import apiClient from '@infra/api/client';
 import PremiumHeader from '../../../components/PremiumHeader';
 import MainBackground from '../../../components/MainBackground';
 

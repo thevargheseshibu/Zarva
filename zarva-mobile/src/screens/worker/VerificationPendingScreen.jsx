@@ -5,7 +5,7 @@ import { useTokens } from '../../design-system';
 
 import PremiumButton from '../../components/PremiumButton';
 import MainBackground from '../../components/MainBackground';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore } from '@auth/store';
 import { useT } from '../../hooks/useT';
 
 export default function VerificationPendingScreen() {

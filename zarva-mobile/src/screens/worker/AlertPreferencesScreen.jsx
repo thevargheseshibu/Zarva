@@ -3,7 +3,7 @@ import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
-import { useWorkerStore } from '../../stores/workerStore';
+import { useWorkerStore } from '@worker/store';
 
 
 import FadeInView from '../../components/FadeInView';

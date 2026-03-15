@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, FlatList, RefreshControl, Alert, Image, Touchab
 import { useFocusEffect } from '@react-navigation/native';
 import dayjs from 'dayjs';
 import { useT } from '../../hooks/useT';
-import apiClient from '../../services/api/client';
+import apiClient from '@infra/api/client';
 import { parseJobDescription } from '../../utils/jobParser';
 import FadeInView from '../../components/FadeInView';
 import StatusPill from '../../components/StatusPill';

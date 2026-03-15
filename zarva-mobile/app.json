@@ -56,7 +56,13 @@
           "color": "#C9A84C"
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Zarva to access your camera to capture material receipts."
+        }
+      ]
     ]
   }
 }

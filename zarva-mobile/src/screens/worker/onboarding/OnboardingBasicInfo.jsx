@@ -10,7 +10,7 @@ import FadeInView from '../../../components/FadeInView';
 import Card from '../../../components/Card';
 import { useT } from '../../../hooks/useT';
 import { useUIStore } from '../../../stores/uiStore';
-import apiClient from '../../../services/api/client';
+import apiClient from '@infra/api/client';
 import MainBackground from '../../../components/MainBackground';
 import { LinearGradient } from 'expo-linear-gradient';
 

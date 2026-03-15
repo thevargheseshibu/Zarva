@@ -4,14 +4,14 @@ import { View, Text, StyleSheet, FlatList, RefreshControl, Alert } from 'react-n
 import { useFocusEffect } from '@react-navigation/native';
 import dayjs from 'dayjs';
 import { useT } from '../../hooks/useT';
-import apiClient from '../../services/api/client';
+import apiClient from '@infra/api/client';
 import FadeInView from '../../components/FadeInView';
 import StatusPill from '../../components/StatusPill';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import SkeletonCard from '../../design-system/components/SkeletonCard';
 import PremiumButton from '../../components/PremiumButton';
-import { useWorkerStore } from '../../stores/workerStore';
+import { useWorkerStore } from '@worker/store';
 
 export default function MyCustomRequestsScreen({ navigation }) {
     const tTheme = useTokens();

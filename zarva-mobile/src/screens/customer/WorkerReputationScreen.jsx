@@ -3,7 +3,7 @@ import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
-import apiClient from '../../services/api/client';
+import apiClient from '@infra/api/client';
 import FadeInView from '../../components/FadeInView';
 import Card from '../../components/Card';
 import PressableAnimated from '../../design-system/components/PressableAnimated';

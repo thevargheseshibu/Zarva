@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, Alert, Image } from 'react-native';
 import { useTokens } from '../../design-system';
 import { useT } from '../../hooks/useT';
 import * as ImagePicker from 'expo-image-picker';
-import apiClient, { uploadFileRaw } from '../../services/api/client';
+import apiClient, { uploadFileRaw } from '@infra/api/client';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 

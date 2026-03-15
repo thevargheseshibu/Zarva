@@ -18,9 +18,9 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { useTokens } from '../../design-system';
 import MainBackground from '../../components/MainBackground';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore } from '@auth/store';
 import { useT } from '../../hooks/useT';
-import apiClient from '../../services/api/client';
+import apiClient from '@infra/api/client';
 import { useNavigation } from '@react-navigation/native';
 
 export default function BlockedScreen() {
