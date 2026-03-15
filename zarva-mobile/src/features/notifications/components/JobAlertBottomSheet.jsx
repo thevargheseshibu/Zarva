@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, ActivityIndicator } from 'react-native';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { BlurView } from 'expo-blur';
@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { useWorkerStore } from '@worker/store';
 import apiClient from '@infra/api/client';
 import { JobAlertService } from '@notifications/JobAlertService';
-import { navigationRef } from '../navigation/RootNavigator';
+import { navigationRef } from '@app/RootNavigator';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const CIRCLE_RADIUS = 24;

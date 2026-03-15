@@ -4,7 +4,7 @@
  * Exposes reset() via forwardRef so parents can clear boxes after failed submissions.
  */
 import React, { useRef, useState, useImperativeHandle, forwardRef } from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import {
     View,
     TextInput,

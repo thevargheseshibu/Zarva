@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';

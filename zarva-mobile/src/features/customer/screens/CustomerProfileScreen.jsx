@@ -5,8 +5,8 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useAuthStore } from '@auth/store';
-import { useLanguageStore } from '../../i18n';
-import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
+import { useLanguageStore } from '@shared/i18n';
+import { SUPPORTED_LANGUAGES } from '@shared/i18n/languages';
 import { useT } from '@shared/i18n/useTranslation';
 import apiClient, { uploadFileRaw } from '@infra/api/client';
 import FadeInView from '@shared/ui/FadeInView';

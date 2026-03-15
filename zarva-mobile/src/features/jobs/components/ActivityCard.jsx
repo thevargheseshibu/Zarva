@@ -1,10 +1,10 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useTokens } from '../design-system';
-import { useT } from '../hooks/useT';
+import { useTokens } from '@shared/design-system';
+import { useT } from '@shared/hooks/useT';
 import Card from './Card';
-import PressableAnimated from '../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import StatusPill from './StatusPill';
 
 export default function ActivityCard({ job, onPress, categoryIcon }) {

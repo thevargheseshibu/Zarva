@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, TextInput, FlatList, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';

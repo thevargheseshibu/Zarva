@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, TextInput, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 
-import PressableAnimated from '../design-system/components/PressableAnimated';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import Card from './Card';
 import FadeInView from './FadeInView';
 import ZLoader from './ZLoader';

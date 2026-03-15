@@ -7,7 +7,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useUIStore } from '@shared/hooks/uiStore';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 
 const { width, height } = Dimensions.get('window');
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, Animated, Easing, StyleSheet, Modal, Dimensions } from 'react-native';
 
 

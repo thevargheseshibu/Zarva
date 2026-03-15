@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, Image, Dimensions } from 'react-native';
 import Animated, {
     FadeIn,
@@ -10,7 +10,7 @@ import Animated, {
     withTiming,
     withSequence
 } from 'react-native-reanimated';
-import { useT } from '../hooks/useT';
+import { useT } from '@shared/hooks/useT';
 
 
 import PremiumButton from './PremiumButton';

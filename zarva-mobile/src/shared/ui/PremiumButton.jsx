@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import {
     Text,
     ActivityIndicator,
@@ -22,7 +22,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 
 
-import { durations, springs } from '../design-system/motion';
+import { durations, springs } from '@shared/design-system/motion';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useLanguageStore } from '../i18n';
+import { useLanguageStore } from '@shared/i18n';
 
 /**
  * useT() hook

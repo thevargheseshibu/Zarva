@@ -3,7 +3,7 @@
  * Worker preview: photo circle, name, gold star rating, category chip, distance.
  */
 import React from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, Image, StyleSheet } from 'react-native';
 
 

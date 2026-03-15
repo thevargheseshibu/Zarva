@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { StyleSheet, View, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 

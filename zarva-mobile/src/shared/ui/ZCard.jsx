@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, StyleSheet } from 'react-native';
 
 export default function Card({ children, style }) {

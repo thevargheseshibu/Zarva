@@ -3,7 +3,7 @@
  * Reanimated2 concentric rings that expand and fade — gold pulse radar effect.
  */
 import React, { useEffect } from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, StyleSheet } from 'react-native';
 import Animated, {
     useSharedValue,

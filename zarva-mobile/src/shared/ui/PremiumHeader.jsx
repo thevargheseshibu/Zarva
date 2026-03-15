@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import PressableAnimated from '../design-system/components/PressableAnimated';
-import { useTokens } from '../design-system';
+import PressableAnimated from '@shared/design-system/components/PressableAnimated';
+import { useTokens } from '@shared/design-system';
 
 
 export default function PremiumHeader({ title, onBack }) {

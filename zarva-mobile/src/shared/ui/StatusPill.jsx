@@ -3,9 +3,9 @@
  * Ultra-Premium compact status badge with icon + short label.
  */
 import React from 'react';
-import { useTokens } from '../design-system';
+import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet } from 'react-native';
-import { useT } from '../hooks/useT';
+import { useT } from '@shared/hooks/useT';
 
 const STATUS_META = {
     open: { icon: '◉', short: 'Open' },

@@ -10,7 +10,7 @@ import Animated, {
     withDelay,
     withTiming
 } from 'react-native-reanimated';
-import { timingConfig } from '../design-system/motion';
+import { timingConfig } from '@shared/design-system/motion';
 
 export default function FadeInView({ children, delay = 0, style }) {
     const opacity = useSharedValue(0);
