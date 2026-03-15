@@ -53,7 +53,7 @@ function signJwt(user) {
  * Also creates customer_profiles for brand-new users.
  *
  * @param {string} phone  - E.164 normalised phone number
- * @param {object} pool   - mysql2 pool
+ * @param {object} pool   - pg pool
  * @returns {Promise<object>}  - users row
  */
 async function findOrCreateUser(phone, pool) {
@@ -112,7 +112,7 @@ async function findOrCreateUser(phone, pool) {
  * Issue a JWT + refresh token pair and persist both in auth_tokens.
  *
  * @param {object} user     - users row { id, role, ... }
- * @param {object} pool     - mysql2 pool
+ * @param {object} pool     - pg pool
  * @param {object} [meta]   - optional { device_info, ip_address }
  * @returns {Promise<{ token: string, refresh_token: string }>}
  */

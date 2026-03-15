@@ -40,7 +40,7 @@ function getExtension(mimeType) {
  * @param {string} purpose
  * @param {string} filename
  * @param {string} mimeType
- * @param {object} pool       mysql2 pool instance
+ * @param {object} pool       pg pool instance
  * @returns {Promise<{ upload_url: string, s3_key: string, expires_at: Date }>}
  */
 export async function generatePresignedUpload(userId, purpose, filename, mimeType, pool) {

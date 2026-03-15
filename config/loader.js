@@ -38,14 +38,14 @@ class ConfigLoader {
   constructor() {
     /** @type {Map<string, object>} */
     this._cache = new Map();
-    /** @type {import('mysql2/promise').Pool | null} */
+    /** @type {import('pg').Pool | null} */
     this._pool = null;
   }
 
   /**
    * Attach the DB pool so ConfigLoader can pull DB overrides.
    * Call this after DB pool is initialised (non-blocking — pool absence is tolerated).
-   * @param {import('mysql2/promise').Pool} pool
+   * @param {import('pg').Pool} pool
    */
   setPool(pool) {
     this._pool = pool;

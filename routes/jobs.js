@@ -170,7 +170,7 @@ router.get('/:id', async (req, res) => {
 
             // CHANGE: Recover from missing Redis OTP so the customer always sees a valid inspection code.
             if (!inspectionOtp) {
-                // CHANGE: Regenerate a fresh inspection OTP and persist its hash in MySQL (source of truth).
+                // CHANGE: Regenerate a fresh inspection OTP and persist its hash in PostgreSQL (source of truth).
                 inspectionOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
                 const inspectionOtpHash = await bcrypt.hash(inspectionOtp, 10);
                 await pool.query('UPDATE jobs SET inspection_otp_hash = $1 WHERE id = $2', [inspectionOtpHash, jobId]);

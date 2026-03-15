@@ -526,7 +526,7 @@ router.post('/jobs/:id/verify-start-otp', (req, res) =>
         const job = jobs[0];
         if (!job) throw Object.assign(new Error('Job not found or not accessible'), { status: 404 });
 
-        if (job.status !== 'worker_arrived') {
+        if (job.status !== 'estimate_submitted') {
             throw Object.assign(new Error('Invalid job state for start verification'), { status: 400 });
         }
 

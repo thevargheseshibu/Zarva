@@ -15,12 +15,11 @@ const { Pool, Client } = pg;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// ── Config ────────────────────────────────────────────────────
-// Postgres defaults, overriding any legacy MySQL env vars
+// Postgres config — reads from environment variables
 const DB_HOST = process.env.DB_HOST || 'localhost';
-const DB_PORT = (process.env.DB_PORT == '3306' ? 5432 : Number(process.env.DB_PORT)) || 5432;
-const DB_USER = (process.env.DB_USER === 'root' ? 'postgres' : process.env.DB_USER) || 'postgres';
-const DB_PASSWORD = (process.env.DB_USER === 'root' || !process.env.DB_PASSWORD ? 'Vs@123456' : process.env.DB_PASSWORD);
+const DB_PORT = Number(process.env.DB_PORT) || 5432;
+const DB_USER = process.env.DB_USER || 'postgres';
+const DB_PASSWORD = process.env.DB_PASSWORD || 'Vs@123456';
 const DB_NAME = process.env.DB_NAME || 'zarva';
 
 // ── Helpers ───────────────────────────────────────────────────

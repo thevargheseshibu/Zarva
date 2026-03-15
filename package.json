@@ -7,8 +7,7 @@
     "scripts": {
         "start": "node server.js",
         "dev": "node --watch server.js",
-        "dev:env": "node --env-file=.env.development --watch server.js",
-        "test:firebase": "node --env-file=.env.development scripts/testFirebase.js"
+        "dev:env": "node --env-file=.env.development --watch server.js"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.994.0",
