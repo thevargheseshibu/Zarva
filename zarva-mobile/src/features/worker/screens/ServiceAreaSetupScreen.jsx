@@ -5,8 +5,8 @@ import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 
 
-import PremiumButton from '../../@shared/ui/PremiumButton';
-import coverageApi from '../../@infra/api/coverageApi';
+import PremiumButton from '@shared/ui/PremiumButton';
+import coverageApi from '@infra/api/coverageApi';
 
 const RADIUS_OPTIONS = [5, 10, 20, 30, 50];
 

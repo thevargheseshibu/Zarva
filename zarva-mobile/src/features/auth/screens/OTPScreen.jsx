@@ -23,12 +23,12 @@ import {
     StyleSheet, Platform, Alert,
 } from 'react-native';
 
-import PremiumButton from '../@shared/ui/PremiumButton';
+import PremiumButton from '@shared/ui/PremiumButton';
 import { useAuthStore } from '@auth/store';
-import { useOtpStore } from '../@auth/otpStore';
+import { useOtpStore } from '@auth/otpStore';
 import apiClient from '@infra/api/client';
 import { useT } from '../../hooks/useT';
-import MainBackground from '../@shared/ui/MainBackground';
+import MainBackground from '@shared/ui/MainBackground';
 import auth, { getAuth, signInWithPhoneNumber } from '@react-native-firebase/auth';
 
 const BOX_COUNT = 6;

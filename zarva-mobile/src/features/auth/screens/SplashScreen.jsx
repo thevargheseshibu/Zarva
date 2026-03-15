@@ -2,7 +2,7 @@ import React from 'react';
 import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 
-import RadarAnimation from '../@shared/ui/RadarAnimation';
+import RadarAnimation from '@shared/ui/RadarAnimation';
 import { useT } from '../../hooks/useT';
 
 export default function SplashScreen({ navigation }) {

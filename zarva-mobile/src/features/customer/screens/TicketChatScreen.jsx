@@ -9,8 +9,8 @@ import { database } from '@infra/firebase/app';
 import { useAuthStore } from '@auth/store';
 import { useT } from '../../../hooks/useT';
 import apiClient from '@infra/api/client';
-import PremiumHeader from '../../@shared/ui/PremiumHeader';
-import MainBackground from '../../@shared/ui/MainBackground';
+import PremiumHeader from '@shared/ui/PremiumHeader';
+import MainBackground from '@shared/ui/MainBackground';
 
 export default function TicketChatScreen() {
     const tTheme = useTokens();

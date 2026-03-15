@@ -7,8 +7,8 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert 
 import * as Haptics from 'expo-haptics';
 import { useTokens } from '../../design-system';
 import { useT } from '../../hooks/useT';
-import * as walletApi from '../@payment/api';
-import PremiumButton from '../@shared/ui/PremiumButton';
+import * as walletApi from '@payment/api';
+import PremiumButton from '@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 
 export default function AddBankAccountScreen({ navigation }) {

@@ -6,11 +6,11 @@ import dayjs from 'dayjs';
 import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';
 import { parseJobDescription } from '../../utils/jobParser';
-import FadeInView from '../@shared/ui/FadeInView';
-import StatusPill from '../@shared/ui/StatusPill';
+import FadeInView from '@shared/ui/FadeInView';
+import StatusPill from '@shared/ui/StatusPill';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import SkeletonCard from '../../design-system/components/SkeletonCard';
-import MainBackground from '../@shared/ui/MainBackground';
+import MainBackground from '@shared/ui/MainBackground';
 
 const FILTERS = ['All', 'Active', 'Completed', 'Cancelled'];
 

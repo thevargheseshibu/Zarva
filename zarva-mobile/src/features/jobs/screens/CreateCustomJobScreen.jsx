@@ -5,7 +5,7 @@ import { useT } from '../../hooks/useT';
 import apiClient, { uploadFileRaw } from '@infra/api/client';
 import { useTokens } from '../../design-system';
 
-import PremiumButton from '../@shared/ui/PremiumButton';
+import PremiumButton from '@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 
 export default function CreateCustomJobScreen({ navigation }) {

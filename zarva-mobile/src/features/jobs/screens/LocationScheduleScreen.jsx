@@ -7,16 +7,16 @@ import customParseFormat from 'dayjs/plugin/customParseFormat';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';
-import coverageApi from '../@infra/api/coverageApi';
+import coverageApi from '@infra/api/coverageApi';
 
 
 import { useJobStore } from '@jobs/store';
-import { useUIStore } from '../@shared/hooks/uiStore';
-import LocationInput from '../@jobs/components/LocationInput';
-import PremiumButton from '../@shared/ui/PremiumButton';
+import { useUIStore } from '@shared/hooks/uiStore';
+import LocationInput from '@jobs/components/LocationInput';
+import PremiumButton from '@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import FadeInView from '../@shared/ui/FadeInView';
-import Card from '../@shared/ui/ZCard';
+import FadeInView from '@shared/ui/FadeInView';
+import Card from '@shared/ui/ZCard';
 
 dayjs.extend(customParseFormat);
 

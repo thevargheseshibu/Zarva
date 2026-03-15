@@ -10,10 +10,10 @@ import * as Haptics from 'expo-haptics';
 import { useT } from '../../../hooks/useT';
 import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';
-import PremiumHeader from '../../@shared/ui/PremiumHeader';
-import MainBackground from '../../@shared/ui/MainBackground';
-import PremiumButton from '../../@shared/ui/PremiumButton';
-import FadeInView from '../../@shared/ui/FadeInView';
+import PremiumHeader from '@shared/ui/PremiumHeader';
+import MainBackground from '@shared/ui/MainBackground';
+import PremiumButton from '@shared/ui/PremiumButton';
+import FadeInView from '@shared/ui/FadeInView';
 
 export default function CreateTicketScreen() {
     const tTheme = useTokens();

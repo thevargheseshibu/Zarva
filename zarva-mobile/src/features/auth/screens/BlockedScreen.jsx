@@ -17,7 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useTokens } from '../../design-system';
-import MainBackground from '../@shared/ui/MainBackground';
+import MainBackground from '@shared/ui/MainBackground';
 import { useAuthStore } from '@auth/store';
 import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';

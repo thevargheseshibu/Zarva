@@ -4,8 +4,8 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image } from 're
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';
-import FadeInView from '../@shared/ui/FadeInView';
-import Card from '../@shared/ui/ZCard';
+import FadeInView from '@shared/ui/FadeInView';
+import Card from '@shared/ui/ZCard';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 
 

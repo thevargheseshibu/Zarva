@@ -7,11 +7,11 @@ import { useTokens } from '../../design-system';
 import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, UIManager, Platform, Alert } from 'react-native';
 
 
-import PremiumButton from '../@shared/ui/PremiumButton';
+import PremiumButton from '@shared/ui/PremiumButton';
 import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';
 import { useT } from '../../hooks/useT';
-import MainBackground from '../@shared/ui/MainBackground';
+import MainBackground from '@shared/ui/MainBackground';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function RoleSelection() {

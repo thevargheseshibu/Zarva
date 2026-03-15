@@ -5,10 +5,10 @@ import { useNavigation } from '@react-navigation/native';
 
 
 import { useT } from '../../../hooks/useT';
-import MainBackground from '../../@shared/ui/MainBackground';
+import MainBackground from '@shared/ui/MainBackground';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
-import FadeInView from '../../@shared/ui/FadeInView';
-import PremiumHeader from '../../@shared/ui/PremiumHeader';
+import FadeInView from '@shared/ui/FadeInView';
+import PremiumHeader from '@shared/ui/PremiumHeader';
 
 export default function SupportHomeScreen() {
     const tTheme = useTokens();

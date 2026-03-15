@@ -6,9 +6,9 @@ import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
 import { useJobStore } from '@jobs/store';
 import apiClient from '@infra/api/client';
-import FadeInView from '../@shared/ui/FadeInView';
-import PremiumButton from '../@shared/ui/PremiumButton';
-import RadarAnimation from '../@shared/ui/RadarAnimation';
+import FadeInView from '@shared/ui/FadeInView';
+import PremiumButton from '@shared/ui/PremiumButton';
+import RadarAnimation from '@shared/ui/RadarAnimation';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 
 

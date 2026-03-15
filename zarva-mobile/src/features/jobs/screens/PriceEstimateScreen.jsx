@@ -3,10 +3,10 @@ import { useTokens } from '../../design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
-import FadeInView from '../@shared/ui/FadeInView';
-import PremiumButton from '../@shared/ui/PremiumButton';
+import FadeInView from '@shared/ui/FadeInView';
+import PremiumButton from '@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import Card from '../@shared/ui/ZCard';
+import Card from '@shared/ui/ZCard';
 
 
 

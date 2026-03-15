@@ -13,13 +13,13 @@ import { db } from '@infra/firebase/app';
 import { useJobStore } from '@jobs/store';
 import apiClient from '@infra/api/client';
 import { parseJobDescription } from '../../utils/jobParser';
-import FadeInView from '../@shared/ui/FadeInView';
-import StatusPill from '../@shared/ui/StatusPill';
-import OTPInput from '../@shared/ui/OTPInput';
-import PremiumButton from '../@shared/ui/PremiumButton';
-import Card from '../@shared/ui/ZCard';
+import FadeInView from '@shared/ui/FadeInView';
+import StatusPill from '@shared/ui/StatusPill';
+import OTPInput from '@shared/ui/OTPInput';
+import PremiumButton from '@shared/ui/PremiumButton';
+import Card from '@shared/ui/ZCard';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import MainBackground from '../@shared/ui/MainBackground';
+import MainBackground from '@shared/ui/MainBackground';
 
 // ── Stage pipeline ──────────────────────────────────────────────────────────
 const STAGES = [

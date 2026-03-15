@@ -4,13 +4,13 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import PremiumButton from '../../@shared/ui/PremiumButton';
+import PremiumButton from '@shared/ui/PremiumButton';
 import apiClient from '@infra/api/client';
-import FadeInView from '../../@shared/ui/FadeInView';
-import Card from '../../@shared/ui/ZCard';
+import FadeInView from '@shared/ui/FadeInView';
+import Card from '@shared/ui/ZCard';
 import { useT } from '../../../hooks/useT';
-import { useUIStore } from '../../@shared/hooks/uiStore';
-import MainBackground from '../../@shared/ui/MainBackground';
+import { useUIStore } from '@shared/hooks/uiStore';
+import MainBackground from '@shared/ui/MainBackground';
 
 /**
  * OnboardingSkills.jsx - Standardized version.

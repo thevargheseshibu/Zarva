@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';
-import MainBackground from '../@shared/ui/MainBackground';
+import MainBackground from '@shared/ui/MainBackground';
 import OnboardingBasicInfo from './onboarding/OnboardingBasicInfo';
 import OnboardingSkills from './onboarding/OnboardingSkills';
 import ServiceAreaSetupScreen from './onboarding/ServiceAreaSetupScreen';

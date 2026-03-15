@@ -7,13 +7,13 @@ import * as Haptics from 'expo-haptics';
 import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';
 import { useWorkerStore } from '@worker/store';
-import FadeInView from '../@shared/ui/FadeInView';
-import Card from '../@shared/ui/ZCard';
+import FadeInView from '@shared/ui/FadeInView';
+import Card from '@shared/ui/ZCard';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import StatusPill from '../@shared/ui/StatusPill';
-import MapPickerModal from '../@shared/ui/MapPickerModal';
-import MainBackground from '../@shared/ui/MainBackground';
-import ZarvaHeader from '../@shared/ui/ZarvaHeader';
+import StatusPill from '@shared/ui/StatusPill';
+import MapPickerModal from '@shared/ui/MapPickerModal';
+import MainBackground from '@shared/ui/MainBackground';
+import ZarvaHeader from '@shared/ui/ZarvaHeader';
 
 /**
  * WorkerHomeScreen.jsx - Cleaned and Verified

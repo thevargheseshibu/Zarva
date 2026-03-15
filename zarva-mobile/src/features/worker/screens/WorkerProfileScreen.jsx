@@ -9,12 +9,12 @@ import { useLanguageStore } from '../../i18n';
 import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';
-import FadeInView from '../@shared/ui/FadeInView';
-import PremiumButton from '../@shared/ui/PremiumButton';
+import FadeInView from '@shared/ui/FadeInView';
+import PremiumButton from '@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import Card from '../@shared/ui/ZCard';
-import MapPickerModal from '../@shared/ui/MapPickerModal';
-import MainBackground from '../@shared/ui/MainBackground';
+import Card from '@shared/ui/ZCard';
+import MapPickerModal from '@shared/ui/MapPickerModal';
+import MainBackground from '@shared/ui/MainBackground';
 
 export default function WorkerProfileScreen({ navigation }) {
     const tTheme = useTokens();

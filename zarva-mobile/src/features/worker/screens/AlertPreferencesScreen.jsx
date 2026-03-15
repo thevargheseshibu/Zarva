@@ -6,8 +6,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useWorkerStore } from '@worker/store';
 
 
-import FadeInView from '../@shared/ui/FadeInView';
-import Card from '../@shared/ui/ZCard';
+import FadeInView from '@shared/ui/FadeInView';
+import Card from '@shared/ui/ZCard';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import { useT } from '../../hooks/useT';
 

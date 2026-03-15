@@ -4,14 +4,14 @@ import { View, Text, ScrollView, TextInput, Alert, StyleSheet } from 'react-nati
 import * as Haptics from 'expo-haptics';
 
 
-import PremiumButton from '../../@shared/ui/PremiumButton';
-import FadeInView from '../../@shared/ui/FadeInView';
-import Card from '../../@shared/ui/ZCard';
+import PremiumButton from '@shared/ui/PremiumButton';
+import FadeInView from '@shared/ui/FadeInView';
+import Card from '@shared/ui/ZCard';
 import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';
 import { useT } from '../../../hooks/useT';
-import { useUIStore } from '../../@shared/hooks/uiStore';
-import MainBackground from '../../@shared/ui/MainBackground';
+import { useUIStore } from '@shared/hooks/uiStore';
+import MainBackground from '@shared/ui/MainBackground';
 
 const AGREEMENT_VERSION = 'v2026-02';
 

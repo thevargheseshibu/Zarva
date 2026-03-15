@@ -4,7 +4,7 @@ import { useTokens } from '../../design-system';
 import { useT } from '../../hooks/useT';
 import * as ImagePicker from 'expo-image-picker';
 import apiClient, { uploadFileRaw } from '@infra/api/client';
-import PremiumButton from '../@shared/ui/PremiumButton';
+import PremiumButton from '@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 
 export default function ExtensionRequestScreen({ route, navigation }) {

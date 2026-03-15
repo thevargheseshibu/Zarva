@@ -6,9 +6,9 @@ import * as Haptics from 'expo-haptics';
 
 import { useT } from '../../../hooks/useT';
 import apiClient from '@infra/api/client';
-import PremiumHeader from '../../@shared/ui/PremiumHeader';
-import MainBackground from '../../@shared/ui/MainBackground';
-import FadeInView from '../../@shared/ui/FadeInView';
+import PremiumHeader from '@shared/ui/PremiumHeader';
+import MainBackground from '@shared/ui/MainBackground';
+import FadeInView from '@shared/ui/FadeInView';
 
 const STATUS_COLORS = {
     assigned: '#3B82F6',

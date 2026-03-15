@@ -8,7 +8,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useTokens } from '../../design-system';
 import { useT } from '../../hooks/useT';
-import { useWorkerWalletStore } from '../@payment/workerWalletStore';
+import { useWorkerWalletStore } from '@payment/workerWalletStore';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 
 export default function WorkerBankAccountsScreen({ navigation }) {
@@ -39,7 +39,7 @@ export default function WorkerBankAccountsScreen({ navigation }) {
                 style: 'destructive',
                 onPress: async () => {
                     try {
-                        const { removeBankAccount } = await import('../@payment/api');
+                        const { removeBankAccount } = await import('@payment/api');
                         await removeBankAccount(acc.id);
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                         fetchBankAccounts();

@@ -8,12 +8,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useTokens } from '../../design-system';
 import { useT } from '../../hooks/useT';
-import { useWorkerWalletStore } from '../@payment/workerWalletStore';
+import { useWorkerWalletStore } from '@payment/workerWalletStore';
 import { paiseToINR } from '../../utils/paiseToINR';
-import Card from '../@shared/ui/ZCard';
-import PremiumButton from '../@shared/ui/PremiumButton';
+import Card from '@shared/ui/ZCard';
+import PremiumButton from '@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import FadeInView from '../@shared/ui/FadeInView';
+import FadeInView from '@shared/ui/FadeInView';
 
 export default function WorkerWalletScreen({ navigation }) {
     const tTheme = useTokens();

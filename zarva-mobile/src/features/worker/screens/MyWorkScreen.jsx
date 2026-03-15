@@ -6,11 +6,11 @@ import * as Haptics from 'expo-haptics';
 import dayjs from 'dayjs';
 import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';
-import FadeInView from '../@shared/ui/FadeInView';
-import Card from '../@shared/ui/ZCard';
+import FadeInView from '@shared/ui/FadeInView';
+import Card from '@shared/ui/ZCard';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import StatusPill from '../@shared/ui/StatusPill';
-import MainBackground from '../@shared/ui/MainBackground';
+import StatusPill from '@shared/ui/StatusPill';
+import MainBackground from '@shared/ui/MainBackground';
 
 
 

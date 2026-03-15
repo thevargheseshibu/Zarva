@@ -6,8 +6,8 @@ import { useNavigation } from '@react-navigation/native';
 
 import { useT } from '../../../hooks/useT';
 import apiClient from '@infra/api/client';
-import PremiumHeader from '../../@shared/ui/PremiumHeader';
-import MainBackground from '../../@shared/ui/MainBackground';
+import PremiumHeader from '@shared/ui/PremiumHeader';
+import MainBackground from '@shared/ui/MainBackground';
 import PressableAnimated from '../../../design-system/components/PressableAnimated';
 
 export default function TicketListScreen() {

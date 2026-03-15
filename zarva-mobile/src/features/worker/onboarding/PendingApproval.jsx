@@ -13,13 +13,13 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 
 
-import PremiumButton from '../../@shared/ui/PremiumButton';
+import PremiumButton from '@shared/ui/PremiumButton';
 import { useAuthStore } from '@auth/store';
 import apiClient from '@infra/api/client';
-import FadeInView from '../../@shared/ui/FadeInView';
-import Card from '../../@shared/ui/ZCard';
+import FadeInView from '@shared/ui/FadeInView';
+import Card from '@shared/ui/ZCard';
 import { useT } from '../../../hooks/useT';
-import MainBackground from '../../@shared/ui/MainBackground';
+import MainBackground from '@shared/ui/MainBackground';
 
 export default function PendingApproval() {
     const tTheme = useTokens();

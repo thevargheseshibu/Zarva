@@ -9,7 +9,7 @@
 import axios from 'axios';
 import { Alert, Platform } from 'react-native';
 import { useAuthStore } from '@auth/store';
-import { useUIStore } from '../@shared/hooks/uiStore';
+import { useUIStore } from '@shared/hooks/uiStore';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 

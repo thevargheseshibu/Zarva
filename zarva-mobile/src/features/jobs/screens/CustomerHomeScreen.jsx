@@ -12,21 +12,21 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useT } from '../../hooks/useT';
 import { useJobStore } from '@jobs/store';
 import apiClient from '@infra/api/client';
-import coverageApi from '../@infra/api/coverageApi';
-import FadeInView from '../@shared/ui/FadeInView';
-import PremiumButton from '../@shared/ui/PremiumButton';
+import coverageApi from '@infra/api/coverageApi';
+import FadeInView from '@shared/ui/FadeInView';
+import PremiumButton from '@shared/ui/PremiumButton';
 
 
 import { durations } from '../../design-system/motion';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import SkeletonCard from '../../design-system/components/SkeletonCard';
-import StatusPill from '../@shared/ui/StatusPill';
-import RadarAnimation from '../@shared/ui/RadarAnimation';
-import Card from '../@shared/ui/ZCard';
-import MapPickerModal from '../@shared/ui/MapPickerModal';
-import NotCoveredView from '../@shared/ui/NotCoveredView';
-import ActivityCard from '../@jobs/components/ActivityCard';
-import ZarvaHeader from '../@shared/ui/ZarvaHeader';
+import StatusPill from '@shared/ui/StatusPill';
+import RadarAnimation from '@shared/ui/RadarAnimation';
+import Card from '@shared/ui/ZCard';
+import MapPickerModal from '@shared/ui/MapPickerModal';
+import NotCoveredView from '@shared/ui/NotCoveredView';
+import ActivityCard from '@jobs/components/ActivityCard';
+import ZarvaHeader from '@shared/ui/ZarvaHeader';
 
 /**
  * HomeScreen.jsx - Standardized version to resolve tag mismatch and theme naming.

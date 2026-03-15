@@ -8,10 +8,10 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import { useT } from '../../hooks/useT';
 import apiClient from '@infra/api/client';
 import { useWorkerStore } from '@worker/store';
-import FadeInView from '../@shared/ui/FadeInView';
-import PremiumButton from '../@shared/ui/PremiumButton';
+import FadeInView from '@shared/ui/FadeInView';
+import PremiumButton from '@shared/ui/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
-import Card from '../@shared/ui/ZCard';
+import Card from '@shared/ui/ZCard';
 
 
 import { haversineKm, formatDistance, calculateTravelCharge } from '../../utils/distance';

@@ -4,14 +4,14 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 
 import * as Haptics from 'expo-haptics';
 
 
-import PremiumButton from '../../@shared/ui/PremiumButton';
-import LocationInput from '../../@jobs/components/LocationInput';
-import FadeInView from '../../@shared/ui/FadeInView';
-import Card from '../../@shared/ui/ZCard';
+import PremiumButton from '@shared/ui/PremiumButton';
+import LocationInput from '@jobs/components/LocationInput';
+import FadeInView from '@shared/ui/FadeInView';
+import Card from '@shared/ui/ZCard';
 import { useT } from '../../../hooks/useT';
-import { useUIStore } from '../../@shared/hooks/uiStore';
+import { useUIStore } from '@shared/hooks/uiStore';
 import apiClient from '@infra/api/client';
-import MainBackground from '../../@shared/ui/MainBackground';
+import MainBackground from '@shared/ui/MainBackground';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const RANGES = [10, 20, 50];

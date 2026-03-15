@@ -3,8 +3,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Linking } from 'react-native';
 import { useTokens } from '../../design-system';
 
-import PremiumButton from '../@shared/ui/PremiumButton';
-import MainBackground from '../@shared/ui/MainBackground';
+import PremiumButton from '@shared/ui/PremiumButton';
+import MainBackground from '@shared/ui/MainBackground';
 import { useAuthStore } from '@auth/store';
 import { useT } from '../../hooks/useT';
 
