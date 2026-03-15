@@ -9,8 +9,8 @@ import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     TextInput, ActivityIndicator, Alert, Image, Animated
 } from 'react-native';
-import { useAuthStore } from '../../store/authStore';
-import { apiClient } from '../../utils/apiClient';
+import { useAuthStore } from '../../stores/authStore';
+import apiClient from '../../services/api/client';
 
 const COLORS = {
     bg: '#0F1117',
@@ -91,9 +91,7 @@ export default function BillReviewScreen({ navigation, route }) {
 
     const fetchPreview = async () => {
         try {
-            const res = await apiClient.get(`/api/jobs/${jobId}/bill-preview`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await apiClient.get(`/api/jobs/${jobId}/bill-preview`);
             setPreview(res.data);
         } catch (err) {
             Alert.alert('Error', 'Could not load bill. Please try again.');
@@ -142,7 +140,7 @@ export default function BillReviewScreen({ navigation, route }) {
             const res = await apiClient.post(`/api/jobs/${jobId}/final/verify`, {
                 otp,
                 flagged_material_ids: [...flagged],
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
             navigation.replace('PaymentConfirm', { jobId, result: res.data });
         } catch (err) {
             const msg = err?.response?.data?.message || 'Verification failed';

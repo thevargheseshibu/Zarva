@@ -106,7 +106,7 @@ const createStyles = (t) => StyleSheet.create({
         textTransform: 'capitalize',
     },
     distance: {
-        color: colors.accent.muted,
+        color: t.text.tertiary,
         fontSize: t.typography.size.sm,
         fontWeight: t.typography.weight.medium,
     },

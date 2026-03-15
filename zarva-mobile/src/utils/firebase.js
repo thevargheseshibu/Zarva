@@ -24,3 +24,5 @@ const db = getDatabase(app);
 // connectDatabaseEmulator(db, 'localhost', 9000);
 
 export { db };
+// Alias exported so consumers can import as either { db } or { database }
+export const database = db;

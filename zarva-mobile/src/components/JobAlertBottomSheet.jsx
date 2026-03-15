@@ -91,16 +91,28 @@ export default function JobAlertBottomSheet({ navigation }) {
                 bottomSheetRef.current?.close();
                 const tempId = pendingJobAlert.id;
                 clearPendingJobAlert();
-                if (navigation) navigation.replace('ActiveJob', { jobId: tempId });
+                // Use navigate (not replace) — works across both stack and tab navigator contexts
+                if (navigation) navigation.navigate('ActiveJob', { jobId: tempId });
             }, 600);
         } catch (error) {
-            if (error.response?.status === 409) {
+            const status4xx = error.response?.status;
+            if (status4xx === 409) {
+                // Another worker already accepted
                 setStatus('taken');
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                 setTimeout(() => {
                     bottomSheetRef.current?.close();
                     clearPendingJobAlert();
                 }, 2000);
+            } else if (status4xx === 410 || status4xx === 404) {
+                // Offer has expired server-side (window closed) or job no longer exists
+                setStatus('taken');
+                setErrorMsg('This offer has expired. No action needed.');
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                setTimeout(() => {
+                    bottomSheetRef.current?.close();
+                    clearPendingJobAlert();
+                }, 2500);
             } else {
                 setStatus('idle');
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

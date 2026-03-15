@@ -6,7 +6,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
-import { colors } from '../design-system/tokens';
 import WorkerHomeScreen from '../screens/worker/WorkerHomeScreen';
 import AvailableJobsScreen from '../screens/worker/AvailableJobsScreen';
 import MyWorkScreen from '../screens/worker/MyWorkScreen';

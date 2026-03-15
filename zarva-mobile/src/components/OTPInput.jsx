@@ -1,8 +1,9 @@
 /**
  * src/components/OTPInput.jsx
  * 4-box OTP input: gold bottom border when active, mono 32px, auto-advance.
+ * Exposes reset() via forwardRef so parents can clear boxes after failed submissions.
  */
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useImperativeHandle, forwardRef } from 'react';
 import { useTokens } from '../design-system';
 import {
     View,
@@ -14,13 +15,22 @@ import {
 
 const BOX_COUNT = 4;
 
-export default function OTPInput({ onComplete, onChange, value = '' }) {
+const OTPInput = forwardRef(function OTPInput({ onComplete, onChange, value = '', disabled = false }, ref) {
     const tTheme = useTokens();
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const inputs = useRef([]);
     const [otp, setOtp] = useState(Array(BOX_COUNT).fill(''));
 
+    // Expose reset() so parents can clear boxes after a failed submission
+    useImperativeHandle(ref, () => ({
+        reset() {
+            setOtp(Array(BOX_COUNT).fill(''));
+            setTimeout(() => inputs.current[0]?.focus(), 50);
+        }
+    }));
+
     const handleChange = (text, index) => {
+        if (disabled) return;
         const digits = text.replace(/[^0-9]/g, '');
 
         // Handle Paste
@@ -56,6 +66,7 @@ export default function OTPInput({ onComplete, onChange, value = '' }) {
     };
 
     const handleKeyPress = (e, index) => {
+        if (disabled) return;
         if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
             inputs.current[index - 1]?.focus();
         }
@@ -66,8 +77,8 @@ export default function OTPInput({ onComplete, onChange, value = '' }) {
             {otp.map((digit, i) => (
                 <TextInput
                     key={i}
-                    ref={(ref) => (inputs.current[i] = ref)}
-                    style={[styles.box, digit && styles.filled]}
+                    ref={(r) => (inputs.current[i] = r)}
+                    style={[styles.box, digit && styles.filled, disabled && styles.disabled]}
                     value={digit}
                     onChangeText={(text) => handleChange(text, i)}
                     onKeyPress={(e) => handleKeyPress(e, i)}
@@ -76,11 +87,14 @@ export default function OTPInput({ onComplete, onChange, value = '' }) {
                     selectTextOnFocus
                     caretHidden
                     autoFocus={i === 0}
+                    editable={!disabled}
                 />
             ))}
         </View>
     );
-}
+});
+
+export default OTPInput;
 
 const createStyles = (t) => StyleSheet.create({
     row: {
@@ -103,5 +117,8 @@ const createStyles = (t) => StyleSheet.create({
     },
     filled: {
         borderBottomColor: t.brand.primary,
+    },
+    disabled: {
+        opacity: 0.4,
     },
 });

@@ -8,8 +8,7 @@ import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 import PressableAnimated from '../../design-system/components/PressableAnimated';
 import Card from '../../components/Card';
-import { colors, radius, spacing, shadows } from '../../design-system/tokens';
-import { fontSize, fontWeight, tracking } from '../../design-system/typography';
+import { useTokens } from '../../design-system';
 
 const DEFAULT_QUESTIONS = ['Describe what you need help with', 'Any specific requirements?'];
 
@@ -24,6 +23,8 @@ function buildFallbackConfig(category, basePrice = 300) {
 }
 
 export default function DynamicQuestionsScreen({ route, navigation }) {
+    const tTheme = useTokens();
+    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { category, label, location } = route.params || { category: 'unknown', label: 'Service', location: null };
 

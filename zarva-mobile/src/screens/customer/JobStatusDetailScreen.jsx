@@ -152,6 +152,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const { jobId } = route.params || {};
     const { searchPhase, assignedWorker, clearActiveJob, startListening, stopListening } = useJobStore();
     const mapRef = useRef(null);
+    const endOtpRef = useRef(null); // ref to clear OTP boxes on failed verification
 
     const [job, setJob] = useState(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -394,16 +395,22 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
     // ── Status config ──────────────────────────────────────────────────
     const statusConfig = {
-        searching: { color: tTheme.brand.primary, icon: '🔍', title: 'Finding Your Professional', sub: 'Our algorithm is scanning nearby experts for you.' },
-        assigned: { color: '#00E0FF', icon: '✅', title: 'Professional Matched!', sub: 'A verified expert is heading your way.' },
-        worker_en_route: { color: '#00E0FF', icon: '🛵', title: 'On the Way', sub: 'Your professional is navigating to your location.' },
-        worker_arrived: { color: tTheme.brand.primary, icon: '📍', title: 'Professional Arrived', sub: 'Share the Inspection Code below to begin the assessment.' },
-        estimate_submitted: { color: tTheme.status.warning.base, icon: '📋', title: 'Review Estimate', sub: 'The pro has sent their assessment. Share the Start Code to begin work.' },
-        in_progress: { color: tTheme.status.success.base, icon: '🔧', title: 'Work in Progress', sub: 'Sit back — your expert is working on the job.' },
-        pending_completion: { color: tTheme.status.warning.base, icon: '✔️', title: 'Awaiting Your Approval', sub: 'Enter the completion code to finalize and proceed to payment.' },
-        completed: { color: tTheme.status.success.base, icon: '⭐', title: 'Job Completed!', sub: 'Excellent! Your service has been successfully completed.' },
-        cancelled: { color: tTheme.status.error.base, icon: '✗', title: 'Job Cancelled', sub: 'This job has been cancelled.' },
-        no_worker_found: { color: tTheme.status.error.base, icon: '😔', title: 'No Worker Found', sub: 'We could not find a professional nearby. Please try again.' },
+        searching:          { color: tTheme.brand.primary,       icon: '🔍', title: 'Finding Your Professional',  sub: 'Our algorithm is scanning nearby experts for you.' },
+        assigned:           { color: '#00E0FF',                   icon: '✅', title: 'Professional Matched!',       sub: 'A verified expert is heading your way.' },
+        worker_en_route:    { color: '#00E0FF',                   icon: '🛵', title: 'On the Way',                 sub: 'Your professional is navigating to your location.' },
+        worker_arrived:     { color: tTheme.brand.primary,       icon: '📍', title: 'Professional Arrived',        sub: 'Share the Inspection Code below to begin the assessment.' },
+        inspection_active:  { color: '#00E0FF',                   icon: '🔍', title: 'Inspection Underway',         sub: 'Your professional is assessing the issue and preparing an estimate.' },
+        estimate_submitted: { color: tTheme.status.warning.base, icon: '📋', title: 'Review Estimate',             sub: 'The pro has sent their assessment. Share the Start Code to begin work.' },
+        in_progress:        { color: tTheme.status.success.base, icon: '🔧', title: 'Work in Progress',            sub: 'Sit back — your expert is working on the job.' },
+        pause_requested:    { color: tTheme.status.warning.base, icon: '⏸️', title: 'Pause Requested',             sub: 'The professional has requested a short break. Your approval is needed.' },
+        work_paused:        { color: tTheme.status.warning.base, icon: '⏸️', title: 'Work Paused',                 sub: 'The job is paused. Approve the resume request to continue.' },
+        resume_requested:   { color: '#00E0FF',                   icon: '▶️', title: 'Resume Requested',            sub: 'The professional is ready to resume. Your approval is needed.' },
+        suspend_requested:  { color: '#8B5CF6',                   icon: '📅', title: 'Reschedule Requested',        sub: 'The professional has proposed a new time. Your approval is needed.' },
+        customer_stopping:  { color: tTheme.status.warning.base, icon: '⏸️', title: 'Work Stopped',                sub: 'You have stopped the job. Waiting for the professional to confirm.' },
+        pending_completion: { color: tTheme.status.warning.base, icon: '✔️', title: 'Awaiting Your Approval',      sub: 'Enter the completion code to finalize and proceed to payment.' },
+        completed:          { color: tTheme.status.success.base, icon: '⭐', title: 'Job Completed!',              sub: 'Excellent! Your service has been successfully completed.' },
+        cancelled:          { color: tTheme.status.error.base,   icon: '✗',  title: 'Job Cancelled',               sub: 'This job has been cancelled.' },
+        no_worker_found:    { color: tTheme.status.error.base,   icon: '😔', title: 'No Worker Found',             sub: 'We could not find a professional nearby. Please try again.' },
     };
     const cfg = statusConfig[status] || statusConfig.searching;
 
@@ -679,6 +686,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                             <Text style={styles.phaseSub}>The professional has marked the job done. Enter the 4-digit code provided by them to confirm completion.</Text>
                             <View style={{ marginTop: 8 }}>
                                 <OTPInput
+                                    ref={endOtpRef}
                                     disabled={verifyingEndOtp}
                                     onComplete={async (code) => {
                                         setVerifyingEndOtp(true);
@@ -697,6 +705,8 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                         } catch (err) {
                                             if (!navigated) {
                                                 Alert.alert('Invalid Code', t('invalid_code') || 'The code entered is incorrect. Please try again.');
+                                                // Clear boxes so customer can re-enter the correct code
+                                                endOtpRef.current?.reset();
                                             }
                                         } finally {
                                             setVerifyingEndOtp(false);
@@ -742,6 +752,23 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                 onPress={() => navigation.replace('CustomerTabs')}
                                 style={{ marginTop: 16 }}
                             />
+                        </View>
+                    </FadeInView>
+                )}
+
+                {/* CUSTOMER STOPPING — waiting for worker to confirm job end */}
+                {status === 'customer_stopping' && (
+                    <FadeInView delay={100}>
+                        <View style={[styles.phaseCard, { borderColor: tTheme.status.warning.base + '44', alignItems: 'center' }]}>
+                            <Text style={{ fontSize: 40 }}>⏸</Text>
+                            <Text style={[styles.phaseTitle, { color: tTheme.status.warning.base, textAlign: 'center', marginTop: 8 }]}>Work Stopped</Text>
+                            <Text style={[styles.phaseSub, { textAlign: 'center' }]}>
+                                You have requested to stop. The professional will confirm and you will receive the final completion code to finish the job.
+                            </Text>
+                            <View style={[styles.liveIndicator, { backgroundColor: tTheme.status.warning.base + '11', marginTop: 12 }]}>
+                                <View style={[styles.liveDot, { backgroundColor: tTheme.status.warning.base }]} />
+                                <Text style={[styles.liveTxt, { color: tTheme.status.warning.base }]}>Waiting for professional to wrap up…</Text>
+                            </View>
                         </View>
                     </FadeInView>
                 )}
@@ -819,7 +846,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
 
                 {/* ── Inspection Extension Pending ── */}
-                {status === 'inspection_active' && job?.inspection_extension_otp_hash && (
+                {['inspection_active', 'inspection_extension_requested'].includes(status) && job?.inspection_extension_otp_hash && (
                     <FadeInView delay={200}>
                         <View style={[styles.actionCard, { borderColor: '#8B5CF644' }]}>
                             <Text style={styles.actionCardTitle}>⏳ Inspector Needs +10 Min</Text>
@@ -918,8 +945,8 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     </FadeInView>
                 )}
 
-                {/* ── Bill Preview (pending_completion) ── */}
-                {status === 'pending_completion' && (
+                {/* ── Bill Preview (pending_completion | customer_stopping) ── */}
+                {['pending_completion', 'customer_stopping'].includes(status) && (
                     <FadeInView delay={200}>
                         <View style={[styles.actionCard, { borderColor: tTheme.status.warning.base + '44' }]}>
                             <Text style={styles.actionCardTitle}>🧾 Bill Preview</Text>

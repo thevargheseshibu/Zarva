@@ -85,18 +85,13 @@ export default function LocationScheduleScreen({ route, navigation }) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         try {
-            // STEP 1: Verify serviceability BEFORE attempting to create job
-            const coverage = await coverageApi.checkServiceability(
-                customerLocation.lat,
-                customerLocation.lng,
-                category
-            );
-
-            if (!coverage.is_serviceable) {
+            // The reactive useEffect already checked coverage—trust its result.
+            // If serviceability is still computing (debounce window), wait for it.
+            if (!isServiceable) {
                 hideLoader();
                 Alert.alert(
                     'Area Not Covered',
-                    `We don't have ${category} professionals available in this area right now.\n\nNearest professional is ${coverage.nearest_worker_distance_km ? coverage.nearest_worker_distance_km.toFixed(1) : 'unknown'} km away.`
+                    `We don't have ${category} professionals available in this area right now.\n\n${coverageMsg || ''}`.trim()
                 );
                 return;
             }

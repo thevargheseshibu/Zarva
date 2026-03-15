@@ -22,10 +22,11 @@ import MainBackground from '../../components/MainBackground';
 import * as Location from 'expo-location';
 
 // ── Large End OTP Digit Display ──────────────────────────────────────────────
-function EndOtpDigits({ code = '----' }) {
+function EndOtpDigits({ code = null }) {
     const tTheme = useTokens();
-    const digits = String(code).padEnd(4, '-').split('');
-    const isReal = code !== '----' && code?.length === 4;
+    const displayCode = code || '----';
+    const digits = String(displayCode).padEnd(4, '-').split('');
+    const isReal = code !== null && code !== '----' && code?.length === 4;
     const color = tTheme.status?.success?.base || '#22c55e';
     return (
         <View style={{ alignItems: 'center', marginVertical: 8 }}>
@@ -56,7 +57,7 @@ function EndOtpDigits({ code = '----' }) {
                 ))}
             </View>
             <Text style={{ color: tTheme.text.tertiary, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginTop: 4 }}>
-                SHARE THIS CODE WITH YOUR CLIENT
+                {isReal ? 'SHARE THIS CODE WITH YOUR CLIENT' : 'LOADING CODE…'}
             </Text>
         </View>
     );
@@ -76,7 +77,7 @@ export default function ActiveJobScreen({ route, navigation }) {
     const [inspectionOtp, setInspectionOtp] = useState(['', '', '', '']);
     const [estimateData, setEstimateData] = useState({ minutes: '', notes: '' });
     const [timeElapsed, setTimeElapsed] = useState(0);
-    const [endOtp, setEndOtp] = useState('----');
+    const [endOtp, setEndOtp] = useState(null); // null until server provides the real code
     const [inspectionExpirySeconds, setInspectionExpirySeconds] = useState(null);
     const [otpExpirySeconds, setOtpExpirySeconds] = useState(null);
     const [chatUnread, setChatUnread] = useState(0);
@@ -351,11 +352,18 @@ export default function ActiveJobScreen({ route, navigation }) {
         try {
             const res = await apiClient.post(`/api/worker/jobs/${jobId}/complete`);
             setStatus('pending_completion');
-            if (res.data?.end_otp) setEndOtp(res.data.end_otp);
-            await fetchJob();
-            // Show materials declaration
-            setMaterialsVisible(true);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            if (res.data?.end_otp) {
+                setEndOtp(res.data.end_otp);
+                await fetchJob();
+                // Only open materials modal once we have the real end OTP
+                setMaterialsVisible(true);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } else {
+                // OTP not returned inline — fetchJob will pick it up from the DB
+                await fetchJob();
+                setMaterialsVisible(true);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
         } catch (err) {
             Alert.alert('Error', err.response?.data?.message || 'Failed to complete job.');
         } finally {

@@ -10,9 +10,9 @@ import {
     Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Image
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useJobStore } from '../../store/jobStore';
-import { useAuthStore } from '../../store/authStore';
-import { apiClient } from '../../utils/apiClient';
+import { useJobStore } from '../../stores/jobStore';
+import { useAuthStore } from '../../stores/authStore';
+import apiClient from '../../services/api/client';
 
 const COLORS = {
     bg: '#0F1117',
@@ -92,7 +92,7 @@ export default function MaterialDeclarationScreen({ navigation, route }) {
         try {
             await apiClient.post(`/api/jobs/${jobId}/materials`, {
                 items: withNoMaterials ? [] : items,
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
             navigation.replace('JobCompleteSummary', { jobId });
         } catch (err) {
             const msg = err?.response?.data?.message || 'Failed to submit materials';

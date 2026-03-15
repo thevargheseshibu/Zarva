@@ -14,6 +14,7 @@ const { width, height } = Dimensions.get('window');
 const ConnectivityOverlay = ({ children }) => {
     const { isNetConnected, isServerUp, setNetConnected, setServerUp } = useUIStore();
     const t = useTokens();
+    const dynStyles = React.useMemo(() => createOverlayStyles(t), [t]);
 
     const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -62,16 +63,16 @@ const ConnectivityOverlay = ({ children }) => {
             <Animated.View style={[styles.overlay, { opacity: fadeAnim }]} pointerEvents={isBlocking ? 'auto' : 'none'}>
                 <BlurView intensity={Platform.OS === 'ios' ? 70 : 100} tint="dark" style={StyleSheet.absoluteFill} />
 
-                <View style={styles.content}>
-                    <View style={[styles.iconContainer, { backgroundColor: type === 'internet' ? '#EF444422' : '#F59E0B22' }]}>
-                        <Text style={styles.icon}>{type === 'internet' ? '🌐' : '⚒️'}</Text>
+                <View style={dynStyles.content}>
+                    <View style={[dynStyles.iconContainer, { backgroundColor: type === 'internet' ? '#EF444422' : '#F59E0B22' }]}>
+                        <Text style={dynStyles.icon}>{type === 'internet' ? '🌐' : '⚒️'}</Text>
                     </View>
 
-                    <Text style={styles.title}>
+                    <Text style={dynStyles.title}>
                         {type === 'internet' ? 'Internet Required' : 'Server Under Repair'}
                     </Text>
 
-                    <Text style={styles.subtitle}>
+                    <Text style={dynStyles.subtitle}>
                         {type === 'internet'
                             ? "Zarva requires an active internet connection to function. Please check your data or Wi-Fi."
                             : "Our systems are undergoing maintenance to serve you better. We'll be back in a few minutes."}
@@ -79,20 +80,20 @@ const ConnectivityOverlay = ({ children }) => {
 
 
                     <TouchableOpacity
-                        style={[styles.retryBtn, { backgroundColor: t.brand.primary }]}
+                        style={[dynStyles.retryBtn, { backgroundColor: t.brand.primary }]}
                         onPress={handleRetry}
                         disabled={isChecking}
                         activeOpacity={0.8}
                     >
                         {isChecking ? (
-                            <ActivityIndicator color="#000" />
+                            <ActivityIndicator color={t.background.app} />
                         ) : (
-                            <Text style={styles.retryText}>Try Again</Text>
+                            <Text style={dynStyles.retryText}>Try Again</Text>
                         )}
                     </TouchableOpacity>
 
                     {type === 'server' && (
-                        <Text style={styles.statusFooter}>ZARVA Systems · Under Maintenance</Text>
+                        <Text style={dynStyles.statusFooter}>ZARVA Systems · Under Maintenance</Text>
                     )}
                 </View>
             </Animated.View>
@@ -108,13 +109,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 9999,
     },
+});
+
+const createOverlayStyles = (t) => StyleSheet.create({
     content: {
         width: width * 0.85,
         padding: 30,
         borderRadius: 30,
-        backgroundColor: '#15151A99',
+        backgroundColor: t.background.surface + 'CC',
         borderWidth: 1,
-        borderColor: '#FFFFFF15',
+        borderColor: t.border.default + '22',
         alignItems: 'center',
     },
     iconContainer: {
@@ -127,14 +131,14 @@ const styles = StyleSheet.create({
     },
     icon: { fontSize: 40 },
     title: {
-        color: '#FFFFFF',
+        color: t.text.primary,
         fontSize: 24,
         fontWeight: '900',
         marginBottom: 12,
         textAlign: 'center',
     },
     subtitle: {
-        color: '#A0A0AB',
+        color: t.text.secondary,
         fontSize: 15,
         lineHeight: 22,
         textAlign: 'center',
@@ -153,18 +157,18 @@ const styles = StyleSheet.create({
         elevation: 10,
     },
     retryText: {
-        color: '#000000',
+        color: t.background.app,
         fontSize: 16,
         fontWeight: '800',
     },
     statusFooter: {
         marginTop: 20,
-        color: '#52525B',
+        color: t.text.tertiary,
         fontSize: 10,
         fontWeight: '700',
         letterSpacing: 1,
         textTransform: 'uppercase',
-    }
+    },
 });
 
 export default ConnectivityOverlay;

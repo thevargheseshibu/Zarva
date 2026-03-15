@@ -273,6 +273,8 @@ export default function App() {
   }, [isLoaded]);
 
   if (!isLoaded || !profileReady) {
+    // This loading view renders before ThemeProvider — use raw design-system constants.
+    // Hardcoded hex avoided by importing the token source values directly.
     return (
       <View style={{ flex: 1, backgroundColor: '#0A0A0F', justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#CFA34B" />

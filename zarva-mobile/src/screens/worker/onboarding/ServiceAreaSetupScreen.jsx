@@ -157,7 +157,7 @@ const createStyles = (t) => StyleSheet.create({
     container: { flex: 1 },
     content: { padding: t.spacing['2xl'], paddingBottom: 60, gap: t.spacing['2xl'] },
     headerBox: { marginBottom: t.spacing.sm },
-    title: { fontSize: fontSize['3xl'], fontWeight: t.typography.weight.bold, color: t.text.primary, marginBottom: t.spacing.sm },
+    title: { fontSize: t.typography.size['3xl'] ?? 28, fontWeight: t.typography.weight.bold, color: t.text.primary, marginBottom: t.spacing.sm },
     subtitle: { fontSize: t.typography.size.base, color: t.text.secondary, lineHeight: 22 },
     section: { backgroundColor: t.background.surface, borderRadius: t.radius.xl, padding: t.spacing[20], ...t.shadows.sm, borderWidth: 1, borderColor: t.border.default },
     label: { fontSize: t.typography.size.lg, fontWeight: t.typography.weight.semibold, color: t.text.primary, marginBottom: t.spacing.md },

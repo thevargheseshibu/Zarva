@@ -36,9 +36,17 @@ export default function CreateCustomJobScreen({ navigation }) {
         try {
             const uploadedPhotoUrls = [];
             for (let i = 0; i < images.length; i++) {
-                const res = await uploadFileRaw('/api/uploads/image', images[i], 'job_photo');
-                if (res.data.status === 'ok') {
-                    uploadedPhotoUrls.push(res.data.url.split('?')[0]);
+                try {
+                    // Correct arg order: uploadFileRaw(localUri, purpose, filename)
+                    const s3Key = await uploadFileRaw(images[i], 'job_photo', `custom_job_${Date.now()}_${i}.jpg`);
+                    uploadedPhotoUrls.push(s3Key);
+                } catch (uploadErr) {
+                    console.error(`Photo ${i + 1} upload failed:`, uploadErr);
+                    Alert.alert(
+                        'Photo Upload Failed',
+                        `Photo ${i + 1} could not be uploaded. Please remove it and try again.`
+                    );
+                    return; // bail early so the job is not submitted with incomplete photos
                 }
             }
 

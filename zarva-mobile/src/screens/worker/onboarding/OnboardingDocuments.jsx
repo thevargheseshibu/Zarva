@@ -15,24 +15,10 @@ import { useUIStore } from '../../../stores/uiStore';
 import MainBackground from '../../../components/MainBackground';
 
 async function uploadImage(uri, docKey) {
-    try {
-        const formData = new FormData();
-        formData.append('purpose', 'worker_doc');
-        formData.append('file', {
-            uri,
-            name: `${docKey}_${Date.now()}.jpg`,
-            type: 'image/jpeg'
-        });
-
-        const uploadRes = await apiClient.post('/api/uploads/image', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-
-        if (uploadRes.data.status !== 'ok') throw new Error('Upload failed');
-        return uploadRes.data.s3_key;
-    } catch (err) {
-        throw err;
-    }
+    // Use uploadFileRaw (expo-file-system based) for consistent cross-platform upload.
+    // This avoids known Android issues with FormData + Axios blob serialization.
+    const s3Key = await uploadFileRaw(uri, 'worker_doc', `${docKey}_${Date.now()}.jpg`);
+    return s3Key;
 }
 
 export default function OnboardingDocuments({ data, onNext }) {
@@ -133,7 +119,7 @@ export default function OnboardingDocuments({ data, onNext }) {
                             value={aadhaarNumber}
                             onChangeText={t => setAadhaarNumber(t.replace(/[^0-9]/g, ''))}
                             placeholder="0000 0000 0000"
-                            placeholderTextColor={t.text.tertiary}
+                            placeholderTextColor={tTheme.text.tertiary}
                             keyboardType="number-pad"
                             maxLength={12}
                         />

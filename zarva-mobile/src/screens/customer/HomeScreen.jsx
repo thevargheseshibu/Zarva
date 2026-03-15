@@ -12,6 +12,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useT } from '../../hooks/useT';
 import { useJobStore } from '../../stores/jobStore';
 import apiClient from '../../services/api/client';
+import coverageApi from '../../services/api/coverageApi';
 import FadeInView from '../../components/FadeInView';
 import PremiumButton from '../../components/PremiumButton';
 
@@ -136,11 +137,8 @@ export default function HomeScreen({ navigation }) {
     const checkServiceability = async (lat, lng) => {
         if (lat == null || lng == null) return;
         try {
-            const coverage = await apiClient.post('/api/coverage/check', {
-                latitude: lat,
-                longitude: lng
-            });
-            setIsServiceable(coverage.data.is_serviceable === true);
+            const coverage = await coverageApi.checkServiceability(lat, lng);
+            setIsServiceable(coverage.is_serviceable === true);
         } catch (err) {
             console.error('[HomeScreen] Coverage check failed', err);
             // Default to serviceable on error to not block users unnecessarily
@@ -317,12 +315,11 @@ export default function HomeScreen({ navigation }) {
                                             await apiClient.post('/api/me/location', newLoc);
 
                                             // 2. Proactively check if anyone at all is serving this area
-                                            const coverage = await apiClient.post('/api/coverage/check', {
-                                                latitude: loc.latitude,
-                                                longitude: loc.longitude
-                                            });
+                                            const coverage = await coverageApi.checkServiceability(
+                                                loc.latitude, loc.longitude
+                                            );
 
-                                            if (!coverage.data.is_serviceable) {
+                                            if (!coverage.is_serviceable) {
                                                 setIsServiceable(false);
                                                 Alert.alert(
                                                     'Area Not Covered',

@@ -9,8 +9,8 @@ import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     ActivityIndicator, Alert
 } from 'react-native';
-import { useAuthStore } from '../../store/authStore';
-import { apiClient } from '../../utils/apiClient';
+import { useAuthStore } from '../../stores/authStore';
+import apiClient from '../../services/api/client';
 
 const COLORS = {
     bg: '#0F1117',
@@ -53,9 +53,7 @@ export default function JobCompleteSummaryScreen({ navigation, route }) {
 
     const fetchPreview = async () => {
         try {
-            const res = await apiClient.get(`/api/jobs/${jobId}/bill-preview`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await apiClient.get(`/api/jobs/${jobId}/bill-preview`);
             setPreview(res.data);
         } catch (err) {
             Alert.alert('Error', 'Could not load bill preview. Please try again.');
@@ -78,10 +76,7 @@ export default function JobCompleteSummaryScreen({ navigation, route }) {
     const handleSend = async () => {
         setSubmitting(true);
         try {
-            // Worker marking complete triggers OTP generation server-side
-            await apiClient.post(`/api/jobs/${jobId}/worker-complete`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await apiClient.post(`/api/jobs/${jobId}/worker-complete`, {});
             Alert.alert(
                 '✅ Sent to Customer',
                 'The bill has been sent. Wait for the customer to verify the OTP.',
