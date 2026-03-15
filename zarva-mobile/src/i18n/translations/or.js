@@ -150,24 +150,8 @@ export default {
     policy_enforcement: 'ନୀତି ଲଗୁ',
 
     // ── Document Upload UX ──────────────────────────────
-    retake: 'ପୁଣି ନିଅନ୍ତୁ',
-    remove: 'ଅପସାରଣ କରନ୍ତୁ',
-    uploaded_securely: 'ସୁରକ୍ଷିତ ଭାବରେ ଅପଲୋଡ ହୋଇଛି',
-    remove_document: 'ଦଲିଲ ଅପସାରଣ କରିବେ?',
-    confirm_remove_doc: 'ଆପଣ ଏହି ଅପଲୋଡ ଅପସାରଣ କରିବାକୁ ନିଶ୍ଚିତ?',
-    incomplete_info: 'ଅସମ୍ପୂର୍ଣ୍ଣ',
-    please_upload_all_docs: 'ଦୟାକରି ସମସ୍ତ ଦଲିଲ ଅପଲୋଡ କରନ୍ତୁ ଏବଂ ଆଧାର ନମ୍ବର ଦିଅନ୍ତୁ।',
-    uploading_documents: 'ସୁରକ୍ଷିତ ଭାବରେ ଅପଲୋଡ ହେଉଛି...',
-    submitting_application: 'ପଞ୍ଜୀକରଣ ସମ୍ପୂର୍ଣ ହେଉଛି...',
-    protocol_required: 'ପ୍ରୋଟୋକଲ ଆବଶ୍ୟକ',
-    please_read_agreement: 'ଦୟାକରି ଚୁକ୍ତିର ଶେଷ ପର୍ଯ୍ୟନ୍ତ ସ୍କ୍ରୋଲ କରନ୍ତୁ।',
 
     // ── Blocked Account ─────────────────────────────────
-    account_suspended: 'ଆକାଉଣ୍ଟ ସ୍ଥଗିତ',
-    account_blocked_desc: 'ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ସାମୟିକ ଭାବରେ ସ୍ଥଗିତ ହୋଇଛି। ସହାୟତା ପାଇଁ ଯୋଗାଯୋଗ କରନ୍ତୁ।',
-    blocked_reason_label: 'ସ୍ଥଗିତ କାରଣ',
-    contact_support_blocked: 'ସହାୟତା ସହ ଯୋଗାଯୋଗ',
-    policy_enforcement: 'ନୀତି ଲଗୁ',
     notify_encrypted_channel: 'ସକ୍ରିୟ ହେବା ପରେ ଆମେ ଆପଣଙ୍କୁ ଏନକ୍ରିପ୍ଟେଡ୍ ଚ୍ୟାନେଲ୍ ମାଧ୍ୟମରେ ଜଣାଇବୁ।',
 
     // ── Worker Tabs & Overviews ──────────────────────
@@ -274,12 +258,9 @@ export default {
     sort_premium: 'ପ୍ରିମିୟମ୍',
 
     good_day: 'ଶୁଭ ଦିନ,',
-    online: 'ଅନ୍‌ଲାଇନ୍',
-    offline: 'ଅଫ୍‌ଲାଇନ୍',
     earnings_today: 'ଆଜିର ରୋଜଗାର',
     profit_tracker: 'ଲାଭ ଟ୍ରାକର୍',
     jobs_today: 'ଆଜି',
-    this_week: 'ଏହି ସପ୍ତାହ',
     rating: 'ରେଟିଂ',
     edit: 'ଏଡିଟ୍',
     current_engagement: 'ବର୍ତ୍ତମାନର କାମ',
@@ -294,7 +275,6 @@ export default {
 
     pro_identity: 'ପ୍ରୋ ପରିଚୟ',
     mission_count: 'ମିଶନ୍ ସଂଖ୍ୟା',
-    live_operations: 'ଲାଇଭ୍ ଅପରେସନ୍ସ',
     visibility_status: 'ଦୃଶ୍ୟମାନତା ସ୍ଥିତି',
     visibility_online: 'ଅନ୍‌ଲାଇନ୍ • ଗ୍ରାହକମାନଙ୍କୁ ଦୃଶ୍ୟମାନ',
     visibility_offline: 'ଅଫ୍‌ଲାଇନ୍ • ମାର୍କେଟପ୍ଲେସରେ ଅଦୃଶ୍ୟ',
@@ -525,11 +505,6 @@ export default {
     // ── Job Searching / Radar ─────────────────────────
     finding_workers_nearby: 'ନିକଟସ୍ଥ କର୍ମଚାରୀଙ୍କୁ ଖୋଜାଯାଉଛି',
     please_wait: 'ଦୟାକରି ଅପେକ୍ଷା କରନ୍ତୁ...',
-    no_workers_desc: "ଆମେ ବର୍ତ୍ତମାନ ଆପଣଙ୍କ ଅଞ୍ଚଳରେ କୌଣସି ଉପଲବ୍ଧ %{category} ପାଇଲୁ ନାହିଁ। ଆପଣଙ୍କ ସ୍ଥାନ ବଦଳାଇବାକୁ ଚେଷ୍ଟା କରନ୍ତୁ କିମ୍ବା କିଛି ମିନିଟ୍ ପରେ ପୁନର୍ବାର ଯାଞ୍ଚ କରନ୍ତୁ।",
-    searching_sub: 'ଆପଣଙ୍କ ସ୍ଥାନ ପାଇଁ ପ୍ରଦାନକାରୀ ମ୍ୟାଚିଂକୁ ଅପ୍ଟିମାଇଜ୍ କରାଯାଉଛି',
-    priority_matching: 'ପ୍ରାଥମିକତା ମ୍ୟାଚିଂ ପାଇଁ ଅନୁରୋଧ କରାଯାଉଛି...',
-    minimize_info: 'ଆପଣ ଏହାକୁ %{seconds} ସେକେଣ୍ଡରେ ମିନିମାଇଜ୍ କରିପାରିବେ',
-    cancel_request_msg: 'ମନ ପରିବର୍ତ୍ତନ ହେଲା? ଏହା ଆପଣଙ୍କ ସେବା ଅନୁରୋଧକୁ ବାତିଲ କରିଦେବ।',
 
     // ── Job Status Labels ─────────────────────────────
     status_open: 'ଓପନ୍',
@@ -557,7 +532,6 @@ export default {
     report_issue: 'ସମସ୍ୟା ଜଣାନ୍ତୁ',
     enter_end_otp: 'End OTP ଦିଅନ୍ତୁ',
     ask_worker_for_otp: 'କାମ ଶେଷ କରିବାକୁ ଆପଣଙ୍କ କର୍ମଚାରୀଙ୍କୁ ୪-ଅଙ୍କ ବିଶିଷ୍ଟ End OTP ମାଗନ୍ତୁ।',
-    completed_jobs_count: '{{count}} କାମ',
 
     // ── Payment ──────────────────────────────────────
     payment_summary: 'ଦେୟ ସାରାଂଶ',
@@ -611,8 +585,6 @@ export default {
     message_deleted: 'ସନ୍ଦେଶ ଡିଲିଟ୍ ହୋଇଛି',
 
     // ── Errors ────────────────────────────────────────
-    error_generic: 'କିଛି ଭୁଲ୍ ହୋଇଛି। ଦୟାକରି ପୁଣି ଚେଷ୍ଟା କରନ୍ତୁ।',
     error_network: 'ନେଟୱର୍କ ତ୍ରୁଟି। ଆପଣଙ୍କର ସଂଯୋଗ ଯାଞ୍ଚ କରନ୍ତୁ।',
-    error_otp_invalid: 'ଆପଣ ପ୍ରବେଶ କରିଥିବା କୋଡ୍ ଭୁଲ୍ ଅଟେ।',
     error_upload: 'ଫଟୋ ଅପଲୋଡ୍ କରିବାରେ ବିଫଳ।',
 };

@@ -8,6 +8,8 @@ import WorkerNavigator from './WorkerNavigator';
 
 import JobDetailPreviewScreen from '../screens/worker/JobDetailPreviewScreen';
 import ActiveJobScreen from '../screens/worker/ActiveJobScreen';
+import MaterialDeclarationScreen from '../screens/worker/MaterialDeclarationScreen';
+import JobCompleteSummaryScreen from '../screens/worker/JobCompleteSummaryScreen';
 import EarningsScreen from '../screens/worker/EarningsScreen';
 import WorkerWalletScreen from '../screens/worker/WorkerWalletScreen';
 import WorkerTransactionHistoryScreen from '../screens/worker/WorkerTransactionHistoryScreen';
@@ -31,6 +33,8 @@ export default function WorkerStack() {
             {/* Full screen flows layered on top of tabs */}
             <Stack.Screen name="JobDetailPreview" component={JobDetailPreviewScreen} />
             <Stack.Screen name="ActiveJob" component={ActiveJobScreen} />
+            <Stack.Screen name="MaterialDeclaration" component={MaterialDeclarationScreen} />
+            <Stack.Screen name="JobCompleteSummary" component={JobCompleteSummaryScreen} />
             <Stack.Screen name="EarningsDetail" component={EarningsScreen} />
             <Stack.Screen name="WorkerWallet" component={WorkerWalletScreen} />
             <Stack.Screen name="WorkerTransactionHistory" component={WorkerTransactionHistoryScreen} />

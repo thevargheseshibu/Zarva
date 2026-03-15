@@ -17,7 +17,7 @@ import MainBackground from '../../../components/MainBackground';
 async function uploadImage(uri, docKey) {
     // Use uploadFileRaw (expo-file-system based) for consistent cross-platform upload.
     // This avoids known Android issues with FormData + Axios blob serialization.
-    const s3Key = await uploadFileRaw(uri, 'worker_doc', `${docKey}_${Date.now()}.jpg`);
+    const s3Key = await uploadFileRaw('/api/uploads/image', uri, 'worker_doc');
     return s3Key;
 }
 

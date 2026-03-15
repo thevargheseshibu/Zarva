@@ -72,7 +72,7 @@ export const useJobStore = create((set, get) => ({
                 let body = '';
 
                 // Prevent false notifications on load when prevPhase is null
-                if (prevPhase === null && newPhase === 'cancelled') return;
+                if (prevPhase === null) return;
 
                 switch (newPhase) {
                     case 'assigned':

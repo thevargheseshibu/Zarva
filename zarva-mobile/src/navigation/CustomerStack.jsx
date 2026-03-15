@@ -11,6 +11,8 @@ import PriceEstimateScreen from '../screens/customer/PriceEstimateScreen';
 import LocationScheduleScreen from '../screens/customer/LocationScheduleScreen';
 import SearchingScreen from '../screens/customer/SearchingScreen';
 import JobStatusDetailScreen from '../screens/customer/JobStatusDetailScreen';
+import BillReviewScreen from '../screens/customer/BillReviewScreen';
+import PaymentConfirmScreen from '../screens/customer/PaymentConfirmScreen';
 import PaymentScreen from '../screens/customer/PaymentScreen';
 import RatingScreen from '../screens/customer/RatingScreen';
 import WorkerReputationScreen from '../screens/customer/WorkerReputationScreen';
@@ -34,6 +36,8 @@ export default function CustomerStack() {
             <Stack.Screen name="LocationSchedule" component={LocationScheduleScreen} />
             <Stack.Screen name="Searching" component={SearchingScreen} />
             <Stack.Screen name="JobStatusDetail" component={JobStatusDetailScreen} />
+            <Stack.Screen name="BillReview" component={BillReviewScreen} />
+            <Stack.Screen name="PaymentConfirm" component={PaymentConfirmScreen} />
             <Stack.Screen name="Payment" component={PaymentScreen} />
             <Stack.Screen name="Rating" component={RatingScreen} />
             <Stack.Screen name="WorkerReputation" component={WorkerReputationScreen} />

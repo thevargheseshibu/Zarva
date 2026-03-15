@@ -120,7 +120,7 @@ export default function TicketChatScreen() {
             <MainBackground>
                 <PremiumHeader title={t('support_chat', { defaultValue: 'Support Chat' })} onBack={() => navigation.goBack()} />
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color={t.brand.primary} />
+                    <ActivityIndicator size="large" color={tTheme.brand.primary} />
                 </View>
             </MainBackground>
         );

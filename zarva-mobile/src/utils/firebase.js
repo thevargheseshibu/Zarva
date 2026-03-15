@@ -8,7 +8,7 @@ import { getDatabase, connectDatabaseEmulator } from 'firebase/database';
 const firebaseConfig = {
     // These would normally be real config vars.
     // Since we are mocking/stubbing heavily, we just need the DB to initialize cleanly.
-    apiKey: "dummy-api-key",
+    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "dummy-api-key",
     authDomain: "zarva-dev.firebaseapp.com",
     databaseURL: "https://zarva-dev-741f9-default-rtdb.firebaseio.com",
     projectId: "zarva-dev-741f9",

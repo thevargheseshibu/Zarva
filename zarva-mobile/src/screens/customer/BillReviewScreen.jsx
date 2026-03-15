@@ -9,28 +9,15 @@ import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
     TextInput, ActivityIndicator, Alert, Image, Animated
 } from 'react-native';
-import { useAuthStore } from '../../stores/authStore';
+import { useTokens } from '../../design-system';
 import apiClient from '../../services/api/client';
-
-const COLORS = {
-    bg: '#0F1117',
-    surface: '#1A1D2E',
-    card: '#252840',
-    accent: '#6C63FF',
-    green: '#22C55E',
-    red: '#EF4444',
-    orange: '#F59E0B',
-    textPrimary: '#F1F5F9',
-    textSecondary: '#94A3B8',
-    border: '#2D3154',
-};
 
 function formatPaise(paise) {
     const r = paise / 100;
     return `₹${r.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function OTPInput({ value, onChange }) {
+function OTPInput({ value, onChange, otpStyles }) {
     const inputs = useRef([]);
     const digits = value.split('');
 
@@ -67,19 +54,35 @@ function OTPInput({ value, onChange }) {
     );
 }
 
-const otpStyles = StyleSheet.create({
+const createOtpStyles = (COLORS) => StyleSheet.create({
     row: { flexDirection: 'row', gap: 12, justifyContent: 'center', marginVertical: 16 },
     box: {
         width: 56, height: 64, borderRadius: 14, borderWidth: 2,
-        borderColor: '#2D3154', backgroundColor: '#1A1D2E',
-        textAlign: 'center', fontSize: 26, fontWeight: '700', color: '#F1F5F9',
+        borderColor: COLORS.border, backgroundColor: COLORS.surface,
+        textAlign: 'center', fontSize: 26, fontWeight: '700', color: COLORS.textPrimary,
     },
-    boxFilled: { borderColor: '#6C63FF' },
+    boxFilled: { borderColor: COLORS.accent },
 });
 
 export default function BillReviewScreen({ navigation, route }) {
+    const tTheme = useTokens();
+    const COLORS = React.useMemo(() => ({
+        bg: tTheme.background.app,
+        surface: tTheme.background.surface,
+        card: tTheme.background.surfaceRaised,
+        accent: tTheme.brand.primary,
+        green: tTheme.status?.success?.base || '#22C55E',
+        red: tTheme.status?.danger?.base || '#EF4444',
+        orange: tTheme.status?.warning?.base || '#F59E0B',
+        textPrimary: tTheme.text.primary,
+        textSecondary: tTheme.text.secondary,
+        border: tTheme.border.default,
+    }), [tTheme]);
+
+    const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
+    const otpStyles = React.useMemo(() => createOtpStyles(COLORS), [COLORS]);
+
     const { jobId } = route.params;
-    const { token } = useAuthStore();
     const [preview, setPreview] = useState(null);
     const [loading, setLoading] = useState(true);
     const [flagged, setFlagged] = useState(new Set());
@@ -265,7 +268,7 @@ export default function BillReviewScreen({ navigation, route }) {
                     <Text style={styles.otpTitle}>Enter Completion Code</Text>
                     <Text style={styles.otpSub}>The worker will share a 4-digit OTP</Text>
                     <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
-                        <OTPInput value={otp} onChange={setOtp} />
+                        <OTPInput value={otp} onChange={setOtp} otpStyles={otpStyles} />
                     </Animated.View>
                 </View>
             </ScrollView>
@@ -286,7 +289,7 @@ export default function BillReviewScreen({ navigation, route }) {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS) => StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.bg },
     center: { flex: 1, backgroundColor: COLORS.bg, justifyContent: 'center', alignItems: 'center' },
     loadingText: { color: COLORS.textSecondary, marginTop: 12 },

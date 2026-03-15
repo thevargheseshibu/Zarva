@@ -110,15 +110,7 @@ export default function EditJobScreen({ route, navigation }) {
         const localUri = result.assets[0].uri;
 
         try {
-            const formData = new FormData();
-            formData.append('purpose', 'job_photo');
-            formData.append('file', {
-                uri: localUri,
-                name: `job_photo_${Date.now()}.jpg`,
-                type: 'image/jpeg'
-            });
-
-            const uploadRes = await uploadFileRaw('/api/uploads/image', formData);
+            const uploadRes = await uploadFileRaw('/api/uploads/image', localUri, 'job_photo');
 
             if (uploadRes.data.status !== 'ok') throw new Error(`Upload failed`);
 

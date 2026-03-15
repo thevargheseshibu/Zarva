@@ -23,7 +23,13 @@ export default function WorkerHomeScreen({ navigation }) {
     const styles = React.useMemo(() => createStyles(tokens), [tokens]);
     const t = useT();
 
-    const { isOnline, setOnline, setAvailable, activeJob, setActiveJob, locationOverride, setLocationOverride } = useWorkerStore();
+    const isOnline = useWorkerStore(state => state.isOnline);
+    const setOnline = useWorkerStore(state => state.setOnline);
+    const setAvailable = useWorkerStore(state => state.setAvailable);
+    const activeJob = useWorkerStore(state => state.activeJob);
+    const setActiveJob = useWorkerStore(state => state.setActiveJob);
+    const locationOverride = useWorkerStore(state => state.locationOverride);
+    const setLocationOverride = useWorkerStore(state => state.setLocationOverride);
     const [toggling, setToggling] = useState(false);
     const [worker, setWorker] = useState({ id: null, name: '', rating: 0, verified: false, photo: null });
     const [earningsToday, setEarningsToday] = useState(0);
@@ -114,9 +120,6 @@ export default function WorkerHomeScreen({ navigation }) {
 
     const loadData = useCallback(async () => {
         setRefreshing(true);
-        // Reset to false immediately — will be set from DB below.
-        // This prevents stale AsyncStorage value from showing.
-        setOnline(false);
         try {
             const [meRes, statsRes] = await Promise.all([
                 apiClient.get('/api/me'),

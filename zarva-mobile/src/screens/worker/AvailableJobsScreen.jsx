@@ -32,8 +32,8 @@ export default function AvailableJobsScreen({ navigation }) {
     const [customJobs, setCustomJobs] = useState([]);
     const [viewMode, setViewMode] = useState('standard'); // 'standard' or 'custom'
     const [loading, setLoading] = useState(true);
-    const { locationOverride } = useWorkerStore();
-    const [isOnline, setIsOnline] = useState(true);
+    const { locationOverride, isOnline: storeOnline } = useWorkerStore();
+    const [isOnline, setIsOnline] = useState(storeOnline);
     const [kycError, setKycError] = useState(false);
 
     const fetchJobs = async () => {
@@ -50,7 +50,9 @@ export default function AvailableJobsScreen({ navigation }) {
             }
 
             const res = await apiClient.get('/api/worker/available-jobs');
-            setIsOnline(res.data?.is_online);
+            const serverOnline = res.data?.is_online;
+            setIsOnline(serverOnline);
+            useWorkerStore.getState().setOnline(serverOnline);
             setKycError(false);
 
             let rawJobs = res.data?.jobs || [];

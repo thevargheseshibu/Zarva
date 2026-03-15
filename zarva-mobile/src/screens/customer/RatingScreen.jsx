@@ -34,7 +34,7 @@ export default function RatingScreen({ route, navigation }) {
             }
             try {
                 const res = await apiClient.get(`/api/jobs/${jobId}`);
-                const jobData = res.data?.data?.job || res.data?.job;
+                const jobData = res.data?.job || res.data?.data?.job;
                 setJob(jobData);
 
                 if (jobData?.is_reviewed && jobData.review) {
@@ -71,12 +71,12 @@ export default function RatingScreen({ route, navigation }) {
             // Refresh latest job snapshot for UI consistency, but do not hard-block submit on this client check.
             // Server remains the source of truth and will validate final completion state reliably.
             const latestJobRes = await apiClient.get(`/api/jobs/${jobId}`, { useLoader: false });
-            const latestJob = latestJobRes.data?.data?.job || latestJobRes.data?.job;
+            const latestJob = latestJobRes.data?.job || latestJobRes.data?.data?.job;
             if (latestJob) setJob(latestJob);
 
             await apiClient.post(`/api/reviews`, {
                 job_id: jobId,
-                overall_score: rating,
+                score: rating,
                 category_scores: {
                     punctuality,
                     communication,

@@ -33,16 +33,12 @@ const ConnectivityOverlay = ({ children }) => {
     const handleRetry = async () => {
         setIsChecking(true);
         try {
-            // Check internet by fetching a stable public URL
-            const netRes = await fetch('https://www.google.com', { mode: 'no-cors' }).catch(() => null);
-            setNetConnected(!!netRes);
-
             // Check server by calling health endpoint
-            // We'll rely on the apiClient to update the store too, but manual check here helps
-            // Note: BASE_URL logic might be needed here, or just use the one from client
             const { default: apiClient } = await import('../services/api/client');
             const serverRes = await apiClient.get('/api/health').catch(() => null);
-            setServerUp(serverRes?.status === 200);
+            const up = serverRes?.status === 200;
+            setServerUp(up);
+            setNetConnected(up);
         } catch (e) {
             console.log('[ConnectivityOverlay] Retry failed', e);
         } finally {

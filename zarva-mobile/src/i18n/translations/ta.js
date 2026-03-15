@@ -150,24 +150,8 @@ export default {
     policy_enforcement: 'கொள்கை அமலாக்கம்',
 
     // ── Document Upload UX ──────────────────────────────
-    retake: 'மீண்டும் எடுக்கவும்',
-    remove: 'அகற்றவும்',
-    uploaded_securely: 'பாதுகாப்பாக பதிவேற்றப்பட்டது',
-    remove_document: 'ஆவணத்தை நீக்கவும்?',
-    confirm_remove_doc: 'இந்த பதிவேற்றத்தை நீக்க விரும்புகிறீர்களா?',
-    incomplete_info: 'முழுமையற்றது',
-    please_upload_all_docs: 'அனைத்து ஆவணங்களையும் பதிவேற்றவும் மற்றும் ஆதார் எண்ணை உள்ளிடவும்.',
-    uploading_documents: 'பாதுகாப்பாக பதிவேற்றுகிறது...',
-    submitting_application: 'பதிவு நிறைவடைகிறது...',
-    protocol_required: 'நெறிமுறை தேவை',
-    please_read_agreement: 'ஒப்பந்தத்தின் கடைசி வரை ஸ்க்ரோல் செய்யவும்.',
 
     // ── Blocked Account ─────────────────────────────────
-    account_suspended: 'கணக்கு நிறுத்தப்பட்டது',
-    account_blocked_desc: 'உங்கள் கணக்கு தற்காலிகமாக நிறுத்தப்பட்டுள்ளது. ஆதரவை தொடர்பு கொள்ளவும்.',
-    blocked_reason_label: 'நிறுத்தத்தின் காரணம்',
-    contact_support_blocked: 'ஆதரவை தொடர்பு கொள்ளவும்',
-    policy_enforcement: 'கொள்கை அமலாக்கம்',
     notify_encrypted_channel: 'செயல்படுத்தப்பட்டதும் மறைகுறியாக்கப்பட்ட சேனல் மூலம் உங்களுக்குத் தெரிவிப்போம்.',
 
     // ── Worker Tabs & Overviews ──────────────────────
@@ -274,12 +258,9 @@ export default {
     sort_premium: 'பிரீமியம்',
 
     good_day: 'இனிய நாள்,',
-    online: 'ஆன்லைன்',
-    offline: 'ஆஃப்லைன்',
     earnings_today: 'இன்றைய வருவாய்',
     profit_tracker: 'லாப டிராக்கர்',
     jobs_today: 'இன்று',
-    this_week: 'இந்த வாரம்',
     rating: 'மதிப்பீடு',
     edit: 'திருத்து',
     current_engagement: 'தற்போதைய பணி',
@@ -294,7 +275,6 @@ export default {
 
     pro_identity: 'ப்ரோ அடையாளம்',
     mission_count: 'பணி எண்ணிக்கை',
-    live_operations: 'நேரடி செயல்பாடுகள்',
     visibility_status: 'காட்சி நிலை',
     visibility_online: 'ஆன்லைன் • வாடிக்கையாளர்களால் கண்டறிய முடியும்',
     visibility_offline: 'ஆஃப்லைன் • சந்தைக்குத் தெரியாது',
@@ -525,11 +505,6 @@ export default {
     // ── Job Searching / Radar ─────────────────────────
     finding_workers_nearby: 'அருகிலுள்ள பணியாளர்களைக் கண்டறிகிறது',
     please_wait: 'தயவுசெய்து காத்திருங்கள்...',
-    no_workers_desc: "தற்போது உங்கள் பகுதியில் %{category} யாரும் இல்லை. உங்கள் இருப்பிடத்தை மாற்ற முயற்சிக்கவும் அல்லது சில நிமிடங்களில் மீண்டும் பார்க்கவும்.",
-    searching_sub: 'உங்கள் இருப்பிடத்திற்கான வழங்குநர் பொருத்தத்தை மேம்படுத்துகிறது',
-    priority_matching: 'முன்னுரிமைப் பொருத்தத்தைக் கோருகிறது...',
-    minimize_info: '%{seconds} வினாடிகளில் நீங்கள் சிறிதாக்கலாம்',
-    cancel_request_msg: 'மனம் மாறுகிறதா? இது உங்கள் சேவைக் கோரிக்கையை ரத்துசெய்யும்.',
 
     // ── Job Status Labels ─────────────────────────────
     status_open: 'திறந்த',
@@ -557,7 +532,6 @@ export default {
     report_issue: 'சிக்கலைப் புகாரளி',
     enter_end_otp: 'End OTP ஐ உள்ளிடவும்',
     ask_worker_for_otp: 'வேலையை முடிக்க உங்கள் பணியாளரிடம் 4 இலக்க End OTP ஐக் கேட்கவும்.',
-    completed_jobs_count: '{{count}} வேலைகள்',
 
     // ── Payment ──────────────────────────────────────
     payment_summary: 'கட்டணச் சுருக்கம்',

@@ -150,24 +150,8 @@ export default {
     policy_enforcement: 'ನೀತಿ ಜಾರಿ',
 
     // ── Document Upload UX ──────────────────────────────
-    retake: 'ಮರು ತೆಗೆಯಿರಿ',
-    remove: 'ತೆಗೆದುಹಾಕಿ',
-    uploaded_securely: 'ಸುರಕ್ಷಿತವಾಗಿ ಅಪ್ಲೋಡ್ ಆಗಿದೆ',
-    remove_document: 'ದಾಖಲೆ ತೆಗೆದುಹಾಕಲೇ?',
-    confirm_remove_doc: 'ಈ ಅಪ್ಲೋಡ್ ತೆಗೆದುಹಾಕಲು ಖಚಿತಪಡಿಸಿ.',
-    incomplete_info: 'ಅಪೂರ್ಣ',
-    please_upload_all_docs: 'ದಯವಿಟ್ಟು ಎಲ್ಲಾ ದಾಖಲೆಗಳನ್ನು ಅಪ್ಲೋಡ್ ಮಾಡಿ ಮತ್ತು ಆಧಾರ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ.',
-    uploading_documents: 'ಸುರಕ್ಷಿತವಾಗಿ ಅಪ್ಲೋಡ್ ಆಗುತ್ತಿದೆ...',
-    submitting_application: 'ನೋಂದಣಿ ಪೂರ್ಣಗೊಳ್ಳುತ್ತಿದೆ...',
-    protocol_required: 'ಪ್ರೋಟೋಕಾಲ್ ಅಗತ್ಯ',
-    please_read_agreement: 'ದಯವಿಟ್ಟು ಒಪ್ಪಂದದ ಕೊನೆಗೆ ಸ್ಕ್ರೋಲ್ ಮಾಡಿ.',
 
     // ── Blocked Account ─────────────────────────────────
-    account_suspended: 'ಖಾತೆ ಸ್ಥಗಿತ',
-    account_blocked_desc: 'ನಿಮ್ಮ ಖಾತೆ ತಾತ್ಕಾಲಿಕವಾಗಿ ಸ್ಥಗಿತಗೊಂಡಿದೆ. ಸಹಾಯಕ್ಕಾಗಿ ಸಂಪರ್ಕಿಸಿ.',
-    blocked_reason_label: 'ಸ್ಥಗಿತದ ಕಾರಣ',
-    contact_support_blocked: 'ಬೆಂಬಲವನ್ನು ಸಂಪರ್ಕಿಸಿ',
-    policy_enforcement: 'ನೀತಿ ಜಾರಿ',
     notify_encrypted_channel: 'ಸಕ್ರಿಯವಾದ ನಂತರ ನಾವು ಎನ್‌ಕ್ರಿಪ್ಟ್ ಮಾಡಿದ ಚಾನಲ್ ಮೂಲಕ ನಿಮಗೆ ತಿಳಿಸುತ್ತೇವೆ.',
 
     // ── Worker Tabs & Overviews ──────────────────────
@@ -274,12 +258,9 @@ export default {
     sort_premium: 'ಪ್ರೀಮಿಯಂ',
 
     good_day: 'ಶುಭ ದಿನ,',
-    online: 'ಆನ್‌ಲೈನ್',
-    offline: 'ಆಫ್‌ಲೈನ್',
     earnings_today: 'ಇಂದಿನ ಗಳಿಕೆ',
     profit_tracker: 'ಲಾಭ ಟ್ರ್ಯಾಕರ್',
     jobs_today: 'ಇಂದು',
-    this_week: 'ಈ ವಾರ',
     rating: 'ರೇಟಿಂಗ್',
     edit: 'ತಿದ್ದು',
     current_engagement: 'ಪ್ರಸ್ತುತ ಕೆಲಸ',
@@ -294,7 +275,6 @@ export default {
 
     pro_identity: 'ಪ್ರೊ ಐಡೆಂಟಿಟಿ',
     mission_count: 'ಮಿಷನ್ ಎಣಿಕೆ',
-    live_operations: 'ಲೈವ್ ಕಾರ್ಯಾಚರಣೆಗಳು',
     visibility_status: 'ದೃಶ್ಯತೆ ಸ್ಥಿತಿ',
     visibility_online: 'ಆನ್‌ಲೈನ್ • ಕ್ಲೈಂಟ್‌ಗಳಿಗೆ ಕಾಣಿಸುತ್ತದೆ',
     visibility_offline: 'ಆಫ್‌ಲೈನ್ • ಮಾರುಕಟ್ಟೆಗೆ ಕಾಣುವುದಿಲ್ಲ',
@@ -525,11 +505,6 @@ export default {
     // ── Job Searching / Radar ─────────────────────────
     finding_workers_nearby: 'ಹತ್ತಿರದ ಕೆಲಸಗಾರರನ್ನು ಹುಡುಕಲಾಗುತ್ತಿದೆ',
     please_wait: 'ದಯವಿಟ್ಟು ನಿರೀಕ್ಷಿಸಿ...',
-    no_workers_desc: "ಪ್ರಸ್ತುತ ನಿಮ್ಮ ಪ್ರದೇಶದಲ್ಲಿ ಲಭ್ಯವಿರುವ %{category} ಯಾರನ್ನೂ ನಮಗೆ ಹುಡುಕಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಬದಲಾಯಿಸಲು ಪ್ರಯತ್ನಿಸಿ ಅಥವಾ ಕೆಲವು ನಿಮಿಷಗಳಲ್ಲಿ ಮತ್ತೆ ಪರಿಶೀಲಿಸಿ.",
-    searching_sub: 'ನಿಮ್ಮ ಸ್ಥಳಕ್ಕಾಗಿ ಪೂರೈಕೆದಾರರ ಹೊಂದಾಣಿಕೆಯನ್ನು ಉತ್ತಮಗೊಳಿಸಲಾಗುತ್ತಿದೆ',
-    priority_matching: 'ಆದ್ಯತೆಯ ಹೊಂದಾಣಿಕೆಯನ್ನು ವಿನಂತಿಸಲಾಗುತ್ತಿದೆ...',
-    minimize_info: 'ನೀವು %{seconds} ಸೆಕೆಂಡುಗಳಲ್ಲಿ ಇದನ್ನು ಕಡಿಮೆ ಮಾಡಬಹುದು',
-    cancel_request_msg: 'ಮನಸ್ಸು ಬದಲಾಗಿದೆಯೇ? ಇದು ನಿಮ್ಮ ಸೇವಾ ವಿನಂತಿಯನ್ನು ರದ್ದುಗೊಳಿಸುತ್ತದೆ.',
 
     // ── Job Status Labels ─────────────────────────────
     status_open: 'ಮುಕ್ತ',
@@ -557,7 +532,6 @@ export default {
     report_issue: 'ಸಮಸ್ಯೆಯನ್ನು ವರದಿ ಮಾಡಿ',
     enter_end_otp: 'End OTP ನಮೂದಿಸಿ',
     ask_worker_for_otp: 'ಕೆಲಸವನ್ನು ಪೂರ್ಣಗೊಳಿಸಲು ನಿಮ್ಮ ಕೆಲಸಗಾರನನ್ನು 4-ಅಂಕಿಯ End OTP ಕೇಳಿ.',
-    completed_jobs_count: '{{count}} ಉದ್ಯೋಗಗಳು',
 
     // ── Payment ──────────────────────────────────────
     payment_summary: 'ಪಾವತಿ ಸಾರಾಂಶ',

@@ -151,6 +151,7 @@ export default function ServiceAreaSetupScreen({ data, onNext }) {
             />
         </ScrollView>
     );
+
 }
 
 const createStyles = (t) => StyleSheet.create({
@@ -158,22 +159,22 @@ const createStyles = (t) => StyleSheet.create({
     content: { padding: t.spacing['2xl'], paddingBottom: 60, gap: t.spacing['2xl'] },
     headerBox: { marginBottom: t.spacing.sm },
     title: { fontSize: t.typography.size['3xl'] ?? 28, fontWeight: t.typography.weight.bold, color: t.text.primary, marginBottom: t.spacing.sm },
-    subtitle: { fontSize: t.typography.size.base, color: t.text.secondary, lineHeight: 22 },
+    subtitle: { fontSize: t.typography.size.body, color: t.text.secondary, lineHeight: 22 },
     section: { backgroundColor: t.background.surface, borderRadius: t.radius.xl, padding: t.spacing[20], ...t.shadows.sm, borderWidth: 1, borderColor: t.border.default },
-    label: { fontSize: t.typography.size.lg, fontWeight: t.typography.weight.semibold, color: t.text.primary, marginBottom: t.spacing.md },
+    label: { fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.semibold, color: t.text.primary, marginBottom: t.spacing.md },
 
     locationBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.background.app, padding: t.spacing.lg, borderRadius: t.radius.lg, gap: t.spacing.md },
     emoji: { fontSize: 24 },
-    locText: { color: t.status.success.base, fontWeight: t.typography.weight.medium, fontSize: t.typography.size.base },
-    locSub: { color: t.text.secondary, fontSize: t.typography.size.sm, marginTop: 4 },
+    locText: { color: t.status.success.base, fontWeight: t.typography.weight.medium, fontSize: t.typography.size.body },
+    locSub: { color: t.text.secondary, fontSize: t.typography.size.micro, marginTop: 4 },
     locWait: { color: t.status.warning.base, fontStyle: 'italic' },
 
-    radiusDesc: { color: t.brand.primary, fontSize: t.typography.size.base, fontWeight: t.typography.weight.medium, marginBottom: t.spacing.lg },
+    radiusDesc: { color: t.brand.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.medium, marginBottom: t.spacing.lg },
     radiusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.md },
     radiusChip: { flex: 1, minWidth: '28%', paddingVertical: t.spacing.md, alignItems: 'center', backgroundColor: t.background.app, borderRadius: t.radius.lg, borderWidth: 1, borderColor: t.border.default },
     radiusChipActive: { backgroundColor: t.brand.primary + '22', borderColor: t.brand.primary },
-    radiusText: { color: t.text.primary, fontWeight: t.typography.weight.medium, fontSize: t.typography.size.base },
+    radiusText: { color: t.text.primary, fontWeight: t.typography.weight.medium, fontSize: t.typography.size.body },
     radiusTextActive: { color: t.brand.primary, fontWeight: t.typography.weight.bold },
 
-    warningText: { marginTop: t.spacing.lg, fontSize: t.typography.size.sm, color: t.status.warning.base, fontStyle: 'italic', lineHeight: 20 }
+    warningText: { marginTop: t.spacing.lg, fontSize: t.typography.size.micro, color: t.status.warning.base, fontStyle: 'italic', lineHeight: 20 }
 });

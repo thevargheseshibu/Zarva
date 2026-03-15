@@ -150,24 +150,8 @@ export default {
     policy_enforcement: 'નીતિ અમલ',
 
     // ── Document Upload UX ──────────────────────────────
-    retake: 'ફરી ક્લિક કરો',
-    remove: 'દૂર કરો',
-    uploaded_securely: 'સુરક્ષિત રીતે અપલોડ થયેલ',
-    remove_document: 'દસ્તાવેજ દૂર કરો?',
-    confirm_remove_doc: 'શું તમે ખાતરી કરો છો કે આ અપલોડ દૂર કરવા ઇચ્છો છો?',
-    incomplete_info: 'અધૂરું',
-    please_upload_all_docs: 'કૃપા કરીને બધા દસ્તાવેજ અપલોડ કરો અને આધાર નંબર દાખલ કરો.',
-    uploading_documents: 'સુરક્ષિત રીતે અપલોડ થઈ રહ્યું છે...',
-    submitting_application: 'નોંધણી પૂર્ણ થઈ રહી છે...',
-    protocol_required: 'પ્રોટોકોલ જરૂરી',
-    please_read_agreement: 'કૃપા કરીને સ્ક્રોલ કરીને સમજૂતી સુધી પહોંચો.',
 
     // ── Blocked Account ─────────────────────────────────
-    account_suspended: 'ખાતું સ્થગિત',
-    account_blocked_desc: 'તમારું ખાતું અસ્થાયી રૂપે સ્થગિત કરવામાં આવ્યું છે. સહાય માટે સંપર્ક કરો.',
-    blocked_reason_label: 'સ્થગિતૈ કારણ',
-    contact_support_blocked: 'સહાય સાથે સંપર્ક કરો',
-    policy_enforcement: 'નીતિ અમલ',
     notify_encrypted_channel: 'સક્રિય થયા પછી અમે તમને એન્ક્રિપ્ટેડ ચેનલ દ્વારા સૂચિત કરીશું.',
 
     // ── Worker Tabs & Overviews ──────────────────────
@@ -274,12 +258,9 @@ export default {
     sort_premium: 'પ્રીમિયમ',
 
     good_day: 'શુભ દિવસ,',
-    online: 'ઓનલાઇન',
-    offline: 'ઓફલાઇન',
     earnings_today: 'આજની કમાણી',
     profit_tracker: 'પ્રોફિટ ટ્રેકર',
     jobs_today: 'આજે',
-    this_week: 'આ અઠવાડિયે',
     rating: 'રેટિંગ',
     edit: 'એડિટ',
     current_engagement: 'વર્તમાન કામ',
@@ -294,7 +275,6 @@ export default {
 
     pro_identity: 'પ્રો આઈડેન્ટિટી',
     mission_count: 'મિશન ગણતરી',
-    live_operations: 'લાઇવ ઓપરેશન્સ',
     visibility_status: 'દૃશ્યતા સ્ટેટસ',
     visibility_online: 'ઓનલાઇન • ક્લાયન્ટ્સને દેખાય છે',
     visibility_offline: 'ઓફલાઇન • માર્કેટપ્લેસમાં અદ્રશ્ય',
@@ -525,11 +505,6 @@ export default {
     // ── Job Searching / Radar ─────────────────────────
     finding_workers_nearby: 'નજીકના વર્કર્સ શોધી રહ્યું છે',
     please_wait: 'કૃપા કરીને રાહ જુઓ...',
-    no_workers_desc: "અમને અત્યારે તમારા વિસ્તારમાં કોઈ ઉપલબ્ધ %{category} મળ્યા નથી. તમારું સ્થાન બદલવાનો પ્રયાસ કરો અથવા થોડી મિનિટો પછી ફરી તપાસો.",
-    searching_sub: 'તમારા સ્થાન માટે પ્રોવાઇડર મેચિંગ ઑપ્ટિમાઇઝ કરી રહ્યું છે',
-    priority_matching: 'પ્રાયોરિટી મેચિંગની વિનંતી કરી રહ્યું છે...',
-    minimize_info: 'તમે આને %{seconds} સેકન્ડમાં મિનિમાઇઝ કરી શકો છો',
-    cancel_request_msg: 'મન બદલાઈ ગયું? આ તમારી સેવા વિનંતી રદ કરશે.',
 
     // ── Job Status Labels ─────────────────────────────
     status_open: 'ઓપન',
@@ -557,7 +532,6 @@ export default {
     report_issue: 'સમસ્યાની જાણ કરો',
     enter_end_otp: 'End OTP દાખલ કરો',
     ask_worker_for_otp: 'કામ પૂર્ણ કરવા માટે તમારા વર્કર પાસે ૪-અંકનો End OTP માંગો.',
-    completed_jobs_count: '{{count}} જોબ્સ',
 
     // ── Payment ──────────────────────────────────────
     payment_summary: 'ચુકવણી સારાંશ',

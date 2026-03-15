@@ -21,7 +21,10 @@ export default function WorkerProfileScreen({ navigation }) {
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const { user, logout, setUser } = useAuthStore();
     const { language, loadLanguage } = useLanguageStore();
-    const { isOnline, setOnline, locationOverride, setLocationOverride } = useWorkerStore();
+    const isOnline = useWorkerStore(state => state.isOnline);
+    const setOnline = useWorkerStore(state => state.setOnline);
+    const locationOverride = useWorkerStore(state => state.locationOverride);
+    const setLocationOverride = useWorkerStore(state => state.setLocationOverride);
     const t = useT();
 
     const [refreshing, setRefreshing] = useState(false);
@@ -469,7 +472,7 @@ const createStyles = (t) => StyleSheet.create({
     appMetadata: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
 
     modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 24 },
-    modernModal: { backgroundColor: t.background.surface, borderRadius: t.radius.xxl, padding: 24, maxHeight: '70%', borderWidth: 1, borderColor: t.border.default + '11' },
+    modernModal: { backgroundColor: t.background.surface, borderRadius: t.radius['2xl'], padding: 24, maxHeight: '70%', borderWidth: 1, borderColor: t.border.default + '11' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
     modalTitle: { color: t.text.primary, fontSize: 18, fontWeight: '900' },
     modalClose: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold },

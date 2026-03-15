@@ -32,7 +32,7 @@ export default function SearchingScreen({ route, navigation }) {
     }, [countdown, canMinimize]);
 
     useEffect(() => {
-        if (searchPhase === 'assigned') {
+        if (searchPhase === 'assigned' && jobId) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             navigation.replace('JobStatusDetail', { jobId });
         }

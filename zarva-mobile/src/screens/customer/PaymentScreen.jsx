@@ -48,8 +48,10 @@ export default function PaymentScreen({ route, navigation }) {
         }
     };
 
+    const confirmingRef = useRef(false);
+
     const handleCashPaid = async () => {
-        if (loading) return;
+        if (loading || confirmingRef.current) return;
         Alert.alert(
             'Confirm Cash Payment',
             'I confirm the service provider has collected the full cash amount.',
@@ -59,6 +61,8 @@ export default function PaymentScreen({ route, navigation }) {
                     text: 'Confirm Cash Payment',
                     style: 'default',
                     onPress: async () => {
+                        if (confirmingRef.current) return;
+                        confirmingRef.current = true;
                         setLoading(true);
                         try {
                             await apiClient.post('/api/payment/cash-confirm', { job_id: jobId, payment_type: 'final' });
@@ -68,6 +72,7 @@ export default function PaymentScreen({ route, navigation }) {
                             Alert.alert('Error', 'Failed to confirm cash payment.');
                         } finally {
                             setLoading(false);
+                            confirmingRef.current = false;
                         }
                     }
                 }

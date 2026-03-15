@@ -150,24 +150,8 @@ export default {
     policy_enforcement: 'ਨੀਤੀ ਲਾਗੂ',
 
     // ── Document Upload UX ──────────────────────────────
-    retake: 'ਦੁਬਾਰਾ ਲਓ',
-    remove: 'ਹਟਾਓ',
-    uploaded_securely: 'ਸੁਰੱਖਿਅਤ ਢੰਗ ਨਾਲ ਅਪਲੋਡ ਹੋਇਆ',
-    remove_document: 'ਦਸਤਾਵੇਜ਼ ਹਟਾਓ?',
-    confirm_remove_doc: 'ਕੀ ਤੁਸੀਂ ਇਸ ਅਪਲੋਡ ਨੂੰ ਹਟਾਉਣਾ ਚਾਹੁੰਦੇ ਹੋ?',
-    incomplete_info: 'ਅਧੂਰਾ',
-    please_upload_all_docs: 'ਕਿਰਪਾ ਕਰਕੇ ਸਾਰੇ ਦਸਤਾਵੇਜ਼ ਅਪਲੋਡ ਕਰੋ ਅਤੇ ਆਧਾਰ ਨੰਬਰ ਦਿਓ।',
-    uploading_documents: 'ਸੁਰੱਖਿਅਤ ਢੰਗ ਨਾਲ ਅਪਲੋਡ ਹੋ ਰਿਹਾ ਹੈ...',
-    submitting_application: 'ਰਜਿਸਟ੍ਰੇਸ਼ਨ ਮੁਕੰਮਲ ਹੋ ਰਹੀ ਹੈ...',
-    protocol_required: 'ਪ੍ਰੋਟੋਕੋਲ ਲੋੜੀਂਦਾ',
-    please_read_agreement: 'ਕਿਰਪਾ ਕਰਕੇ ਸਮਝੌਤੇ ਦੇ ਅੰਤ ਤੱਕ ਸਕ੍ਰੋਲ ਕਰੋ।',
 
     // ── Blocked Account ─────────────────────────────────
-    account_suspended: 'ਖਾਤਾ ਮੁਅੱਤਲ',
-    account_blocked_desc: 'ਤੁਹਾਡਾ ਖਾਤਾ ਅਸਥਾਈ ਤੌਰ \'ਤੇ ਮੁਅੱਤਲ ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ। ਸਹਾਇਤਾ ਲਈ ਸੰਪਰਕ ਕਰੋ।',
-    blocked_reason_label: 'ਮੁਅੱਤਲੀ ਦਾ ਕਾਰਨ',
-    contact_support_blocked: 'ਸਹਾਇਤਾ ਨਾਲ ਸੰਪਰਕ ਕਰੋ',
-    policy_enforcement: 'ਨੀਤੀ ਲਾਗੂ',
     notify_encrypted_channel: 'ਅਸੀਂ ਤੁਹਾਨੂੰ ਐਨਕ੍ਰਿਪਟਡ ਚੈਨਲ ਰਾਹੀਂ ਸੂਚਿਤ ਕਰਾਂਗੇ ਜਦੋਂ ਇਹ ਕਿਰਿਆਸ਼ੀਲ ਹੋ ਜਾਵੇਗਾ।',
 
     // ── Worker Tabs & Overviews ──────────────────────
@@ -274,12 +258,9 @@ export default {
     sort_premium: 'ਪ੍ਰੀਮੀਅਮ',
 
     good_day: 'ਸ਼ੁਭ ਦਿਨ,',
-    online: 'ਔਨਲਾਈਨ',
-    offline: 'ਔਫਲਾਈਨ',
     earnings_today: 'ਅੱਜ ਦੀ ਕਮਾਈ',
     profit_tracker: 'ਮੁਨਾਫਾ ਟਰੈਕਰ',
     jobs_today: 'ਅੱਜ',
-    this_week: 'ਇਸ ਹਫ਼ਤੇ',
     rating: 'ਰੇਟਿੰਗ',
     edit: 'ਸੋਧੋ',
     current_engagement: 'ਮੌਜੂਦਾ ਕੰਮ',
@@ -294,7 +275,6 @@ export default {
 
     pro_identity: 'ਪ੍ਰੋ ਪਛਾਣ',
     mission_count: 'ਮਿਸ਼ਨ ਗਿਣਤੀ',
-    live_operations: 'ਲਾਈਵ ਓਪਰੇਸ਼ਨ',
     visibility_status: 'ਦਿੱਖ ਸਥਿਤੀ',
     visibility_online: 'ਔਨਲਾਈਨ • ਗਾਹਕਾਂ ਨੂੰ ਦਿਖਾਈ ਦੇ ਰਿਹਾ ਹੈ',
     visibility_offline: 'ਔਫਲਾਈਨ • ਮਾਰਕੀਟਪਲੇਸ ਲਈ ਅਦਿੱਖ',
@@ -481,8 +461,6 @@ export default {
     message_deleted: 'ਸੰਦੇਸ਼ ਮਿਟਾ ਦਿੱਤਾ ਗਿਆ',
 
     // ── Errors ────────────────────────────────────────
-    error_generic: 'ਕੁਝ ਗਲਤ ਹੋ ਗਿਆ। ਕਿਰਪਾ ਕਰਕੇ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।',
     error_network: 'ਨੈੱਟਵਰਕ ਗਲਤੀ। ਆਪਣੇ ਕਨੈਕਸ਼ਨ ਦੀ ਜਾਂਚ ਕਰੋ।',
-    error_otp_invalid: 'ਦਰਜ ਕੀਤਾ ਗਿਆ ਕੋਡ ਗਲਤ ਹੈ।',
     error_upload: 'ਫੋਟੋ ਅਪਲੋਡ ਕਰਨ ਵਿੱਚ ਅਸਫਲ।',
 };

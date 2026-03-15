@@ -17,9 +17,10 @@ export default function ZLoader({
     fullScreen = false,
     message = "Processing...",
     size = 80,
-    color = '#7C3AED' // Default Zarva Purple
+    color
 }) {
     const tTheme = useTokens();
+    const effectiveColor = color || tTheme.brand.primary;
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const spinAnim = useRef(new Animated.Value(0)).current;
     const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -77,7 +78,7 @@ export default function ZLoader({
     // Dynamic color shift between accent and a premium gold
     const animatedColor = pulseAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: [color, '#FFD700'], // Shifts to Gold
+        outputRange: [effectiveColor, '#FFD700'], // Shifts to Gold
     });
 
     const content = (
@@ -92,7 +93,7 @@ export default function ZLoader({
                             height: size * 1.2,
                             borderRadius: (size * 1.2) / 2,
                             borderWidth: 1,
-                            borderColor: color + '15',
+                            borderColor: effectiveColor + '15',
                             transform: [{ scale }],
                             opacity: 0.3
                         },

@@ -335,7 +335,6 @@ export default function ActiveJobScreen({ route, navigation }) {
         try {
             // CHANGE: Backend expects `otp` field; sending `code` always fails verification.
             await apiClient.post(`/api/worker/jobs/${jobId}/verify-start-otp`, { otp: code });
-            setStatus('in_progress');
             await fetchJob();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err) {
@@ -505,7 +504,7 @@ export default function ActiveJobScreen({ route, navigation }) {
         setActionLoading(true);
         try {
             const validItems = skip ? [] : materials.filter(m => m.name.trim() && parseFloat(m.amount) > 0);
-            await apiClient.post(`/api/worker/jobs/${jobId}/materials`, { items: validItems });
+            await apiClient.post(`/api/jobs/${jobId}/materials`, { items: validItems });
             setMaterialsVisible(false);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err) {

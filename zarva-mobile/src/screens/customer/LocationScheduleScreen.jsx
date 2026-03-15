@@ -140,8 +140,11 @@ export default function LocationScheduleScreen({ route, navigation }) {
             hideLoader();
 
             navigation.reset({
-                index: 0,
-                routes: [{ name: 'Searching', params: { category, jobId: newJobId } }],
+                index: 1,
+                routes: [
+                    { name: 'CustomerTabs' },
+                    { name: 'Searching', params: { category, jobId: newJobId } }
+                ],
             });
         } catch (e) {
             console.error('Job dispatch error', e);

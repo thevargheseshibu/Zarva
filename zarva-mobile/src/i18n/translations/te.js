@@ -150,24 +150,8 @@ export default {
     policy_enforcement: 'విధాన అమలు',
 
     // ── Document Upload UX ──────────────────────────────
-    retake: 'మళ్ళీ తీయండి',
-    remove: 'తొలగించు',
-    uploaded_securely: 'సురక్షితంగా అప్‌లోడ్ చేయబడింది',
-    remove_document: 'పత్రాన్ని తొలగించాలా?',
-    confirm_remove_doc: 'ఈ అప్‌లోడ్‌ని తొలగించాలని మీకు నిశ్చయంగా ఉందా?',
-    incomplete_info: 'అసంపూర్ణం',
-    please_upload_all_docs: 'దయచేసి అన్ని పత్రాలు అప్‌లోడ్ చేయండి మరియు ఆధార్ నంబర్ నమోదు చేయండి.',
-    uploading_documents: 'సురక్షితంగా అప్‌లోడ్ అవుతోంది...',
-    submitting_application: 'నమోదు పూర్తవుతోంది...',
-    protocol_required: 'ప్రోటోకాల్ అవసరం',
-    please_read_agreement: 'దయచేసి ఒప్పందం చివరి వరకు స్క్రోల్ చేయండి.',
 
     // ── Blocked Account ─────────────────────────────────
-    account_suspended: 'ఖాతా నిలిపివేయబడింది',
-    account_blocked_desc: 'మీ ఖాతా తాత్కాలికంగా నిలిపివేయబడింది. సహాయానికి సంప్రదించండి.',
-    blocked_reason_label: 'నిలిపివేత కారణం',
-    contact_support_blocked: 'మద్దతును సంప్రదించండి',
-    policy_enforcement: 'విధాన అమలు',
     notify_encrypted_channel: 'యాక్టివ్ అయిన తర్వాత మేము ఎన్‌క్రిప్టెడ్ ఛానెల్ ద్వారా మీకు తెలియజేస్తాము.',
 
     // ── Worker Tabs & Overviews ──────────────────────
@@ -274,12 +258,9 @@ export default {
     sort_premium: 'ప్రీమియం',
 
     good_day: 'శుభ దినం,',
-    online: 'ఆన్‌లైన్',
-    offline: 'ఆఫ్‌లైన్',
     earnings_today: 'నేటి సంపాదన',
     profit_tracker: 'ప్రాఫిట్ ట్రాకర్',
     jobs_today: 'నేడు',
-    this_week: 'ఈ వారం',
     rating: 'రేటింగ్',
     edit: 'సవరించండి',
     current_engagement: 'ప్రస్తుత పని',
@@ -294,7 +275,6 @@ export default {
 
     pro_identity: 'ప్రో గుర్తింపు',
     mission_count: 'మిషన్ల సంఖ్య',
-    live_operations: 'లైవ్ ఆపరేషన్లు',
     visibility_status: 'విజిబిలిటీ స్టేటస్',
     visibility_online: 'ఆన్‌లైన్ • క్లయింట్‌లకు కనిపిస్తుంది',
     visibility_offline: 'ఆఫ్‌లైన్ • మార్కెట్‌ప్లేస్‌కు అదృశ్యం',
@@ -525,11 +505,6 @@ export default {
     // ── Job Searching / Radar ─────────────────────────
     finding_workers_nearby: 'సమీపంలోని వర్కర్లను కనుగొంటోంది',
     please_wait: 'దయచేసి వేచి ఉండండి...',
-    no_workers_desc: "ప్రస్తుతం మీ ప్రాంతంలో అందుబాటులో ఉన్న %{category} ఎవరినీ మేము కనుగొనలేకపోయాము. మీ స్థానాన్ని సర్దుబాటు చేయడానికి ప్రయత్నించండి లేదా కొన్ని నిమిషాల్లో మళ్లీ తనిఖీ చేయండి.",
-    searching_sub: 'మీ స్థానం కోసం ప్రొవైడర్ మ్యాచింగ్‌ను ఆప్టిమైజ్ చేస్తోంది',
-    priority_matching: 'ప్రాధాన్యతా మ్యాచింగ్‌ని అభ్యర్థిస్తోంది...',
-    minimize_info: 'మీరు దీన్ని %{seconds} సెకన్లలో కనిష్టీకరించవచ్చు',
-    cancel_request_msg: 'మీ మనసు మార్చుకున్నారా? ఇది మీ సేవా అభ్యర్థనను రద్దు చేస్తుంది.',
 
     // ── Job Status Labels ─────────────────────────────
     status_open: 'ఓపెన్',
@@ -557,7 +532,6 @@ export default {
     report_issue: 'సమస్యను రిపోర్ట్ చేయండి',
     enter_end_otp: 'End OTP నమోదు చేయండి',
     ask_worker_for_otp: 'పనిని పూర్తి చేయడానికి మీ వర్కర్‌ను 4-అంకెల End OTP కోసం అడగండి.',
-    completed_jobs_count: '{{count}} పనులు',
 
     // ── Payment ──────────────────────────────────────
     payment_summary: 'చెల్లింపు సారాంశం',

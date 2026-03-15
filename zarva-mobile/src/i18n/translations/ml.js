@@ -151,24 +151,8 @@ export default {
     policy_enforcement: 'നയ നിർദ്ദേശം',
 
     // ── Document Upload UX ──────────────────────────────
-    retake: 'വീണ്ടും എടുക്കുക',
-    remove: 'നീക്കം ചെയ്യുക',
-    uploaded_securely: 'സുരക്ഷിതമായി അപ്‌ലോഡ് ചെയ്തു',
-    remove_document: 'പ്രമാണം നീക്കം ചെയ്യണോ?',
-    confirm_remove_doc: 'ഈ അപ്‌ലോഡ് നീക്കം ചെയ്യണമെന്ന് ഉറപ്പാണോ?',
-    incomplete_info: 'അപൂർണ്ണം',
-    please_upload_all_docs: 'എല്ലാ രേഖകളും അപ്‌ലോഡ് ചെയ്ത് ആധാർ നമ്പർ നൽകുക.',
-    uploading_documents: 'സുരക്ഷിതമായി അപ്‌ലോഡ് ചെയ്യുന്നു...',
-    submitting_application: 'ഒട്ടിക്കൽ പൂർത്തിയാകുന്നു...',
-    protocol_required: 'പ്രോട്ടോക്കോൾ ആവശ്യമാണ്',
-    please_read_agreement: 'ദയവായി കരാർ അവസാനം വരെ സ്ക്രോൾ ചെയ്യുക.',
 
     // ── Blocked Account ─────────────────────────────────
-    account_suspended: 'അക്കൗണ്ട് സസ്പെൻഡ് ചെയ്തു',
-    account_blocked_desc: 'നിങ്ങളുടെ അക്കൗണ്ട് താൽക്കാലികമായി സസ്പെൻഡ് ചെയ്തിരിക്കുന്നു. ദയവായി ബന്ധപ്പെടുക.',
-    blocked_reason_label: 'സസ്പെൻഷൻ കാരണം',
-    contact_support_blocked: 'പിന്തുണ ബന്ധപ്പെടുക',
-    policy_enforcement: 'നയ നിർദ്ദേശം',
 
     // ── Worker Verification ──────────────────────────
     profile_under_review: 'പ്രൊഫൈൽ പരിശോധനയിലാണ്',
@@ -283,12 +267,9 @@ export default {
     sort_premium: 'പ്രീമിയം',
 
     good_day: 'നല്ലൊരു ദിനം',
-    online: 'ഓൺലൈൻ',
-    offline: 'ഓഫ്‌ലൈൻ',
     earnings_today: 'ഇന്നത്തെ വരുമാനം',
     profit_tracker: 'പ്രോഫിറ്റ് ട്രാക്കർ',
     jobs_today: 'ഇന്ന്',
-    this_week: 'ഈ ആഴ്ച',
     rating: 'റേറ്റിംഗ്',
     edit: 'എഡിറ്റ്',
     current_engagement: 'നിലവിലെ എൻഗേജ്മെൻ്റ്',
@@ -303,7 +284,6 @@ export default {
 
     pro_identity: 'പ്രോ ഐഡൻ്റിറ്റി',
     mission_count: 'മിഷൻ കൗണ്ട്',
-    live_operations: 'ലൈവ് ഓപ്പറേഷൻസ്',
     visibility_status: 'വിസിബിലിറ്റി സ്റ്റാറ്റസ്',
     visibility_online: 'ഓൺലൈൻ • ക്ലയൻ്റുകൾക്ക് കണ്ടെത്താനാകും',
     visibility_offline: 'ഓഫ്‌ലൈൻ • മാർക്കറ്റ്പ്ലേസിന് അദൃശ്യമാണ്',
@@ -540,11 +520,6 @@ export default {
     // ── Job Searching / Radar ─────────────────────────
     finding_workers_nearby: 'അടുത്തുള്ള വർക്കർമാരെ കണ്ടെത്തുന്നു',
     please_wait: 'ദയവായി കാത്തിരിക്കുക...',
-    no_workers_desc: "നിങ്ങളുടെ പ്രദേശത്ത് ഇപ്പോൾ %{category} ലഭ്യമായ ആരെയും ഞങ്ങൾക്ക് കണ്ടെത്താനായില്ല. നിങ്ങളുടെ ലൊക്കേഷൻ ക്രമീകരിക്കാൻ ശ്രമിക്കുക അല്ലെങ്കിൽ കുറച്ച് മിനിറ്റുകൾക്ക് ശേഷം വീണ്ടും പരിശോധിക്കുക.",
-    searching_sub: 'നിങ്ങളുടെ ലൊക്കേഷനായി പ്രൊവൈഡർ മാച്ചിംഗ് ഒപ്റ്റിമൈസ് ചെയ്യുന്നു',
-    priority_matching: 'പ്രയോറിറ്റി മാച്ചിംഗ് അഭ്യർത്ഥിക്കുന്നു...',
-    minimize_info: '%{seconds} സെക്കൻഡിനുള്ളിൽ നിങ്ങൾക്ക് മിനിമൈസ് ചെയ്യാം',
-    cancel_request_msg: 'മനസ്സ് മാറിയോ? ഇത് നിങ്ങളുടെ സേവന അഭ്യർത്ഥന റദ്ദാക്കും.',
 
     // ── Job Status Labels ─────────────────────────────
     status_open: 'ഓപ്പൺ',
@@ -572,7 +547,6 @@ export default {
     report_issue: 'പ്രശ്നം റിപ്പോർട്ട് ചെയ്യുക',
     enter_end_otp: 'End OTP നൽകുക',
     ask_worker_for_otp: 'ജോലി പൂർത്തിയാക്കാൻ നിങ്ങളുടെ വർക്കറോട് 4 അക്ക End OTP ചോദിക്കുക.',
-    completed_jobs_count: '{{count}} ജോലികൾ',
 
     // ── Payment ──────────────────────────────────────
     payment_summary: 'പേയ്‌മെൻ്റ് ചുരുക്കം',

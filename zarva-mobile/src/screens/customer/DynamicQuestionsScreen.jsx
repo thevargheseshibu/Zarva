@@ -15,6 +15,7 @@ const DEFAULT_QUESTIONS = ['Describe what you need help with', 'Any specific req
 function buildFallbackConfig(category, basePrice = 300) {
     return {
         base_price: basePrice,
+        breakdown: null,   // null so downstream screens know no server breakdown is available
         questions: [
             { id: 'q1', type: 'text', label: DEFAULT_QUESTIONS[0], required: true },
             { id: 'q2', type: 'text', label: DEFAULT_QUESTIONS[1], required: false, skippable: true }
@@ -261,64 +262,65 @@ export default function DynamicQuestionsScreen({ route, navigation }) {
     );
 }
 
-const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: colors.background },
+const createStyles = (t) => StyleSheet.create({
+    screen: { flex: 1, backgroundColor: t.background.app },
     header: {
         paddingTop: 60,
-        paddingHorizontal: spacing[24],
+        paddingHorizontal: t.spacing['2xl'],
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingBottom: spacing[16]
+        paddingBottom: t.spacing.lg,
     },
-    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-    headerBtnTxt: { color: colors.text.primary, fontSize: 20 },
-    headerTitle: { color: colors.text.primary, fontSize: fontSize.body, fontWeight: fontWeight.bold, letterSpacing: tracking.body },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
+    headerBtnTxt: { color: t.text.primary, fontSize: 20 },
+    headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking?.body },
 
-    scrollContent: { padding: spacing[24], paddingBottom: 120 },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
 
-    introTitle: { color: colors.text.primary, fontSize: fontSize.hero, fontWeight: fontWeight.bold, letterSpacing: tracking.hero },
-    introSub: { color: colors.text.secondary, fontSize: fontSize.body, marginTop: 4, marginBottom: spacing[32], letterSpacing: tracking.body },
+    introTitle: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking?.hero },
+    introSub: { color: t.text.secondary, fontSize: t.typography.size.body, marginTop: 4, marginBottom: t.spacing[32] || 32, letterSpacing: t.typography.tracking?.body },
 
-    questionCard: { padding: spacing[24], marginBottom: spacing[24], gap: spacing[16] },
+    questionCard: { padding: t.spacing['2xl'], marginBottom: t.spacing['2xl'], gap: t.spacing.lg },
     qHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    qLabel: { color: colors.text.primary, fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, letterSpacing: tracking.cardTitle, flex: 1 },
-    requiredDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent.primary },
+    qLabel: { color: t.text.primary, fontSize: t.typography.size.md, fontWeight: t.typography.weight.bold, flex: 1 },
+    requiredDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.brand.primary },
 
     input: {
-        backgroundColor: colors.elevated,
-        borderRadius: radius.lg,
-        padding: spacing[16],
-        color: colors.text.primary,
-        fontSize: fontSize.body,
+        backgroundColor: t.background.surfaceRaised,
+        borderRadius: t.radius.lg,
+        padding: t.spacing.lg,
+        color: t.text.primary,
+        fontSize: t.typography.size.body,
         minHeight: 120,
         textAlignVertical: 'top',
         borderWidth: 1,
-        borderColor: colors.surface
+        borderColor: t.background.surface,
     },
 
-    footer: { marginTop: spacing[40] },
+    footer: { marginTop: t.spacing[40] || 40 },
 
     // Photo Grid Styles
-    photoContainer: { padding: spacing[24], marginBottom: spacing[24] },
-    photoCount: { color: colors.text.muted, fontSize: 12, fontWeight: '800' },
-    photoDesc: { color: colors.text.secondary, fontSize: 12, marginBottom: spacing[16], marginTop: 4 },
+    photoContainer: { padding: t.spacing['2xl'], marginBottom: t.spacing['2xl'] },
+    photoCount: { color: t.text.tertiary, fontSize: 12, fontWeight: '800' },
+    photoDesc: { color: t.text.secondary, fontSize: 12, marginBottom: t.spacing.lg, marginTop: 4 },
     photoGrid: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
-    photoWrapper: { width: '30%', aspectRatio: 1, borderRadius: radius.md, overflow: 'hidden', position: 'relative' },
+    photoWrapper: { width: '30%', aspectRatio: 1, borderRadius: t.radius.md, overflow: 'hidden', position: 'relative' },
     gridImage: { width: '100%', height: '100%' },
     removeBtn: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.6)', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
     removeIcon: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
     addSlot: {
         width: '30%',
         aspectRatio: 1,
-        borderRadius: radius.md,
-        backgroundColor: colors.elevated,
+        borderRadius: t.radius.md,
+        backgroundColor: t.background.surfaceRaised,
         borderWidth: 1,
-        borderColor: colors.surface,
+        borderColor: t.background.surface,
         borderStyle: 'dashed',
         justifyContent: 'center',
-        alignItems: 'center'
+        alignItems: 'center',
     },
     uploadingSlot: { opacity: 0.5 },
-    addSlotIcon: { color: colors.accent.primary, fontSize: 28, fontWeight: '300', lineHeight: 28, textAlign: 'center' }
+    addSlotIcon: { color: t.brand.primary, fontSize: 28, fontWeight: '300', lineHeight: 28, textAlign: 'center' },
 });
+

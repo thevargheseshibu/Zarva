@@ -16,6 +16,16 @@ export const useAuthStore = create(
             login: (user, token) => set({ user, token, isAuthenticated: true }),
             logout: () => {
                 useJobStore.getState().clearActiveJob();
+                try {
+                    const workerStore = require('./workerStore').useWorkerStore;
+                    if (workerStore) {
+                        workerStore.getState().setPendingJobAlert(null);
+                        workerStore.getState().setOnline(false);
+                        workerStore.getState().setLocationOverride(null);
+                    }
+                } catch (err) {
+                    console.warn('Could not clear worker store on logout', err);
+                }
                 set({ user: null, token: null, isAuthenticated: false });
             },
             setUser: (user) => set({ user }),

@@ -9,12 +9,13 @@ import * as Haptics from 'expo-haptics';
 import { useWorkerStore } from '../stores/workerStore';
 import apiClient from '../services/api/client';
 import { JobAlertService } from '../services/JobAlertService';
+import { navigationRef } from '../navigation/RootNavigator';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const CIRCLE_RADIUS = 24;
 const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
-export default function JobAlertBottomSheet({ navigation }) {
+export default function JobAlertBottomSheet() {
     const tTheme = useTokens();
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const bottomSheetRef = useRef(null);
@@ -55,29 +56,29 @@ export default function JobAlertBottomSheet({ navigation }) {
     }, [pendingJobAlert, isAlertVisible]);
 
     useEffect(() => {
-        if (!pendingJobAlert || status !== 'idle') return;
+        if (!pendingJobAlert || status !== 'idle' || timeLeft <= 0) return;
 
+        const timer = setInterval(() => {
+            setTimeLeft(prev => prev - 1);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [pendingJobAlert, status]);
+
+    useEffect(() => {
+        if (status !== 'idle') return;
         if (timeLeft <= 0) {
             handleDecline(true);
             return;
         }
-
-        const timer = setInterval(() => {
-            setTimeLeft(prev => {
-                const newTime = prev - 1;
-                if (newTime <= 5 && newTime > 0) {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-                    Animated.sequence([
-                        Animated.timing(scaleAnim, { toValue: 1.15, duration: 150, useNativeDriver: true }),
-                        Animated.timing(scaleAnim, { toValue: 1.0, duration: 150, useNativeDriver: true })
-                    ]).start();
-                }
-                return newTime;
-            });
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, [timeLeft, pendingJobAlert, status]);
+        if (timeLeft <= 5 && timeLeft > 0) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            Animated.sequence([
+                Animated.timing(scaleAnim, { toValue: 1.15, duration: 150, useNativeDriver: true }),
+                Animated.timing(scaleAnim, { toValue: 1.0, duration: 150, useNativeDriver: true })
+            ]).start();
+        }
+    }, [timeLeft, status]);
 
     const handleAccept = async () => {
         if (!pendingJobAlert?.id || status !== 'idle') return;
@@ -91,8 +92,9 @@ export default function JobAlertBottomSheet({ navigation }) {
                 bottomSheetRef.current?.close();
                 const tempId = pendingJobAlert.id;
                 clearPendingJobAlert();
-                // Use navigate (not replace) — works across both stack and tab navigator contexts
-                if (navigation) navigation.navigate('ActiveJob', { jobId: tempId });
+                // Use navigationRef to navigate to WorkerStack's ActiveJob from within WorkerNavigator's tab context.
+                // The tab navigator's own navigation prop cannot reach screens registered in the parent WorkerStack.
+                if (navigationRef.isReady()) navigationRef.navigate('ActiveJob', { jobId: tempId });
             }, 600);
         } catch (error) {
             const status4xx = error.response?.status;

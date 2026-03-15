@@ -150,24 +150,8 @@ export default {
     policy_enforcement: 'নীতি প্ৰয়োগ',
 
     // ── Document Upload UX ──────────────────────────────
-    retake: 'পুনৰ তুলক',
-    remove: 'আঁতৰাওক',
-    uploaded_securely: 'সুৰক্ষিতভাৱে আপলোড হ\'ল',
-    remove_document: 'দস্তাবেজ আঁতৰাওক?',
-    confirm_remove_doc: 'আপুনি নিশ্চিত নে এই আপলোড আঁতৰাব বিচাৰে?',
-    incomplete_info: 'অসম্পূৰ্ণ',
-    please_upload_all_docs: 'অনুগ্ৰহ কৰি সকলো নথি আপলোড কৰক আৰু আপোনাৰ আধাৰ নম্বৰ দিয়ক।',
-    uploading_documents: 'সুৰক্ষিতভাৱে আপলোড হৈছে...',
-    submitting_application: 'নামভৰ্তি সম্পূৰ্ণ কৰা হৈছে...',
-    protocol_required: 'প্ৰট\'কল প্ৰয়োজন',
-    please_read_agreement: 'অনুগ্ৰহ কৰি চুক্তিৰ তলত স্ক্ৰল কৰক।',
 
     // ── Blocked Account ─────────────────────────────────
-    account_suspended: 'একাউণ্ট স্থগিত',
-    account_blocked_desc: 'আপোনাৰ একাউণ্ট সাময়িকভাৱে স্থগিত কৰা হৈছে। আমাৰ সৈতে যোগাযোগ কৰক।',
-    blocked_reason_label: 'স্থগিতৰ কাৰণ',
-    contact_support_blocked: 'সহায়ৰ সৈতে যোগাযোগ কৰক',
-    policy_enforcement: 'নীতি প্ৰয়োগ',
     notify_encrypted_channel: 'সক্ৰিয় হোৱাৰ পিছত আমি আপোনাক এনক্ৰিপ্ট কৰা চেনেলৰ জৰিয়তে জনাওঁ।',
 
     // ── Worker Tabs & Overviews ──────────────────────
@@ -274,12 +258,9 @@ export default {
     sort_premium: 'প্ৰিমিয়াম',
 
     good_day: 'শুভ দিন,',
-    online: 'অনলাইন',
-    offline: 'অফলাইন',
     earnings_today: 'আজিৰ উপাৰ্জন',
     profit_tracker: 'প্ৰফিট ট্ৰেকাৰ',
     jobs_today: 'আজি',
-    this_week: 'এই সপ্তাহ',
     rating: 'ৰেটিং',
     edit: 'সম্পাদনা কৰক',
     current_engagement: 'বৰ্তমানৰ কাম',
@@ -294,7 +275,6 @@ export default {
 
     pro_identity: 'প্ৰ’ পৰিচয়',
     mission_count: 'মিছনৰ সংখ্যা',
-    live_operations: 'লাইভ অপাৰেচন',
     visibility_status: 'দৃশ্যমানতাৰ স্থিতি',
     visibility_online: 'অনলাইন • গ্ৰাহকসকলৰ বাবে দৃশ্যমান',
     visibility_offline: 'অফলাইন • মাৰ্কেটপ্লেচত অদৃশ্য',
@@ -481,8 +461,6 @@ export default {
     message_deleted: 'বাৰ্তা মচি পেলোৱা হৈছে',
 
     // ── Errors ────────────────────────────────────────
-    error_generic: 'কিবা ভুল হৈছে। অনুগ্ৰহ কৰি পুনৰ চেষ্টা কৰক।',
     error_network: 'নেটৱৰ্ক ত্ৰুটি। আপোনাৰ সংযোগ পৰীক্ষা কৰক।',
-    error_otp_invalid: 'অবৈধ OTP ক’ড',
     error_upload: 'ফটো আপলোড কৰাত ব্যৰ্থ হ’ল।',
 };

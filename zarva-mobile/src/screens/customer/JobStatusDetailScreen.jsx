@@ -219,12 +219,17 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         };
     }, [jobId]);
 
+    const isFetchingRef = useRef(false);
     const fetchJobDetails = async () => {
+        if (isFetchingRef.current) return; // Prevent concurrent fetches overwriting state with stale data
+        isFetchingRef.current = true;
         try {
             const res = await apiClient.get(`/api/jobs/${jobId}`);
             if (res.data?.job) setJob(res.data.job);
         } catch (err) {
             console.error('[JobStatus] fetch failed', err);
+        } finally {
+            isFetchingRef.current = false;
         }
     };
 

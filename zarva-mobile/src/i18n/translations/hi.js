@@ -138,24 +138,8 @@ export default {
     policy_enforcement: 'नीति प्रवर्तन',
 
     // ── Document Upload UX ──────────────────────────────
-    retake: 'पुनः लें',
-    remove: 'हटाएं',
-    uploaded_securely: 'सुरक्षित रूप से अपलोड किया गया',
-    remove_document: 'दस्तावेज़ हटाएं?',
-    confirm_remove_doc: 'क्या आप इस अपलोड को हटाना चाहते हैं?',
-    incomplete_info: 'अधूरा',
-    please_upload_all_docs: 'कृपया सभी दस्तावेज़ अपलोड करें और आधार नंबर दर्ज करें।',
-    uploading_documents: 'सुरक्षित अपलोड हो रहा है...',
-    submitting_application: 'नामांकन पूरा हो रहा है...',
-    protocol_required: 'प्रोटोकॉल आवश्यक है',
-    please_read_agreement: 'कृपया अनुबंध के अंत तक स्क्रॉल करें।',
 
     // ── Blocked Account ─────────────────────────────────
-    account_suspended: 'खाता निलंबित',
-    account_blocked_desc: 'आपका खाता अस्थायी रूप से निलंबित किया गया है। सहायता के लिए संपर्क करें।',
-    blocked_reason_label: 'निलंबन का कारण',
-    contact_support_blocked: 'सहायता से संपर्क करें',
-    policy_enforcement: 'नीति प्रवर्तन',
     notify_encrypted_channel: 'सक्रिय होने पर हम आपको एन्क्रिप्टेड चैनल के माध्यम से सूचित करेंगे।',
 
     // ── Worker Tabs & Overviews ──────────────────────
@@ -262,12 +246,9 @@ export default {
     sort_premium: 'प्रीमियम',
 
     good_day: 'आपका दिन शुभ हो,',
-    online: 'ऑनलाइन',
-    offline: 'ऑफ़लाइन',
     earnings_today: 'आज की कमाई',
     profit_tracker: 'प्रॉफिट ट्रैकर',
     jobs_today: 'आज',
-    this_week: 'इस सप्ताह',
     rating: 'रेटिंग',
     edit: 'संपादित करें',
     current_engagement: 'वर्तमान कार्य',
@@ -282,7 +263,6 @@ export default {
 
     pro_identity: 'प्रो पहचान',
     mission_count: 'मिशन की संख्या',
-    live_operations: 'लाइव संचालन',
     visibility_status: 'दृश्यता की स्थिति',
     visibility_online: 'ऑनलाइन • क्लाइंट्स द्वारा खोजे जाने योग्य',
     visibility_offline: 'ऑफ़लाइन • मार्केटप्लेस से अदृश्य',
@@ -519,11 +499,6 @@ export default {
     // ── Job Searching / Radar ─────────────────────────
     finding_workers_nearby: 'आस-पास के वर्कर खोजे जा रहे हैं',
     please_wait: 'कृपया प्रतीक्षा करें...',
-    no_workers_desc: "हमें अभी आपके क्षेत्र में कोई उपलब्ध %{category} नहीं मिला। अपना स्थान बदलने का प्रयास करें या कुछ मिनटों बाद वापस देखें।",
-    searching_sub: 'आपके स्थान के लिए प्रदाता मिलान (Provider Matching) को अनुकूलित किया जा रहा है',
-    priority_matching: 'प्राथमिकता मिलान का अनुरोध किया जा रहा है...',
-    minimize_info: 'आप %{seconds} सेकंड में इसे छोटा कर सकते हैं',
-    cancel_request_msg: 'क्या आपने अपना मन बदल लिया है? इससे आपका सेवा अनुरोध रद्द हो जाएगा।',
 
     // ── Job Status Labels ─────────────────────────────
     status_open: 'ओपन',
@@ -551,7 +526,6 @@ export default {
     report_issue: 'समस्या की रिपोर्ट करें',
     enter_end_otp: 'End OTP दर्ज करें',
     ask_worker_for_otp: 'काम समाप्त करने के लिए अपने वर्कर से 4 अंकों का End OTP मांगें।',
-    completed_jobs_count: '{{count}} काम',
 
     // ── Payment ──────────────────────────────────────
     payment_summary: 'भुगतान सारांश',

@@ -16,7 +16,8 @@ export default function ChatScreen({ route, navigation }) {
     const tTheme = useTokens();
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
-    const { jobId, userRole, otherUserId } = route.params;
+    const { jobId, userRole = 'customer', otherUserId } = route.params || {};
+    if (!otherUserId) console.warn('[Chat] otherUserId not provided — typing indicator will be disabled');
 
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -317,7 +318,7 @@ const createStyles = (t) => StyleSheet.create({
         lineHeight: 22
     },
     messageTextMe: {
-        color: 't.text.primary'
+        color: '#FFFFFF'
     },
     deletedText: {
         fontStyle: 'italic',

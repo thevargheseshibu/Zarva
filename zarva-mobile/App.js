@@ -36,6 +36,7 @@ import GlobalLoader from './src/components/GlobalLoader';
 import ConnectivityOverlay from './src/components/ConnectivityOverlay';
 import ZarvaSplash from './src/components/ZarvaSplash';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import palette from './src/design-system/tokens/colors';
 
 
 import messaging, {
@@ -153,9 +154,14 @@ export default function App() {
         try {
           const parsed = JSON.parse(data);
 
-          // Only recover if alert is fresh (< 30s old)
           const now = Date.now();
-          const elapsed = (now - (parsed.timestamp || 0)) / 1000;
+          const ts = parsed.timestamp;
+          if (!ts || ts < 1000000000000) { // sanity: must be a real ms timestamp
+            AsyncStorage.removeItem('zarva:pending_job_alert').catch(() => { });
+            return;
+          }
+
+          const elapsed = (now - ts) / 1000;
           const window = parsed.acceptWindow || 20;
 
           if (elapsed < window) {
@@ -246,8 +252,6 @@ export default function App() {
         timestamp: Date.now()
       };
 
-      AsyncStorage.setItem('zarva:pending_job_alert', JSON.stringify(alertPayload)).catch(() => { });
-
       const workerStore = useWorkerStore.getState();
       workerStore.setPendingJobAlert(alertPayload);
       JobAlertService.startAlertLoop().catch(console.warn);
@@ -276,8 +280,8 @@ export default function App() {
     // This loading view renders before ThemeProvider — use raw design-system constants.
     // Hardcoded hex avoided by importing the token source values directly.
     return (
-      <View style={{ flex: 1, backgroundColor: '#0A0A0F', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#CFA34B" />
+      <View style={{ flex: 1, backgroundColor: palette.purple900, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={palette.purple500} />
       </View>
     );
   }
