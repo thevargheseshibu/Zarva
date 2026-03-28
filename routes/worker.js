@@ -12,6 +12,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { v4 as uuid } from 'uuid';
 import { calculateTravelCharge } from '../utils/pricingEngine.js';
+import supportService from '../services/supportService.js';
 
 const router = express.Router();
 
@@ -98,6 +99,12 @@ router.get('/jobs/:id', (req, res) =>
             }
             
             job.end_otp = endOtp;
+        } else if (job.status === 'pause_requested') {
+            const redisClient = getRedisClient();
+            job.action_otp = await redisClient.get(`zarva:otp:pause:${jobId}`);
+        } else if (job.status === 'resume_requested') {
+            const redisClient = getRedisClient();
+            job.action_otp = await redisClient.get(`zarva:otp:resume:${jobId}`);
         }
 
         return { job };
@@ -131,20 +138,18 @@ router.post('/jobs/:id/accept', (req, res) =>
                 throw Object.assign(new Error('Job is no longer available'), { status: 409 });
             }
 
-            // 2. Check worker's current status
+            // 2. Check worker's current status and active jobs
             const [profiles] = await conn.query(
-                'SELECT current_job_id, last_location_lat, last_location_lng FROM worker_profiles WHERE user_id = $1 FOR UPDATE',
+                'SELECT last_location_lat, last_location_lng FROM worker_profiles WHERE user_id = $1 FOR UPDATE',
                 [userId]
             );
             const wp = profiles[0];
             if (!wp) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
-            if (wp.current_job_id) {
-                // If the worker has an active job, verify it's not THIS job already accepted (idempotency)
-                if (parseInt(wp.current_job_id) === parseInt(jobId)) {
-                    await conn.rollback();
-                    return { success: true, already_accepted: true };
-                }
-                throw Object.assign(new Error('You already have an active job'), { status: 400 });
+
+            const concurrencyCheck = await supportService.canUserTakeNewJob(userId);
+            if (!concurrencyCheck.can_take) {
+                await conn.rollback();
+                throw Object.assign(new Error(concurrencyCheck.reason), { status: 403 });
             }
 
             // 3. Calculate travel charge based on latest known location
@@ -187,6 +192,9 @@ router.post('/jobs/:id/accept', (req, res) =>
                 SET current_job_id = $1 
                 WHERE user_id = $2
             `, [jobId, userId]);
+
+            // Increment active job count via centralized service
+            await supportService.updateConcurrencySlot(userId, 'job_accepted');
 
             await conn.commit();
 
@@ -458,52 +466,6 @@ router.post('/jobs/:id/inspection/estimate', (req, res) =>
     })
 );
 
-/**
- * Worker requests 10 min inspection extension
- * POST /api/worker/jobs/:id/inspection/extend-request
- */
-router.post('/jobs/:id/inspection/extend-request', (req, res) =>
-    handle(req, res, async (userId, pool) => {
-        const jobId = req.params.id;
-        const [jobs] = await pool.query('SELECT status, worker_id, inspection_extension_count FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
-        const job = jobs[0];
-
-        if (!job) throw Object.assign(new Error('Job not found'), { status: 404 });
-        if (job.status !== 'inspection_active' && job.status !== 'worker_arrived') {
-            throw Object.assign(new Error('Cannot extend at this stage'), { status: 400 });
-        }
-        if ((job.inspection_extension_count || 0) >= 2) {
-            throw Object.assign(new Error('Maximum extensions reached'), { status: 403 });
-        }
-
-        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-        const hash = await bcrypt.hash(otp, 10);
-
-        await pool.query(`
-            UPDATE jobs 
-            SET inspection_extension_otp_hash = $1
-            WHERE id = $2
-        `, [hash, jobId]);
-
-        const redisClient = getRedisClient();
-        await redisClient.set(`zarva:otp:inspect-ext:${jobId}`, otp, 'EX', 600);
-
-        return { otp };
-    })
-);
-
-/**
- * Recover extension OTP
- * GET /api/worker/jobs/:id/inspection/extension-otp
- */
-router.get('/jobs/:id/inspection/extension-otp', (req, res) =>
-    handle(req, res, async (userId, pool) => {
-        const jobId = req.params.id;
-        const redisClient = getRedisClient();
-        const otp = await redisClient.get(`zarva:otp:inspect-ext:${jobId}`);
-        return { otp };
-    })
-);
 
 /**
  * Worker verifies customer's start OTP to begin work
@@ -659,25 +621,19 @@ router.post('/jobs/:id/suspend-request', (req, res) =>
         const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
         if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
 
-        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-        const hash = await bcrypt.hash(otp, 10);
-
         await pool.query(`
             UPDATE jobs 
             SET status = 'suspend_requested',
                 suspend_reason = $1,
                 suspend_reschedule_at = $2,
-                suspend_otp_hash = $3
-            WHERE id = $4
-        `, [reason, reschedule_at, hash, jobId]);
-
-        const redisClient = getRedisClient();
-        await redisClient.set(`zarva:otp:suspend:${jobId}`, otp, 'EX', 1800);
+                suspend_otp_hash = NULL
+            WHERE id = $3
+        `, [reason, reschedule_at, jobId]);
 
         const { updateJobNode } = await import('../services/firebase.service.js');
         await updateJobNode(jobId, { status: 'suspend_requested', suspend_reason: reason });
 
-        return { success: true, otp };
+        return { success: true };
     })
 );
 

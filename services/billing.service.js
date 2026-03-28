@@ -3,6 +3,7 @@ import configLoader from '../config/loader.js';
 import bcrypt from 'bcrypt';
 import { updateJobNode } from './firebase.service.js';
 import * as PricingService from './pricing.service.js';
+import supportService from './supportService.js';
 
 class BillingService {
 
@@ -475,9 +476,9 @@ class BillingService {
                 [partialAmount, jobId]
             );
 
-            // CHANGE: Clear worker active job on rejection to prevent "ghost job" blocking new matches.
             if (job.worker_id) {
                 await conn.query('UPDATE worker_profiles SET current_job_id = NULL WHERE user_id = $1', [job.worker_id]);
+                await supportService.updateConcurrencySlot(job.worker_id, 'job_finished');
             }
 
             await this._recordTimerEvent(conn, jobId, 'estimate_rejected', 'customer', 'Customer rejected estimate');
@@ -682,7 +683,7 @@ class BillingService {
         return { requested: true };
     }
 
-    async approveSuspend(jobId, otpInput, customerId) {
+    async approveSuspend(jobId, customerId) {
         const pool = getPool();
         const conn = await pool.getConnection();
         await conn.beginTransaction();
@@ -694,24 +695,26 @@ class BillingService {
             if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
             if (job.status !== 'suspend_requested') throw Object.assign(new Error('No suspension pending'), { status: 400 });
 
-            const match = await this._compareOtpWithFallback(jobId, otpInput, job.suspend_otp_hash, `zarva:otp:suspend:${jobId}`);
-            if (!match) throw Object.assign(new Error('Invalid reschedule code'), { status: 400 });
-
             // Bill today's work then suspend
             const bill = await this.stopJobAndBill(jobId, 'worker', conn, 'suspended');
             await conn.query('UPDATE jobs SET suspended_at=NOW() WHERE id=$1', [jobId]);
             await this._recordTimerEvent(conn, jobId, 'job_suspended', 'customer', 'Reschedule approved');
 
             // Create follow-up linked job
-            const crypto = (await import('crypto')).default;
+            const idempotencyKey = `resched-${jobId}-${Date.now()}`;
             const [newJobs] = await conn.query(
-                `INSERT INTO jobs (customer_id, worker_id, category, address, description,
-                    latitude, longitude, hourly_rate, status, scheduled_for)
-                 SELECT customer_id, worker_id, category, address, description,
-                    latitude, longitude, hourly_rate, 'assigned', $1
-                 FROM jobs WHERE id=$2
+                `INSERT INTO jobs (
+                    idempotency_key, customer_id, worker_id, category, address, description,
+                    latitude, longitude, job_location, pincode, city, district, customer_address_detail,
+                    rate_per_hour, hourly_rate, status, scheduled_at
+                 )
+                 SELECT 
+                    $1, customer_id, worker_id, category, address, description,
+                    latitude, longitude, job_location, pincode, city, district, customer_address_detail,
+                    rate_per_hour, hourly_rate, 'assigned', $2
+                 FROM jobs WHERE id=$3
                  RETURNING id`,
-                [job.suspend_reschedule_at, jobId]
+                [idempotencyKey, job.suspend_reschedule_at, jobId]
             );
             const followupId = newJobs[0]?.id;
             if (followupId) {
@@ -960,10 +963,10 @@ class BillingService {
             if (!job) throw new Error('Job not found');
             
             // Double-check final amounts to prevent ledger issues
-            const expectedMaterialPaise = job.actual_materials_paise || 0;
-            const declaredMaterialPaise = job.final_material_paise || 0;
-            const expectedTotal = (job.final_labor_paise || 0) + expectedMaterialPaise;
-            const declaredTotal = job.grand_total_paise || 0;
+            const expectedMaterialPaise = Number(job.actual_materials_paise || 0);
+            const declaredMaterialPaise = Number(job.final_material_paise || 0);
+            const expectedTotal = Number(job.final_labor_paise || 0) + expectedMaterialPaise;
+            const declaredTotal = Number(job.grand_total_paise || 0);
             
             if (expectedMaterialPaise !== declaredMaterialPaise || expectedTotal !== declaredTotal) {
                 console.warn(`[BillingService] Amount mismatch for job ${jobId}: materials expected ${expectedMaterialPaise}, declared ${declaredMaterialPaise}, total expected ${expectedTotal}, declared ${declaredTotal}. Correcting...`);
@@ -999,15 +1002,14 @@ class BillingService {
             const totalAmount = (job.grand_total_paise || 0) / 100;
             
             await conn.query(`
-                INSERT INTO job_invoices (job_id, invoice_number, subtotal, materials_cost, total, created_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
+                INSERT INTO job_invoices (job_id, invoice_number, subtotal, total, created_at)
+                VALUES ($1, $2, $3, $4, NOW())
                 ON CONFLICT (job_id) DO UPDATE SET
                     invoice_number = EXCLUDED.invoice_number,
                     subtotal = EXCLUDED.subtotal,
-                    materials_cost = EXCLUDED.materials_cost,
                     total = EXCLUDED.total,
                     updated_at = NOW()
-            `, [jobId, invoiceNumber, laborAmount, materialAmount, totalAmount]);
+            `, [jobId, invoiceNumber, totalAmount, totalAmount]);
             
             // Record job_end timer event if not already recorded
             const [existingEnd] = await conn.query(
@@ -1029,12 +1031,24 @@ class BillingService {
                 conn
             );
             
-            // Update worker and customer profiles
+            // Find the worker's next active job (if they have multiple concurrent jobs)
+            const [nextJobs] = await conn.query(`
+                SELECT id FROM jobs 
+                WHERE worker_id = $1 
+                AND status NOT IN ('completed', 'cancelled', 'no_worker_found', 'disputed')
+                ORDER BY created_at DESC LIMIT 1
+            `, [job.worker_id]);
+            const nextJobId = nextJobs.length > 0 ? nextJobs[0].id : null;
+
+            // Update worker profile
             await conn.query(`
                 UPDATE worker_profiles 
-                SET total_jobs = total_jobs + 1, current_job_id = NULL 
-                WHERE user_id = $1
-            `, [job.worker_id]);
+                SET total_jobs = total_jobs + 1, current_job_id = $1 
+                WHERE user_id = $2
+            `, [nextJobId, job.worker_id]);
+
+            // Decrement active job count
+            await supportService.updateConcurrencySlot(job.worker_id, 'job_finished');
             
             await conn.query(`
                 UPDATE customer_profiles 

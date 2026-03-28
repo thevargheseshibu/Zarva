@@ -119,6 +119,7 @@ class CoverageService {
           service_center = ST_GeogFromText($1),
           service_radius_km = $2,
           home_location = ST_GeogFromText($1),
+          service_area = ST_Buffer(ST_GeogFromText($1), $2 * 1000), /* FIX: Actually generate the boundary polygon */
           updated_at = NOW()
         WHERE user_id = $3
         RETURNING 

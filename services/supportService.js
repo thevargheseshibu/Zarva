@@ -123,6 +123,25 @@ class SupportService {
         WHERE user_id = $1
       `, [userId]);
     }
+
+    if (action === 'job_accepted') {
+      await pool.query(`
+        INSERT INTO user_job_slots(user_id, active_job_count)
+        VALUES($1, 1)
+        ON CONFLICT(user_id) DO UPDATE SET
+            active_job_count = user_job_slots.active_job_count + 1,
+            updated_at = NOW()
+      `, [userId]);
+    }
+
+    if (action === 'job_finished') {
+      await pool.query(`
+        UPDATE user_job_slots
+        SET active_job_count = GREATEST(active_job_count - 1, 0),
+            updated_at = NOW()
+        WHERE user_id = $1
+      `, [userId]);
+    }
   }
 
 
@@ -138,22 +157,32 @@ class SupportService {
 
     const { active_job_count, disputed_job_count, is_locked } = slot[0];
 
+    // Priority 1: High dispute lock
     if (is_locked) {
       return {
         can_take: false,
-        reason: 'You have 2 active disputes. Resolve at least one to continue.',
+        reason: 'Your account is locked due to unresolved disputes. Resolve at least one to continue.',
         disputed_count: disputed_job_count
       };
     }
 
-    // Has 1 disputed job? Can take 1 more
-    if (disputed_job_count >= 1 && active_job_count >= 2) {
-      return { can_take: false, reason: 'Active job limit reached (1 active + 1 disputed max)' };
+    // Priority 2: Concurrent Job Cap (Max 3)
+    const MAX_CONCURRENT = 3;
+    if (active_job_count >= MAX_CONCURRENT) {
+      return { 
+        can_take: false, 
+        reason: `Maximum concurrent job limit reached (${MAX_CONCURRENT}). Complete a job to accept more.` 
+      };
     }
 
-    // Normal: max 1 active job
-    if (disputed_job_count === 0 && active_job_count >= 1) {
-      return { can_take: false, reason: 'You already have an active job' };
+    // Optional rule: If has a dispute, can only take 1 other job?
+    // Based on user request, we are primarily moving to a 3-job system.
+    // If they have 1 dispute, they can have 2 other active jobs (total 3 slots occupied).
+    if (disputed_job_count >= 1 && (active_job_count + disputed_job_count) >= MAX_CONCURRENT) {
+        return { 
+            can_take: false, 
+            reason: 'You have an active dispute. You can only maintain 2 other active jobs.' 
+        };
     }
 
     return { can_take: true };

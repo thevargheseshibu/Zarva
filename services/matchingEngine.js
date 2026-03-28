@@ -287,6 +287,9 @@ export async function acceptJob(jobId, workerId) {
                 [jobId, workerId]
             );
 
+            // Increment active job count via centralized support service
+            await supportService.updateConcurrencySlot(workerId, 'job_accepted');
+
             await conn.commit();
             console.log(`[MatchingEngine] Job ${jobId} successfully assigned to worker ${workerId}`);
 

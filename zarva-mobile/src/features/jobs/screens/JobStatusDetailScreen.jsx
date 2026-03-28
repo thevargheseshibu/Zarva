@@ -308,23 +308,25 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const [billPreview, setBillPreview] = useState(null);
     const [billLoading, setBillLoading] = useState(false);
 
-    const handleOtpApproval = async (action, code) => {
+    const handleActionApproval = async (action, code) => {
         const finalCode = code || otpCode;
-        if (finalCode.length < 4) return Alert.alert('Enter Full OTP', 'Please enter all 4 digits.');
+        if (action !== 'suspend' && finalCode.length < 4) {
+            return Alert.alert('Enter Full OTP', 'Please enter all 4 digits.');
+        }
         setOtpActionLoading(true);
         try {
             let endpoint;
-            if (action === 'inspect_ext') endpoint = `/api/jobs/${jobId}/inspection/approve-extension`;
-            else if (action === 'pause') endpoint = `/api/jobs/${jobId}/approve-pause`;
+            if (action === 'pause') endpoint = `/api/jobs/${jobId}/approve-pause`;
             else if (action === 'resume') endpoint = `/api/jobs/${jobId}/approve-resume`;
             else if (action === 'suspend') endpoint = `/api/jobs/${jobId}/approve-suspend`;
             else throw new Error('Unknown action');
-            await apiClient.post(endpoint, { otp: finalCode }, { useLoader: false });
+            
+            await apiClient.post(endpoint, action === 'suspend' ? {} : { otp: finalCode }, { useLoader: false });
             setOtpCode('');
             await fetchJobDetails();
             Alert.alert('✅ Approved', 'Your approval has been recorded.');
         } catch (err) {
-            Alert.alert('Invalid Code', err.response?.data?.message || 'OTP did not match. Try again.');
+            Alert.alert('Error', err.response?.data?.message || 'Action failed. Try again.');
             setOtpCode('');
         } finally {
             setOtpActionLoading(false);
@@ -862,22 +864,6 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 )}
 
 
-                {/* ── Inspection Extension Pending ── */}
-                {['inspection_active', 'inspection_extension_requested'].includes(status) && job?.inspection_extension_otp_hash && (
-                    <FadeInView delay={200}>
-                        <View style={[styles.actionCard, { borderColor: '#8B5CF644' }]}>
-                            <Text style={styles.actionCardTitle}>⏳ Inspector Needs +10 Min</Text>
-                            <Text style={styles.actionCardSub}>
-                                Extension {(job.inspection_extension_count || 0) + 1}/2. Approve with your OTP, or ignore to let time expire.
-                            </Text>
-                            <OTPInput
-                                onComplete={(code) => handleOtpApproval('inspect_ext', code)}
-                                disabled={otpActionLoading}
-                            />
-                            {otpActionLoading && <Text style={styles.verifyingTxt}>Verifying…</Text>}
-                        </View>
-                    </FadeInView>
-                )}
 
 
                 {/* ── Reject Estimate Option ── */}
@@ -901,7 +887,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                 Max 2 pauses / 30 min total per job. Timer still running until approved.
                             </Text>
                             <OTPInput
-                                onComplete={(code) => handleOtpApproval('pause', code)}
+                                onComplete={(code) => handleActionApproval('pause', code)}
                                 disabled={otpActionLoading}
                             />
                             {otpActionLoading && <Text style={styles.verifyingTxt}>Verifying…</Text>}
@@ -917,7 +903,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                             <Text style={styles.actionCardTitle}>▶ Worker Wants to Resume</Text>
                             <Text style={styles.actionCardSub}>Approve to restart the timer and continue the job.</Text>
                             <OTPInput
-                                onComplete={(code) => handleOtpApproval('resume', code)}
+                                onComplete={(code) => handleActionApproval('resume', code)}
                                 disabled={otpActionLoading}
                             />
                             {otpActionLoading && <Text style={styles.verifyingTxt}>Verifying…</Text>}
@@ -942,11 +928,13 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                             <Text style={[styles.actionCardSub, { marginTop: 4, fontSize: 11, color: '#F59E0B' }]}>
                                 Approving will bill today's work and create a follow-up job for the new time.
                             </Text>
-                            <OTPInput
-                                onComplete={(code) => handleOtpApproval('suspend', code)}
-                                disabled={otpActionLoading}
+                            <PremiumButton
+                                title="Approve Reschedule"
+                                onPress={() => handleActionApproval('suspend')}
+                                loading={otpActionLoading}
+                                style={{ marginTop: 12 }}
                             />
-                            {otpActionLoading && <Text style={styles.verifyingTxt}>Verifying…</Text>}
+                            {otpActionLoading && <Text style={styles.verifyingTxt}>Updating Status…</Text>}
                         </View>
                     </FadeInView>
                 )}

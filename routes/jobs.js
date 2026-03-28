@@ -11,6 +11,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { v4 as uuid } from 'uuid';
 import configLoader from '../config/loader.js';
+import supportService from '../services/supportService.js';
 
 const router = express.Router();
 
@@ -31,9 +32,19 @@ async function cancelJobByCustomer(jobId, userId) {
 
     await pool.query("UPDATE jobs SET status = 'cancelled', cancelled_by = 'customer' WHERE id = $1", [jobId]);
 
-    // CHANGE: Clear worker active job on cancellation to prevent "ghost job" blocking new matches.
     if (job.worker_id) {
-        await pool.query('UPDATE worker_profiles SET current_job_id = NULL WHERE user_id = $1', [job.worker_id]);
+        const [nextJobs] = await pool.query(`
+            SELECT id FROM jobs 
+            WHERE worker_id = $1 
+            AND status NOT IN ('completed', 'cancelled', 'no_worker_found', 'disputed')
+            ORDER BY created_at DESC LIMIT 1
+        `, [job.worker_id]);
+        
+        const nextJobId = nextJobs.length > 0 ? nextJobs[0].id : null;
+        await pool.query('UPDATE worker_profiles SET current_job_id = $1 WHERE user_id = $2', [nextJobId, job.worker_id]);
+        
+        // Decrement active job count
+        await supportService.updateConcurrencySlot(job.worker_id, 'job_finished');
     }
 
     // CHANGE: Keep Firebase mirror aligned with SQL source of truth for cancellation.
@@ -529,6 +540,7 @@ router.post('/:id/verify-end', async (req, res) => {
         });
 
         // CHANGE: Send explicit HTTP response so mobile clients don't hang waiting for body.
+        const expectedTotal = Number(job.final_labor_paise || 0) + Number(job.actual_materials_paise || 0);
         return res.status(200).json({ status: 'ok', success: true, final_amount: expectedTotal / 100 });
     } catch (err) {
         console.error('[Jobs] POST /:id/verify-end error:', err);
@@ -692,9 +704,8 @@ router.post('/:id/approve-suspend', async (req, res) => {
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
     try {
-        const { otp } = req.body;
         const { default: BillingService } = await import('../services/billing.service.js');
-        const result = await BillingService.approveSuspend(req.params.id, otp, userId);
+        const result = await BillingService.approveSuspend(req.params.id, userId);
         return res.status(200).json({ status: 'ok', ...result });
     } catch (err) {
         console.error('[Jobs] POST /:id/approve-suspend error:', err);

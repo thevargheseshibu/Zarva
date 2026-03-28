@@ -16,16 +16,17 @@ export default function MapPickerModal({ visible, onClose, onSelectLocation, ini
     const [mapHtml, setMapHtml] = useState('');
     const webviewRef = useRef(null);
 
-    // Generate map HTML only when region changes to improve performance
+    // Generate map HTML only once when region is first set — subsequent pans use postMessage bridge
     useEffect(() => {
-        if (region) {
+        if (region && !mapHtml) {
             const html = generateMapHTML(region.latitude, region.longitude);
             setMapHtml(html);
         }
-    }, [region]);
+    }, [region, mapHtml]);
 
     useEffect(() => {
         if (visible) {
+            setMapHtml(''); // Reset so a fresh map loads on open
             setLoading(true);
             setSearchQuery('');
             setSearchResults([]);
@@ -105,7 +106,7 @@ export default function MapPickerModal({ visible, onClose, onSelectLocation, ini
             await new Promise(resolve => setTimeout(resolve, 300));
             
             const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=in&viewbox=75.8,10.5,77.5,9.5&bounded=1`,
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=in`,
                 {
                     headers: {
                         'User-Agent': 'Zarva-App/1.0'

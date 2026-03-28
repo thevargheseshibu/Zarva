@@ -8,8 +8,6 @@ import FadeInView from '@shared/ui/FadeInView';
 import Card from '@shared/ui/ZCard';
 import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 
-
-
 export default function WorkerReputationScreen({ route, navigation }) {
     const tTheme = useTokens();
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
@@ -46,7 +44,7 @@ export default function WorkerReputationScreen({ route, navigation }) {
     if (loading) {
         return (
             <View style={styles.loadingScreen}>
-                <ActivityIndicator size="large" color={t.brand.primary} />
+                <ActivityIndicator size="large" color={tTheme.brand.primary} />
                 <Text style={styles.loadingText}>{t('loading_reputation')}</Text>
             </View>
         );

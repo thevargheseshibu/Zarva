@@ -199,7 +199,9 @@ DROP TYPE IF EXISTS job_status_enum CASCADE;
 CREATE TYPE job_status_enum AS ENUM (
   'open', 'searching', 'assigned', 'worker_en_route',
   'worker_arrived', 'inspection_active', 'estimate_submitted',
-  'in_progress', 'pending_completion',
+  'in_progress', 'pending_completion', 
+  'pause_requested', 'resume_requested', 'work_paused', 
+  'suspend_requested', 'suspended',
   'completed', 'cancelled', 'disputed', 'no_worker_found'
 );
 
