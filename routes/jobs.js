@@ -713,4 +713,46 @@ router.post('/:id/approve-suspend', async (req, res) => {
     }
 });
 
+// CHANGE: Add customer bill dispute route — transitions pending_completion → disputed
+router.post('/:id/dispute', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const jobId = req.params.id;
+        if (!jobId || !/^\d+$/.test(jobId)) return fail(res, 'Not found', 404, 'NOT_FOUND');
+
+        const { reason } = req.body;
+        if (!reason || !reason.trim()) return fail(res, 'A reason is required to dispute the bill', 400, 'MISSING_REASON');
+
+        const pool = getPool();
+        const [jobs] = await pool.query('SELECT status, customer_id FROM jobs WHERE id = $1', [jobId]);
+        if (!jobs[0] || jobs[0].customer_id != userId) return fail(res, 'Not found', 404, 'NOT_FOUND');
+        if (jobs[0].status !== 'pending_completion') return fail(res, 'Job must be in billing phase to dispute', 400, 'INVALID_STATE');
+
+        await pool.query(`UPDATE jobs SET status = 'disputed', dispute_reason = $1, dispute_raised_at = NOW() WHERE id = $2`, [reason.trim(), jobId]);
+
+        const { updateJobNode } = await import('../services/firebase.service.js');
+        await updateJobNode(jobId, { status: 'disputed' });
+
+        // Auto-create a support ticket for the dispute
+        try {
+            await supportService.createTicket({
+                user_id: userId,
+                user_role: 'customer',
+                ticket_type: 'job_dispute',
+                job_id: jobId,
+                description: reason.trim()
+            });
+        } catch (ticketErr) {
+            console.warn('[Jobs] Failed to auto-create dispute ticket:', ticketErr.message);
+        }
+
+        return res.status(200).json({ status: 'ok', success: true });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/dispute error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
 export default router;

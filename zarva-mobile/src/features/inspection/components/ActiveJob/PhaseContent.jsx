@@ -9,9 +9,10 @@ export function PhaseContent({
     pulseAnim, handleNavigate, handleCall, handleArrived, handleVerifyInspectionOtp, 
     inspectionOtp, setInspectionOtp, inspectionExpirySeconds, estimateData, setEstimateData, 
     otpExpirySeconds, setStartOtp, startOtp, handleVerifyStartOtp, isInProgress,
-    setStopSheetVisible, actionOtp, handleRequestResume, handleMarkComplete, isPending, endOtp, isCompleted, useWorkerStore
+    setStopSheetVisible, actionOtp, handleRequestResume, handleMarkComplete, isPending, endOtp, isCompleted, useWorkerStore,
+    handleStartTravel, handleAcknowledgeStop, setMaterialModalVisible
 }) {
-    const isAssigned = status === 'assigned';
+    const isAssigned = status === 'assigned' || status === 'worker_en_route';
     const isArrived = status === 'worker_arrived';
     const isInspection = status === 'inspection_active';
     const isEstimateSubmitted = status === 'estimate_submitted';
@@ -52,12 +53,21 @@ export function PhaseContent({
                     </TouchableOpacity>
                 </View>
 
-                <PremiumButton
-                    title="✓ I'm Here — Confirm Arrival"
-                    onPress={handleArrived}
-                    loading={actionLoading}
-                    style={{ marginTop: 4 }}
-                />
+                {status === 'assigned' ? (
+                    <PremiumButton
+                        title="Start Travel to Client"
+                        onPress={handleStartTravel}
+                        loading={actionLoading}
+                        style={{ marginTop: 4 }}
+                    />
+                ) : (
+                    <PremiumButton
+                        title="✓ I'm Here — Confirm Arrival"
+                        onPress={handleArrived}
+                        loading={actionLoading}
+                        style={{ marginTop: 4 }}
+                    />
+                )}
             </View>
         </FadeInView>
     );
@@ -390,6 +400,47 @@ export function PhaseContent({
                 <Text style={[styles.phaseSub, { textAlign: 'center', marginBottom: 16, fontSize: 11, color: '#F59E0B' }]}>
                     Timer is frozen. You will be billed for actual elapsed time.
                 </Text>
+                <PremiumButton
+                    title="Acknowledge & Generate Bill"
+                    onPress={handleAcknowledgeStop}
+                    loading={actionLoading}
+                    style={{ marginTop: 8, width: '100%' }}
+                />
+            </View>
+        </FadeInView>
+    );
+
+    // ── SUSPENDED / RESCHEDULED ────────────────────────────────────────────
+    if (status === 'suspended') return (
+        <FadeInView delay={100}>
+            <View style={[styles.phaseCard, { borderColor: tTheme.status.success.base + '44', alignItems: 'center' }]}>
+                <Text style={{ fontSize: 56, marginBottom: 8 }}>📅</Text>
+                <Text style={[styles.phaseTitle, { color: tTheme.status.success.base, textAlign: 'center' }]}>
+                    Session Rescheduled
+                </Text>
+                <Text style={[styles.phaseSub, { textAlign: 'center', marginBottom: 16 }]}>
+                    Today's work has been saved and billed. Your follow-up session is ready.
+                </Text>
+                {job?.followup_job_id ? (
+                    <PremiumButton
+                        title="Go to Follow-up Job →"
+                        onPress={() => {
+                            useWorkerStore.getState().setActiveJob(null);
+                            navigation.replace('ActiveJob', { jobId: job.followup_job_id });
+                        }}
+                        style={{ marginTop: 8, width: '100%' }}
+                    />
+                ) : (
+                    <PremiumButton
+                        variant="secondary"
+                        title="Back to Dashboard"
+                        onPress={() => {
+                            useWorkerStore.getState().setActiveJob(null);
+                            navigation.navigate('WorkerTabs');
+                        }}
+                        style={{ marginTop: 8, width: '100%' }}
+                    />
+                )}
             </View>
         </FadeInView>
     );
@@ -418,6 +469,13 @@ export function PhaseContent({
                     <ActivityIndicator size="small" color="#00E0FF" />
                     <Text style={[styles.liveTxt, { color: '#00E0FF', marginLeft: 6 }]}>Awaiting client confirmation</Text>
                 </View>
+
+                <PremiumButton
+                    variant="secondary"
+                    title="Edit Materials / Spares"
+                    onPress={() => setMaterialModalVisible && setMaterialModalVisible(true)}
+                    style={{ marginTop: 16, width: '100%' }}
+                />
             </View>
         </FadeInView>
     );

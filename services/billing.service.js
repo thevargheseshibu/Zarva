@@ -482,6 +482,19 @@ class BillingService {
             }
 
             await this._recordTimerEvent(conn, jobId, 'estimate_rejected', 'customer', 'Customer rejected estimate');
+
+            // Generate invoice and settle the partial charge to worker's wallet
+            if (partialAmount > 0 && job.worker_id) {
+                const invoiceNumber = `INV-${Date.now()}-${jobId}`;
+                await conn.query(`
+                    INSERT INTO job_invoices (job_id, invoice_number, subtotal, travel_charge, inspection_fee, total, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                `, [jobId, invoiceNumber, partialAmount, job.travel_charge || 0, job.inspection_fee || 0, partialAmount]);
+
+                const { postJobCompleteEntries } = await import('./wallet.service.js');
+                await postJobCompleteEntries(jobId, Math.round(partialAmount * 100), 0, customerId, job.worker_id, conn);
+            }
+
             await conn.commit();
 
             const { updateJobNode } = await import('./firebase.service.js');
@@ -700,18 +713,20 @@ class BillingService {
             await conn.query('UPDATE jobs SET suspended_at=NOW() WHERE id=$1', [jobId]);
             await this._recordTimerEvent(conn, jobId, 'job_suspended', 'customer', 'Reschedule approved');
 
-            // Create follow-up linked job
+            // Create follow-up linked job — carry over estimate data, zero inspection fee
             const idempotencyKey = `resched-${jobId}-${Date.now()}`;
             const [newJobs] = await conn.query(
                 `INSERT INTO jobs (
                     idempotency_key, customer_id, worker_id, category, address, description,
                     latitude, longitude, job_location, pincode, city, district, customer_address_detail,
-                    rate_per_hour, hourly_rate, status, scheduled_at
+                    rate_per_hour, hourly_rate, status, scheduled_at,
+                    estimated_duration_minutes, billing_cap_minutes, issue_notes, inspection_fee, metadata
                  )
                  SELECT 
                     $1, customer_id, worker_id, category, address, description,
                     latitude, longitude, job_location, pincode, city, district, customer_address_detail,
-                    rate_per_hour, hourly_rate, 'assigned', $2
+                    rate_per_hour, hourly_rate, 'assigned', $2,
+                    estimated_duration_minutes, billing_cap_minutes, issue_notes, 0, jsonb_build_object('is_followup', true, 'parent_job_id', id)
                  FROM jobs WHERE id=$3
                  RETURNING id`,
                 [idempotencyKey, job.suspend_reschedule_at, jobId]

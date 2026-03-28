@@ -56,6 +56,8 @@ router.get('/jobs/:id', (req, res) =>
                     j.arrived_at, j.worker_id, j.customer_id, j.inspection_expires_at,
                     j.inspection_started_at, j.job_started_at, j.job_ended_at,
                     j.work_started_at, j.work_ended_at,
+                    j.followup_job_id, j.metadata, j.suspend_reason, j.suspend_reschedule_at,
+                    j.hourly_rate, j.final_amount, j.estimated_duration_minutes, j.issue_notes,
                     -- Include inspection extension fields so worker UI can lock/unlock request button correctly after refresh.
                     j.inspection_extension_otp_hash, j.inspection_extension_count, j.inspection_extended_until,
                     c.name as customer_name, 
@@ -349,8 +351,8 @@ router.post('/jobs/:id/arrived', (req, res) =>
             throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
         }
 
-        // Fetch job and verify ownership
-        const [jobs] = await pool.query('SELECT id, status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+        // Fetch job and verify ownership — include metadata for follow-up detection
+        const [jobs] = await pool.query('SELECT id, status, worker_id, metadata FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
         const job = jobs[0];
         if (!job) throw Object.assign(new Error('Job not found or not accessible'), { status: 404 });
 
@@ -358,27 +360,52 @@ router.post('/jobs/:id/arrived', (req, res) =>
             throw Object.assign(new Error('Invalid job state for arrival'), { status: 400 });
         }
 
-        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-        const hash = await bcrypt.hash(otp, 10);
+        const isFollowup = job.metadata && job.metadata.is_followup;
 
-        await pool.query(`
-            UPDATE jobs 
-            SET inspection_otp_hash = $1, 
-                status = 'worker_arrived',
-                arrived_at = NOW(),
-                inspection_expires_at = NOW() + INTERVAL '15 minutes'
-            WHERE id = $2
-        `, [hash, jobId]);
+        if (isFollowup) {
+            // Bypass inspection — go straight to estimate_submitted (Start OTP phase)
+            const startOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+            const hash = await bcrypt.hash(startOtp, 10);
 
-        // Store OTP in Redis for customer verification (3 hours TTL)
-        const redisClient = getRedisClient();
-        await redisClient.set(`zarva:otp:inspection:${jobId}`, otp, 'EX', 10800);
-        console.log(`[Worker] Generated start OTP for job ${jobId}: ${otp}`);
+            await pool.query(`
+                UPDATE jobs 
+                SET start_otp_hash = $1, 
+                    status = 'estimate_submitted',
+                    arrived_at = NOW()
+                WHERE id = $2
+            `, [hash, jobId]);
 
-        const { updateJobNode } = await import('../services/firebase.service.js');
-        await updateJobNode(jobId, { status: 'worker_arrived', arrived_at: new Date().toISOString() });
+            const redisClient = getRedisClient();
+            await redisClient.set(`zarva:otp:start:${jobId}`, startOtp, 'EX', 10800);
+            console.log(`[Worker] Follow-up job ${jobId}: Skipped inspection, generated start OTP: ${startOtp}`);
 
-        return { arrived: true };
+            const { updateJobNode } = await import('../services/firebase.service.js');
+            await updateJobNode(jobId, { status: 'estimate_submitted', arrived_at: new Date().toISOString() });
+
+            return { arrived: true, skipped_inspection: true };
+        } else {
+            // Normal flow — go to inspection
+            const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+            const hash = await bcrypt.hash(otp, 10);
+
+            await pool.query(`
+                UPDATE jobs 
+                SET inspection_otp_hash = $1, 
+                    status = 'worker_arrived',
+                    arrived_at = NOW(),
+                    inspection_expires_at = NOW() + INTERVAL '15 minutes'
+                WHERE id = $2
+            `, [hash, jobId]);
+
+            const redisClient = getRedisClient();
+            await redisClient.set(`zarva:otp:inspection:${jobId}`, otp, 'EX', 10800);
+            console.log(`[Worker] Generated inspection OTP for job ${jobId}: ${otp}`);
+
+            const { updateJobNode } = await import('../services/firebase.service.js');
+            await updateJobNode(jobId, { status: 'worker_arrived', arrived_at: new Date().toISOString() });
+
+            return { arrived: true };
+        }
     })
 );
 
@@ -909,6 +936,55 @@ router.post('/onboarding/service-area', handle(async (userId, pool, req) => {
 
     // Note: The service_area polygon is automatically updated by the DB trigger
     return { success: true, radius_km: radius };
+}));
+
+/**
+ * Worker starts travel to job (used for follow-up jobs where status is 'assigned')
+ * POST /api/worker/jobs/:id/start-travel
+ */
+router.post('/jobs/:id/start-travel', handle(async (userId, pool, req) => {
+    const jobId = req.params.id;
+    if (!/^\d+$/.test(jobId)) throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
+
+    const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+    if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+    if (jobs[0].status !== 'assigned') throw Object.assign(new Error('Job is not in assigned state'), { status: 400 });
+
+    await pool.query(`UPDATE jobs SET status = 'worker_en_route' WHERE id = $1`, [jobId]);
+    const { updateJobNode } = await import('../services/firebase.service.js');
+    await updateJobNode(jobId, { status: 'worker_en_route' });
+    return { success: true };
+}));
+
+/**
+ * Worker acknowledges customer stop and generates end OTP + bill
+ * POST /api/worker/jobs/:id/acknowledge-stop
+ */
+router.post('/jobs/:id/acknowledge-stop', handle(async (userId, pool, req) => {
+    const jobId = req.params.id;
+    if (!/^\d+$/.test(jobId)) throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
+
+    const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+    if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+    if (jobs[0].status !== 'customer_stopping') throw Object.assign(new Error('Job is not stopping'), { status: 400 });
+
+    // Bill for actual work done, transition to pending_completion
+    const { default: BillingService } = await import('../services/billing.service.js');
+    await BillingService.stopJobAndBill(jobId, 'worker', null, 'pending_completion');
+
+    // Generate end OTP for customer to verify completion
+    const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+    const hash = await bcrypt.hash(otp, 10);
+
+    await pool.query(`UPDATE jobs SET end_otp_hash = $1 WHERE id = $2`, [hash, jobId]);
+    const redisClient = getRedisClient();
+    await redisClient.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800);
+    console.log(`[Worker] Acknowledged stop for job ${jobId}, generated end OTP: ${otp}`);
+
+    const { updateJobNode } = await import('../services/firebase.service.js');
+    await updateJobNode(jobId, { status: 'pending_completion', timer_status: 'stopped' });
+
+    return { success: true, end_otp: otp };
 }));
 
 export default router;

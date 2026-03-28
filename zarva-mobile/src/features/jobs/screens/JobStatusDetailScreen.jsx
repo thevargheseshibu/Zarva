@@ -386,6 +386,41 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         }
     };
 
+    const handleDisputeBill = () => {
+        Alert.alert(
+            'Dispute Bill',
+            'Please provide a reason for disputing this bill. The job will be paused and our support team will review it.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Submit Dispute', style: 'destructive', onPress: () => {
+                        Alert.prompt
+                            ? Alert.prompt('Dispute Reason', 'Describe the issue:', async (reason) => {
+                                if (!reason || !reason.trim()) return Alert.alert('Required', 'A reason is required to dispute the bill.');
+                                try {
+                                    await apiClient.post(`/api/jobs/${jobId}/dispute`, { reason });
+                                    await fetchJobDetails();
+                                    Alert.alert('Dispute Raised', 'A support ticket has been created. Our team will contact you shortly.');
+                                } catch (err) {
+                                    Alert.alert('Error', err.response?.data?.message || 'Failed to raise dispute.');
+                                }
+                            })
+                            : (async () => {
+                                // Android fallback — Alert.prompt is iOS only
+                                try {
+                                    await apiClient.post(`/api/jobs/${jobId}/dispute`, { reason: 'Customer disputes the bill (submitted via quick action)' });
+                                    await fetchJobDetails();
+                                    Alert.alert('Dispute Raised', 'A support ticket has been created. Our team will contact you shortly.');
+                                } catch (err) {
+                                    Alert.alert('Error', err.response?.data?.message || 'Failed to raise dispute.');
+                                }
+                            })()
+                    }
+                }
+            ]
+        );
+    };
+
 
     // ── Hardware back guard ────────────────────────────────────────────
     useFocusEffect(useCallback(() => {
@@ -421,6 +456,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         work_paused:        { color: tTheme.status.warning.base, icon: '⏸️', title: 'Work Paused',                 sub: 'The job is paused. Approve the resume request to continue.' },
         resume_requested:   { color: '#00E0FF',                   icon: '▶️', title: 'Resume Requested',            sub: 'The professional is ready to resume. Your approval is needed.' },
         suspend_requested:  { color: '#8B5CF6',                   icon: '📅', title: 'Reschedule Requested',        sub: 'The professional has proposed a new time. Your approval is needed.' },
+        suspended:          { color: tTheme.status.success.base, icon: '📅', title: 'Job Rescheduled',             sub: 'Today\'s session is closed. Your follow-up appointment is booked.' },
         customer_stopping:  { color: tTheme.status.warning.base, icon: '⏸️', title: 'Work Stopped',                sub: 'You have stopped the job. Waiting for the professional to confirm.' },
         pending_completion: { color: tTheme.status.warning.base, icon: '✔️', title: 'Awaiting Your Approval',      sub: 'Enter the completion code to finalize and proceed to payment.' },
         completed:          { color: tTheme.status.success.base, icon: '⭐', title: 'Job Completed!',              sub: 'Excellent! Your service has been successfully completed.' },
@@ -735,6 +771,12 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
                             </View>
                             {verifyingEndOtp && <Text style={styles.verifyingTxt}>Verifying…</Text>}
+
+                            <TouchableOpacity onPress={handleDisputeBill} style={{ marginTop: 24, paddingVertical: 8 }}>
+                                <Text style={{ color: tTheme.status.error.base, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+                                    Disagree with this bill? Raise a Dispute
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </FadeInView>
                 )}
@@ -751,6 +793,32 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                 onPress={() => navigation.navigate('Rating', { jobId })}
                                 style={{ marginTop: 16 }}
                             />
+                        </View>
+                    </FadeInView>
+                )}
+
+                {/* SUSPENDED / RESCHEDULED */}
+                {status === 'suspended' && (
+                    <FadeInView delay={100}>
+                        <View style={[styles.phaseCard, { borderColor: tTheme.status.success.base + '55', alignItems: 'center' }]}>
+                            <Text style={{ fontSize: 54 }}>📅</Text>
+                            <Text style={[styles.phaseTitle, { textAlign: 'center', color: tTheme.status.success.base, marginTop: 8 }]}>Session Rescheduled!</Text>
+                            <Text style={[styles.phaseSub, { textAlign: 'center', marginBottom: 16 }]}>Today's work is complete. Please pay the bill for today's session below.</Text>
+                            
+                            <PremiumButton
+                                title="View Bill / Pay Now"
+                                onPress={() => navigation.replace('Payment', { jobId })}
+                                style={{ width: '100%', marginBottom: 12 }}
+                            />
+                            
+                            {job?.followup_job_id && (
+                                <PremiumButton
+                                    variant="secondary"
+                                    title="View Follow-up Booking"
+                                    onPress={() => navigation.replace('JobStatusDetail', { jobId: job.followup_job_id })}
+                                    style={{ width: '100%' }}
+                                />
+                            )}
                         </View>
                     </FadeInView>
                 )}

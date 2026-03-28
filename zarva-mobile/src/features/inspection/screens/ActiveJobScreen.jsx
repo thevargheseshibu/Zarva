@@ -407,6 +407,34 @@ export default function ActiveJobScreen({ route, navigation }) {
         }
     };
 
+    const handleStartTravel = async () => {
+        setActionLoading(true);
+        try {
+            await apiClient.post(`/api/worker/jobs/${jobId}/start-travel`);
+            setStatus('worker_en_route');
+            await fetchJob();
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Failed to start travel.');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleAcknowledgeStop = async () => {
+        setActionLoading(true);
+        try {
+            const res = await apiClient.post(`/api/worker/jobs/${jobId}/acknowledge-stop`);
+            setStatus('pending_completion');
+            if (res.data?.end_otp) setEndOtp(res.data.end_otp);
+            await fetchJob();
+            setMaterialsVisible(true);
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Failed.');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     const handlePickRescheduleDate = async () => {
         const promptTimeSlot = (dateBase) => {
             Alert.alert(
@@ -525,6 +553,9 @@ export default function ActiveJobScreen({ route, navigation }) {
                     endOtp={endOtp}
                     isCompleted={['completed', 'cancelled', 'no_worker_found'].includes(status)}
                     useWorkerStore={useWorkerStore}
+                    handleStartTravel={handleStartTravel}
+                    handleAcknowledgeStop={handleAcknowledgeStop}
+                    setMaterialModalVisible={setMaterialsVisible}
                 />
             </ScrollView>
 
