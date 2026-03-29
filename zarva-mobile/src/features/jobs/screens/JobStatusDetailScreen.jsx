@@ -837,11 +837,19 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                         <View style={[styles.phaseCard, { borderColor: tTheme.status.success.base + '55', alignItems: 'center' }]}>
                             <Text style={{ fontSize: 54 }}>⭐</Text>
                             <Text style={[styles.phaseTitle, { textAlign: 'center', color: tTheme.status.success.base, marginTop: 8 }]}>Job Completed!</Text>
-                            <Text style={[styles.phaseSub, { textAlign: 'center' }]}>Thank you for using Zarva. Your service is complete. How was your experience?</Text>
+                            <Text style={[styles.phaseSub, { textAlign: 'center', marginBottom: 16 }]}>Your service is complete. Please review the final bill and proceed to payment.</Text>
+                            
                             <PremiumButton
+                                title="View Bill & Pay"
+                                onPress={() => navigation.replace('Payment', { jobId })}
+                                style={{ width: '100%', marginBottom: 12 }}
+                            />
+
+                            <PremiumButton
+                                variant="secondary"
                                 title="Leave a Review"
                                 onPress={() => navigation.navigate('Rating', { jobId })}
-                                style={{ marginTop: 16 }}
+                                style={{ width: '100%' }}
                             />
                         </View>
                     </FadeInView>

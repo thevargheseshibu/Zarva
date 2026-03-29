@@ -41,7 +41,7 @@ function SummaryRow({ label, value, highlight, sub }) {
 }
 
 export default function JobCompleteSummaryScreen({ navigation, route }) {
-    const { jobId } = route.params;
+    const { jobId, isCustomerStopped } = route.params;
     const { token } = useAuthStore();
     const [preview, setPreview] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -63,14 +63,25 @@ export default function JobCompleteSummaryScreen({ navigation, route }) {
     };
 
     const confirmAndSend = () => {
-        Alert.alert(
-            'Send to Customer?',
-            `Grand total is ${formatPaise(preview?.grand_total_paise || 0)}. The customer will verify with their OTP.`,
-            [
-                { text: 'Review Again', style: 'cancel' },
-                { text: 'Confirm & Send', onPress: handleSend, style: 'default' }
-            ]
-        );
+        if (isCustomerStopped) {
+            Alert.alert(
+                'Finalize Bill',
+                `Grand total is ${formatPaise(preview?.grand_total_paise || 0)}. Since the customer stopped the work early, no OTP is required. Generate final bill now?`,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Finalize & Complete', onPress: handleFinalizeDirect, style: 'default' }
+                ]
+            );
+        } else {
+            Alert.alert(
+                'Send to Customer?',
+                `Grand total is ${formatPaise(preview?.grand_total_paise || 0)}. The customer will verify with their OTP.`,
+                [
+                    { text: 'Review Again', style: 'cancel' },
+                    { text: 'Confirm & Send', onPress: handleSend, style: 'default' }
+                ]
+            );
+        }
     };
 
     const handleSend = async () => {
@@ -85,6 +96,20 @@ export default function JobCompleteSummaryScreen({ navigation, route }) {
         } catch (err) {
             const msg = err?.response?.data?.message || 'Failed to send bill';
             Alert.alert('Error', msg);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleFinalizeDirect = async () => {
+        setSubmitting(true);
+        try {
+            await apiClient.post(`/api/worker/jobs/${jobId}/finalize-direct`);
+            Alert.alert('✅ Job Completed', 'The final bill has been generated successfully.', [
+                { text: 'OK', onPress: () => navigation.popToTop() }
+            ]);
+        } catch (err) {
+            Alert.alert('Error', err?.response?.data?.message || 'Failed to finalize job');
         } finally {
             setSubmitting(false);
         }

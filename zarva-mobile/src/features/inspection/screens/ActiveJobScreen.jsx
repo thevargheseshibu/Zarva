@@ -465,6 +465,12 @@ export default function ActiveJobScreen({ route, navigation }) {
             await apiClient.post(`/api/worker/jobs/${jobId}/materials`, { items: validItems });
             setMaterialsVisible(false);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            // Navigate to the summary screen to review the bill
+            navigation.navigate('JobCompleteSummary', { 
+                jobId,
+                isCustomerStopped: status === 'customer_stopping' || job?.customer_stopped_at != null
+            });
         } catch (err) {
             Alert.alert('Error', err.response?.data?.message || 'Could not save materials.');
         } finally {
