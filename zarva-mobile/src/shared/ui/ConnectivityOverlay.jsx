@@ -3,7 +3,7 @@
  * 
  * High-level component to block the app if internet is down or server is offline.
  */
-import React from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useUIStore } from '@shared/hooks/uiStore';
@@ -14,15 +14,15 @@ const { width, height } = Dimensions.get('window');
 const ConnectivityOverlay = ({ children }) => {
     const { isNetConnected, isServerUp, setNetConnected, setServerUp } = useUIStore();
     const t = useTokens();
-    const dynStyles = React.useMemo(() => createOverlayStyles(t), [t]);
+    const dynStyles = useMemo(() => createOverlayStyles(t), [t]);
 
-    const fadeAnim = React.useRef(new Animated.Value(0)).current;
+    const fadeAnim = useRef(new Animated.Value(0)).current;
 
-    const [isChecking, setIsChecking] = React.useState(false);
+    const [isChecking, setIsChecking] = useState(false);
 
     const isBlocking = !isNetConnected || !isServerUp;
 
-    React.useEffect(() => {
+    useEffect(() => {
         Animated.timing(fadeAnim, {
             toValue: isBlocking ? 1 : 0,
             duration: 400,

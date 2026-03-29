@@ -20,7 +20,8 @@ const VIEW_EXPIRY_SECONDS = 60 * 60; // 1 hour for GET
 const VALID_PURPOSES = new Set([
     'worker_doc',
     'job_photo',
-    'profile_photo'
+    'profile_photo',
+    'extension_proof'
 ]);
 
 /**

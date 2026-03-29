@@ -202,10 +202,13 @@ export async function postJobStartEntries(jobId, estimatedAmountPaise, customerI
  * Release escrow, split to worker/platform/gateway/gst
  */
 export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAmountPaise, customerId, workerId, pool) {
-    const finalAmountPaise = laborAmountPaise + materialAmountPaise;
+    // Ensure numeric addition (prevents string concatenation if inputs are from DB)
+    let l = Number(laborAmountPaise || 0);
+    let m = Number(materialAmountPaise || 0);
+    let finalAmountPaiseVal = l + m;
 
-    if (finalAmountPaise <= 0 || finalAmountPaise > MAX_SINGLE_JOB_PAISE) {
-        throw new Error(`Invalid final amount: ${finalAmountPaise} paise (labor: ${laborAmountPaise}, materials: ${materialAmountPaise})`);
+    if (finalAmountPaiseVal <= 0 || finalAmountPaiseVal > MAX_SINGLE_JOB_PAISE) {
+        throw new Error(`Invalid final amount: ${finalAmountPaiseVal} paise (labor: ${l}, materials: ${m})`);
     }
     
     // Validate that the amounts are consistent with job data to prevent double ledger issues
@@ -216,23 +219,23 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
     
     if (jobCheck.length > 0) {
         const job = jobCheck[0];
-        const expectedTotal = (job.final_labor_paise || 0) + (job.final_material_paise || 0);
-        const declaredTotal = job.grand_total_paise || 0;
+        const expectedTotal = Number(job.final_labor_paise || 0) + Number(job.final_material_paise || 0);
+        const declaredTotal = Number(job.grand_total_paise || 0);
         
-        if (laborAmountPaise !== (job.final_labor_paise || 0) || 
-            materialAmountPaise !== (job.final_material_paise || 0) ||
-            finalAmountPaise !== declaredTotal) {
+        if (l !== Number(job.final_labor_paise || 0) || 
+            m !== Number(job.final_material_paise || 0) ||
+            finalAmountPaiseVal !== declaredTotal) {
             console.warn(`[Wallet] Amount mismatch detected for job ${jobId}: 
-                labor expected ${job.final_labor_paise}, got ${laborAmountPaise}
-                materials expected ${job.final_material_paise}, got ${materialAmountPaise}
-                total expected ${declaredTotal}, got ${finalAmountPaise}`);
+                labor expected ${job.final_labor_paise}, got ${l}
+                materials expected ${job.final_material_paise}, got ${m}
+                total expected ${declaredTotal}, got ${finalAmountPaiseVal}`);
             
             // Use the job's declared amounts to prevent ledger imbalance
-            laborAmountPaise = job.final_labor_paise || 0;
-            materialAmountPaise = job.final_material_paise || 0;
-            finalAmountPaise = declaredTotal;
+            l = Number(job.final_labor_paise || 0);
+            m = Number(job.final_material_paise || 0);
+            finalAmountPaiseVal = declaredTotal;
             
-            console.log(`[Wallet] Using corrected amounts for job ${jobId}: labor=${laborAmountPaise}, materials=${materialAmountPaise}, total=${finalAmountPaise}`);
+            console.log(`[Wallet] Using corrected amounts for job ${jobId}: labor=${l}, materials=${m}, total=${finalAmountPaiseVal}`);
         }
     }
     
@@ -248,19 +251,19 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
     // Materials = pure pass-through. No gateway fee or GST charged on them.
     // ALL fees are calculated ONLY on the labor portion:
     //   70% worker labor share + 25% platform + 2% gateway + ~3% GST remainder
-    // This guarantees: credits always = finalAmountPaise, regardless of labor ratio.
-    const workerLaborSharePaise = Math.floor(laborAmountPaise * 0.70);
-    const platformSharePaise = Math.floor(laborAmountPaise * 0.25);
-    const gatewayFeePaise = Math.floor(laborAmountPaise * 0.02);
+    // This guarantees: credits always = finalAmountPaiseVal, regardless of labor ratio.
+    const workerLaborSharePaise = Math.floor(l * 0.70);
+    const platformSharePaise = Math.floor(l * 0.25);
+    const gatewayFeePaise = Math.floor(l * 0.02);
     // GST = remainder of labor (always >= 0 since 70+25+2=97%, remainder=3+ rounding)
-    const gstFromLaborPaise = laborAmountPaise - workerLaborSharePaise - platformSharePaise - gatewayFeePaise;
+    const gstFromLaborPaise = l - workerLaborSharePaise - platformSharePaise - gatewayFeePaise;
     // Worker total = labor share + 100% of materials
-    const workerTotalSharePaise = workerLaborSharePaise + materialAmountPaise;
+    const workerTotalSharePaise = workerLaborSharePaise + m;
 
     console.log(`[Wallet] Job ${jobId} Complete Split:`, {
-        labor: laborAmountPaise,
-        materials: materialAmountPaise,
-        finalTotal: finalAmountPaise,
+        labor: l,
+        materials: m,
+        finalTotal: finalAmountPaiseVal,
         workerShare: workerTotalSharePaise,
         platformShare: platformSharePaise,
         gatewayFee: gatewayFeePaise,
@@ -269,7 +272,7 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
     });
 
     // Sanity guard — must always balance before touching the DB
-    if (workerTotalSharePaise + platformSharePaise + gatewayFeePaise + gstFromLaborPaise !== finalAmountPaise) {
+    if (workerTotalSharePaise + platformSharePaise + gatewayFeePaise + gstFromLaborPaise !== finalAmountPaiseVal) {
         throw new Error(`[Wallet] Ledger would be unbalanced for job ${jobId}. Aborting.`);
     }
 
@@ -299,7 +302,7 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
     await insertEntry(pool, {
         transaction_id: txnId, entry_sequence: seq++,
         account_id: escrowId, user_account_id: null,
-        entry_type: 'debit', amount_paise: finalAmountPaise,
+        entry_type: 'debit', amount_paise: finalAmountPaiseVal,
         event_type: 'job_complete', job_id: jobId,
         idempotency_key: `${idempotencyKey}_escrow_debit`,
         description: `Job ${jobId} – release from escrow`,

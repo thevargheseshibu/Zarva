@@ -4,7 +4,7 @@
  * Camera-only receipt capture (no gallery). Validates per-category limits.
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
     Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Image
@@ -19,7 +19,7 @@ import apiClient from '@infra/api/client';
 
 export default function MaterialDeclarationScreen({ navigation, route }) {
     const tokens = useTokens();
-    const COLORS = React.useMemo(() => ({
+    const COLORS = useMemo(() => ({
         bg: tokens.background.app,
         surface: tokens.background.surface,
         card: tokens.background.surfaceRaised,
@@ -33,7 +33,7 @@ export default function MaterialDeclarationScreen({ navigation, route }) {
         inputBg: tokens.background.surfaceThreshold || tokens.background.app,
     }), [tokens]);
 
-    const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
+    const styles = useMemo(() => createStyles(COLORS), [COLORS]);
 
     const { jobId } = route.params;
     const [items, setItems] = useState([]);

@@ -3,7 +3,7 @@
  * 4-box OTP input: gold bottom border when active, mono 32px, auto-advance.
  * Exposes reset() via forwardRef so parents can clear boxes after failed submissions.
  */
-import React, { useRef, useState, useImperativeHandle, forwardRef } from 'react';
+import React, { useRef, useState, useImperativeHandle, forwardRef, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import {
     View,
@@ -17,7 +17,7 @@ const BOX_COUNT = 4;
 
 const OTPInput = forwardRef(function OTPInput({ onComplete, onChange, value = '', disabled = false }, ref) {
     const tTheme = useTokens();
-    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
+    const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const inputs = useRef([]);
     const [otp, setOtp] = useState(Array(BOX_COUNT).fill(''));
 

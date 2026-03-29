@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -13,7 +13,7 @@ import Card from '@shared/ui/ZCard';
 
 export default function RatingScreen({ route, navigation }) {
     const tTheme = useTokens();
-    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
+    const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || {};
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
 import Animated, {
@@ -33,7 +33,7 @@ import ZarvaHeader from '@shared/ui/ZarvaHeader';
  */
 export default function HomeScreen({ navigation }) {
     const tTheme = useTokens();
-    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
+    const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const [recentJobs, setRecentJobs] = useState([]);
     const [services, setServices] = useState([]);

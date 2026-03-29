@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
@@ -150,7 +150,7 @@ function OtpDisplay({ code, color }) {
 // ── Main Screen ─────────────────────────────────────────────────────────────
 export default function JobStatusDetailScreen({ route, navigation }) {
     const tTheme = useTokens();
-    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
+    const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || {};
     const { searchPhase, assignedWorker, clearActiveJob, startListening, stopListening } = useJobStore();
@@ -161,6 +161,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [inspectionExpirySeconds, setInspectionExpirySeconds] = useState(null);
     const [verifyingEndOtp, setVerifyingEndOtp] = useState(false);
+    const [typedEndOtp, setTypedEndOtp] = useState('');
     const [chatUnread, setChatUnread] = useState(0);
     const [workerLocation, setWorkerLocation] = useState(null); // { lat, lng }
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -333,6 +334,45 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         }
     };
 
+
+    const handleApproveEstimate = async () => {
+        setOtpActionLoading(true);
+        try {
+            await apiClient.post(`/api/jobs/${jobId}/start`);
+            await fetchJobDetails();
+            Alert.alert('✅ Started', 'The job has officially started. The professional will begin work now.');
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Failed to start job.');
+        } finally {
+            setOtpActionLoading(false);
+        }
+    };
+
+    const handleVerifyCompletion = async (code) => {
+        if (!code || code.length < 4 || verifyingEndOtp) return;
+        setVerifyingEndOtp(true);
+        let navigated = false;
+        try {
+            await apiClient.post(
+                `/api/jobs/${jobId}/verify-end-otp`,
+                { otp: code },
+                { useLoader: false, _retry: true }
+            );
+            navigated = true;
+            navigation.replace('Payment', { jobId });
+        } catch (err) {
+            if (!navigated) {
+                const errData = err.response?.data;
+                const title = errData?.code === 'INVALID_OTP' ? 'Invalid Code' : 'Error';
+                const message = errData?.message || t('invalid_code') || 'The code entered is incorrect. Please try again.';
+                Alert.alert(title, message);
+                endOtpRef.current?.reset();
+                setTypedEndOtp('');
+            }
+        } finally {
+            setVerifyingEndOtp(false);
+        }
+    };
 
     const handleRejectEstimate = async () => {
         Alert.alert(
@@ -566,9 +606,16 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                             <Text style={styles.statusSub}>{cfg.sub}</Text>
                         </View>
                         {status === 'in_progress' && (
-                            <View style={[styles.timerBadge, { borderColor: cfg.color + '55' }]}>
-                                <Text style={[styles.timerTxt, { color: cfg.color }]}>{formatTime(elapsedSeconds)}</Text>
-                                <Text style={styles.timerLabel}>LIVE</Text>
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <View style={[styles.timerBadge, { borderColor: cfg.color + '55', paddingVertical: 6, marginBottom: 4 }]}>
+                                    <Text style={[styles.timerTxt, { color: cfg.color }]}>
+                                        {formatTime(Math.max(0, ((job?.billing_cap_minutes || job?.estimated_duration_minutes || 0) * 60) - elapsedSeconds))}
+                                    </Text>
+                                    <Text style={[styles.timerLabel, { color: cfg.color }]}>REMAINING</Text>
+                                </View>
+                                <Text style={{ fontSize: 10, color: cfg.color, fontWeight: '700', paddingRight: 4 }}>
+                                    ELAPSED: {formatTime(elapsedSeconds)}
+                                </Text>
                             </View>
                         )}
                     </View>
@@ -657,38 +704,55 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                     <Text style={{ fontSize: 22 }}>📋</Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.phaseMeta}>ASSESSMENT COMPLETE</Text>
-                                    <Text style={styles.phaseTitle}>Review Estimate</Text>
+                                    <Text style={styles.phaseMeta}>{job?.metadata?.is_followup ? 'READY TO RESUME' : 'ASSESSMENT COMPLETE'}</Text>
+                                    <Text style={styles.phaseTitle}>{job?.metadata?.is_followup ? 'Start Follow-up Session' : 'Review Estimate'}</Text>
                                 </View>
                             </View>
 
-                            {/* Estimate details */}
-                            <View style={styles.estimateGrid}>
-                                <View style={styles.estimateItem}>
-                                    <Text style={styles.estimateIcon}>⏱️</Text>
-                                    <Text style={styles.estimateLbl}>Est. Time</Text>
-                                    <Text style={styles.estimateVal}>{job?.estimated_duration_minutes || '–'} min</Text>
-                                </View>
-                                {job?.estimated_cost && (
-                                    <View style={styles.estimateItem}>
-                                        <Text style={styles.estimateIcon}>💰</Text>
-                                        <Text style={styles.estimateLbl}>Est. Cost</Text>
-                                        <Text style={styles.estimateVal}>₹{job.estimated_cost}</Text>
+                            {/* Estimate details - skip if follow-up */}
+                            {!job?.metadata?.is_followup && (
+                                <>
+                                    <View style={styles.estimateGrid}>
+                                        <View style={styles.estimateItem}>
+                                            <Text style={styles.estimateIcon}>⏱️</Text>
+                                            <Text style={styles.estimateLbl}>Est. Time</Text>
+                                            <Text style={styles.estimateVal}>{job?.estimated_duration_minutes || '–'} min</Text>
+                                        </View>
+                                        {job?.estimated_cost && (
+                                            <View style={styles.estimateItem}>
+                                                <Text style={styles.estimateIcon}>💰</Text>
+                                                <Text style={styles.estimateLbl}>Est. Cost</Text>
+                                                <Text style={styles.estimateVal}>₹{job.estimated_cost}</Text>
+                                            </View>
+                                        )}
                                     </View>
-                                )}
-                            </View>
 
-                            {job?.issue_notes && (
-                                <View style={styles.notesBox}>
-                                    <Text style={styles.notesLabel}>📝 PRO NOTES</Text>
-                                    <Text style={styles.notesTxt}>{job.issue_notes}</Text>
-                                </View>
+                                    {job?.issue_notes && (
+                                        <View style={styles.notesBox}>
+                                            <Text style={styles.notesLabel}>📝 PRO NOTES</Text>
+                                            <Text style={styles.notesTxt}>{job.issue_notes}</Text>
+                                        </View>
+                                    )}
+
+                                    <View style={[styles.dividerLine, { marginVertical: 16 }]} />
+                                </>
                             )}
-
-                            <View style={[styles.dividerLine, { marginVertical: 16 }]} />
-                            <Text style={styles.phaseMeta}>START CODE — Share to begin billable session</Text>
-                            <OtpDisplay code={job?.start_otp} color={tTheme.status.success.base} />
-                            <View style={[styles.codeHint, { borderColor: tTheme.status.success.base + '33', backgroundColor: tTheme.status.success.base + '08' }]}>
+                            <View style={styles.estimateActions}>
+                                <PremiumButton
+                                    title={job?.metadata?.is_followup ? "Start Session →" : "Accept Estimate & Start →"}
+                                    onPress={handleApproveEstimate}
+                                    loading={otpActionLoading}
+                                    style={{ flex: 2, marginRight: 8 }}
+                                />
+                                <TouchableOpacity 
+                                    style={styles.slimRejectBtn} 
+                                    onPress={handleRejectEstimate}
+                                    disabled={otpActionLoading}
+                                >
+                                    <Text style={styles.slimRejectTxt}>Reject</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={[styles.codeHint, { borderColor: tTheme.status.success.base + '33', backgroundColor: tTheme.status.success.base + '08', marginTop: 16 }]}>
                                 <Text style={[styles.codeHintTxt, { color: tTheme.status.success.base }]}>✓ Approving this starts the billable timer</Text>
                             </View>
                         </View>
@@ -739,34 +803,20 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                 <OTPInput
                                     ref={endOtpRef}
                                     disabled={verifyingEndOtp}
-                                    onComplete={async (code) => {
-                                        setVerifyingEndOtp(true);
-                                        let navigated = false;
-                                        try {
-                                            // useLoader:false prevents the global loader from interfering
-                                            // _retry:true disables the apiClient auto-retry which was
-                                            // causing: error alert fires → retry succeeds → navigate — both fire
-                                            await apiClient.post(
-                                                `/api/jobs/${jobId}/verify-end-otp`,
-                                                { otp: code },
-                                                { useLoader: false, _retry: true }
-                                            );
-                                            navigated = true;
-                                            navigation.replace('Payment', { jobId });
-                                        } catch (err) {
-                                            if (!navigated) {
-                                                const errData = err.response?.data;
-                                                const title = errData?.code === 'INVALID_OTP' ? 'Invalid Code' : 'Error';
-                                                const message = errData?.message || t('invalid_code') || 'The code entered is incorrect. Please try again.';
-                                                
-                                                Alert.alert(title, message);
-                                                // Clear boxes so customer can re-enter the correct code
-                                                endOtpRef.current?.reset();
-                                            }
-                                        } finally {
-                                            setVerifyingEndOtp(false);
-                                        }
+                                    onChange={setTypedEndOtp}
+                                    onComplete={(code) => {
+                                        setTypedEndOtp(code);
+                                        // Still auto-submit for power users
+                                        handleVerifyCompletion(code);
                                     }}
+                                />
+
+                                <PremiumButton
+                                    title="Verify & Finish Job"
+                                    onPress={() => handleVerifyCompletion(typedEndOtp)}
+                                    loading={verifyingEndOtp}
+                                    disabled={typedEndOtp.length < 4}
+                                    style={{ marginTop: 20 }}
                                 />
 
                             </View>
@@ -1179,6 +1229,13 @@ const createStyles = (t) => StyleSheet.create({
     notesLabel: { color: t.text.tertiary, fontSize: 9, fontWeight: '900', letterSpacing: 2, marginBottom: 6 },
     notesTxt: { color: t.text.secondary, fontSize: 13, lineHeight: 19 },
     dividerLine: { height: 1, backgroundColor: t.border.default + '22' },
+    estimateActions: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+    slimRejectBtn: { 
+        paddingHorizontal: 16, paddingVertical: 12, 
+        borderRadius: 12, borderWidth: 1, borderColor: '#EF444433', 
+        backgroundColor: '#EF444408', justifyContent: 'center', alignItems: 'center' 
+    },
+    slimRejectTxt: { color: '#EF4444', fontSize: 13, fontWeight: '800' },
 
     // in progress
     liveIndicator: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12 },

@@ -146,6 +146,7 @@ class SupportService {
 
 
   // ─── Check if user can take a new job ──────────────────────────
+  // ─── Check if user can take a new job ──────────────────────────
   async canUserTakeNewJob(userId) {
     const pool = getPool();
     const [slot] = await pool.query(
@@ -153,9 +154,32 @@ class SupportService {
       [userId]
     );
 
-    if (!slot[0]) return { can_take: true };
+    let active_job_count = slot[0]?.active_job_count || 0;
+    let disputed_job_count = slot[0]?.disputed_job_count || 0;
+    let is_locked = slot[0]?.is_locked || false;
 
-    const { active_job_count, disputed_job_count, is_locked } = slot[0];
+    // Concurrency Slot Resync (Self-healing logic)
+    // If the cache thinks we are full, double-check the source of truth (jobs table)
+    // and correct the cache if it's stale (e.g. after a previous finalization crash).
+    const MAX_CONCURRENT = 3;
+    if (active_job_count >= MAX_CONCURRENT || active_job_count < 0) {
+        const [actualJobs] = await pool.query(
+            `SELECT COUNT(*) as count FROM jobs 
+             WHERE worker_id = $1 
+             AND status NOT IN ('completed', 'cancelled', 'no_worker_found', 'disputed', 'suspended')`,
+            [userId]
+        );
+        const actualCount = parseInt(actualJobs[0].count);
+        if (actualCount !== active_job_count) {
+            console.log(`[SupportService] Syncing active_job_count for user ${userId}: cache=${active_job_count}, actual=${actualCount}`);
+            await pool.query(
+                `INSERT INTO user_job_slots(user_id, active_job_count) VALUES($1, $2)
+                 ON CONFLICT(user_id) DO UPDATE SET active_job_count = $2, updated_at = NOW()`,
+                [userId, actualCount]
+            );
+            active_job_count = actualCount;
+        }
+    }
 
     // Priority 1: High dispute lock
     if (is_locked) {
@@ -166,8 +190,7 @@ class SupportService {
       };
     }
 
-    // Priority 2: Concurrent Job Cap (Max 3)
-    const MAX_CONCURRENT = 3;
+    // Priority 2: Concurrent Job Cap
     if (active_job_count >= MAX_CONCURRENT) {
       return { 
         can_take: false, 
@@ -176,8 +199,6 @@ class SupportService {
     }
 
     // Optional rule: If has a dispute, can only take 1 other job?
-    // Based on user request, we are primarily moving to a 3-job system.
-    // If they have 1 dispute, they can have 2 other active jobs (total 3 slots occupied).
     if (disputed_job_count >= 1 && (active_job_count + disputed_job_count) >= MAX_CONCURRENT) {
         return { 
             can_take: false, 

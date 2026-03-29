@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, BackHandler, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -15,7 +15,7 @@ import PressableAnimated from '@shared/design-system/components/PressableAnimate
 
 export default function SearchingScreen({ route, navigation }) {
     const tTheme = useTokens();
-    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
+    const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { category, jobId } = route.params || { category: 'unknown', jobId: 'mock-123' };
     const [countdown, setCountdown] = useState(5);

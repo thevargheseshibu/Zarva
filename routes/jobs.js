@@ -12,6 +12,7 @@ import bcrypt from 'bcrypt';
 import { v4 as uuid } from 'uuid';
 import configLoader from '../config/loader.js';
 import supportService from '../services/supportService.js';
+import billingService from '../services/billing.service.js';
 
 const router = express.Router();
 
@@ -199,61 +200,16 @@ router.get('/:id', async (req, res) => {
             if (inspectionOtp) job.inspection_otp = inspectionOtp;
         }
 
-        // If job is in estimate_submitted, fetch the start OTP
+        // If job is in estimate_submitted, start_otp is no longer required
         if (job.status === 'estimate_submitted') {
-            const redisClient = getRedisClient();
-            let startOtp = await redisClient.get(`zarva:otp:start:${jobId}`);
-            
-            // CHANGE: Recover from missing Redis OTP so the customer always sees a valid start code.
-            if (!startOtp) {
-                console.log(`[Customer] Start OTP missing for job ${jobId}. Regenerating recovery OTP...`);
-                startOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-                const startOtpHash = await bcrypt.hash(startOtp, 10);
-                
-                // Update DB with new hash
-                await pool.query('UPDATE jobs SET start_otp_hash = $1 WHERE id = $2', [startOtpHash, jobId]);
-                
-                // Rehydrate Redis (1 hour TTL for start_otp)
-                await redisClient.set(`zarva:otp:start:${jobId}`, startOtp, 'EX', 3600);
-            }
-
-            if (startOtp) job.start_otp = startOtp;
+            // Deprecated OTP block for start code
+            delete job.start_otp;
         }
 
         // If job is in pending_completion, fetch the END OTP from Redis to show to the customer
-        if (job.status === 'pending_completion') {
-            console.log(`[Customer] Job ${jobId} is pending_completion, fetching end OTP...`);
-            const redisClient = getRedisClient();
-            let endOtp = await redisClient.get(`zarva:otp:end:${jobId}`);
-            
-            console.log(`[Customer] Redis lookup result: ${endOtp ? 'found OTP' : 'OTP not found'}`);
-            
-            // Check if materials were added after OTP generation - regenerate if needed
-            const [materialsCheck] = await pool.query(`
-                SELECT COALESCE(SUM(ROUND(amount * 100)), 0)::BIGINT as total_paise
-                FROM job_materials 
-                WHERE job_id = $1 AND status != 'flagged'
-            `, [jobId]);
-            
-            const currentMaterialsPaise = Number(materialsCheck[0]?.total_paise || 0);
-            const declaredMaterialsPaise = Math.round((job.materials_cost || 0) * 100);
-            
-            // If materials changed or OTP expired, regenerate OTP
-            if (!endOtp || currentMaterialsPaise !== declaredMaterialsPaise) {
-                if (currentMaterialsPaise !== declaredMaterialsPaise) {
-                    console.log(`[Customer] Materials amount changed for job ${jobId}: was ${declaredMaterialsPaise}, now ${currentMaterialsPaise}. Regenerating OTP...`);
-                }
-                
-                endOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-                
-                // Store in Redis with extended TTL (30 minutes from now)
-                await redisClient.set(`zarva:otp:end:${jobId}`, endOtp, 'EX', 1800);
-                console.log(`[Customer] Regenerated OTP for job ${jobId}: ${endOtp}`);
-            }
-            
-            job.end_otp = endOtp;
-            console.log(`[Customer] Final end_otp for job ${jobId}: ${job.end_otp}`);
-        }
+        // If job is in pending_completion, customer should never fetch or regenerate the worker's end OTP in the background.
+        // The worker will show the code, and the customer will type it in to verify.
+
 
         // Strip sensitive hashes from response
         delete job.start_otp_hash;
@@ -694,6 +650,20 @@ router.post('/:id/approve-resume', async (req, res) => {
         return res.status(200).json({ status: 'ok', ...result });
     } catch (err) {
         console.error('[Jobs] POST /:id/approve-resume error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
+// CHANGE: Direct route for customer to approve estimate and start job without OTP
+router.post('/:id/start', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        await billingService.startJob(req.params.id, userId);
+        return res.status(200).json({ status: 'ok', success: true });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/start error:', err);
         return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
     }
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import {
     View, Text, ScrollView, Alert, Animated, Platform, Linking, ActivityIndicator
@@ -27,20 +27,18 @@ import { PhaseContent } from '../components/ActiveJob/PhaseContent';
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function ActiveJobScreen({ route, navigation }) {
     const tTheme = useTokens();
-    const styles = React.useMemo(() => createActiveJobScreenStyles(tTheme), [tTheme]);
+    const styles = useMemo(() => createActiveJobScreenStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || {};
     const [status, setStatus] = useState('assigned');
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
     const [job, setJob] = useState(null);
-    const [startOtp, setStartOtp] = useState(['', '', '', '']);
     const [inspectionOtp, setInspectionOtp] = useState(['', '', '', '']);
     const [estimateData, setEstimateData] = useState({ minutes: '', notes: '' });
     const [timeElapsed, setTimeElapsed] = useState(0);
     const [endOtp, setEndOtp] = useState(null); // null until server provides the real code
     const [inspectionExpirySeconds, setInspectionExpirySeconds] = useState(null);
-    const [otpExpirySeconds, setOtpExpirySeconds] = useState(null);
     const [chatUnread, setChatUnread] = useState(0);
     const [actionOtp, setActionOtp] = useState(null);
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -62,20 +60,22 @@ export default function ActiveJobScreen({ route, navigation }) {
         const listener = onValue(jobRef, (snapshot) => {
             const data = snapshot.val();
 
-            if (data?.status) {
-                setStatus(data.status);
-                // Sync with store so other screens (like Home) update immediately
-                const currentJob = useWorkerStore.getState().activeJob;
-                if (currentJob && currentJob.id == jobId) {
-                    useWorkerStore.getState().setActiveJob({ ...currentJob, status: data.status });
-                    // Reset actionOtp if status has moved past the request phase
-                    if (!['pause_requested', 'resume_requested', 'suspend_requested'].includes(data.status)) {
-                        setActionOtp(null);
+                setJob(prev => {
+                    const updated = { ...prev, ...data };
+                    // Sync with store so other screens (like Home) update immediately
+                    const currentJob = useWorkerStore.getState().activeJob;
+                    if (currentJob && currentJob.id == jobId) {
+                        useWorkerStore.getState().setActiveJob({ ...currentJob, ...data });
                     }
-                    // RE-FETCH FULL JOB: Get latest OTPs, timestamps, and cost data from REST API
-                    fetchJob(true);
+                    return updated;
+                });
+                setStatus(data.status);
+                // Reset actionOtp if status has moved past the request phase
+                if (!['pause_requested', 'resume_requested', 'suspend_requested'].includes(data.status)) {
+                    setActionOtp(null);
                 }
-            }
+                // RE-FETCH FULL JOB: Get latest OTPs, fees, etc. to stay fully synced with SQL.
+                fetchJob(true);
         });
         const chatRef = ref(db, `active_jobs/${jobId}/chat_unread/worker`);
         const chatListener = onValue(chatRef, (snap) => setChatUnread(snap.val() || 0));
@@ -159,23 +159,14 @@ export default function ActiveJobScreen({ route, navigation }) {
         return () => clearInterval(int);
     }, [status, job?.inspection_expires_at]);
 
-    // Start OTP expiry countdown
-    useEffect(() => {
-        let int;
-        if (status === 'estimate_submitted' && job?.start_otp_generated_at) {
-            const expiry = new Date(job.start_otp_generated_at).getTime() + 3600000;
-            const tick = () => setOtpExpirySeconds(Math.max(0, Math.floor((expiry - Date.now()) / 1000)));
-            tick(); int = setInterval(tick, 1000);
-        }
-        return () => clearInterval(int);
-    }, [status, job?.start_otp_generated_at]);
+    // Start OTP expiry countdown removed: customer starts job directly
+
 
     useEffect(() => {
         if (jobId) {
             console.log(`[ActiveJob] JobID changed to ${jobId}. Resetting states & fetching...`);
             // Reset phase-specific states for clean transition
             setEndOtp(null);
-            setStartOtp(['', '', '', '']);
             fetchJob();
         }
     }, [jobId]);
@@ -239,9 +230,13 @@ export default function ActiveJobScreen({ route, navigation }) {
                 }
             }
 
-            await apiClient.post(`/api/worker/jobs/${jobId}/arrived`);
-            setStatus('worker_arrived');
-            await fetchJob(); // refresh to get inspection_expires_at
+            const res = await apiClient.post(`/api/worker/jobs/${jobId}/arrived`);
+            if (res.data?.skipped_inspection) {
+                setStatus('estimate_submitted');
+            } else {
+                setStatus('worker_arrived');
+            }
+            await fetchJob(); // refresh to get inspection_expires_at or start_otp_generated_at
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err) {
             Alert.alert('Error', err.response?.data?.message || 'Failed to update status.');
@@ -291,23 +286,8 @@ export default function ActiveJobScreen({ route, navigation }) {
         }
     };
 
-    const handleVerifyStartOtp = async () => {
-        const code = startOtp.join('');
-        if (code.length !== 4) return;
-        setActionLoading(true);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        try {
-            // CHANGE: Backend expects `otp` field; sending `code` always fails verification.
-            await apiClient.post(`/api/worker/jobs/${jobId}/verify-start-otp`, { otp: code });
-            await fetchJob();
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (err) {
-            Alert.alert('Invalid Code', err.response?.data?.message || 'Incorrect start code.');
-            setStartOtp(['', '', '', '']);
-        } finally {
-            setActionLoading(false);
-        }
-    };
+    // handleVerifyStartOtp removed: customer now starts job directly without OTP relay
+
 
     const handleMarkComplete = async () => {
         setActionLoading(true);
@@ -540,10 +520,6 @@ export default function ActiveJobScreen({ route, navigation }) {
                     estimateData={estimateData}
                     setEstimateData={setEstimateData}
                     handleSubmitEstimate={handleSubmitEstimate}
-                    otpExpirySeconds={otpExpirySeconds}
-                    setStartOtp={setStartOtp}
-                    startOtp={startOtp}
-                    handleVerifyStartOtp={handleVerifyStartOtp}
                     isInProgress={status === 'in_progress'}
                     setStopSheetVisible={setStopSheetVisible}
                     actionOtp={actionOtp}

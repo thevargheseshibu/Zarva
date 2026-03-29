@@ -94,6 +94,10 @@ router.get('/jobs/:id', (req, res) =>
                 }
                 
                 endOtp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+                const endOtpHash = await bcrypt.hash(endOtp, 10);
+                
+                // Save new hash to DB so verify-end works
+                await pool.query('UPDATE jobs SET end_otp_hash = $1 WHERE id = $2', [endOtpHash, jobId]);
                 
                 // Store in Redis with extended TTL (30 minutes from now)
                 await redisClient.set(`zarva:otp:end:${jobId}`, endOtp, 'EX', 1800);
@@ -495,77 +499,9 @@ router.post('/jobs/:id/inspection/estimate', (req, res) =>
 
 
 /**
- * Worker verifies customer's start OTP to begin work
- * POST /api/worker/jobs/:id/verify-start-otp
+ * // verify-start-otp removed: now handled by customer via jobs route
  */
-router.post('/jobs/:id/verify-start-otp', (req, res) =>
-    handle(req, res, async (userId, pool) => {
-        const jobId = req.params.id;
-        if (!/^\d+$/.test(jobId)) {
-            throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
-        }
-        const otp = req.body.code || req.body.otp;
 
-        if (!otp || !/^[0-9]{4}$/.test(otp)) {
-            throw Object.assign(new Error('Invalid OTP format'), { status: 400 });
-        }
-
-        // Fetch job and verify ownership
-        const [jobs] = await pool.query('SELECT id, status, worker_id, start_otp_hash, start_otp_attempts FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
-        const job = jobs[0];
-        if (!job) throw Object.assign(new Error('Job not found or not accessible'), { status: 404 });
-
-        if (job.status !== 'estimate_submitted') {
-            // IDEMPOTENCY: If the job is already in_progress, return success instead of erroring.
-            if (job.status === 'in_progress') {
-                return { success: true, already_started: true };
-            }
-            throw Object.assign(new Error('Invalid job state for start verification'), { status: 400 });
-        }
-
-        // Verify OTP
-        const isValid = await bcrypt.compare(otp, job.start_otp_hash);
-        if (!isValid) {
-            // Increment attempt counter
-            const newAttempts = (job.start_otp_attempts || 0) + 1;
-            await pool.query('UPDATE jobs SET start_otp_attempts = $1 WHERE id = $2', [newAttempts, jobId]);
-            
-            // After 5 failed attempts, escalate to disputed
-            if (newAttempts >= 5) {
-                await pool.query('UPDATE jobs SET status = $1 WHERE id = $2', ['disputed', jobId]);
-                const { updateJobNode } = await import('../services/firebase.service.js');
-                await updateJobNode(jobId, { status: 'disputed' });
-                throw Object.assign(new Error('Maximum OTP attempts exceeded - job disputed'), { status: 403 });
-            }
-            
-            throw Object.assign(new Error('Invalid OTP'), { status: 400 });
-        }
-
-        // OTP verified successfully - start the job
-        await pool.query(`
-            UPDATE jobs 
-            SET status = 'in_progress',
-                job_started_at = NOW(),
-                work_started_at = NOW(),
-                start_otp_attempts = 0
-            WHERE id = $1
-        `, [jobId]);
-
-        // Clean up Redis OTP
-        const redisClient = getRedisClient();
-        await redisClient.del(`zarva:otp:start:${jobId}`);
-
-        const { updateJobNode } = await import('../services/firebase.service.js');
-        await updateJobNode(jobId, { 
-            status: 'in_progress',
-            timer_status: 'running',
-            job_started_at: new Date().toISOString(),
-            work_started_at: new Date().toISOString()
-        });
-
-        return { success: true };
-    })
-);
 
 /**
  * Worker requests to pause the work (needs customer approval)
@@ -985,6 +921,27 @@ router.post('/jobs/:id/acknowledge-stop', handle(async (userId, pool, req) => {
     await updateJobNode(jobId, { status: 'pending_completion', timer_status: 'stopped' });
 
     return { success: true, end_otp: otp };
+}));
+
+/**
+ * Finalize a customer-stopped job directly without OTP
+ * POST /api/worker/jobs/:id/finalize-direct
+ */
+router.post('/jobs/:id/finalize-direct', handle(async (userId, pool, req) => {
+    const jobId = req.params.id;
+    const [jobs] = await pool.query('SELECT status, customer_stopped_at FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+    if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+    if (!jobs[0].customer_stopped_at) throw Object.assign(new Error('Job was not stopped by customer'), { status: 400 });
+
+    // Finalize billing and update statuses
+    const { default: BillingService } = await import('../services/billing.service.js');
+    await BillingService.finalizeJob(jobId);
+
+    // Update Firebase so customer sees completed state immediately
+    const { updateJobNode } = await import('../services/firebase.service.js');
+    await updateJobNode(jobId, { status: 'completed' });
+
+    return { success: true };
 }));
 
 export default router;

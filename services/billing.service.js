@@ -164,7 +164,7 @@ class BillingService {
         }
     }
 
-    async startJob(jobId, otpInput, customerId) {
+    async startJob(jobId, customerId) {
         const pool = getPool();
         const conn = await pool.getConnection();
         await conn.beginTransaction();
@@ -179,18 +179,16 @@ class BillingService {
             if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
             if (job.status !== 'estimate_submitted') throw Object.assign(new Error('Estimate must be submitted first'), { status: 400 });
 
-            const match = await this._compareOtpWithFallback(jobId, otpInput, job.start_otp_hash, `zarva:otp:start:${jobId}`);
-            if (!match) throw Object.assign(new Error('Invalid Start Code'), { status: 400 });
-
             await conn.query(
                 `UPDATE jobs 
                  SET status = 'in_progress', 
-                     job_started_at = NOW() 
+                     job_started_at = NOW(),
+                     work_started_at = NOW() 
                  WHERE id = $1`,
                 [jobId]
             );
 
-            await this._recordTimerEvent(conn, jobId, 'job_start', 'worker', 'Customer approved estimate & started job');
+            await this._recordTimerEvent(conn, jobId, 'job_start', 'customer', 'Customer approved estimate & started job');
 
             const hourlyRate = parseFloat(job.hourly_rate || 0);
             const capMins = parseInt(job.billing_cap_minutes || 60, 10);
@@ -206,7 +204,12 @@ class BillingService {
             await conn.commit();
 
             // Push active status to Firebase Timer Node
-            await updateJobNode(jobId, { status: 'in_progress' });
+            await updateJobNode(jobId, { 
+                status: 'in_progress',
+                job_started_at: new Date().toISOString(),
+                work_started_at: new Date().toISOString(),
+                timer_status: 'running'
+            });
 
             return true;
         } catch (err) {
@@ -238,7 +241,8 @@ class BillingService {
             await _conn.query(
                 `UPDATE jobs 
                  SET status = $1,
-                     job_ended_at = NOW(),
+                     job_ended_at = COALESCE(job_ended_at, NOW()),
+                     inspection_ended_at = COALESCE(inspection_ended_at, NOW()),
                      final_billed_minutes = $2,
                      final_amount = $3,
                      exceeded_estimate = $4
@@ -270,6 +274,15 @@ class BillingService {
 
             if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
             if (job.status !== 'in_progress') throw Object.assign(new Error('Extension only allowed during active job'), { status: 400 });
+
+            // Ensure only ONE extension is allowed per job
+            const [existingExts] = await conn.query(
+                'SELECT COUNT(*) as count FROM job_extensions WHERE job_id = $1 AND status IN ($2, $3)', 
+                [jobId, 'pending', 'approved']
+            );
+            if (parseInt(existingExts[0].count, 10) > 0) {
+                throw Object.assign(new Error('Only one extension request is allowed per job'), { status: 400 });
+            }
 
             // Pause the timer 
             await this._recordTimerEvent(conn, jobId, 'job_pause', 'worker', 'Extension requested');
@@ -736,6 +749,27 @@ class BillingService {
                 await conn.query('UPDATE jobs SET followup_job_id=$1 WHERE id=$2', [followupId, jobId]);
             }
 
+            // Find if the worker has another active job, excluding the newly created future follow-up job if it's scheduled for later
+            const [nextJobs] = await conn.query(`
+                SELECT id FROM jobs 
+                WHERE worker_id = $1 
+                AND id != $2
+                AND status NOT IN ('completed', 'cancelled', 'no_worker_found', 'disputed', 'suspended')
+                ORDER BY created_at DESC LIMIT 1
+            `, [job.worker_id, followupId]);
+
+            const nextJobId = nextJobs.length > 0 ? nextJobs[0].id : null;
+
+            await conn.query(`
+                UPDATE worker_profiles 
+                SET current_job_id = $1 
+                WHERE user_id = $2
+            `, [nextJobId, job.worker_id]);
+
+            // Free up their active concurrency slot so they can receive new nearby requests
+            const supportService = (await import('./supportService.js')).default;
+            await supportService.updateConcurrencySlot(job.worker_id, 'job_finished');
+
             await conn.commit();
 
             const redis = (await import('../config/redis.js')).getRedisClient();
@@ -1022,8 +1056,7 @@ class BillingService {
                 ON CONFLICT (job_id) DO UPDATE SET
                     invoice_number = EXCLUDED.invoice_number,
                     subtotal = EXCLUDED.subtotal,
-                    total = EXCLUDED.total,
-                    updated_at = NOW()
+                    total = EXCLUDED.total
             `, [jobId, invoiceNumber, totalAmount, totalAmount]);
             
             // Record job_end timer event if not already recorded
@@ -1071,6 +1104,21 @@ class BillingService {
                 WHERE user_id = $1
             `, [job.customer_id]);
             
+            // If this job is a follow-up, automatically complete the original suspended parent job
+            const [parentJobs] = await conn.query(`
+                UPDATE jobs 
+                SET status = 'completed', updated_at = NOW()
+                WHERE followup_job_id = $1 AND status = 'suspended'
+                RETURNING id
+            `, [jobId]);
+            
+            if (parentJobs && parentJobs.length > 0) {
+                const parentJobId = parentJobs[0].id;
+                const { updateJobNode } = await import('./firebase.service.js');
+                await updateJobNode(parentJobId, { status: 'completed' });
+                console.log(`[BillingService] Parent suspended job ${parentJobId} marked as completed because follow-up ${jobId} finished.`);
+            }
+
             await conn.commit();
             
             console.log(`[BillingService] Job ${jobId} finalized successfully: labor=${job.final_labor_paise}, materials=${job.final_material_paise}, total=${job.grand_total_paise}`);

@@ -8,7 +8,8 @@ export function PhaseContent({
     styles, tTheme, navigation, jobId, job, status, actionLoading, timeElapsed, formatTime, 
     pulseAnim, handleNavigate, handleCall, handleArrived, handleVerifyInspectionOtp, 
     inspectionOtp, setInspectionOtp, inspectionExpirySeconds, estimateData, setEstimateData, 
-    otpExpirySeconds, setStartOtp, startOtp, handleVerifyStartOtp, isInProgress,
+    handleSubmitEstimate,
+    isInProgress,
     setStopSheetVisible, actionOtp, handleRequestResume, handleMarkComplete, isPending, endOtp, isCompleted, useWorkerStore,
     handleStartTravel, handleAcknowledgeStop, setMaterialModalVisible
 }) {
@@ -191,40 +192,35 @@ export function PhaseContent({
                         <Text style={{ fontSize: 24 }}>⏳</Text>
                     </Animated.View>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.phaseMeta}>AWAITING APPROVAL</Text>
-                        <Text style={styles.phaseTitle}>Estimate Sent</Text>
+                        <Text style={styles.phaseMeta}>{job?.metadata?.is_followup ? 'FOLLOW-UP SESSION' : 'AWAITING APPROVAL'}</Text>
+                        <Text style={styles.phaseTitle}>{job?.metadata?.is_followup ? 'Start Follow-up' : 'Estimate Sent'}</Text>
                     </View>
                 </View>
 
                 <View style={[styles.instructBanner, { backgroundColor: tTheme.status?.warning?.base + '08', borderColor: tTheme.status?.warning?.base + '22' }]}>
-                    <Text style={{ fontSize: 18 }}>📲</Text>
+                    <Text style={{ fontSize: 18 }}>⏳</Text>
                     <View style={{ flex: 1 }}>
-                        <Text style={[styles.instructTitle, { color: tTheme.status?.warning?.base }]}>WAITING FOR CLIENT DECISION</Text>
-                        <Text style={styles.instructSub}>The customer is reviewing your estimate. Once approved, they'll share the Start Code with you.</Text>
+                        <Text style={[styles.instructTitle, { color: tTheme.status?.warning?.base }]}>
+                            {job?.metadata?.is_followup ? 'READY TO RESUME WORK' : 'WAITING FOR APPROVAL'}
+                        </Text>
+                        <Text style={styles.instructSub}>
+                            {job?.metadata?.is_followup 
+                                ? "The customer has been notified. Once they accept, your timer will start automatically."
+                                : "The customer is reviewing your estimate. Once they accept, your timer will start automatically."
+                            }
+                        </Text>
                     </View>
                 </View>
 
-                <View style={[styles.dividerLine, { marginVertical: 16 }]} />
-
-                <Text style={styles.otpInputLabel}>
-                    ENTER START CODE WHEN CLIENT APPROVES
-                    {otpExpirySeconds !== null ? ` — Expires in ${formatTime(otpExpirySeconds)}` : ''}
-                </Text>
-                <OTPInput
-                    disabled={actionLoading}
-                    onChange={(code) => setStartOtp(code.split('').concat(Array(4).fill('')).slice(0, 4))}
-                />
-                <PremiumButton
-                    title="Start Billable Session →"
-                    onPress={handleVerifyStartOtp}
-                    loading={actionLoading}
-                    disabled={startOtp.join('').length < 4}
-                    style={{ marginTop: 8 }}
-                />
+                <View style={[styles.statusHero, { marginTop: 24, paddingVertical: 12, backgroundColor: tTheme.status?.warning?.base + '08', borderRadius: 12 }]}>
+                    <ActivityIndicator size="small" color={tTheme.status?.warning?.base} style={{ marginBottom: 8 }} />
+                    <Text style={[styles.heroSub, { textAlign: 'center', fontSize: 12, color: tTheme.text?.secondary }]}>
+                        Waiting for client decision...
+                    </Text>
+                </View>
             </View>
         </FadeInView>
     );
-
     // ── ACTIVE SESSION / IN PROGRESS ───────────────────────────────────────
     if (isInProgress) return (
         <FadeInView delay={100}>
@@ -239,14 +235,16 @@ export function PhaseContent({
                     </View>
                 </View>
 
-                <View style={styles.bigTimerWrap}>
-                    <Text style={[styles.bigTimerVal, { color: tTheme.status?.success?.base }]}>
-                        {formatTime(timeElapsed)}
-                    </Text>
-                    <View style={[styles.liveBadge, { backgroundColor: tTheme.status?.success?.base + '11', borderColor: tTheme.status?.success?.base + '33', borderWidth: 1 }]}>
-                        <View style={[styles.liveDot, { backgroundColor: tTheme.status?.success?.base }]} />
-                        <Text style={[styles.liveTxt, { color: tTheme.status?.success?.base }]}>LIVE BILLING</Text>
+                <View style={{ alignItems: 'flex-end', marginVertical: 20 }}>
+                    <View style={[styles.timerBadge, { borderColor: tTheme.status?.success?.base + '55', paddingVertical: 6, marginBottom: 4 }]}>
+                        <Text style={[styles.timerTxt, { color: tTheme.status?.success?.base }]}>
+                            {formatTime(Math.max(0, ((job?.billing_cap_minutes || job?.estimated_duration_minutes || 0) * 60) - timeElapsed))}
+                        </Text>
+                        <Text style={[styles.timerLabel, { color: tTheme.status?.success?.base }]}>REMAINING</Text>
                     </View>
+                    <Text style={{ fontSize: 10, color: tTheme.status?.success?.base, fontWeight: '700', paddingRight: 4 }}>
+                        ELAPSED: {formatTime(timeElapsed)}
+                    </Text>
                 </View>
 
                 {job?.hourly_rate && (

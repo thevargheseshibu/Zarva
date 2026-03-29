@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -10,7 +10,7 @@ import PressableAnimated from '@shared/design-system/components/PressableAnimate
 
 export default function WorkerReputationScreen({ route, navigation }) {
     const tTheme = useTokens();
-    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
+    const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { workerId, workerName } = route.params || {};
     const [loading, setLoading] = useState(true);
