@@ -522,6 +522,51 @@ class BillingService {
     // WORK PAUSE / RESUME METHODS
     // ═══════════════════════════════════════════════════════
 
+    async workerDirectPause(jobId, workerId, reason) {
+        const pool = await import('../config/database.js').then(m => m.getPool());
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+        try {
+            const [jobs] = await conn.query('SELECT status, worker_id, pause_count FROM jobs WHERE id=$1 FOR UPDATE', [jobId]);
+            const job = jobs[0];
+            if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (job.status !== 'in_progress') throw Object.assign(new Error('Can only pause during active work'), { status: 400 });
+
+            const newCount = parseInt(job.pause_count || 0, 10) + 1;
+            await conn.query(`UPDATE jobs SET status='work_paused', pause_reason=$1, paused_at=NOW(), pause_count=$2 WHERE id=$3`, [reason, newCount, jobId]);
+            await this._recordTimerEvent(conn, jobId, 'job_pause', 'worker', `Worker paused: ${reason}`);
+            await conn.commit();
+
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, { status: 'work_paused', timer_status: 'paused', pause_reason: reason });
+            return { paused: true };
+        } catch(e) { await conn.rollback(); throw e; } finally { conn.release(); }
+    }
+
+    async workerDirectResume(jobId, workerId) {
+        const pool = await import('../config/database.js').then(m => m.getPool());
+        const conn = await pool.getConnection();
+        await conn.beginTransaction();
+        try {
+            const [jobs] = await conn.query('SELECT status, worker_id, paused_at, total_paused_seconds FROM jobs WHERE id=$1 FOR UPDATE', [jobId]);
+            const job = jobs[0];
+            if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (job.status !== 'work_paused') throw Object.assign(new Error('Job not paused'), { status: 400 });
+
+            const pauseStart = new Date(job.paused_at).getTime();
+            const pausedSecs = Math.floor((Date.now() - pauseStart) / 1000);
+            const totalPaused = parseInt(job.total_paused_seconds || 0, 10) + pausedSecs;
+
+            await conn.query(`UPDATE jobs SET status='in_progress', paused_at=NULL, total_paused_seconds=$1 WHERE id=$2`, [totalPaused, jobId]);
+            await this._recordTimerEvent(conn, jobId, 'job_resume', 'worker', `Resumed after ${pausedSecs}s`);
+            await conn.commit();
+
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, { status: 'in_progress', timer_status: 'running', total_paused_seconds: totalPaused });
+            return { resumed: true };
+        } catch(e) { await conn.rollback(); throw e; } finally { conn.release(); }
+    }
+
     async requestPause(jobId, workerId, reason) {
         const pool = getPool();
         const [jobs] = await pool.query(

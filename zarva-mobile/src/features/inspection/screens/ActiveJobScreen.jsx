@@ -60,22 +60,27 @@ export default function ActiveJobScreen({ route, navigation }) {
         const listener = onValue(jobRef, (snapshot) => {
             const data = snapshot.val();
 
-                setJob(prev => {
-                    const updated = { ...prev, ...data };
-                    // Sync with store so other screens (like Home) update immediately
-                    const currentJob = useWorkerStore.getState().activeJob;
-                    if (currentJob && currentJob.id == jobId) {
-                        useWorkerStore.getState().setActiveJob({ ...currentJob, ...data });
-                    }
-                    return updated;
-                });
-                setStatus(data.status);
+            if (data) {
+                // Determine status changes
+                if (data.status) setStatus(data.status);
+                
                 // Reset actionOtp if status has moved past the request phase
-                if (!['pause_requested', 'resume_requested', 'suspend_requested'].includes(data.status)) {
+                if (data.status && !['pause_requested', 'resume_requested', 'suspend_requested'].includes(data.status)) {
                     setActionOtp(null);
                 }
+
+                // Update local job state
+                setJob(prev => ({ ...prev, ...data }));
+
+                // Sync with store safely (not inside setJob updater to avoid react-warning/crashes)
+                const currentJob = useWorkerStore.getState().activeJob;
+                if (currentJob && currentJob.id == jobId) {
+                    useWorkerStore.getState().setActiveJob({ ...currentJob, ...data });
+                }
+
                 // RE-FETCH FULL JOB: Get latest OTPs, fees, etc. to stay fully synced with SQL.
                 fetchJob(true);
+            }
         });
         const chatRef = ref(db, `active_jobs/${jobId}/chat_unread/worker`);
         const chatListener = onValue(chatRef, (snap) => setChatUnread(snap.val() || 0));

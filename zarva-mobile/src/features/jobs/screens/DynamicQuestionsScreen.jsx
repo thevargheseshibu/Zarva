@@ -339,6 +339,6 @@ const createStyles = (t) => StyleSheet.create({
         alignItems: 'center',
     },
     uploadingSlot: { opacity: 0.5 },
-    addSlotIcon: { color: t.brand.primary, fontSize: 28, fontWeight: '300', lineHeight: 28, textAlign: 'center' },
+    addSlotIcon: { color: t.brand.primary, fontSize: 34, fontWeight: '300', textAlign: 'center', marginTop: -2 },
 });
 

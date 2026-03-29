@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, Switch, ScrollView, TouchableOpacity, Alert, RefreshControl, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,7 +20,7 @@ import ZarvaHeader from '@shared/ui/ZarvaHeader';
  */
 export default function WorkerHomeScreen({ navigation }) {
     const tokens = useTokens();
-    const styles = React.useMemo(() => createStyles(tokens), [tokens]);
+    const styles = useMemo(() => createStyles(tokens), [tokens]);
     const t = useT();
 
     const isOnline = useWorkerStore(state => state.isOnline);

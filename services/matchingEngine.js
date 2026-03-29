@@ -183,7 +183,7 @@ export async function startMatching(jobId) {
                 // 6. Check Post-Sleep Status
                 const [updatedRows] = await pool.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
                 const updatedJob = updatedRows[0];
-                if (updatedJob && updatedJob.status === 'assigned') {
+                if (updatedJob && (updatedJob.status === 'assigned' || updatedJob.status === 'worker_en_route')) {
                     console.log(`[MatchingEngine] Job ${jobId} was accepted during sleep. Stopping waves.`);
                     return;
                 }

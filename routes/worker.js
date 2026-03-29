@@ -509,33 +509,10 @@ router.post('/jobs/:id/inspection/estimate', (req, res) =>
  */
 router.post('/jobs/:id/pause-request', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const jobId = req.params.id;
         const { reason } = req.body;
-
-        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
-        if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
-        if (jobs[0].status !== 'in_progress') {
-            throw Object.assign(new Error('Only in-progress jobs can be paused'), { status: 400 });
-        }
-
-        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-        const hash = await bcrypt.hash(otp, 10);
-
-        await pool.query(`
-            UPDATE jobs 
-            SET status = 'pause_requested',
-                pause_reason = $1,
-                pause_otp_hash = $2
-            WHERE id = $3
-        `, [reason, hash, jobId]);
-
-        const redisClient = getRedisClient();
-        await redisClient.set(`zarva:otp:pause:${jobId}`, otp, 'EX', 1800);
-
-        const { updateJobNode } = await import('../services/firebase.service.js');
-        await updateJobNode(jobId, { status: 'pause_requested', pause_reason: reason });
-
-        return { success: true, otp };
+        const { default: BillingService } = await import('../services/billing.service.js');
+        await BillingService.workerDirectPause(req.params.id, userId, reason);
+        return { success: true };
     })
 );
 
@@ -545,30 +522,9 @@ router.post('/jobs/:id/pause-request', (req, res) =>
  */
 router.post('/jobs/:id/resume-request', (req, res) =>
     handle(req, res, async (userId, pool) => {
-        const jobId = req.params.id;
-        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
-        if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
-        if (jobs[0].status !== 'work_paused') {
-            throw Object.assign(new Error('Job is not paused'), { status: 400 });
-        }
-
-        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-        const hash = await bcrypt.hash(otp, 10);
-
-        await pool.query(`
-            UPDATE jobs 
-            SET status = 'resume_requested',
-                resume_otp_hash = $1
-            WHERE id = $2
-        `, [hash, jobId]);
-
-        const redisClient = getRedisClient();
-        await redisClient.set(`zarva:otp:resume:${jobId}`, otp, 'EX', 1800);
-
-        const { updateJobNode } = await import('../services/firebase.service.js');
-        await updateJobNode(jobId, { status: 'resume_requested' });
-
-        return { success: true, otp };
+        const { default: BillingService } = await import('../services/billing.service.js');
+        await BillingService.workerDirectResume(req.params.id, userId);
+        return { success: true };
     })
 );
 

@@ -22,7 +22,7 @@ dayjs.extend(relativeTime);
 
 export default function AvailableJobsScreen({ navigation }) {
     const tTheme = useTokens();
-    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
+    const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const [filter, setFilter] = useState('All');
     const [sortBy, setSortBy] = useState('Nearest');

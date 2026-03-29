@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -11,7 +11,7 @@ import Card from '@shared/ui/ZCard';
 
 export default function PaymentScreen({ route, navigation }) {
     const tTheme = useTokens();
-    const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
+    const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || { jobId: 'mock-123' };
     const [loading, setLoading] = useState(false);
