@@ -53,8 +53,10 @@ export default function JobCompleteSummaryScreen({ navigation, route }) {
 
     const fetchPreview = async () => {
         try {
-            const res = await apiClient.get(`/api/jobs/${jobId}/bill-preview`);
-            setPreview(res.data);
+            // FIX 1: Point to the worker-specific API
+            const res = await apiClient.get(`/api/worker/jobs/${jobId}/bill-preview`);
+            // FIX 2: Correctly extract the preview object from the wrapper
+            setPreview(res.data?.preview || res.data);
         } catch (err) {
             Alert.alert('Error', 'Could not load bill preview. Please try again.');
         } finally {
@@ -87,7 +89,8 @@ export default function JobCompleteSummaryScreen({ navigation, route }) {
     const handleSend = async () => {
         setSubmitting(true);
         try {
-            await apiClient.post(`/api/jobs/${jobId}/worker-complete`, {});
+            // FIX: Hit the correct worker route
+            await apiClient.post(`/api/worker/jobs/${jobId}/send-bill`, {});
             Alert.alert(
                 '✅ Sent to Customer',
                 'The bill has been sent. Wait for the customer to verify the OTP.',

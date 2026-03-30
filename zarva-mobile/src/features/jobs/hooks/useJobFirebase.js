@@ -64,7 +64,8 @@ export function useJobFirebase(jobId, options = {}) {
           }
         : null;
 
-      onFirebaseUpdate({ status: data.status, worker });
+      // Pass wave_number to the store so the UI updates
+      onFirebaseUpdate({ status: data.status, worker, waveNumber: data.wave_number });
 
       // Notify screen for status-specific re-fetches
       if (data.status && onStatusChangeRef.current) {

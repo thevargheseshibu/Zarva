@@ -95,7 +95,8 @@ export default function BillReviewScreen({ navigation, route }) {
     const fetchPreview = async () => {
         try {
             const res = await apiClient.get(`/api/jobs/${jobId}/bill-preview`);
-            setPreview(res.data);
+            // FIX: Correctly extract the preview object from the wrapper
+            setPreview(res.data?.preview || res.data);
         } catch (err) {
             Alert.alert('Error', 'Could not load bill. Please try again.');
         } finally {

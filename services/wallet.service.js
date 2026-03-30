@@ -37,21 +37,38 @@ async function getAccountId(pool, accountCode) {
     return rows[0].id;
 }
 
-/** Insert single ledger entry */
-async function insertEntry(pool, entry) {
-    await pool.query(
-        `INSERT INTO ledger_entries (
-          transaction_id, entry_sequence, account_id, user_account_id,
-          entry_type, amount_paise, event_type, job_id, payment_id,
-          idempotency_key, description, triggered_by_user_id, triggered_by_system
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        ON CONFLICT (idempotency_key) DO NOTHING`,
-        [
+/** Insert many ledger entries in a single statement (for balancing triggers) */
+async function batchInsertEntries(pool, entries) {
+    if (entries.length === 0) return;
+
+    const values = [];
+    const rows = [];
+    let idx = 1;
+
+    for (const entry of entries) {
+        rows.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+        values.push(
             entry.transaction_id, entry.entry_sequence, entry.account_id, entry.user_account_id ?? null,
             entry.entry_type, entry.amount_paise, entry.event_type, entry.job_id ?? null, entry.payment_id ?? null,
             entry.idempotency_key, entry.description, entry.triggered_by_user_id ?? null, entry.triggered_by_system ?? false
-        ]
-    );
+        );
+    }
+
+    const query = `
+        INSERT INTO ledger_entries (
+          transaction_id, entry_sequence, account_id, user_account_id,
+          entry_type, amount_paise, event_type, job_id, payment_id,
+          idempotency_key, description, triggered_by_user_id, triggered_by_system
+        ) VALUES ${rows.join(',')}
+        ON CONFLICT (idempotency_key) DO NOTHING
+    `;
+    await pool.query(query, values);
+}
+
+/** Insert single ledger entry - convenience wrapper */
+async function insertEntry(pool, entry) {
+    if (!entry) return;
+    await batchInsertEntries(pool, [entry]);
 }
 
 /** Check idempotency by exact key */
@@ -289,17 +306,10 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
     const txnId = uuidv4();
     let seq = 1;
 
-    // Only insert if amount > 0 — DB has CHECK (amount_paise > 0)
-    const maybeInsert = async (entry) => {
-        if (entry.amount_paise <= 0) {
-            console.log(`[Wallet] Skipping zero-value entry: ${entry.idempotency_key}`);
-            return;
-        }
-        await insertEntry(pool, entry);
-    };
+    const entries = [];
 
     // DEBIT: Release full amount from escrow
-    await insertEntry(pool, {
+    entries.push({
         transaction_id: txnId, entry_sequence: seq++,
         account_id: escrowId, user_account_id: null,
         entry_type: 'debit', amount_paise: finalAmountPaiseVal,
@@ -310,7 +320,7 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
     });
 
     // CREDIT: Worker earnings (labor share + full material reimbursement)
-    await insertEntry(pool, {
+    entries.push({
         transaction_id: txnId, entry_sequence: seq++,
         account_id: workerEarningsId, user_account_id: workerAccountId,
         entry_type: 'credit', amount_paise: workerTotalSharePaise,
@@ -321,37 +331,46 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
     });
 
     // CREDIT: Platform commission (only on labor, skipped if labor=0)
-    await maybeInsert({
-        transaction_id: txnId, entry_sequence: seq++,
-        account_id: platformRevenueId, user_account_id: null,
-        entry_type: 'credit', amount_paise: platformSharePaise,
-        event_type: 'job_complete', job_id: jobId,
-        idempotency_key: `${idempotencyKey}_platform`,
-        description: `Job ${jobId} – platform 25% of labor`,
-        triggered_by_system: true,
-    });
+    if (platformSharePaise > 0) {
+        entries.push({
+            transaction_id: txnId, entry_sequence: seq++,
+            account_id: platformRevenueId, user_account_id: null,
+            entry_type: 'credit', amount_paise: platformSharePaise,
+            event_type: 'job_complete', job_id: jobId,
+            idempotency_key: `${idempotencyKey}_platform`,
+            description: `Job ${jobId} – platform 25% of labor`,
+            triggered_by_system: true,
+        });
+    }
 
     // CREDIT: Payment gateway fee (only on labor, skipped if labor=0)
-    await maybeInsert({
-        transaction_id: txnId, entry_sequence: seq++,
-        account_id: gatewayFeesId, user_account_id: null,
-        entry_type: 'credit', amount_paise: gatewayFeePaise,
-        event_type: 'job_complete', job_id: jobId,
-        idempotency_key: `${idempotencyKey}_gateway`,
-        description: `Job ${jobId} – gateway 2% of labor`,
-        triggered_by_system: true,
-    });
+    if (gatewayFeePaise > 0) {
+        entries.push({
+            transaction_id: txnId, entry_sequence: seq++,
+            account_id: gatewayFeesId, user_account_id: null,
+            entry_type: 'credit', amount_paise: gatewayFeePaise,
+            event_type: 'job_complete', job_id: jobId,
+            idempotency_key: `${idempotencyKey}_gateway`,
+            description: `Job ${jobId} – gateway 2% of labor`,
+            triggered_by_system: true,
+        });
+    }
 
     // CREDIT: GST remainder from labor (skipped if labor=0)
-    await maybeInsert({
-        transaction_id: txnId, entry_sequence: seq++,
-        account_id: gstId, user_account_id: null,
-        entry_type: 'credit', amount_paise: gstFromLaborPaise,
-        event_type: 'job_complete', job_id: jobId,
-        idempotency_key: `${idempotencyKey}_gst`,
-        description: `Job ${jobId} – GST remainder from labor`,
-        triggered_by_system: true,
-    });
+    if (gstFromLaborPaise > 0) {
+        entries.push({
+            transaction_id: txnId, entry_sequence: seq++,
+            account_id: gstId, user_account_id: null,
+            entry_type: 'credit', amount_paise: gstFromLaborPaise,
+            event_type: 'job_complete', job_id: jobId,
+            idempotency_key: `${idempotencyKey}_gst`,
+            description: `Job ${jobId} – GST remainder from labor`,
+            triggered_by_system: true,
+        });
+    }
+
+    // Execute batch insert to satisfy double-entry trigger
+    await batchInsertEntries(pool, entries);
 
     await pool.query(
         `UPDATE customer_pending_dues SET status = 'paid', settled_at = NOW() WHERE job_id = $1`,
@@ -377,32 +396,36 @@ export async function postPaymentReceivedEntries(customerId, amountPaise, gatewa
     const customerAccountId = await getOrCreateUserAccount(pool, customerId, 'CUSTOMER_PAYABLE');
     const txnId = uuidv4();
 
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: 1,
-        account_id: bankInflowId,
-        user_account_id: null,
-        entry_type: 'debit',
-        amount_paise: amountPaise,
-        event_type: 'payment_received',
-        job_id: jobId ?? null,
-        idempotency_key: idempotencyKey,
-        description: `Payment received ${gatewayRef} – +${amountPaise} paise`,
-        triggered_by_system: true
-    });
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: 2,
-        account_id: customerPayableId,
-        user_account_id: customerAccountId,
-        entry_type: 'credit',
-        amount_paise: amountPaise,
-        event_type: 'payment_received',
-        job_id: jobId ?? null,
-        idempotency_key: `${idempotencyKey}_credit`,
-        description: `Payment received – customer payable -${amountPaise} paise`,
-        triggered_by_system: true
-    });
+    const entries = [
+        {
+            transaction_id: txnId,
+            entry_sequence: 1,
+            account_id: bankInflowId,
+            user_account_id: null,
+            entry_type: 'debit',
+            amount_paise: amountPaise,
+            event_type: 'payment_received',
+            job_id: jobId ?? null,
+            idempotency_key: idempotencyKey,
+            description: `Payment received ${gatewayRef} – +${amountPaise} paise`,
+            triggered_by_system: true
+        },
+        {
+            transaction_id: txnId,
+            entry_sequence: 2,
+            account_id: customerPayableId,
+            user_account_id: customerAccountId,
+            entry_type: 'credit',
+            amount_paise: amountPaise,
+            event_type: 'payment_received',
+            job_id: jobId ?? null,
+            idempotency_key: `${idempotencyKey}_credit`,
+            description: `Payment received – customer payable -${amountPaise} paise`,
+            triggered_by_system: true
+        }
+    ];
+
+    await batchInsertEntries(pool, entries);
 
     if (jobId) {
         await pool.query(
@@ -439,32 +462,36 @@ export async function postWithdrawalEntries(workerId, amountPaise, withdrawalReq
     const workerAccountId = await getOrCreateUserAccount(pool, workerId, 'WORKER_EARNINGS');
     const txnId = uuidv4();
 
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: 1,
-        account_id: workerEarningsId,
-        user_account_id: workerAccountId,
-        entry_type: 'debit',
-        amount_paise: amountPaise,
-        event_type: 'worker_withdrawal',
-        idempotency_key: idempotencyKey,
-        description: `Withdrawal ${withdrawalRequestId} – worker earnings -${amountPaise} paise`,
-        triggered_by_user_id: workerId,
-        triggered_by_system: false
-    });
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: 2,
-        account_id: bankOutflowId,
-        user_account_id: null,
-        entry_type: 'credit',
-        amount_paise: amountPaise,
-        event_type: 'worker_withdrawal',
-        idempotency_key: `${idempotencyKey}_credit`,
-        description: `Withdrawal ${withdrawalRequestId} – bank outflow +${amountPaise} paise`,
-        triggered_by_user_id: workerId,
-        triggered_by_system: false
-    });
+    const entries = [
+        {
+            transaction_id: txnId,
+            entry_sequence: 1,
+            account_id: workerEarningsId,
+            user_account_id: workerAccountId,
+            entry_type: 'debit',
+            amount_paise: amountPaise,
+            event_type: 'worker_withdrawal',
+            idempotency_key: idempotencyKey,
+            description: `Withdrawal ${withdrawalRequestId} – worker earnings -${amountPaise} paise`,
+            triggered_by_user_id: workerId,
+            triggered_by_system: false
+        },
+        {
+            transaction_id: txnId,
+            entry_sequence: 2,
+            account_id: bankOutflowId,
+            user_account_id: null,
+            entry_type: 'credit',
+            amount_paise: amountPaise,
+            event_type: 'worker_withdrawal',
+            idempotency_key: `${idempotencyKey}_credit`,
+            description: `Withdrawal ${withdrawalRequestId} – bank outflow +${amountPaise} paise`,
+            triggered_by_user_id: workerId,
+            triggered_by_system: false
+        }
+    ];
+
+    await batchInsertEntries(pool, entries);
 
     await pool.query(
         `UPDATE withdrawal_requests SET status = 'processing' WHERE id = $1`,
@@ -490,32 +517,35 @@ export async function postCancellationEntries(jobId, heldAmountPaise, customerId
 
     const remainingPaise = heldAmountPaise - inspectionFeePaise;
     if (remainingPaise > 0) {
-        await insertEntry(pool, {
-            transaction_id: txnId,
-            entry_sequence: 1,
-            account_id: customerPayableId,
-            user_account_id: customerAccountId,
-            entry_type: 'debit',
-            amount_paise: remainingPaise,
-            event_type: 'job_cancel',
-            job_id: jobId,
-            idempotency_key: `${idempotencyKey}_release`,
-            description: `Job ${jobId} cancelled – release customer payable`,
-            triggered_by_system: true
-        });
-        await insertEntry(pool, {
-            transaction_id: txnId,
-            entry_sequence: 2,
-            account_id: escrowId,
-            user_account_id: null,
-            entry_type: 'credit',
-            amount_paise: remainingPaise,
-            event_type: 'job_cancel',
-            job_id: jobId,
-            idempotency_key: `${idempotencyKey}_escrow`,
-            description: `Job ${jobId} cancelled – release escrow`,
-            triggered_by_system: true
-        });
+        const entries = [
+            {
+                transaction_id: txnId,
+                entry_sequence: 1,
+                account_id: customerPayableId,
+                user_account_id: customerAccountId,
+                entry_type: 'debit',
+                amount_paise: remainingPaise,
+                event_type: 'job_cancel',
+                job_id: jobId,
+                idempotency_key: `${idempotencyKey}_release`,
+                description: `Job ${jobId} cancelled – release customer payable`,
+                triggered_by_system: true
+            },
+            {
+                transaction_id: txnId,
+                entry_sequence: 2,
+                account_id: escrowId,
+                user_account_id: null,
+                entry_type: 'credit',
+                amount_paise: remainingPaise,
+                event_type: 'job_cancel',
+                job_id: jobId,
+                idempotency_key: `${idempotencyKey}_escrow`,
+                description: `Job ${jobId} cancelled – release escrow`,
+                triggered_by_system: true
+            }
+        ];
+        await batchInsertEntries(pool, entries);
     }
 
     await pool.query(
@@ -542,45 +572,49 @@ export async function postDisputeRefundEntries(jobId, refundAmountPaise, workerS
     const customerAccountId = await getOrCreateUserAccount(pool, customerId, 'CUSTOMER_PAYABLE');
     const txnId = uuidv4();
 
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: 1,
-        account_id: workerEarningsId,
-        user_account_id: workerAccountId,
-        entry_type: 'debit',
-        amount_paise: workerSharePaise,
-        event_type: 'dispute_refund',
-        job_id: jobId,
-        idempotency_key: `${idempotencyKey}_worker_reversal`,
-        description: `Dispute refund – reverse worker share`,
-        triggered_by_system: true
-    });
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: 2,
-        account_id: platformRevenueId,
-        user_account_id: null,
-        entry_type: 'debit',
-        amount_paise: platformSharePaise,
-        event_type: 'dispute_refund',
-        job_id: jobId,
-        idempotency_key: `${idempotencyKey}_platform_reversal`,
-        description: `Dispute refund – reverse platform share`,
-        triggered_by_system: true
-    });
-    await insertEntry(pool, {
-        transaction_id: txnId,
-        entry_sequence: 3,
-        account_id: customerPayableId,
-        user_account_id: customerAccountId,
-        entry_type: 'credit',
-        amount_paise: refundAmountPaise,
-        event_type: 'dispute_refund',
-        job_id: jobId,
-        idempotency_key: `${idempotencyKey}_customer_credit`,
-        description: `Dispute refund – customer credit`,
-        triggered_by_system: true
-    });
+    const entries = [
+        {
+            transaction_id: txnId,
+            entry_sequence: 1,
+            account_id: workerEarningsId,
+            user_account_id: workerAccountId,
+            entry_type: 'debit',
+            amount_paise: workerSharePaise,
+            event_type: 'dispute_refund',
+            job_id: jobId,
+            idempotency_key: `${idempotencyKey}_worker_reversal`,
+            description: `Dispute refund – reverse worker share`,
+            triggered_by_system: true
+        },
+        {
+            transaction_id: txnId,
+            entry_sequence: 2,
+            account_id: platformRevenueId,
+            user_account_id: null,
+            entry_type: 'debit',
+            amount_paise: platformSharePaise,
+            event_type: 'dispute_refund',
+            job_id: jobId,
+            idempotency_key: `${idempotencyKey}_platform_reversal`,
+            description: `Dispute refund – reverse platform share`,
+            triggered_by_system: true
+        },
+        {
+            transaction_id: txnId,
+            entry_sequence: 3,
+            account_id: customerPayableId,
+            user_account_id: customerAccountId,
+            entry_type: 'credit',
+            amount_paise: refundAmountPaise,
+            event_type: 'dispute_refund',
+            job_id: jobId,
+            idempotency_key: `${idempotencyKey}_customer_credit`,
+            description: `Dispute refund – crediting customer payable`,
+            triggered_by_system: true
+        }
+    ];
+
+    await batchInsertEntries(pool, entries);
 
     await recomputeBalanceCache(workerAccountId);
     await recomputeBalanceCache(customerAccountId);
@@ -605,48 +639,53 @@ export async function postMaterialDisputeResolution(jobId, materialId, amountPai
     const txnId = uuidv4();
 
     if (resolution === 'release') {
-        // Worker wins: release escrow → worker earnings
         const workerAccountId = await getOrCreateUserAccount(pool, workerId, 'WORKER_EARNINGS');
-        await insertEntry(pool, {
-            transaction_id: txnId, entry_sequence: 1,
-            account_id: escrowId, user_account_id: null,
-            entry_type: 'credit', amount_paise: amountPaise,
-            event_type: 'dispute_resolved', job_id: jobId,
-            idempotency_key: idempotencyKey,
-            description: `Material ${materialId} dispute resolved: release to worker`,
-            triggered_by_system: true,
-        });
-        await insertEntry(pool, {
-            transaction_id: txnId, entry_sequence: 2,
-            account_id: workerEarningsId, user_account_id: workerAccountId,
-            entry_type: 'debit', amount_paise: amountPaise,
-            event_type: 'dispute_resolved', job_id: jobId,
-            idempotency_key: `${idempotencyKey}_worker`,
-            description: `Material ${materialId} released to worker from escrow`,
-            triggered_by_system: true,
-        });
+        const entries = [
+            {
+                transaction_id: txnId, entry_sequence: 1,
+                account_id: escrowId, user_account_id: null,
+                entry_type: 'credit', amount_paise: amountPaise,
+                event_type: 'dispute_resolved', job_id: jobId,
+                idempotency_key: idempotencyKey,
+                description: `Material ${materialId} dispute resolved: release to worker`,
+                triggered_by_system: true,
+            },
+            {
+                transaction_id: txnId, entry_sequence: 2,
+                account_id: workerEarningsId, user_account_id: workerAccountId,
+                entry_type: 'debit', amount_paise: amountPaise,
+                event_type: 'dispute_resolved', job_id: jobId,
+                idempotency_key: `${idempotencyKey}_worker`,
+                description: `Material ${materialId} released to worker from escrow`,
+                triggered_by_system: true,
+            }
+        ];
+        await batchInsertEntries(pool, entries);
         await recomputeBalanceCache(workerAccountId);
     } else {
         // Customer wins: release escrow → reduce customer payable (refund)
         const customerAccountId = await getOrCreateUserAccount(pool, customerId, 'CUSTOMER_PAYABLE');
-        await insertEntry(pool, {
-            transaction_id: txnId, entry_sequence: 1,
-            account_id: escrowId, user_account_id: null,
-            entry_type: 'credit', amount_paise: amountPaise,
-            event_type: 'dispute_resolved', job_id: jobId,
-            idempotency_key: idempotencyKey,
-            description: `Material ${materialId} dispute resolved: refund to customer`,
-            triggered_by_system: true,
-        });
-        await insertEntry(pool, {
-            transaction_id: txnId, entry_sequence: 2,
-            account_id: customerPayableId, user_account_id: customerAccountId,
-            entry_type: 'debit', amount_paise: amountPaise,
-            event_type: 'dispute_resolved', job_id: jobId,
-            idempotency_key: `${idempotencyKey}_customer`,
-            description: `Material ${materialId} refunded to customer from escrow`,
-            triggered_by_system: true,
-        });
+        const entries = [
+            {
+                transaction_id: txnId, entry_sequence: 1,
+                account_id: escrowId, user_account_id: null,
+                entry_type: 'credit', amount_paise: amountPaise,
+                event_type: 'dispute_resolved', job_id: jobId,
+                idempotency_key: idempotencyKey,
+                description: `Material ${materialId} dispute resolved: refund to customer`,
+                triggered_by_system: true,
+            },
+            {
+                transaction_id: txnId, entry_sequence: 2,
+                account_id: customerPayableId, user_account_id: customerAccountId,
+                entry_type: 'debit', amount_paise: amountPaise,
+                event_type: 'dispute_resolved', job_id: jobId,
+                idempotency_key: `${idempotencyKey}_customer`,
+                description: `Material ${materialId} refunded to customer from escrow`,
+                triggered_by_system: true,
+            }
+        ];
+        await batchInsertEntries(pool, entries);
         await recomputeBalanceCache(customerAccountId);
     }
 

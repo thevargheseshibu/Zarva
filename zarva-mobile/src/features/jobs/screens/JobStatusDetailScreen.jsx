@@ -785,43 +785,29 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     </FadeInView>
                 )}
 
-                {/* PENDING COMPLETION — enter end OTP */}
+                {/* PENDING COMPLETION — Route to BillReviewScreen */}
                 {status === 'pending_completion' && (
                     <FadeInView delay={100}>
                         <View style={[styles.phaseCard, { borderColor: tTheme.status.warning.base + '44' }]}>
                             <View style={styles.phaseHeader}>
                                 <View style={[styles.phaseIconBox, { backgroundColor: tTheme.status.warning.base + '15' }]}>
-                                    <Text style={{ fontSize: 22 }}>✔️</Text>
+                                    <Text style={{ fontSize: 22 }}>🧾</Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.phaseMeta}>AWAITING YOUR APPROVAL</Text>
-                                    <Text style={styles.phaseTitle}>Verify Completion</Text>
+                                    <Text style={styles.phaseTitle}>Review Final Bill</Text>
                                 </View>
                             </View>
-                            <Text style={styles.phaseSub}>The professional has marked the job done. Enter the 4-digit code provided by them to confirm completion.</Text>
-                            <View style={{ marginTop: 8 }}>
-                                <OTPInput
-                                    ref={endOtpRef}
-                                    disabled={verifyingEndOtp}
-                                    onChange={setTypedEndOtp}
-                                    onComplete={(code) => {
-                                        setTypedEndOtp(code);
-                                        // Still auto-submit for power users
-                                        handleVerifyCompletion(code);
-                                    }}
-                                />
+                            <Text style={styles.phaseSub}>
+                                The professional has finalized the bill. Please review the itemized breakdown and enter the completion code to finish the job.
+                            </Text>
 
-                                <PremiumButton
-                                    title="Verify & Finish Job"
-                                    onPress={() => handleVerifyCompletion(typedEndOtp)}
-                                    loading={verifyingEndOtp}
-                                    disabled={typedEndOtp.length < 4}
-                                    style={{ marginTop: 20 }}
-                                />
-
-                            </View>
-                            {verifyingEndOtp && <Text style={styles.verifyingTxt}>Verifying…</Text>}
-
+                            <PremiumButton
+                                title="Review Bill & Enter OTP"
+                                onPress={() => navigation.navigate('BillReview', { jobId })}
+                                style={{ marginTop: 20 }}
+                            />
+                            
                             <TouchableOpacity onPress={handleDisputeBill} style={{ marginTop: 24, paddingVertical: 8 }}>
                                 <Text style={{ color: tTheme.status.error.base, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
                                     Disagree with this bill? Raise a Dispute
@@ -1076,54 +1062,6 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     </FadeInView>
                 )}
 
-                {/* ── Bill Preview (pending_completion | customer_stopping) ── */}
-                {['pending_completion', 'customer_stopping'].includes(status) && (
-                    <FadeInView delay={200}>
-                        <View style={[styles.actionCard, { borderColor: tTheme.status.warning.base + '44' }]}>
-                            <Text style={styles.actionCardTitle}>🧾 Bill Preview</Text>
-                            {!billPreview && (
-                                <PremiumButton
-                                    title={billLoading ? 'Loading...' : 'View Itemized Bill'}
-                                    variant="secondary"
-                                    onPress={handleFetchBillPreview}
-                                    loading={billLoading}
-                                    style={{ marginTop: 8 }}
-                                />
-                            )}
-                            {billPreview && (
-                                <View style={{ gap: 8, marginTop: 12 }}>
-                                    {[
-                                        { label: 'Inspection Fee', value: billPreview.inspection_fee },
-                                        { label: 'Travel Charge', value: billPreview.travel_charge },
-                                        { label: 'Labour', value: billPreview.labor_cost },
-                                        { label: 'Materials', value: billPreview.materials_cost },
-                                    ].filter(r => r.value > 0).map((row, i) => (
-                                        <View key={i} style={styles.billRow}>
-                                            <Text style={styles.billLabel}>{row.label}</Text>
-                                            <Text style={styles.billValue}>₹{row.value.toFixed(2)}</Text>
-                                        </View>
-                                    ))}
-
-                                    {(billPreview.materials || []).map((m, i) => (
-                                        <View key={`mat-${i}`} style={[styles.billRow, { paddingLeft: 16 }]}>
-                                            <Text style={[styles.billLabel, { fontSize: 11, color: tTheme.text.tertiary }]}>· {m.name}</Text>
-                                            <Text style={[styles.billValue, { fontSize: 11 }]}>₹{parseFloat(m.amount).toFixed(2)}</Text>
-                                        </View>
-                                    ))}
-                                    <View style={[styles.billRow, { borderTopWidth: 1, borderTopColor: tTheme.border.default + '33', paddingTop: 8, marginTop: 4 }]}>
-                                        <Text style={[styles.billLabel, { fontWeight: '900', color: tTheme.text.primary }]}>TOTAL</Text>
-                                        <Text style={[styles.billValue, { fontSize: 20, color: tTheme.status.success.base }]}>₹{billPreview.total?.toFixed(2)}</Text>
-                                    </View>
-                                    {billPreview.preview_expires_at && (
-                                        <Text style={{ color: tTheme.text.tertiary, fontSize: 11, textAlign: 'center', marginTop: 4 }}>
-                                            Preview expires at {new Date(billPreview.preview_expires_at).toLocaleTimeString()}
-                                        </Text>
-                                    )}
-                                </View>
-                            )}
-                        </View>
-                    </FadeInView>
-                )}
 
                 {/* ── Cancel / Edit ── */}
                 {['open', 'searching', 'no_worker_found', 'assigned', 'worker_en_route'].includes(status) && (

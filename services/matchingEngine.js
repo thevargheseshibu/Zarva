@@ -51,7 +51,7 @@ async function findEligibleWorkers(job, radiusKm, limit, excludeIds, pool) {
             AND wp.current_job_id IS NULL
             AND u.fcm_token IS NOT NULL
             AND u.is_blocked = false
-            AND (wp.category = $2 OR (wp.skills IS NOT NULL AND wp.skills::jsonb @> jsonb_build_array($3::text)))
+            AND (LOWER(wp.category) = LOWER($2) OR (wp.skills IS NOT NULL AND wp.skills::jsonb @> jsonb_build_array($3::text)))
             AND ST_DWithin(wp.current_location, ST_GeogFromText($4), $5 * 1000)
             ${excludeClause}
         ORDER BY distance_km ASC
@@ -292,6 +292,9 @@ export async function acceptJob(jobId, workerId) {
 
             await conn.commit();
             console.log(`[MatchingEngine] Job ${jobId} successfully assigned to worker ${workerId}`);
+
+            // FIX: Mirror assigned state to Firebase so the customer SearchingScreen transitions immediately
+            await updateJobNode(jobId, { status: 'assigned', worker_id: String(workerId) }).catch(() => {});
 
             // Initialize Firebase chat node for the job
             await updateJobLastMessage(jobId, {

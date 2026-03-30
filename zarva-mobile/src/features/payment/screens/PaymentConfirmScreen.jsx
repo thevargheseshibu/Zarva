@@ -167,7 +167,7 @@ export default function PaymentConfirmScreen({ route }) {
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.doneBtn}
-                    onPress={() => navigation.reset({ index: 0, routes: [{ name: 'CustomerHome' }] })}
+                    onPress={() => navigation.reset({ index: 0, routes: [{ name: 'CustomerTabs' }] })}
                 >
                     <Text style={styles.doneBtnText}>Done</Text>
                 </TouchableOpacity>

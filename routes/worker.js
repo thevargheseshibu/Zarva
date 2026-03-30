@@ -414,6 +414,51 @@ router.post('/jobs/:id/arrived', (req, res) =>
 );
 
 /**
+ * Worker requests an extension of time during work progress
+ * POST /api/worker/jobs/:id/extension/request
+ */
+router.post('/jobs/:id/extension/request', (req, res) =>
+    handle(req, res, async (userId, pool) => {
+        const jobId = req.params.id;
+        const { requested_minutes, reason, photo_url } = req.body;
+
+        if (!requested_minutes || !reason || !photo_url) {
+            throw Object.assign(new Error('Missing required fields for extension'), { status: 400 });
+        }
+
+        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+        if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+
+        // Generate an OTP for customer to approve the extension
+        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+        const hash = await bcrypt.hash(otp, 10);
+
+        await pool.query(`
+            UPDATE jobs 
+            SET extension_requested_minutes = $1,
+                extension_reason = $2,
+                extension_photo_url = $3,
+                inspection_extension_otp_hash = $4
+            WHERE id = $5
+        `, [requested_minutes, reason, photo_url, hash, jobId]);
+
+        const redisClient = getRedisClient();
+        await redisClient.set(`zarva:otp:extension:${jobId}`, otp, 'EX', 10800);
+
+        const { updateJobNode } = await import('../services/firebase.service.js');
+        await updateJobNode(jobId, {
+            extension_requested: true,
+            extension_requested_minutes: requested_minutes,
+            extension_reason: reason,
+            extension_photo_url: photo_url,
+            extension_status: 'pending'
+        });
+
+        return { success: true };
+    })
+);
+
+/**
  * Worker verifies customer's inspection OTP to begin assessment
  * POST /api/worker/jobs/:id/verify-inspection-otp
  */
@@ -896,6 +941,46 @@ router.post('/jobs/:id/finalize-direct', handle(async (userId, pool, req) => {
     // Update Firebase so customer sees completed state immediately
     const { updateJobNode } = await import('../services/firebase.service.js');
     await updateJobNode(jobId, { status: 'completed' });
+
+    return { success: true };
+}));
+
+/**
+ * Worker fetches bill preview
+ * GET /api/worker/jobs/:id/bill-preview
+ */
+router.get('/jobs/:id/bill-preview', handle(async (userId, pool, req) => {
+    const jobId = req.params.id;
+    if (!/^\d+$/.test(jobId)) throw Object.assign(new Error('Invalid Job ID'), { status: 400 });
+
+    const [jobs] = await pool.query('SELECT id, worker_id FROM jobs WHERE id = $1', [jobId]);
+    if (!jobs[0] || jobs[0].worker_id != userId) {
+        throw Object.assign(new Error('Job not found'), { status: 404 });
+    }
+
+    const { default: BillingService } = await import('../services/billing.service.js');
+    const preview = await BillingService.generateBillPreview(jobId);
+    
+    return { preview }; // Returns { status: 'ok', preview: {...} }
+}));
+
+/**
+ * Worker explicitly sends the finalized bill to the customer
+ * POST /api/worker/jobs/:id/send-bill
+ */
+router.post('/jobs/:id/send-bill', handle(async (userId, pool, req) => {
+    const jobId = req.params.id;
+    const [jobs] = await pool.query('SELECT status FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+    
+    if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+    if (jobs[0].status !== 'pending_completion') throw Object.assign(new Error('Job must be pending completion'), { status: 400 });
+
+    // Sync with Firebase so the customer's UI instantly updates
+    const { updateJobNode } = await import('../services/firebase.service.js');
+    await updateJobNode(jobId, { 
+        bill_sent: true, 
+        updated_at: new Date().toISOString() 
+    });
 
     return { success: true };
 }));

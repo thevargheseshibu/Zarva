@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
-import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Alert, ScrollView, useWindowDimensions } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     useAnimatedScrollHandler,
-    interpolate
+    interpolate,
+    withTiming,
+    withRepeat
 } from 'react-native-reanimated';
 import * as Location from 'expo-location';
 import { useFocusEffect } from '@react-navigation/native';
@@ -14,7 +16,6 @@ import { useJobStore } from '@jobs/store';
 import apiClient from '@infra/api/client';
 import coverageApi from '@infra/api/coverageApi';
 import FadeInView from '@shared/ui/FadeInView';
-import PremiumButton from '@shared/ui/PremiumButton';
 
 
 import { durations } from '@shared/design-system/motion';
@@ -27,6 +28,7 @@ import MapPickerModal from '@shared/ui/MapPickerModal';
 import NotCoveredView from '@shared/ui/NotCoveredView';
 import ActivityCard from '@jobs/components/ActivityCard';
 import ZarvaHeader from '@shared/ui/ZarvaHeader';
+import { LinearGradient } from 'expo-linear-gradient';
 
 /**
  * HomeScreen.jsx - Standardized version to resolve tag mismatch and theme naming.
@@ -35,6 +37,7 @@ export default function HomeScreen({ navigation }) {
     const tTheme = useTokens();
     const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
+    const { width: screenWidth } = useWindowDimensions();
     const [recentJobs, setRecentJobs] = useState([]);
     const [services, setServices] = useState([]);
     const [isLoadingServices, setIsLoadingServices] = useState(true);
@@ -51,8 +54,16 @@ export default function HomeScreen({ navigation }) {
         'pause_requested', 'work_paused', 'resume_requested',
         'suspend_requested', 'customer_stopping'
     ];
+    const MAX_CORE_SERVICES = 8;
+
+    const trustBanners = useMemo(() => ([
+        { id: 'vetted', icon: '🛡️', text: 'Elite Professionals. Vetted & Background Checked.' },
+        { id: 'pricing', icon: '💎', text: 'Transparent Pricing. No Hidden Fees.' },
+        { id: 'guarantee', icon: '⭐', text: 'ZARVA Guarantee. 100% Satisfaction.' },
+    ]), []);
 
     const scrollY = useSharedValue(0);
+    const searchPulse = useSharedValue(0);
 
     const scrollHandler = useAnimatedScrollHandler({
         onScroll: (event) => {
@@ -60,18 +71,34 @@ export default function HomeScreen({ navigation }) {
         },
     });
 
-    const headerStyle = useAnimatedStyle(() => {
-        const opacity = interpolate(scrollY.value, [0, 60], [0, 1], 'clamp');
+    const searchGlowStyle = useAnimatedStyle(() => {
+        const opacity = interpolate(searchPulse.value, [0, 1], [0.25, 0.85], 'clamp');
+        const scale = interpolate(searchPulse.value, [0, 1], [0.985, 1.015], 'clamp');
         return {
             opacity,
-            backgroundColor: tTheme.background.app + 'EE',
+            transform: [{ scale }],
         };
     });
 
     const isSearching = searchQuery.trim() !== '';
     const displayedServices = isSearching
         ? services.filter(s => s.label.toLowerCase().includes(searchQuery.toLowerCase()))
-        : (showAllServices ? services : services.slice(0, 6));
+        : (showAllServices ? services : services.slice(0, MAX_CORE_SERVICES));
+    const shouldShowSeeAll = !isSearching && services.length > MAX_CORE_SERVICES;
+    const gridItemSize = useMemo(() => {
+        const horizontalPadding = tTheme.spacing['2xl'] * 2;
+        const gap = tTheme.spacing.lg;
+        const available = screenWidth - horizontalPadding - gap;
+        return available / 2;
+    }, [screenWidth, tTheme]);
+
+    useEffect(() => {
+        searchPulse.value = withRepeat(
+            withTiming(1, { duration: durations.screen * 4 }),
+            -1,
+            true
+        );
+    }, []);
 
     useEffect(() => {
         setIsLoadingServices(true);
@@ -89,7 +116,7 @@ export default function HomeScreen({ navigation }) {
         try {
             const res = await apiClient.get('/api/jobs');
             const jobs = res.data?.jobs || [];
-            setRecentJobs(jobs.slice(0, 3));
+            setRecentJobs(jobs.slice(0, 2));
 
             // Keep a persistent Active Job tile by deriving ongoing job from server truth on every Home focus.
             const ongoingJob = jobs.find((job) => ACTIVE_REQUEST_STATUSES.includes(job.status));
@@ -154,6 +181,12 @@ export default function HomeScreen({ navigation }) {
                 onPressNotification={null}
             />
 
+            <View style={styles.headerDock}>
+                <PressableAnimated style={styles.locationPill} onPress={() => setIsMapVisible(true)}>
+                    <Text style={styles.locationTxt} numberOfLines={1}>📍 Current Location</Text>
+                    <Text style={styles.locationChevron}>⌄</Text>
+                </PressableAnimated>
+            </View>
             <Animated.ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.content}
@@ -161,13 +194,6 @@ export default function HomeScreen({ navigation }) {
                 onScroll={scrollHandler}
                 scrollEventThrottle={16}
             >
-                <View style={styles.topBar}>
-                    <PressableAnimated style={styles.locationPill} onPress={() => setIsMapVisible(true)}>
-                        <Text style={styles.locationTxt} numberOfLines={1}>📍 {location.address}</Text>
-                        <Text style={styles.locationChevron}>⌄</Text>
-                    </PressableAnimated>
-                </View>
-
                 {!isServiceable ? (
                     <NotCoveredView
                         locationName={location.address}
@@ -175,60 +201,80 @@ export default function HomeScreen({ navigation }) {
                     />
                 ) : (
                     <>
-                        <FadeInView delay={100}>
+                        <FadeInView delay={100} style={styles.heroSection}>
                             <Text style={styles.greeting}>{t('customer_home_greeting')}</Text>
                             <Text style={styles.subGreeting}>{t('premium_services_desc')}</Text>
                         </FadeInView>
 
+                        <FadeInView delay={160} style={styles.searchSection}>
+                            <View style={styles.searchWrap}>
+                                <Animated.View pointerEvents="none" style={[styles.searchGlow, searchGlowStyle]}>
+                                    <LinearGradient
+                                        colors={[
+                                            tTheme.brand.primary + '66',
+                                            tTheme.brand.secondary + '55',
+                                            (tTheme.brand.accent || tTheme.brand.primary) + '44',
+                                        ]}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                        style={StyleSheet.absoluteFillObject}
+                                    />
+                                </Animated.View>
+                                <View style={styles.searchBar}>
+                                    <Text style={styles.searchIcon}>🔍</Text>
+                                    <TextInput
+                                        style={styles.searchInput}
+                                        placeholder="What do you need help with today?"
+                                        placeholderTextColor={tTheme.text.secondary}
+                                        value={searchQuery}
+                                        onChangeText={setSearchQuery}
+                                    />
+                                </View>
+                            </View>
+                        </FadeInView>
+
                         {activeJob && searchPhase && ACTIVE_REQUEST_STATUSES.includes(searchPhase) && (
-                            <FadeInView delay={200}>
-                                <Card glow style={styles.activeJobCard}>
-                                    <View style={styles.activeHeader}>
-                                        <Text style={styles.activeLabel}>{t('active_request')}</Text>
-                                        <StatusPill status={searchPhase} />
-                                    </View>
-                                    <View style={styles.activeBody}>
-                                        <View style={styles.serviceIconWrap}>
-                                            <RadarAnimation size={40} />
+                            <FadeInView delay={220} style={styles.activeMiniWrap}>
+                                <Card glow style={styles.activeMiniCard}>
+                                    <View style={styles.activeMiniLeft}>
+                                        <View style={styles.activeRadar}>
+                                            <RadarAnimation size={30} />
                                         </View>
-                                        <View style={styles.activeInfo}>
-                                            <Text style={styles.activeName}>{t(`cat_${activeJob.category}`) || activeJob.category}</Text>
-                                            <Text style={styles.activeStatusDesc}>
+                                        <View style={styles.activeMiniInfo}>
+                                            <Text style={styles.activeMiniLabel}>{t('active_request')}</Text>
+                                            <Text style={styles.activeMiniName} numberOfLines={1}>
+                                                {t(`cat_${activeJob.category}`) || activeJob.category}
+                                            </Text>
+                                            <Text style={styles.activeMiniDesc} numberOfLines={1}>
                                                 {searchPhase === 'searching' ? t('finding_best_worker') : t('service_in_progress')}
                                             </Text>
                                         </View>
                                     </View>
-                                    <PremiumButton
-                                        title={t('track_status')}
-                                        onPress={() => searchPhase === 'searching' ? navigation.navigate('Searching', { category: activeJob.category, jobId: activeJob.id }) : navigation.navigate('JobStatusDetail', { jobId: activeJob.id })}
-                                    />
+                                    <View style={styles.activeMiniRight}>
+                                        <StatusPill status={searchPhase} />
+                                        <PressableAnimated
+                                            style={styles.activeMiniBtn}
+                                            onPress={() => searchPhase === 'searching'
+                                                ? navigation.navigate('Searching', { category: activeJob.category, jobId: activeJob.id })
+                                                : navigation.navigate('JobStatusDetail', { jobId: activeJob.id })}
+                                        >
+                                            <Text style={styles.activeMiniBtnText}>Track</Text>
+                                        </PressableAnimated>
+                                    </View>
                                 </Card>
                             </FadeInView>
                         )}
-
-                        <FadeInView delay={300} style={styles.searchSection}>
-                            <View style={styles.searchBar}>
-                                <Text style={styles.searchIcon}>🔍</Text>
-                                <TextInput
-                                    style={styles.searchInput}
-                                    placeholder={t('what_need_help_with')}
-                                    placeholderTextColor={tTheme.text.secondary}
-                                    value={searchQuery}
-                                    onChangeText={setSearchQuery}
-                                />
-                            </View>
-                        </FadeInView>
 
                         <View style={styles.gridSection}>
                             <Text style={styles.sectionTitle}>{t('categories')}</Text>
                             <View style={styles.grid}>
                                 {isLoadingServices ? (
-                                    [1, 2, 3, 4, 5, 6].map((i) => (
-                                        <SkeletonCard key={i} width={'47%'} height={120} />
+                                    [1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                                        <SkeletonCard key={i} width={gridItemSize} height={gridItemSize} />
                                     ))
                                 ) : (
                                     displayedServices.map((s, i) => (
-                                        <FadeInView key={s.id} delay={100 + (i * 50)} style={styles.gridItem}>
+                                        <FadeInView key={s.id} delay={100 + (i * 50)} style={[styles.gridItem, { width: gridItemSize }]}>
                                             <PressableAnimated
                                                 style={styles.serviceCard}
                                                 onPress={() => navigation.navigate('DynamicQuestions', { category: s.id, label: s.label })}
@@ -243,43 +289,70 @@ export default function HomeScreen({ navigation }) {
                                 )}
                             </View>
 
-                            <FadeInView delay={400} style={{ marginTop: 24, gap: 12 }}>
-
+                            {shouldShowSeeAll && (
                                 <PressableAnimated
-                                    style={{
-                                        backgroundColor: tTheme.background.surfaceRaised,
-                                        padding: 16,
-                                        borderRadius: tTheme.radius.xl,
-                                        borderWidth: 1,
-                                        borderColor: tTheme.status.warning.base + '40',
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between'
-                                    }}
-                                    onPress={() => navigation.navigate('MyCustomRequests')}
+                                    style={styles.seeAllBtn}
+                                    onPress={() => setShowAllServices(!showAllServices)}
                                 >
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ color: tTheme.text.primary, fontSize: tTheme.typography.size.body, fontWeight: 'bold' }}>
-                                            Track Custom Requests
-                                        </Text>
-                                        <Text style={{ color: tTheme.text.secondary, fontSize: 12, marginTop: 4 }}>
-                                            View status or post approved custom requests live.
-                                        </Text>
-                                    </View>
-                                    <Text style={{ fontSize: 20 }}>📋</Text>
+                                    <Text style={styles.seeAllTxt}>{showAllServices ? 'Show Less' : 'See All'}</Text>
                                 </PressableAnimated>
-                            </FadeInView>
+                            )}
                         </View>
+
+                        <View style={styles.trustSection}>
+                            <Text style={styles.sectionTitle}>Premium Assurance</Text>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.trustRow}
+                            >
+                                {trustBanners.map((banner, i) => (
+                                    <FadeInView key={banner.id} delay={160 + (i * 60)} style={styles.trustItem}>
+                                        <Card glow style={styles.trustCard}>
+                                            <LinearGradient
+                                                colors={[
+                                                    tTheme.brand.primary + '22',
+                                                    tTheme.brand.secondary + '18',
+                                                    (tTheme.brand.accent || tTheme.brand.primary) + '12',
+                                                ]}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 1 }}
+                                                style={StyleSheet.absoluteFillObject}
+                                            />
+                                            <View style={styles.trustIconWrap}>
+                                                <Text style={styles.trustIcon}>{banner.icon}</Text>
+                                            </View>
+                                            <Text style={styles.trustText}>{banner.text}</Text>
+                                        </Card>
+                                    </FadeInView>
+                                ))}
+                            </ScrollView>
+                        </View>
+
+                        <FadeInView delay={360} style={styles.conciergeSection}>
+                            <PressableAnimated
+                                style={styles.conciergeCard}
+                                onPress={() => navigation.navigate('MyCustomRequests')}
+                            >
+                                <View style={styles.conciergeLeft}>
+                                    <Text style={styles.conciergeTitle}>Track Custom Requests</Text>
+                                    <Text style={styles.conciergeSub}>
+                                        View status or post approved custom requests live.
+                                    </Text>
+                                </View>
+                                <Text style={styles.conciergeChevron}>›</Text>
+                            </PressableAnimated>
+                        </FadeInView>
 
                         {recentJobs.length > 0 && (
                             <View style={styles.recentSection}>
                                 <View style={styles.sectionHeader}>
                                     <Text style={styles.sectionTitle}>{t('recent_activity')}</Text>
                                     <PressableAnimated onPress={() => navigation.navigate('MyJobs')}>
-                                        <Text style={styles.viewAllTxt}>{t('view_all')}</Text>
+                                        <Text style={styles.viewAllTxt}>View All History</Text>
                                     </PressableAnimated>
                                 </View>
-                                {recentJobs.map((job, i) => (
+                                {recentJobs.slice(0, 2).map((job, i) => (
                                     <FadeInView key={job.id} delay={200 + (i * 60)}>
                                         <ActivityCard
                                             job={job}
@@ -345,99 +418,154 @@ export default function HomeScreen({ navigation }) {
 const createStyles = (t) => StyleSheet.create({
     screen: { flex: 1, backgroundColor: t.background.app },
     scrollView: { flex: 1 },
-    content: { padding: t.spacing['2xl'], paddingTop: 100, paddingBottom: 120 },
+    content: { padding: t.spacing['2xl'], paddingTop: t.spacing['2xl'], paddingBottom: 120 },
 
-    headerFloating: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 100,
-        paddingTop: 50,
-        alignItems: 'center',
-        zIndex: 10,
+    headerDock: {
+        paddingHorizontal: t.spacing['2xl'],
+        paddingBottom: t.spacing.md,
+        backgroundColor: t.background.app,
+        zIndex: 5,
     },
-    headerTitle: {
-        color: t.text.primary,
-        fontSize: t.typography.size.body,
-        fontWeight: t.typography.weight.bold,
-        letterSpacing: 1.2,
-        textTransform: 'uppercase',
-    },
-
-    topBar: { marginBottom: t.spacing[32] },
     locationPill: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: t.background.surface,
         alignSelf: 'flex-start',
-        paddingHorizontal: t.spacing.lg,
-        paddingVertical: t.spacing.md,
+        paddingHorizontal: t.spacing.md,
+        paddingVertical: t.spacing.sm,
         borderRadius: t.radius.full,
+        borderWidth: 1,
+        borderColor: t.brand.primary + '22',
         gap: t.spacing.sm,
         ...t.shadows.premium
     },
-    locationTxt: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium, maxWidth: 200 },
-    locationChevron: { color: t.brand.primary, fontSize: 16 },
+    locationTxt: { color: t.text.primary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.semibold, letterSpacing: 0.6 },
+    locationChevron: { color: t.text.secondary, fontSize: 14 },
 
+    heroSection: { marginTop: t.spacing.sm },
     greeting: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.semibold, letterSpacing: t.typography.tracking.hero },
     subGreeting: { color: t.text.secondary, fontSize: t.typography.size.body, marginTop: 4, letterSpacing: t.typography.tracking.body },
 
-    activeJobCard: { marginTop: t.spacing[32], gap: t.spacing.lg },
-    activeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    activeLabel: { color: t.brand.primary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold, letterSpacing: 1.5 },
-    activeBody: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.lg, marginVertical: t.spacing.sm },
-    serviceIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-    activeInfo: { flex: 1 },
-    activeName: { color: t.text.primary, fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.cardTitle },
-    activeStatusDesc: { color: t.text.secondary, fontSize: t.typography.size.micro, marginTop: 2 },
-
-    searchSection: { marginTop: t.spacing[32] },
+    searchSection: { marginTop: t.spacing.lg },
+    searchWrap: { position: 'relative', borderRadius: t.radius.full, overflow: 'visible' },
+    searchGlow: {
+        position: 'absolute',
+        top: -2,
+        left: -2,
+        right: -2,
+        bottom: -2,
+        borderRadius: t.radius.full,
+        shadowColor: t.brand.primary,
+        shadowOpacity: 0.45,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 0 },
+    },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: t.background.surface,
-        borderRadius: t.radius.lg,
+        borderRadius: t.radius.full,
         paddingHorizontal: t.spacing['2xl'],
-        paddingVertical: t.spacing.lg,
+        paddingVertical: t.spacing.xl,
         gap: t.spacing.lg,
+        borderWidth: 1,
+        borderColor: t.brand.primary + '22',
         ...t.shadows.premium
     },
-    searchIcon: { fontSize: 18 },
-    searchInput: { flex: 1, color: t.text.primary, fontSize: t.typography.size.body, paddingVertical: 4 },
+    searchIcon: { fontSize: 20 },
+    searchInput: { flex: 1, color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.medium, paddingVertical: 4 },
 
-    gridSection: { marginTop: t.spacing[32] },
+    activeMiniWrap: { marginTop: t.spacing.lg },
+    activeMiniCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: t.spacing.lg, gap: t.spacing.lg },
+    activeMiniLeft: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.md, flex: 1 },
+    activeRadar: { width: 40, height: 40, borderRadius: 20, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    activeMiniInfo: { flex: 1 },
+    activeMiniLabel: { color: t.brand.primary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold, letterSpacing: 1.6, textTransform: 'uppercase' },
+    activeMiniName: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.semibold, marginTop: 2 },
+    activeMiniDesc: { color: t.text.secondary, fontSize: t.typography.size.micro, marginTop: 2 },
+    activeMiniRight: { alignItems: 'flex-end', gap: t.spacing.sm },
+    activeMiniBtn: {
+        paddingHorizontal: t.spacing.md,
+        paddingVertical: 6,
+        borderRadius: t.radius.full,
+        borderWidth: 1,
+        borderColor: t.brand.primary + '55',
+        backgroundColor: t.background.surfaceRaised,
+    },
+    activeMiniBtnText: { color: t.brand.primary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold, letterSpacing: 1.1, textTransform: 'uppercase' },
+
+    gridSection: { marginTop: t.spacing['2xl'] },
     sectionTitle: { color: t.text.primary, fontSize: t.typography.size.cardTitle, fontWeight: t.typography.weight.semibold, marginBottom: t.spacing.lg, letterSpacing: t.typography.tracking.cardTitle },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: t.spacing.lg },
-    gridItem: { width: '47%' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: t.spacing.lg, columnGap: t.spacing.lg },
+    gridItem: { alignItems: 'stretch' },
     serviceCard: {
+        width: '100%',
+        aspectRatio: 1,
         backgroundColor: t.background.surface,
         borderRadius: t.radius.xl,
-        padding: t.spacing['2xl'],
+        padding: t.spacing.xl,
         alignItems: 'center',
-        gap: t.spacing.lg,
+        justifyContent: 'center',
+        gap: t.spacing.md,
         ...t.shadows.premium
     },
-    iconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
-    gridIcon: { fontSize: 28 },
-    gridLabel: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.caption },
+    iconCircle: { width: 68, height: 68, borderRadius: 34, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
+    gridIcon: { fontSize: 30 },
+    gridLabel: {
+        color: t.text.primary,
+        fontSize: t.typography.size.micro,
+        fontWeight: t.typography.weight.bold,
+        letterSpacing: 1.6,
+        textTransform: 'uppercase',
+        textAlign: 'center'
+    },
+    seeAllBtn: {
+        alignSelf: 'flex-end',
+        marginTop: t.spacing.md,
+        paddingHorizontal: t.spacing.md,
+        paddingVertical: t.spacing.sm,
+        borderRadius: t.radius.full,
+        borderWidth: 1,
+        borderColor: t.brand.primary + '30',
+    },
+    seeAllTxt: { color: t.brand.primary, fontSize: t.typography.size.micro, fontWeight: t.typography.weight.bold, letterSpacing: 1.4, textTransform: 'uppercase' },
 
-    recentSection: { marginTop: t.spacing[32] },
-    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: t.spacing.lg },
-    viewAllTxt: { color: t.brand.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold },
-    recentRow: {
+    trustSection: { marginTop: t.spacing['2xl'] },
+    trustRow: { paddingRight: t.spacing['2xl'], gap: t.spacing.lg },
+    trustItem: {},
+    trustCard: {
+        width: 260,
+        minHeight: 120,
+        padding: t.spacing.lg,
+        borderRadius: t.radius.xl,
+        backgroundColor: t.background.surface,
+        overflow: 'hidden',
+        justifyContent: 'space-between',
+        ...t.shadows.premium
+    },
+    trustIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: t.background.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
+    trustIcon: { fontSize: 18 },
+    trustText: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.medium, marginTop: t.spacing.sm },
+
+    conciergeSection: { marginTop: t.spacing['2xl'] },
+    conciergeCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: t.spacing.lg,
+        justifyContent: 'space-between',
         backgroundColor: t.background.surface,
         padding: t.spacing.lg,
-        borderRadius: t.radius.lg,
-        marginBottom: t.spacing.lg,
+        borderRadius: t.radius.xl,
+        borderWidth: 1,
+        borderColor: t.brand.primary + '22',
         ...t.shadows.premium
     },
-    recentIconBox: { width: 40, height: 40, borderRadius: 10, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
-    recentIcon: { fontSize: 20 },
-    recentInfo: { flex: 1 },
-    recentTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.medium, letterSpacing: t.typography.tracking.body },
-    recentDate: { color: t.text.secondary, fontSize: t.typography.size.micro, marginTop: 2 }
+    conciergeLeft: { flex: 1, paddingRight: t.spacing.md },
+    conciergeTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.semibold, letterSpacing: t.typography.tracking.body },
+    conciergeSub: { color: t.text.secondary, fontSize: t.typography.size.micro, marginTop: 4 },
+    conciergeChevron: { color: t.text.secondary, fontSize: 22 },
+
+    recentSection: { marginTop: t.spacing['2xl'] },
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: t.spacing.lg },
+    viewAllTxt: { color: t.brand.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.bold, letterSpacing: 0.6 },
 });
+

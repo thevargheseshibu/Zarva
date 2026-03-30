@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { useT } from '@shared/i18n/useTranslation';
 import { useJobStore } from '@jobs/store';
+import { useJobFirebase } from '@jobs/hooks/useJobFirebase'; // 1. IMPORT ADDED
 import apiClient from '@infra/api/client';
 import FadeInView from '@shared/ui/FadeInView';
 import PremiumButton from '@shared/ui/PremiumButton';
@@ -21,6 +22,9 @@ export default function SearchingScreen({ route, navigation }) {
     const [countdown, setCountdown] = useState(5);
     const { searchPhase, canMinimize, setCanMinimize, stopListening, clearActiveJob, waveNumber } = useJobStore();
 
+    // 2. HOOK ADDED: Connects this screen to real-time backend updates
+    useJobFirebase(jobId);
+
     useEffect(() => { navigation.setOptions({ gestureEnabled: false }); }, [navigation]);
 
     useEffect(() => {
@@ -32,7 +36,8 @@ export default function SearchingScreen({ route, navigation }) {
     }, [countdown, canMinimize]);
 
     useEffect(() => {
-        if (searchPhase === 'assigned' && jobId) {
+        // FIX: Listen for BOTH 'assigned' (FCM accepts) and 'worker_en_route' (UI accepts)
+        if ((searchPhase === 'assigned' || searchPhase === 'worker_en_route') && jobId) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             navigation.replace('JobStatusDetail', { jobId });
         }

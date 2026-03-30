@@ -83,8 +83,8 @@ export function useJobSearch() {
           }
         }, SEARCH_TIMEOUT_MS);
 
-        // Navigate to the live tracking screen
-        navigation.replace('JobStatusDetail', { jobId });
+        // Navigate to the Searching Radar screen first
+        navigation.replace('Searching', { category: jobData.category, jobId });
         return jobId;
       } catch (err) {
         const msg = err?.response?.data?.message || 'Failed to post job. Please try again.';

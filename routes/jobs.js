@@ -427,9 +427,9 @@ router.post('/:id/verify-start', async (req, res) => {
     }
 });
 
-// ─── POST /api/jobs/:id/verify-end ──────────────────────────────────────────
-// Customer verifies worker's end OTP (completion)
-router.post('/:id/verify-end', async (req, res) => {
+// ─── POST /api/jobs/:id/final/verify ──────────────────────────────────────────
+// Customer verifies worker's end OTP (completion) and flags any disputed items
+router.post('/:id/final/verify', async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
@@ -438,13 +438,19 @@ router.post('/:id/verify-end', async (req, res) => {
         if (!jobId || !/^\d+$/.test(jobId)) {
             return fail(res, 'Not found', 404, 'NOT_FOUND');
         }
-        const { otp } = req.body;
+        const { otp, flagged_material_ids } = req.body;
 
         if (!otp || !/^[0-9]{4}$/.test(otp)) {
             return fail(res, 'Invalid OTP format', 400, 'INVALID_OTP');
         }
 
         const pool = getPool();
+
+        // Check if there are flagged materials and update them
+        if (Array.isArray(flagged_material_ids) && flagged_material_ids.length > 0) {
+            const placeholders = flagged_material_ids.map((_, i) => `$${i + 2}`).join(',');
+            await pool.query(`UPDATE job_materials SET status = 'flagged' WHERE job_id = $1 AND id IN (${placeholders})`, [jobId, ...flagged_material_ids]);
+        }
         
         // Get job and verify ownership with final amounts
         const [jobs] = await pool.query(`
@@ -470,7 +476,7 @@ router.post('/:id/verify-end', async (req, res) => {
         const isValid = await bcrypt.compare(otp, job.end_otp_hash);
         if (!isValid) {
             await pool.query('UPDATE jobs SET end_otp_attempts = end_otp_attempts + 1 WHERE id = $1', [jobId]);
-            return fail(res, 'Invalid OTP', 400, 'INVALID_OTP');
+            return fail(res, 'Invalid OTP', 400, 'OTP_MISMATCH');
         }
 
         // Update job status and finalize billing
@@ -548,7 +554,7 @@ router.post('/:id/cancel', async (req, res) => {
 
 // CHANGE: Backward-compatible alias for mobile endpoint /verify-end-otp.
 router.post('/:id/verify-end-otp', async (req, res, next) => {
-    req.url = `/${req.params.id}/verify-end`;
+    req.url = `/${req.params.id}/final/verify`;
     return router.handle(req, res, next);
 });
 

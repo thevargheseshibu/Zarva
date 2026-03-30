@@ -83,10 +83,11 @@ export const useJobStore = create(
        * Called by useJobFirebase when the real-time snapshot fires.
        * Updates both phase and worker if present.
        */
-      onFirebaseUpdate: ({ status, worker }) => {
+      onFirebaseUpdate: ({ status, worker, waveNumber }) => {
         set((state) => ({
           searchPhase: status ?? state.searchPhase,
           assignedWorker: worker ?? state.assignedWorker,
+          waveNumber: waveNumber ?? state.waveNumber,
         }));
       },
 

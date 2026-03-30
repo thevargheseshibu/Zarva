@@ -446,34 +446,27 @@ export function PhaseContent({
     // ── FINAL STATES ───────────────────────────────────────────────────────
     if (isPending) return (
         <FadeInView delay={100}>
-            <View style={[styles.phaseCard, { borderColor: tTheme.status?.success?.base + '33', alignItems: 'center' }]}>
+            <View style={[styles.phaseCard, { borderColor: tTheme.status.warning.base + '44' }]}>
                 <View style={styles.phaseHeader}>
-                    <View style={[styles.phaseIconBox, { backgroundColor: tTheme.status?.success?.base + '15' }]}>
-                        <Text style={{ fontSize: 24 }}>✅</Text>
+                    <View style={[styles.phaseIconBox, { backgroundColor: tTheme.status.warning.base + '15' }]}>
+                        <Text style={{ fontSize: 22 }}>🧾</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.phaseMeta}>AWAITING CONFIRMATION</Text>
-                        <Text style={styles.phaseTitle}>Share Completion Code</Text>
+                        <Text style={styles.phaseMeta}>BILL SENT</Text>
+                        <Text style={styles.phaseTitle}>Awaiting Payment</Text>
                     </View>
                 </View>
-
-                <Text style={[styles.phaseSub, { textAlign: 'center', marginBottom: 4 }]}>
-                    Show this code to your client. They will enter it to confirm work completion and trigger the payment.
+                <Text style={styles.phaseSub}>
+                    The final bill has been sent. Ask the customer to review their app and provide you with this 4-digit Completion Code:
                 </Text>
-
-                <EndOtpDigits code={endOtp} theme={tTheme} />
-
-                <View style={[styles.liveBadge, { marginTop: 8, backgroundColor: '#00E0FF11', borderColor: '#00E0FF33', borderWidth: 1 }]}>
-                    <ActivityIndicator size="small" color="#00E0FF" />
-                    <Text style={[styles.liveTxt, { color: '#00E0FF', marginLeft: 6 }]}>Awaiting client confirmation</Text>
+                
+                {/* Massive OTP Display for Worker */}
+                <View style={{ backgroundColor: tTheme.background.surfaceRaised, padding: 24, borderRadius: 16, alignItems: 'center', marginVertical: 16, borderWidth: 1, borderColor: tTheme.border.default }}>
+                    <Text style={{ fontSize: 48, fontWeight: '900', letterSpacing: 8, color: tTheme.brand.primary }}>
+                        {endOtp || '----'}
+                    </Text>
                 </View>
-
-                <PremiumButton
-                    variant="secondary"
-                    title="Edit Materials / Spares"
-                    onPress={() => setMaterialModalVisible && setMaterialModalVisible(true)}
-                    style={{ marginTop: 16, width: '100%' }}
-                />
+                
             </View>
         </FadeInView>
     );
