@@ -427,70 +427,50 @@ router.post('/:id/verify-start', async (req, res) => {
     }
 });
 
-// ─── POST /api/jobs/:id/final/verify ──────────────────────────────────────────
-// Customer verifies worker's end OTP (completion) and flags any disputed items
-router.post('/:id/final/verify', async (req, res) => {
+// ─── POST /api/jobs/:id/verify-end ──────────────────────────────────────────
+// Customer verifies worker's end OTP (completion) and flags materials
+router.post('/:id/verify-end', async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
     try {
         const jobId = req.params.id;
-        if (!jobId || !/^\d+$/.test(jobId)) {
-            return fail(res, 'Not found', 404, 'NOT_FOUND');
-        }
+        if (!jobId || !/^\d+$/.test(jobId)) return fail(res, 'Not found', 404, 'NOT_FOUND');
+        
         const { otp, flagged_material_ids } = req.body;
 
-        if (!otp || !/^[0-9]{4}$/.test(otp)) {
-            return fail(res, 'Invalid OTP format', 400, 'INVALID_OTP');
-        }
+        if (!otp || !/^[0-9]{4}$/.test(otp)) return fail(res, 'Invalid OTP format', 400, 'INVALID_OTP');
 
         const pool = getPool();
-
-        // Check if there are flagged materials and update them
-        if (Array.isArray(flagged_material_ids) && flagged_material_ids.length > 0) {
-            const placeholders = flagged_material_ids.map((_, i) => `$${i + 2}`).join(',');
-            await pool.query(`UPDATE job_materials SET status = 'flagged' WHERE job_id = $1 AND id IN (${placeholders})`, [jobId, ...flagged_material_ids]);
-        }
-        
-        // Get job and verify ownership with final amounts
-        const [jobs] = await pool.query(`
-            SELECT j.*, 
-                   COALESCE(SUM(CASE WHEN jm.status != 'flagged' THEN ROUND(jm.amount * 100) ELSE 0 END), 0)::BIGINT as current_materials_paise,
-                   COUNT(CASE WHEN jm.status != 'flagged' THEN 1 END) as material_items
-            FROM jobs j
-            LEFT JOIN job_materials jm ON jm.job_id = j.id
-            WHERE j.id = $1 AND j.customer_id = $2
-            GROUP BY j.id
-        `, [jobId, userId]);
-        
-        if (!jobs.length) {
-            return fail(res, 'Job not found', 404, 'NOT_FOUND');
-        }
+        const [jobs] = await pool.query('SELECT end_otp_hash, status FROM jobs WHERE id = $1 AND customer_id = $2', [jobId, userId]);
+        if (!jobs.length) return fail(res, 'Job not found', 404, 'NOT_FOUND');
 
         const job = jobs[0];
-        if (job.status !== 'pending_completion') {
-            return fail(res, 'Invalid job state for completion verification', 400, 'INVALID_STATE');
-        }
+        if (job.status !== 'pending_completion') return fail(res, 'Invalid job state for completion verification', 400, 'INVALID_STATE');
 
-        // Verify OTP
         const isValid = await bcrypt.compare(otp, job.end_otp_hash);
         if (!isValid) {
             await pool.query('UPDATE jobs SET end_otp_attempts = end_otp_attempts + 1 WHERE id = $1', [jobId]);
-            return fail(res, 'Invalid OTP', 400, 'OTP_MISMATCH');
+            return fail(res, 'Invalid OTP', 400, 'INVALID_OTP');
         }
 
-        // Update job status and finalize billing
-        await pool.query(`
-            UPDATE jobs 
-            SET status = 'completed', 
-                job_ended_at = NOW(),
-                end_otp_verified_at = NOW()
-            WHERE id = $1
-        `, [jobId]);
+        // Handle Disputed/Flagged Materials
+        let flaggedPaise = 0;
+        if (Array.isArray(flagged_material_ids) && flagged_material_ids.length > 0) {
+            const placeholders = flagged_material_ids.map((_, i) => `$${i + 2}`).join(',');
+            const [flaggedRows] = await pool.query(`SELECT SUM(amount) as amt FROM job_materials WHERE job_id = $1 AND id IN (${placeholders})`, [jobId, ...flagged_material_ids]);
+            flaggedPaise = Math.round(Number(flaggedRows[0]?.amt || 0) * 100);
+            await pool.query(`UPDATE job_materials SET status = 'flagged' WHERE job_id = $1 AND id IN (${placeholders})`, [jobId, ...flagged_material_ids]);
+        }
 
-        // Finalize billing with corrected amounts
+        // Finalize billing 
         const { default: BillingService } = await import('../services/billing.service.js');
-        await BillingService.finalizeJob(jobId);
+        const finalResult = await BillingService.finalizeJob(jobId);
+
+        // Compute actual settlement breakdown for the receipt
+        const [refreshedJobs] = await pool.query('SELECT final_labor_paise, final_material_paise FROM jobs WHERE id = $1', [jobId]);
+        const rJob = refreshedJobs[0];
+        const settlement = BillingService.computeSettlement(Number(rJob.final_labor_paise || 0), Number(rJob.final_material_paise || 0));
 
         // Update Firebase
         const { updateJobNode } = await import('../services/firebase.service.js');
@@ -501,9 +481,15 @@ router.post('/:id/final/verify', async (req, res) => {
             end_otp_verified_at: new Date().toISOString()
         });
 
-        // CHANGE: Send explicit HTTP response so mobile clients don't hang waiting for body.
-        const expectedTotal = Number(job.final_labor_paise || 0) + Number(job.actual_materials_paise || 0);
-        return res.status(200).json({ status: 'ok', success: true, final_amount: expectedTotal / 100 });
+        // Return the exact structure PaymentConfirmScreen expects
+        return res.status(200).json({ 
+            status: 'ok', 
+            success: true, 
+            invoice_number: finalResult.invoice_number,
+            settlement,
+            flagged_paise: flaggedPaise,
+            flagged_material_count: Array.isArray(flagged_material_ids) ? flagged_material_ids.length : 0
+        });
     } catch (err) {
         console.error('[Jobs] POST /:id/verify-end error:', err);
         return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
@@ -603,8 +589,12 @@ router.post('/:id/customer-stop', async (req, res) => {
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
     try {
+        // FIX: Extract the reason from the request body
+        const { reason } = req.body;
         const { default: BillingService } = await import('../services/billing.service.js');
-        const result = await BillingService.customerStopWork(req.params.id, userId);
+        
+        // Pass the reason to the service
+        const result = await BillingService.customerStopWork(req.params.id, userId, reason);
         return res.status(200).json({ status: 'ok', ...result });
     } catch (err) {
         console.error('[Jobs] POST /:id/customer-stop error:', err);

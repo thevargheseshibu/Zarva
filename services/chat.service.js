@@ -29,9 +29,10 @@ export async function getMessages(jobId, userId, beforeMessageId, limit = 50) {
             CASE WHEN m.is_deleted THEN NULL ELSE m.content END as content, 
             CASE WHEN m.is_deleted THEN NULL ELSE m.s3_key END as s3_key,
             m.client_message_id, m.created_at, m.is_deleted,
-            u.name as sender_name
+            COALESCE(cp.name, wp.name, 'Zarva User') as sender_name
         FROM job_messages m
-        JOIN users u ON m.sender_id = u.id
+        LEFT JOIN customer_profiles cp ON cp.user_id = m.sender_id
+        LEFT JOIN worker_profiles wp ON wp.user_id = m.sender_id
         WHERE m.job_id = $1
     `;
     const params = [jobId];
@@ -68,14 +69,14 @@ export async function sendMessage({ jobId, senderId, senderRole, messageType, co
     await conn.beginTransaction();
     try {
         // Validate job state
-        const [jobs] = await conn.query('SELECT customer_id, worker_id, chat_enabled FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
+        const [jobs] = await conn.query('SELECT customer_id, worker_id, chat_enabled, status FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
         if (jobs.length === 0) throw Object.assign(new Error('Job not found'), { status: 404 });
 
         const job = jobs[0];
         if (job.customer_id != senderId && job.worker_id != senderId) {
             throw Object.assign(new Error('Access denied'), { status: 403, code: 'CHAT_ACCESS_DENIED' });
         }
-        if (!job.chat_enabled) {
+        if (['searching', 'open', 'no_worker_found', 'cancelled'].includes(job.status)) {
             throw Object.assign(new Error('Chat is currently locked for this job'), { status: 403, code: 'CHAT_DISABLED' });
         }
 
@@ -86,8 +87,14 @@ export async function sendMessage({ jobId, senderId, senderRole, messageType, co
         if (existing.length > 0) {
             await conn.commit();
             const msg = existing[0];
-            const [u] = await pool.query('SELECT name FROM users WHERE id = $1', [msg.sender_id]);
-            msg.sender_name = u[0].name;
+            const [u] = await pool.query(`
+                SELECT COALESCE(cp.name, wp.name, 'Zarva User') as name 
+                FROM users u
+                LEFT JOIN customer_profiles cp ON cp.user_id = u.id
+                LEFT JOIN worker_profiles wp ON wp.user_id = u.id
+                WHERE u.id = $1
+            `, [msg.sender_id]);
+            msg.sender_name = u[0]?.name || 'Zarva User';
             return msg; // Already saved
         }
 
@@ -112,8 +119,14 @@ export async function sendMessage({ jobId, senderId, senderRole, messageType, co
         const newUnreadCount = senderRole === 'customer' ? updatedJobs[0].worker_unread_count : updatedJobs[0].customer_unread_count;
 
         // Fetch sender name
-        const [senders] = await conn.query('SELECT name FROM users WHERE id = $1', [senderId]);
-        const senderName = senders[0].name;
+        const [senders] = await conn.query(`
+            SELECT COALESCE(cp.name, wp.name, 'Zarva User') as name 
+            FROM users u
+            LEFT JOIN customer_profiles cp ON cp.user_id = u.id
+            LEFT JOIN worker_profiles wp ON wp.user_id = u.id
+            WHERE u.id = $1
+        `, [senderId]);
+        const senderName = senders[0]?.name || 'Zarva User';
 
         await conn.commit();
 
@@ -133,8 +146,10 @@ export async function sendMessage({ jobId, senderId, senderRole, messageType, co
 
         // Fetch back full message for response
         const [msgs] = await pool.query(`
-            SELECT m.*, u.name as sender_name 
-            FROM job_messages m JOIN users u ON m.sender_id = u.id 
+            SELECT m.*, COALESCE(cp.name, wp.name, 'Zarva User') as sender_name 
+            FROM job_messages m 
+            LEFT JOIN customer_profiles cp ON cp.user_id = m.sender_id
+            LEFT JOIN worker_profiles wp ON wp.user_id = m.sender_id
             WHERE m.id = $1
         `, [newMessageId]);
 

@@ -170,40 +170,53 @@ async function pruneStaleTokens(staleTokens, tokenToUserMap) {
 }
 
 /**
- * Dispatches a 'NEW_CHAT_MESSAGE' push notification to a specific user.
+ * Dispatches a 'chat_message' push notification to a specific user.
  */
 export async function sendChatNotification(jobId, recipientId, senderName, messagePreview, messageType) {
     const messaging = getMessaging();
-    if (!messaging) return;
+    if (!messaging) {
+        console.log(`[FCM Mock] Chat alert to user ${recipientId}: ${messagePreview}`);
+        return;
+    }
 
     try {
         const pool = getPool();
-        const [users] = await pool.query('SELECT fcm_token FROM users WHERE id = $1', [recipientId]);
-        if (!users.length || !users[0].fcm_token) return;
+        const [users] = await pool.query('SELECT id, fcm_token FROM users WHERE id = $1', [recipientId]);
+        
+        if (!users.length || !users[0].fcm_token) {
+            console.log(`[FCM Service] Cannot send chat to ${recipientId}: No FCM token.`);
+            return;
+        }
 
         const token = users[0].fcm_token;
+        
         const message = {
-            token,
+            token: token,
             notification: {
-                title: senderName,
-                body: messagePreview
+                // Ensure notification fields are strictly strings
+                title: String(senderName || 'New Message'),
+                body: String(messagePreview || 'You have a new message')
             },
             data: {
-                type: 'NEW_CHAT_MESSAGE',
-                job_id: String(jobId),
-                sender_name: senderName,
-                message_type: messageType
+                // FIX: Match frontend router expectation and strictly cast ALL values to Strings
+                type: 'chat_message', 
+                job_id: String(jobId || ''),
+                sender_name: String(senderName || 'User'),
+                
+                // 🚨 FIX: 'message_type' is an FCM Reserved Word! We must use 'msg_type' instead.
+                msg_type: String(messageType || 'text')
             },
             android: {
                 priority: 'high',
                 notification: {
-                    channelId: 'chat_alerts' // Use a specific channel for chat
+                    channelId: 'zarva_default' // Make sure this matches your created channel in fcm.init.js
                 }
             },
             apns: {
                 payload: {
                     aps: {
                         badge: 1,
+                        sound: 'default',
                         'content-available': 1
                     }
                 }
@@ -214,6 +227,7 @@ export async function sendChatNotification(jobId, recipientId, senderName, messa
         console.log(`[FCM Service] Chat notification sent successfully: ${response}`);
     } catch (err) {
         console.error(`[FCM Service] Failed to send chat notification to user ${recipientId}:`, err);
+        // Clean up stale tokens
         if (err.code === 'messaging/invalid-registration-token' || err.code === 'messaging/registration-token-not-registered') {
             const pool = getPool();
             await pool.query('UPDATE users SET fcm_token = NULL WHERE id = $1', [recipientId]);

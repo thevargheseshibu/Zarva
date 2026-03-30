@@ -94,10 +94,10 @@ export function handleFCMMessage(remoteMessage, navigationRef = null) {
 
     // ── Shared: Chat Message ─────────────────────────────────────────────
     case 'chat_message': {
-      // Firebase real-time listener in ChatScreen handles unread badge natively.
       // If the user tapped the notification we can open the chat directly.
-      if (navigationRef?.isReady() && data?.chat_id) {
-        navigationRef.navigate('Chat', { chatId: data.chat_id });
+      const chatIdToUse = data?.job_id || data?.chat_id;
+      if (navigationRef?.isReady() && chatIdToUse) {
+        navigationRef.navigate('Chat', { jobId: chatIdToUse });
       }
       break;
     }

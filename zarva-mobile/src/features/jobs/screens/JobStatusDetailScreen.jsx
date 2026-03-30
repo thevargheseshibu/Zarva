@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTokens } from '@shared/design-system';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    Image, BackHandler, Alert, Animated, Linking, Platform
+    Image, BackHandler, Alert, Animated, Linking, Platform, TextInput
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
@@ -197,6 +197,9 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
         // Live worker GPS: listen to active_jobs/{jobId} root for worker_lat/worker_lng
         // The server also writes to worker_presence/{workerId} when the worker moves
+        let lastSeenStatus = null;
+        let initialFetchDone = false;
+        
         const jobRootRef = ref(db, `active_jobs/${jobId}`);
         const jobRootListener = onValue(jobRootRef, snap => {
             const data = snap.val();
@@ -211,12 +214,14 @@ export default function JobStatusDetailScreen({ route, navigation }) {
             }
 
             // Force refresh when inspection extension is requested so customer sees OTP approval card promptly.
-            if (data.inspection_ext_pending === true) {
+            if (data.inspection_ext_pending === true && !isFetchingRef.current) {
                 fetchJobDetails();
             }
 
             // RE-FETCH ON STATUS CHANGE: Ensure we have latest OTPs and timestamps
-            if (data.status) {
+            if (!initialFetchDone || (data.status && data.status !== lastSeenStatus)) {
+                initialFetchDone = true;
+                if (data.status) lastSeenStatus = data.status;
                 fetchJobDetails();
             }
         });
@@ -303,11 +308,14 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     };
 
     // OTP input for extension/pause/resume/suspend approvals
-    // We track the current OTP code in a single string for simplicity
     const [otpCode, setOtpCode] = useState('');
     const [otpActionLoading, setOtpActionLoading] = useState(false);
     const [billPreview, setBillPreview] = useState(null);
     const [billLoading, setBillLoading] = useState(false);
+
+    // Stop Work States
+    const [showStopInput, setShowStopInput] = useState(false);
+    const [stopReason, setStopReason] = useState('');
 
     const handleActionApproval = async (action, code) => {
         const finalCode = code || otpCode;
@@ -320,6 +328,8 @@ export default function JobStatusDetailScreen({ route, navigation }) {
             if (action === 'pause') endpoint = `/api/jobs/${jobId}/approve-pause`;
             else if (action === 'resume') endpoint = `/api/jobs/${jobId}/approve-resume`;
             else if (action === 'suspend') endpoint = `/api/jobs/${jobId}/approve-suspend`;
+            // FIX: Map the extension action to the API
+            else if (action === 'extension') endpoint = `/api/jobs/${jobId}/inspection/approve-extension`;
             else throw new Error('Unknown action');
             
             await apiClient.post(endpoint, action === 'suspend' ? {} : { otp: finalCode }, { useLoader: false });
@@ -395,23 +405,18 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     };
 
     const handleCustomerStop = async () => {
-        Alert.alert(
-            'Stop Work?',
-            'This will freeze the timer. You will be billed for actual time worked.',
-            [
-                { text: 'Keep Going', style: 'cancel' },
-                {
-                    text: 'Stop Now', style: 'destructive', onPress: async () => {
-                        try {
-                            await apiClient.post(`/api/jobs/${jobId}/customer-stop`);
-                            await fetchJobDetails();
-                        } catch (err) {
-                            Alert.alert('Error', err.response?.data?.message || 'Failed.');
-                        }
-                    }
-                }
-            ]
-        );
+        if (!stopReason.trim()) return Alert.alert('Required', 'Please provide a reason for stopping.');
+        setOtpActionLoading(true);
+        try {
+            await apiClient.post(`/api/jobs/${jobId}/customer-stop`, { reason: stopReason.trim() });
+            setShowStopInput(false);
+            setStopReason('');
+            await fetchJobDetails();
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Failed to stop work.');
+        } finally {
+            setOtpActionLoading(false);
+        }
     };
 
     const handleFetchBillPreview = async () => {
@@ -526,10 +531,16 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     <Text style={styles.headerLabel}>JOB STATUS</Text>
                     <Text style={styles.headerSub} numberOfLines={1}>{job ? `#${jobId.slice(-6).toUpperCase()}` : '...'}</Text>
                 </View>
-                {assignedWorker && job ? (
+                
+                {/* FIX: Chat is always available once a worker is assigned to the job */}
+                {(assignedWorker || job?.worker_id || job?.worker) && !['searching', 'open', 'no_worker_found', 'cancelled'].includes(status) ? (
                     <PressableAnimated
                         style={styles.chatBtn}
-                        onPress={() => navigation.navigate('Chat', { jobId, userRole: 'customer', otherUserId: job.worker_id })}
+                        onPress={() => navigation.navigate('Chat', { 
+                            jobId, 
+                            userRole: 'customer', 
+                            otherUserId: job?.worker_id || assignedWorker?.id 
+                        })}
                     >
                         <Text style={{ fontSize: 20 }}>💬</Text>
                         {chatUnread > 0 && (
@@ -691,6 +702,29 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                 <View style={[styles.liveDot, { backgroundColor: '#00E0FF' }]} />
                                 <Text style={[styles.liveTxt, { color: '#00E0FF' }]}>Assessment in progress — estimate coming soon</Text>
                             </View>
+                        </View>
+                    </FadeInView>
+                )}
+
+                {/* ── Time Extension Approval ── */}
+                {job?.inspection_ext_pending === true && status === 'inspection_active' && (
+                    <FadeInView delay={200}>
+                        <View style={[styles.actionCard, { borderColor: '#8B5CF644' }]}>
+                            <Text style={styles.actionCardTitle}>⏱️ Time Extension Requested</Text>
+                            <Text style={styles.actionCardSub}>
+                                The professional needs more time to complete a thorough inspection.
+                            </Text>
+                            <Text style={[styles.actionCardSub, { marginTop: 4, fontSize: 11 }]}>
+                                Reason: <Text style={{ color: tTheme.text.primary, fontWeight: '700' }}>{job?.extension_reason || 'Complex assessment'}</Text>
+                            </Text>
+                            <Text style={[styles.actionCardSub, { marginTop: 4, fontSize: 11, color: '#F59E0B' }]}>
+                                Requesting {job?.extension_requested_minutes || 10} additional minutes.
+                            </Text>
+                            <OTPInput
+                                onComplete={(code) => handleActionApproval('extension', code)}
+                                disabled={otpActionLoading}
+                            />
+                            {otpActionLoading && <Text style={styles.verifyingTxt}>Verifying…</Text>}
                         </View>
                     </FadeInView>
                 )}
@@ -1052,13 +1086,49 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 )}
 
 
-                {/* ── Customer Stop-Early Button (in_progress | work_paused) ── */}
-                {['in_progress', 'work_paused'].includes(status) && (
+                {/* ── Customer Stop-Early Button (Available anytime during active session) ── */}
+                {['worker_arrived', 'inspection_active', 'estimate_submitted', 'in_progress', 'work_paused', 'pause_requested', 'resume_requested'].includes(status) && (
                     <FadeInView delay={230}>
-                        <TouchableOpacity style={styles.stopWorkBtn} onPress={handleCustomerStop} activeOpacity={0.8}>
-                            <Text style={{ fontSize: 18 }}>⛔</Text>
-                            <Text style={styles.stopWorkTxt}>Stop Work Early</Text>
-                        </TouchableOpacity>
+                        {!showStopInput ? (
+                            <TouchableOpacity style={styles.stopWorkBtn} onPress={() => setShowStopInput(true)} activeOpacity={0.8}>
+                                <Text style={{ fontSize: 18 }}>⛔</Text>
+                                <Text style={styles.stopWorkTxt}>Stop Work Early</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <View style={[styles.actionCard, { borderColor: '#EF444444' }]}>
+                                <Text style={[styles.actionCardTitle, { color: '#EF4444' }]}>⛔ Stop Work</Text>
+                                <Text style={styles.actionCardSub}>Please provide a reason for stopping the job early. This will freeze the billable timer.</Text>
+                                
+                                <TextInput
+                                    style={{
+                                        backgroundColor: tTheme.background.app, color: tTheme.text.primary,
+                                        padding: 14, borderRadius: 12, borderWidth: 1, borderColor: tTheme.border.default,
+                                        marginTop: 14, fontSize: 14
+                                    }}
+                                    placeholder="e.g., Work is completed, or I need to leave..."
+                                    placeholderTextColor={tTheme.text.tertiary}
+                                    value={stopReason}
+                                    onChangeText={setStopReason}
+                                    autoFocus
+                                />
+                                
+                                <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                                    <PremiumButton 
+                                        variant="secondary" 
+                                        title="Cancel" 
+                                        onPress={() => { setShowStopInput(false); setStopReason(''); }} 
+                                        style={{ flex: 1 }} 
+                                    />
+                                    <PremiumButton 
+                                        title="Confirm Stop" 
+                                        onPress={handleCustomerStop} 
+                                        loading={otpActionLoading}
+                                        style={{ flex: 1, backgroundColor: '#EF4444' }} 
+                                        disabled={!stopReason.trim() || otpActionLoading}
+                                    />
+                                </View>
+                            </View>
+                        )}
                     </FadeInView>
                 )}
 

@@ -188,7 +188,8 @@ router.post('/jobs/:id/accept', (req, res) =>
                 SET worker_id = $1, 
                     status = 'worker_en_route',
                     accepted_at = NOW(),
-                    travel_charge = $2
+                    travel_charge = $2,
+                    chat_enabled = true  -- FIX: Unlock the chat room for the participants
                 WHERE id = $3
             `, [userId, travelCharge, jobId]);
 
@@ -230,119 +231,36 @@ router.post('/jobs/:id/accept', (req, res) =>
  * Worker marks job as completed and generates END OTP for customer verification
  * POST /api/worker/jobs/:id/complete
  */
-router.post('/jobs/:id/complete', (req, res) =>
-    handle(req, res, async (userId, pool) => {
-        const jobId = req.params.id;
-        if (!/^\d+$/.test(jobId)) {
-            throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
-        }
+router.post('/jobs/:id/complete', handle(async (userId, pool, req) => {
+    const jobId = req.params.id;
+    if (!/^\d+$/.test(jobId)) throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
 
-        // Fetch job and verify ownership with materials and final amounts
-        const [jobs] = await pool.query(`
-            SELECT j.id, j.status, j.worker_id, j.final_labor_paise, j.final_material_paise, j.grand_total_paise,
-                   j.materials_declared, j.materials_cost, j.final_amount
-            FROM jobs j 
-            WHERE j.id = $1 AND j.worker_id = $2
-        `, [jobId, userId]);
-        const job = jobs[0];
-        if (!job) throw Object.assign(new Error('Job not found or not accessible'), { status: 404 });
+    const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
+    if (!jobs[0]) throw Object.assign(new Error('Job not found or not accessible'), { status: 404 });
 
-        // Check if materials were declared after job completion - this indicates double ledger risk
-        if (job.status === 'pending_completion') {
-            const redisClient = getRedisClient();
-            const existingOtp = await redisClient.get(`zarva:otp:end:${jobId}`);
-            
-            // Check if materials were added after initial completion
-            const [materialsCheck] = await pool.query(`
-                SELECT COUNT(*) as count, COALESCE(SUM(ROUND(amount * 100)), 0)::BIGINT as total_paise
-                FROM job_materials 
-                WHERE job_id = $1 AND status != 'flagged'
-            `, [jobId]);
-            
-            const currentMaterialsPaise = Number(materialsCheck[0]?.total_paise || 0);
-            const declaredMaterialsPaise = Math.round((job.materials_cost || 0) * 100);
-            
-            // If materials amount changed after completion, regenerate OTP with new amounts
-            if (currentMaterialsPaise !== declaredMaterialsPaise) {
-                console.log(`[Worker] Materials amount changed for job ${jobId}: was ${declaredMaterialsPaise}, now ${currentMaterialsPaise}. Regenerating OTP...`);
-                
-                // Generate new OTP with updated amounts
-                const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-                const hash = await bcrypt.hash(otp, 10);
-                
-                // Update job with new final amounts
-                const newFinalAmount = (job.final_labor_paise || 0) + currentMaterialsPaise;
-                await pool.query(`
-                    UPDATE jobs 
-                    SET end_otp_hash = $1, 
-                        final_material_paise = $2,
-                        grand_total_paise = $3,
-                        final_amount = $4,
-                        materials_cost = $5,
-                        materials_declared = true,
-                        work_ended_at = COALESCE(work_ended_at, NOW())
-                    WHERE id = $6
-                `, [hash, currentMaterialsPaise, newFinalAmount, newFinalAmount / 100, currentMaterialsPaise / 100, jobId]);
-                
-                // Store new OTP in Redis
-                await redisClient.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800);
-                console.log(`[Worker] Regenerated OTP for job ${jobId} with updated amounts: ${otp}`);
-                
-                const { updateJobNode } = await import('../services/firebase.service.js');
-                await updateJobNode(jobId, { status: 'pending_completion', timer_status: 'stopped' });
-                
-                return { end_otp: otp, amount_updated: true, new_final_amount: newFinalAmount / 100 };
-            }
-            
-            if (existingOtp) {
-                console.log(`[Worker] Found existing OTP for job ${jobId}: ${existingOtp}`);
-                return { end_otp: existingOtp };
-            }
-            console.log(`[Worker] No existing OTP found for job ${jobId}, regenerating...`);
-        } else if (job.status !== 'in_progress') {
-            throw Object.assign(new Error('Invalid job state'), { status: 400 });
-        }
-
-        // Generate OTP and lock in final amounts to prevent double ledger issues
-        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-        const hash = await bcrypt.hash(otp, 10);
-
-        // Get current material totals to lock in final amounts
-        const [materialsFinal] = await pool.query(`
-            SELECT COALESCE(SUM(ROUND(amount * 100)), 0)::BIGINT as total_paise,
-                   COALESCE(SUM(amount), 0) as total_rupees
-            FROM job_materials 
-            WHERE job_id = $1 AND status != 'flagged'
-        `, [jobId]);
-        
-        const materialsPaise = Number(materialsFinal[0]?.total_paise || 0);
-        const materialsRupees = parseFloat(materialsFinal[0]?.total_rupees || 0);
-
-        // Lock in final amounts to prevent double ledger issues
-        await pool.query(`
-            UPDATE jobs 
-            SET end_otp_hash = $1, 
-                status = 'pending_completion', 
-                final_material_paise = $2,
-                grand_total_paise = COALESCE(final_labor_paise, 0) + $2,
-                final_amount = (COALESCE(final_labor_paise, 0) + $2) / 100,
-                materials_cost = $3,
-                materials_declared = true,
-                work_ended_at = COALESCE(work_ended_at, NOW())
-            WHERE id = $4
-        `, [hash, materialsPaise, materialsRupees, jobId]);
-
-        // Redis Storage (Relayed to Worker to SHOW Customer) 180m TTL (10800s)
+    // If already completed but worker refreshed, just return the existing OTP
+    if (jobs[0].status === 'pending_completion') {
         const redisClient = getRedisClient();
-        await redisClient.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800);
-        console.log(`[Worker] Generated new OTP for job ${jobId}: ${otp}, Final amounts: labor=${job.final_labor_paise}, materials=${materialsPaise}, total=${(job.final_labor_paise || 0) + materialsPaise}`);
+        const existingOtp = await redisClient.get(`zarva:otp:end:${jobId}`);
+        if (existingOtp) return { success: true, end_otp: existingOtp };
+    } else if (jobs[0].status !== 'in_progress') {
+        throw Object.assign(new Error('Invalid job state'), { status: 400 });
+    }
 
-        const { updateJobNode } = await import('../services/firebase.service.js');
-        await updateJobNode(jobId, { status: 'pending_completion', timer_status: 'stopped' });
+    // FIX: Delegate to BillingService. This officially stops the timer, computes final labor 
+    // down to the second, locks materials, updates status, and generates the END OTP.
+    const { default: BillingService } = await import('../services/billing.service.js');
+    await BillingService.stopJobAndBill(jobId, 'worker', null, 'pending_completion');
 
-        return { end_otp: otp, final_materials: materialsRupees, final_total: ((job.final_labor_paise || 0) + materialsPaise) / 100 };
-    })
-);
+    // Retrieve the OTP generated by the billing service
+    const redisClient = getRedisClient();
+    const otp = await redisClient.get(`zarva:otp:end:${jobId}`);
+
+    const { updateJobNode } = await import('../services/firebase.service.js');
+    await updateJobNode(jobId, { status: 'pending_completion', timer_status: 'stopped' });
+
+    return { success: true, end_otp: otp };
+}));
 
 /**
  * Worker marks as arrived at job location and generates START OTP for customer verification
@@ -552,26 +470,30 @@ router.post('/jobs/:id/inspection/estimate', (req, res) =>
  * Worker requests to pause the work (needs customer approval)
  * POST /api/worker/jobs/:id/pause-request
  */
-router.post('/jobs/:id/pause-request', (req, res) =>
-    handle(req, res, async (userId, pool) => {
-        const { reason } = req.body;
-        const { default: BillingService } = await import('../services/billing.service.js');
-        await BillingService.workerDirectPause(req.params.id, userId, reason);
-        return { success: true };
-    })
-);
+router.post('/jobs/:id/pause-request', handle(async (userId, pool, req) => {
+    const { reason } = req.body;
+    const { default: BillingService } = await import('../services/billing.service.js');
+    await BillingService.workerDirectPause(req.params.id, userId, reason);
+    
+    // FIX: Must fetch and return the OTP so the worker UI can display it
+    const redisClient = getRedisClient();
+    const otp = await redisClient.get(`zarva:otp:pause:${req.params.id}`);
+    return { success: true, otp };
+}));
 
 /**
  * Worker requests to resume paused work
  * POST /api/worker/jobs/:id/resume-request
  */
-router.post('/jobs/:id/resume-request', (req, res) =>
-    handle(req, res, async (userId, pool) => {
-        const { default: BillingService } = await import('../services/billing.service.js');
-        await BillingService.workerDirectResume(req.params.id, userId);
-        return { success: true };
-    })
-);
+router.post('/jobs/:id/resume-request', handle(async (userId, pool, req) => {
+    const { default: BillingService } = await import('../services/billing.service.js');
+    await BillingService.workerDirectResume(req.params.id, userId);
+    
+    // FIX: Must fetch and return the OTP so the worker UI can display it
+    const redisClient = getRedisClient();
+    const otp = await redisClient.get(`zarva:otp:resume:${req.params.id}`);
+    return { success: true, otp };
+}));
 
 /**
  * Worker requests to suspend/reschedule (Customer approval via OTP)

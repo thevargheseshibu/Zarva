@@ -11,6 +11,7 @@ const router = Router({ mergeParams: true }); // Allows parsing :jobId from pare
 const ok = (res, data, status = 200) => res.status(status).json({ status: 'ok', ...data });
 const fail = (res, message, status = 400, code = 'BAD_REQUEST') =>
     res.status(status).json({ status: 'error', code, message });
+const isValidJobId = (jobId) => typeof jobId === 'string' && /^\d+$/.test(jobId);
 
 /**
  * Identify role based on job context (Customer or Worker)
@@ -33,13 +34,22 @@ router.get('/messages', async (req, res) => {
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
     const jobId = req.params.jobId;
-    const beforeMessageId = req.query.before ? Number(req.query.before) : null;
+    // FIX: Ensure JobID is strictly numeric before querying the DB
+    if (!jobId || !/^\d+$/.test(jobId)) {
+        return fail(res, 'Invalid Job ID format', 400, 'INVALID_JOB_ID');
+    }
+
+    // FIX: Catch the string "undefined" sent by React Native networking
+    const beforeQuery = req.query.before;
+    const beforeParsed = (beforeQuery && beforeQuery !== 'undefined') ? Number(beforeQuery) : null;
+    const beforeMessageId = Number.isFinite(beforeParsed) ? beforeParsed : null;
     const limit = 50;
 
     try {
         const messages = await ChatService.getMessages(jobId, userId, beforeMessageId, limit);
         return ok(res, { messages });
     } catch (err) {
+        console.error(`[ChatRoute] GET /messages error:`, err.message);
         return fail(res, err.message, err.status || 500, err.code);
     }
 });
@@ -52,6 +62,10 @@ router.post('/messages', async (req, res) => {
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
     const jobId = req.params.jobId;
+    if (!jobId || !/^\d+$/.test(jobId)) {
+        return fail(res, 'Invalid Job ID format', 400, 'INVALID_JOB_ID');
+    }
+
     const { message_type, content, s3_key, client_message_id } = req.body;
 
     if (!client_message_id) return fail(res, 'client_message_id is required', 400);
@@ -89,6 +103,9 @@ router.delete('/messages/:messageId', async (req, res) => {
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
     const { jobId, messageId } = req.params;
+    if (!jobId || !/^\d+$/.test(jobId)) {
+        return fail(res, 'Invalid Job ID format', 400, 'INVALID_JOB_ID');
+    }
 
     try {
         await ChatService.deleteMessage(jobId, messageId, userId);
@@ -106,6 +123,7 @@ router.post('/read', async (req, res) => {
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
     const jobId = req.params.jobId;
+    if (!isValidJobId(jobId)) return fail(res, 'Invalid Job ID format', 400, 'INVALID_JOB_ID');
 
     try {
         const { getPool } = await import('../config/database.js');
@@ -127,6 +145,7 @@ router.post('/typing', (req, res) => {
     if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
 
     const jobId = req.params.jobId;
+    if (!isValidJobId(jobId)) return fail(res, 'Invalid Job ID format', 400, 'INVALID_JOB_ID');
 
     // Fire & Forget
     ChatService.sendTypingIndicator(jobId, userId).catch(err => console.error('[Chat] Typing indicator error:', err));

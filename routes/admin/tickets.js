@@ -18,10 +18,12 @@ router.get('/', async (req, res) => {
         const { status, type, priority, limit = 50, offset = 0 } = req.query;
 
         let query = `
-            SELECT t.*, u.phone as raised_by_phone, u.name as raised_by_name,
+            SELECT t.*, u.phone as raised_by_phone, COALESCE(cp.name, wp.name, 'Zarva User') as raised_by_name,
                    j.category as job_category
             FROM support_tickets t
             JOIN users u ON t.raised_by_user_id = u.id
+            LEFT JOIN customer_profiles cp ON cp.user_id = u.id
+            LEFT JOIN worker_profiles wp ON wp.user_id = u.id
             LEFT JOIN jobs j ON t.job_id = j.id
         `;
         const conditions = [];
@@ -54,10 +56,12 @@ router.get('/:id', async (req, res) => {
         const { id } = req.params;
 
         const ticketRes = await pool.query(`
-            SELECT t.*, u.phone as raised_by_phone, u.name as raised_by_name,
+            SELECT t.*, u.phone as raised_by_phone, COALESCE(cp.name, wp.name, 'Zarva User') as raised_by_name,
                    j.category as job_category, j.status as job_current_status
             FROM support_tickets t
             JOIN users u ON t.raised_by_user_id = u.id
+            LEFT JOIN customer_profiles cp ON cp.user_id = u.id
+            LEFT JOIN worker_profiles wp ON wp.user_id = u.id
             LEFT JOIN jobs j ON t.job_id = j.id
             WHERE t.id = $1
         `, [id]);

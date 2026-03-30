@@ -56,6 +56,9 @@ export default function ActiveJobScreen({ route, navigation }) {
     // Firebase listeners
     useEffect(() => {
         if (!jobId) return;
+        let lastSeenStatus = null;
+        let initialFetchDone = false;
+        
         const jobRef = ref(db, `active_jobs/${jobId}`);
         const listener = onValue(jobRef, (snapshot) => {
             const data = snapshot.val();
@@ -78,8 +81,13 @@ export default function ActiveJobScreen({ route, navigation }) {
                     useWorkerStore.getState().setActiveJob({ ...currentJob, ...data });
                 }
 
-                // RE-FETCH FULL JOB: Get latest OTPs, fees, etc. to stay fully synced with SQL.
-                fetchJob(true);
+                // RE-FETCH FULL JOB ONLY IF STATUS CHANGED: 
+                // Prevents infinite loops when ChatScreen pushes typing indicators to this same job node.
+                if (!initialFetchDone || data.status !== lastSeenStatus) {
+                    initialFetchDone = true;
+                    lastSeenStatus = data.status;
+                    fetchJob(true);
+                }
             }
         });
         const chatRef = ref(db, `active_jobs/${jobId}/chat_unread/worker`);

@@ -14,9 +14,10 @@ router.get('/pending', authenticateToken, async (req, res) => {
         const { getPool } = await import('../../config/database.js');
         const pool = getPool();
         const [rows] = await pool.query(`
-      SELECT t.*, u.full_name as customer_name, u.phone_number 
+      SELECT t.*, cp.name as customer_name, u.phone as phone_number 
       FROM custom_job_templates t
       JOIN users u ON t.customer_id = u.id
+      LEFT JOIN customer_profiles cp ON cp.user_id = u.id
       WHERE t.approval_status = 'pending' AND t.is_archived = FALSE
       ORDER BY t.created_at ASC
     `);

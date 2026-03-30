@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ActivityIndicator, Keyboard } from 'react-native';
-import { ref, onValue, off } from 'firebase/database';
+import { ref, onValue, off, get } from 'firebase/database';
 import { db } from '@infra/firebase/app';
 import * as chatApi from '@customer/api';
 import { useT } from '@shared/i18n/useTranslation';
-
+import { useAuthStore } from '@auth/store';
 
 import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import dayjs from 'dayjs';
@@ -16,45 +16,89 @@ export default function ChatScreen({ route, navigation }) {
     const tTheme = useTokens();
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
-    const { jobId, userRole = 'customer', otherUserId } = route.params || {};
-    if (!otherUserId) console.warn('[Chat] otherUserId not provided — typing indicator will be disabled');
+    const { user } = useAuthStore();
 
+    // 1. Robust Param Extraction (Handles Push Notification Entry)
+    const { jobId, chatId } = route.params || {};
+    const activeJobId = jobId || chatId;
+
+    // 2. Deduce Role natively (Push notifications don't pass this prop)
+    const myRole = user?.role || 'customer';
+    const isCustomer = myRole === 'customer';
+
+    const [otherId, setOtherId] = useState(route.params?.otherUserId || null);
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true); // FIX: Add the lock
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [remoteTyping, setRemoteTyping] = useState(false);
 
+    const lastReadRef = useRef(null);
     const flatListRef = useRef();
     const typingTimeout = useRef(null);
 
-    const isCustomer = userRole === 'customer';
+    const markAsRead = useCallback(async () => {
+        try { await chatApi.markRead(activeJobId); } catch (e) {}
+    }, [activeJobId]);
+
+    const loadMessages = useCallback(async (silent = false) => {
+        try {
+            if (!silent) setLoading(true);
+            const data = await chatApi.getMessages(activeJobId);
+            if (data.messages) {
+                setMessages(data.messages);
+                // FIX: If the server returns fewer than 50 messages (the limit), 
+                // we know we already have the entire history. Lock the scroller.
+                if (data.messages.length < 50) {
+                    setHasMore(false);
+                }
+            }
+        } catch (err) {
+            console.error('[Chat] Failed to load messages', err);
+        } finally {
+            if (!silent) setLoading(false);
+        }
+    }, [activeJobId]);
 
     useEffect(() => {
+        if (!activeJobId) return;
+
         loadMessages();
         markAsRead();
 
-        // Setup Firebase Listeners for real-time Sync
-        const chatUnreadRef = ref(db, `active_jobs/${jobId}/chat_unread/${userRole === 'customer' ? 'customer' : 'worker'}`);
-        const chatLastMsgRef = ref(db, `active_jobs/${jobId}/chat_last_message`);
-        const chatTypingRef = ref(db, `active_jobs/${jobId}/chat_typing/${otherUserId}`);
+        // Resolve otherUserId if missing (Critical for Push Notifications)
+        if (!otherId) {
+            get(ref(db, `active_jobs/${activeJobId}`)).then((snap) => {
+                const d = snap.val();
+                if (d) setOtherId(isCustomer ? d.worker_id : d.customer_id);
+            });
+        }
 
+        // Real-time Firebase Sync for incoming messages
+        const chatLastMsgRef = ref(db, `active_jobs/${activeJobId}/chat_last_message`);
         const lastMsgListener = onValue(chatLastMsgRef, (snapshot) => {
             const data = snapshot.val();
-            if (data && data.sender_id !== 'system') {
-                // Background refresh when new message arrives remotely
-                loadMessages(true);
-                markAsRead();
-            }
-        });
+            if (!data) return;
 
-        const typingListener = onValue(chatTypingRef, (snapshot) => {
-            const lastTypedAt = snapshot.val();
-            if (lastTypedAt && (Date.now() - lastTypedAt < 5000)) {
-                setRemoteTyping(true);
-            } else {
-                setRemoteTyping(false);
+            // FIX: Only trigger fetch if this is a NEW message we haven't seen yet
+            const msgId = data.id || data.created_at;
+            if (lastReadRef.current === msgId) return;
+            lastReadRef.current = msgId;
+
+            // If the message is from the OTHER person, silently fetch and append it
+            if (data.sender_id && String(data.sender_id) !== String(user?.id) && data.sender_id !== 'system') {
+                chatApi.getMessages(activeJobId).then(res => {
+                    if (res.messages) {
+                        setMessages(prev => {
+                            const newMessages = res.messages.filter(nm => !prev.some(pm => pm.id === nm.id));
+                            if (newMessages.length === 0) return prev;
+                            return [...newMessages, ...prev].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+                        });
+                    }
+                });
+                markAsRead();
             }
         });
 
@@ -64,55 +108,40 @@ export default function ChatScreen({ route, navigation }) {
 
         return () => {
             off(chatLastMsgRef, 'value', lastMsgListener);
-            off(chatTypingRef, 'value', typingListener);
             keyboardDidShowListener.remove();
         };
-    }, []);
+    }, [activeJobId, user?.id]); // Added user?.id to dependencies to ensure comparison uses latest ID
 
-    const markAsRead = async () => {
-        try {
-            await chatApi.markRead(jobId);
-        } catch (e) {
-            console.warn('[Chat] Failed to mark read');
-        }
-    };
-
-    const loadMessages = async (silent = false) => {
-        try {
-            if (!silent) setLoading(true);
-            const data = await chatApi.getMessages(jobId);
-            setMessages(data.messages || []);
-        } catch (err) {
-            console.error('[Chat] Failed to load messages', err);
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    };
+    // Separate effect for Typing Indicator so it works after otherId resolves
+    useEffect(() => {
+        if (!activeJobId || !otherId) return;
+        const chatTypingRef = ref(db, `active_jobs/${activeJobId}/chat_typing/${otherId}`);
+        const typingListener = onValue(chatTypingRef, (snapshot) => {
+            const lastTypedAt = snapshot.val();
+            setRemoteTyping(lastTypedAt && (Date.now() - lastTypedAt < 5000));
+        });
+        return () => off(chatTypingRef, 'value', typingListener);
+    }, [activeJobId, otherId]);
 
     const handleLoadMore = async () => {
-        if (loadingMore || messages.length === 0) return;
+        // FIX: Abort immediately if the hasMore lock is false
+        if (loadingMore || messages.length === 0 || !hasMore) return;
+        
         try {
             setLoadingMore(true);
             const lastMsg = messages[messages.length - 1];
-            if (!lastMsg || lastMsg.is_optimistic || isNaN(Number(lastMsg.id))) {
-                console.warn('[ChatUI] Cannot load more: Last message is not synced yet');
-                return;
-            }
-            const oldestMessageId = lastMsg.id;
-            console.log(`[ChatUI] handleLoadMore | JobID:${jobId} | Before:${oldestMessageId} | MsgCount:${messages.length}`);
-
-            if (!jobId || jobId === 'undefined') {
-                console.error('[ChatUI] jobId is invalid', jobId);
-                return;
-            }
-
-            const data = await chatApi.getMessages(jobId, oldestMessageId);
+            if (!lastMsg || lastMsg.is_optimistic || isNaN(Number(lastMsg.id))) return;
+            
+            const data = await chatApi.getMessages(activeJobId, lastMsg.id);
             if (data.messages && data.messages.length > 0) {
                 setMessages(prev => [...prev, ...data.messages]);
+                // FIX: If we hit the end of the history, lock it
+                if (data.messages.length < 50) setHasMore(false);
+            } else {
+                // FIX: Server returned 0 messages, lock it permanently
+                setHasMore(false);
             }
-        } catch (err) {
-            console.error('[Chat] Load more error', err);
-        } finally {
+        } catch (err) {} finally {
             setLoadingMore(false);
         }
     };
@@ -121,12 +150,10 @@ export default function ChatScreen({ route, navigation }) {
         setInput(text);
         if (!isTyping) {
             setIsTyping(true);
-            chatApi.sendTyping(jobId).catch(() => { });
+            chatApi.sendTyping(activeJobId).catch(() => { });
         }
         clearTimeout(typingTimeout.current);
-        typingTimeout.current = setTimeout(() => {
-            setIsTyping(false);
-        }, 2000);
+        typingTimeout.current = setTimeout(() => setIsTyping(false), 2000);
     };
 
     const handleSend = async () => {
@@ -136,36 +163,30 @@ export default function ChatScreen({ route, navigation }) {
         const optimisticMessage = {
             id: 'temp-' + Date.now(),
             client_message_id: uuidv4(),
-            job_id: jobId,
-            sender_role: userRole,
+            job_id: activeJobId,
+            sender_role: myRole,
             message_type: 'text',
             content: text,
             created_at: new Date().toISOString(),
-            is_optimistic: true // UI flag
+            is_optimistic: true
         };
 
         setMessages(prev => [optimisticMessage, ...prev]);
         setInput('');
 
         try {
-            const result = await chatApi.sendMessage(jobId, {
+            const result = await chatApi.sendMessage(activeJobId, {
                 message_type: 'text',
                 content: text,
                 client_message_id: optimisticMessage.client_message_id
             });
 
-            // Replace optimistic with real
             if (result && result.message) {
                 setMessages(prev => prev.map(m =>
                     m.client_message_id === optimisticMessage.client_message_id ? result.message : m
                 ));
-            } else {
-                console.error('[Chat] sendMessage result missing message object', result);
-                throw new Error('Invalid response');
             }
         } catch (err) {
-            console.error('[Chat] handleSend error', err);
-            // Revert changes or show error state
             setMessages(prev => prev.map(m =>
                 m.client_message_id === optimisticMessage.client_message_id ? { ...m, is_error: true } : m
             ));
@@ -173,7 +194,7 @@ export default function ChatScreen({ route, navigation }) {
     };
 
     const renderItem = ({ item }) => {
-        const isMe = item.sender_role === userRole;
+        const isMe = item.sender_role === myRole;
 
         if (item.sender_role === 'system') {
             return (
@@ -197,7 +218,7 @@ export default function ChatScreen({ route, navigation }) {
                     )}
                     <Text style={[styles.timeText, isMe && styles.timeTextMe]}>
                         {dayjs(item.created_at).format('h:mm A')}
-                        {item.is_error && <Text style={{ color: t.status.error.base }}> • Failed</Text>}
+                        {item.is_error && <Text style={{ color: tTheme.status.error.base }}> • Failed</Text>}
                     </Text>
                 </View>
             </View>
@@ -210,21 +231,19 @@ export default function ChatScreen({ route, navigation }) {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
-            {/* Header */}
             <View style={styles.header}>
                 <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>{isCustomer ? t('chat_with_worker') : t('chat_with_customer')}</Text>
-                    {remoteTyping && <Text style={styles.typingTxt}>{t('typing')}</Text>}
+                    <Text style={styles.headerTitle}>{isCustomer ? 'Professional' : 'Customer'}</Text>
+                    {remoteTyping && <Text style={styles.typingTxt}>{t('typing') || 'typing...'}</Text>}
                 </View>
                 <View style={{ width: 44 }} />
             </View>
 
             {loading ? (
                 <View style={styles.loadingWrap}>
-                    {/* Use design tokens object from useTokens(); avoids undefined access crash in ChatScreen. */}
                     <ActivityIndicator size="large" color={tTheme.brand.primary} />
                 </View>
             ) : (
@@ -242,11 +261,10 @@ export default function ChatScreen({ route, navigation }) {
                 />
             )}
 
-            {/* Input Bar */}
             <View style={styles.inputContainer}>
                 <TextInput
                     style={styles.input}
-                    placeholder={t('type_a_message')}
+                    placeholder={t('type_a_message') || 'Message...'}
                     placeholderTextColor={tTheme.text.tertiary}
                     value={input}
                     onChangeText={handleTextChange}
@@ -268,113 +286,35 @@ export default function ChatScreen({ route, navigation }) {
 const createStyles = (t) => StyleSheet.create({
     screen: { flex: 1, backgroundColor: t.background.app },
     header: {
-        paddingTop: 60,
-        paddingHorizontal: t.spacing.lg,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingBottom: t.spacing.sm,
-        backgroundColor: t.background.surface,
-        borderBottomWidth: 1,
-        borderBottomColor: t.background.surfaceRaised
+        paddingTop: 60, paddingHorizontal: t.spacing.lg, flexDirection: 'row', alignItems: 'center',
+        justifyContent: 'space-between', paddingBottom: t.spacing.sm, backgroundColor: t.background.surface,
+        borderBottomWidth: 1, borderBottomColor: t.background.surfaceRaised
     },
     headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surfaceRaised, justifyContent: 'center', alignItems: 'center' },
     headerBtnTxt: { color: t.text.primary, fontSize: 20 },
     headerCenter: { alignItems: 'center' },
     headerTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
     typingTxt: { color: t.brand.primary, fontSize: 10, fontStyle: 'italic', position: 'absolute', bottom: -12 },
-
     loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     listContent: { paddingHorizontal: t.spacing.md, paddingBottom: t.spacing.md, gap: t.spacing.sm },
-
     systemMessageWrap: { alignItems: 'center', marginVertical: t.spacing.md },
     systemMessage: { backgroundColor: t.background.surfaceRaised, paddingHorizontal: 16, paddingVertical: 6, borderRadius: t.radius.full },
     systemText: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold },
-
     messageRow: { flexDirection: 'row', width: '100%', marginVertical: 4 },
     messageRowMe: { justifyContent: 'flex-end' },
     messageRowThem: { justifyContent: 'flex-start' },
-
-    messageBubble: {
-        maxWidth: '80%',
-        paddingHorizontal: t.spacing.lg,
-        paddingVertical: t.spacing.md,
-        borderRadius: t.radius.xl,
-    },
-    messageBubbleThem: {
-        backgroundColor: t.background.surface,
-        borderBottomLeftRadius: 4,
-        borderWidth: 1,
-        borderColor: t.background.surfaceRaised
-    },
-    messageBubbleMe: {
-        backgroundColor: t.brand.primary,
-        borderBottomRightRadius: 4,
-        ...t.shadows.accentGlow
-    },
-    messageText: {
-        color: t.text.primary,
-        fontSize: t.typography.size.caption,
-        lineHeight: 22
-    },
-    messageTextMe: {
-        color: '#FFFFFF'
-    },
-    deletedText: {
-        fontStyle: 'italic',
-        color: t.text.tertiary
-    },
-    timeText: {
-        fontSize: 9,
-        color: t.text.tertiary,
-        marginTop: 4,
-        alignSelf: 'flex-end'
-    },
-    timeTextMe: {
-        color: 'rgba(255,255,255,0.7)'
-    },
-
-    inputContainer: {
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        paddingHorizontal: t.spacing.md,
-        paddingVertical: t.spacing.sm,
-        paddingBottom: Platform.OS === 'ios' ? 30 : t.spacing.md,
-        backgroundColor: t.background.surface,
-        borderTopWidth: 1,
-        borderTopColor: t.background.surfaceRaised
-    },
-    input: {
-        flex: 1,
-        backgroundColor: t.background.surfaceRaised,
-        color: t.text.primary,
-        borderRadius: t.radius.lg,
-        paddingHorizontal: t.spacing.md,
-        paddingTop: 12,
-        paddingBottom: 12,
-        minHeight: 44,
-        maxHeight: 120,
-        fontSize: t.typography.size.body
-    },
-    sendBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: t.brand.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginLeft: t.spacing.sm,
-        marginBottom: 2
-    },
-    sendBtnDisabled: {
-        backgroundColor: t.background.surfaceRaised
-    },
-    sendIcon: {
-        color: '#FFF',
-        fontSize: 16,
-        marginLeft: 2
-    },
-    sendIconDisabled: {
-        color: t.text.tertiary
-    }
+    messageBubble: { maxWidth: '80%', paddingHorizontal: t.spacing.lg, paddingVertical: t.spacing.md, borderRadius: t.radius.xl },
+    messageBubbleThem: { backgroundColor: t.background.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: t.background.surfaceRaised },
+    messageBubbleMe: { backgroundColor: t.brand.primary, borderBottomRightRadius: 4, ...t.shadows.accentGlow },
+    messageText: { color: t.text.primary, fontSize: t.typography.size.caption, lineHeight: 22 },
+    messageTextMe: { color: '#FFFFFF' },
+    deletedText: { fontStyle: 'italic', color: t.text.tertiary },
+    timeText: { fontSize: 9, color: t.text.tertiary, marginTop: 4, alignSelf: 'flex-end' },
+    timeTextMe: { color: 'rgba(255,255,255,0.7)' },
+    inputContainer: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: t.spacing.md, paddingVertical: t.spacing.sm, paddingBottom: Platform.OS === 'ios' ? 30 : t.spacing.md, backgroundColor: t.background.surface, borderTopWidth: 1, borderTopColor: t.background.surfaceRaised },
+    input: { flex: 1, backgroundColor: t.background.surfaceRaised, color: t.text.primary, borderRadius: t.radius.lg, paddingHorizontal: t.spacing.md, paddingTop: 12, paddingBottom: 12, minHeight: 44, maxHeight: 120, fontSize: t.typography.size.body },
+    sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.brand.primary, justifyContent: 'center', alignItems: 'center', marginLeft: t.spacing.sm, marginBottom: 2 },
+    sendBtnDisabled: { backgroundColor: t.background.surfaceRaised },
+    sendIcon: { color: '#FFF', fontSize: 16, marginLeft: 2 },
+    sendIconDisabled: { color: t.text.tertiary }
 });

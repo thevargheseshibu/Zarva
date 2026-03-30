@@ -141,7 +141,8 @@ export default function BillReviewScreen({ navigation, route }) {
     const doSubmit = async () => {
         setSubmitting(true);
         try {
-            const res = await apiClient.post(`/api/jobs/${jobId}/final/verify`, {
+            // FIX: Point to the actual endpoint that processes end OTPs and finalizes the bill
+            const res = await apiClient.post(`/api/jobs/${jobId}/verify-end`, {
                 otp,
                 flagged_material_ids: [...flagged],
             });
@@ -149,7 +150,7 @@ export default function BillReviewScreen({ navigation, route }) {
         } catch (err) {
             const msg = err?.response?.data?.message || 'Verification failed';
             const code = err?.response?.data?.code;
-            if (code === 'OTP_MISMATCH') {
+            if (code === 'OTP_MISMATCH' || code === 'INVALID_OTP') {
                 shake();
                 Alert.alert('Wrong Code', msg);
             } else {

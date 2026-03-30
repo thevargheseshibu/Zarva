@@ -1,6 +1,7 @@
 import { getPool } from '../config/database.js';
 import configLoader from '../config/loader.js';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { updateJobNode } from './firebase.service.js';
 import * as PricingService from './pricing.service.js';
 import supportService from './supportService.js';
@@ -249,6 +250,18 @@ class BillingService {
                  WHERE id = $5`,
                 [targetStatus, bill.billedMinutes, bill.totalAmount, bill.exceededEstimate, jobId]
             );
+
+            // AUTO-GENERATE END OTP if transitioning to pending_completion
+            if (targetStatus === 'pending_completion') {
+                const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+                const hash = await bcrypt.hash(otp, 10);
+                
+                await _conn.query('UPDATE jobs SET end_otp_hash = $1 WHERE id = $2', [hash, jobId]);
+                
+                const redis = (await import('../config/redis.js')).getRedisClient();
+                await redis.set(`zarva:otp:end:${jobId}`, otp, 'EX', 10800); // 3h TTL
+                console.log(`[BillingService] Generated END OTP for job ${jobId}: ${otp}`);
+            }
 
             if (doTransaction) await _conn.commit();
 
@@ -533,13 +546,22 @@ class BillingService {
             if (job.status !== 'in_progress') throw Object.assign(new Error('Can only pause during active work'), { status: 400 });
 
             const newCount = parseInt(job.pause_count || 0, 10) + 1;
-            await conn.query(`UPDATE jobs SET status='work_paused', pause_reason=$1, paused_at=NOW(), pause_count=$2 WHERE id=$3`, [reason, newCount, jobId]);
+            
+            // Generate OTP for approval
+            const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+            const hash = await bcrypt.hash(otp, 10);
+
+            await conn.query(`UPDATE jobs SET status='pause_requested', pause_reason=$1, pause_otp_hash=$2, paused_at=NOW(), pause_count=$3 WHERE id=$4`, [reason, hash, newCount, jobId]);
             await this._recordTimerEvent(conn, jobId, 'job_pause', 'worker', `Worker paused: ${reason}`);
+            
             await conn.commit();
 
+            const redis = (await import('../config/redis.js')).getRedisClient();
+            await redis.set(`zarva:otp:pause:${jobId}`, otp, 'EX', 900);
+
             const { updateJobNode } = await import('./firebase.service.js');
-            await updateJobNode(jobId, { status: 'work_paused', timer_status: 'paused', pause_reason: reason });
-            return { paused: true };
+            await updateJobNode(jobId, { status: 'pause_requested', timer_status: 'paused', pause_reason: reason });
+            return { paused: true, otp };
         } catch(e) { await conn.rollback(); throw e; } finally { conn.release(); }
     }
 
@@ -557,13 +579,21 @@ class BillingService {
             const pausedSecs = Math.floor((Date.now() - pauseStart) / 1000);
             const totalPaused = parseInt(job.total_paused_seconds || 0, 10) + pausedSecs;
 
-            await conn.query(`UPDATE jobs SET status='in_progress', paused_at=NULL, total_paused_seconds=$1 WHERE id=$2`, [totalPaused, jobId]);
-            await this._recordTimerEvent(conn, jobId, 'job_resume', 'worker', `Resumed after ${pausedSecs}s`);
+            // Generate OTP for approval
+            const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
+            const hash = await bcrypt.hash(otp, 10);
+
+            await conn.query(`UPDATE jobs SET status='resume_requested', resume_otp_hash=$1 WHERE id=$2`, [hash, jobId]);
+            await this._recordTimerEvent(conn, jobId, 'job_resume', 'worker', `Resume requested after ${pausedSecs}s`);
+            
             await conn.commit();
 
+            const redis = (await import('../config/redis.js')).getRedisClient();
+            await redis.set(`zarva:otp:resume:${jobId}`, otp, 'EX', 900);
+
             const { updateJobNode } = await import('./firebase.service.js');
-            await updateJobNode(jobId, { status: 'in_progress', timer_status: 'running', total_paused_seconds: totalPaused });
-            return { resumed: true };
+            await updateJobNode(jobId, { status: 'resume_requested', timer_status: 'paused' });
+            return { resumed: true, otp };
         } catch(e) { await conn.rollback(); throw e; } finally { conn.release(); }
     }
 
@@ -832,7 +862,7 @@ class BillingService {
     // CUSTOMER STOP EARLY
     // ═══════════════════════════════════════════════════════
 
-    async customerStopWork(jobId, customerId) {
+    async customerStopWork(jobId, customerId, reason = 'Customer initiated stop') {
         const pool = getPool();
         const conn = await pool.getConnection();
         await conn.beginTransaction();
@@ -842,14 +872,21 @@ class BillingService {
             );
             const job = jobs[0];
             if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
-            if (!['in_progress', 'work_paused'].includes(job.status)) throw Object.assign(new Error('Job is not in progress'), { status: 400 });
+            
+            // FIX: Allow stopping from the moment the job starts, including paused states
+            if (!['in_progress', 'work_paused', 'pause_requested', 'resume_requested'].includes(job.status)) {
+                throw Object.assign(new Error('Job is not currently in progress'), { status: 400 });
+            }
 
             const safeStopEnds = new Date(Date.now() + 5 * 60 * 1000);
             await conn.query(
                 `UPDATE jobs SET status='customer_stopping', customer_stopped_at=NOW(), safe_stop_window_ends_at=$1 WHERE id=$2`,
                 [safeStopEnds.toISOString(), jobId]
             );
-            await this._recordTimerEvent(conn, jobId, 'customer_stop_requested', 'customer', 'Customer initiated stop');
+            
+            // FIX: Record the customer's specific reason in the timer events audit log
+            await this._recordTimerEvent(conn, jobId, 'customer_stop_requested', 'customer', reason);
+            
             await conn.commit();
 
             const { updateJobNode } = await import('./firebase.service.js');
@@ -857,6 +894,7 @@ class BillingService {
                 status: 'customer_stopping',
                 safe_stop_window_ends_at: safeStopEnds.getTime(),
                 timer_status: 'frozen',
+                stop_reason: reason
             });
             return { stopping: true, safe_stop_window_ends_at: safeStopEnds };
         } catch (err) {

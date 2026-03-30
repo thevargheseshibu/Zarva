@@ -104,7 +104,8 @@ export function routeFromFCMData(data, navigationRef) {
       if (job_id) navigationRef.navigate('BillReview', { jobId: job_id });
       break;
     case 'chat_message':
-      if (chat_id) navigationRef.navigate('Chat', { chatId: chat_id });
+      const targetJobId = job_id || chat_id;
+      if (targetJobId) navigationRef.navigate('Chat', { jobId: targetJobId });
       break;
     case 'ticket_update':
       if (ticket_id) navigationRef.navigate('TicketChat', { ticketId: ticket_id });
