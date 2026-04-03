@@ -282,44 +282,42 @@ class BillingService {
         await conn.beginTransaction();
 
         try {
-            const [jobs] = await conn.query('SELECT status, worker_id FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
+            const [jobs] = await conn.query('SELECT status, worker_id, inspection_extension_count FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
             const job = jobs[0];
 
             if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
-            if (job.status !== 'in_progress') throw Object.assign(new Error('Extension only allowed during active job'), { status: 400 });
+            if (!['in_progress', 'inspection_active'].includes(job.status)) throw Object.assign(new Error('Extension only allowed during active job'), { status: 400 });
 
-            // Ensure only ONE extension is allowed per job
-            const [existingExts] = await conn.query(
-                'SELECT COUNT(*) as count FROM job_extensions WHERE job_id = $1 AND status IN ($2, $3)', 
-                [jobId, 'pending', 'approved']
-            );
-            if (parseInt(existingExts[0].count, 10) > 0) {
-                throw Object.assign(new Error('Only one extension request is allowed per job'), { status: 400 });
+            // ⭐ Goal 2: ENFORCE LIMIT OF 2 EXTENSIONS
+            const currentCount = parseInt(job.inspection_extension_count || 0, 10);
+            if (currentCount >= 2) {
+                throw Object.assign(new Error('Maximum limit of 2 extensions reached for this job.'), { status: 400 });
             }
 
-            // Pause the timer 
-            await this._recordTimerEvent(conn, jobId, 'job_pause', 'worker', 'Extension requested');
             await this._recordTimerEvent(conn, jobId, 'extension_requested', 'worker', reason);
 
-            await conn.query(
-                `INSERT INTO job_extensions (job_id, reason, additional_minutes, photo_url, photo_captured_at, status)
-                 VALUES ($1, $2, $3, $4, $5, 'pending')`,
-                [jobId, reason, additionalMinutes, photoUrl, photoCapturedAt]
-            );
+            await conn.query(`
+                UPDATE jobs 
+                SET extension_requested_minutes = $1,
+                    extension_reason = $2,
+                    extension_photo_url = $3,
+                    inspection_extension_count = $4,
+                    inspection_extension_otp_hash = NULL
+                WHERE id = $5
+            `, [additionalMinutes, reason, photoUrl, currentCount + 1, jobId]);
 
-            // Temporarily set job status if needed, but 'in_progress' + paused timer in Firebase 
             await conn.commit();
 
-            // Firebase update to reflect paused/extension pending state
-            const { updateExtensionNode } = await import('./firebase.service.js');
-            await updateExtensionNode(jobId, {
-                status: 'pending',
-                additional_minutes: additionalMinutes,
-                reason: reason
+            // Firebase update to trigger customer UI instantly
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, {
+                extension_status: 'pending',
+                extension_requested_minutes: additionalMinutes,
+                extension_reason: reason,
+                extension_photo_url: photoUrl
             });
-            await updateJobNode(jobId, { timer_status: 'paused' });
 
-            return true;
+            return { success: true };
         } catch (err) {
             await conn.rollback();
             throw err;
@@ -328,44 +326,36 @@ class BillingService {
         }
     }
 
-    async approveExtension(jobId, otpInput, customerId) {
-        // Implementation for customer approving extension via OTP
+    async approveExtension(jobId, customerId) {
         const pool = getPool();
         const conn = await pool.getConnection();
         await conn.beginTransaction();
 
         try {
-            const [jobs] = await conn.query('SELECT status, customer_id, billing_cap_minutes FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
+            const [jobs] = await conn.query('SELECT status, customer_id, billing_cap_minutes, extension_requested_minutes FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
             const job = jobs[0];
 
             if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (!job.extension_requested_minutes) throw Object.assign(new Error('No pending extension request'), { status: 400 });
 
-            // Find pending extension
-            const [extensions] = await conn.query('SELECT id, additional_minutes, otp_hash FROM job_extensions WHERE job_id = $1 AND status = $2', [jobId, 'pending']);
-            const ext = extensions[0];
-            if (!ext) throw Object.assign(new Error('No pending extension request'), { status: 400 });
+            // ⭐ FIX 1: Accurately calculate the new cap by falling back to the original estimate
+            const currentCap = job.billing_cap_minutes || job.estimated_duration_minutes || 0;
+            const newCap = currentCap + job.extension_requested_minutes;
+            await conn.query(`
+                UPDATE jobs 
+                SET billing_cap_minutes = $1, 
+                    approved_extension_minutes = COALESCE(approved_extension_minutes, 0) + $2,
+                    extension_requested_minutes = NULL
+                WHERE id = $3
+            `, [newCap, job.extension_requested_minutes, jobId]);
 
-            const match = await this._compareOtpWithFallback(jobId, otpInput, ext.otp_hash, `zarva:otp:extension:${jobId}`);
-            if (!match) throw Object.assign(new Error('Invalid Extension Code'), { status: 400 });
-
-            // Approve it
-            await conn.query('UPDATE job_extensions SET status = $1, resolved_at = NOW() WHERE id = $2', ['approved', ext.id]);
-
-            // Update billing cap
-            const newCap = (job.billing_cap_minutes || 0) + ext.additional_minutes;
-            await conn.query('UPDATE jobs SET billing_cap_minutes = $1, approved_extension_minutes = approved_extension_minutes + $2 WHERE id = $3', [newCap, ext.additional_minutes, jobId]);
-
-            // Resume timer
             await this._recordTimerEvent(conn, jobId, 'extension_approved', 'customer');
-            await this._recordTimerEvent(conn, jobId, 'job_resume', 'system', 'Timer resumed after extension');
-
             await conn.commit();
 
-            const { updateExtensionNode } = await import('./firebase.service.js');
-            await updateExtensionNode(jobId, { status: 'approved' });
-            await updateJobNode(jobId, { timer_status: 'active', billing_cap_minutes: newCap });
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, { extension_status: 'approved', timer_status: 'active', billing_cap_minutes: newCap });
 
-            return true;
+            return { approved: true };
         } catch (err) {
             await conn.rollback();
             throw err;
@@ -380,27 +370,28 @@ class BillingService {
         await conn.beginTransaction();
 
         try {
-            const [jobs] = await conn.query('SELECT customer_id FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
+            const [jobs] = await conn.query('SELECT customer_id, extension_requested_minutes FROM jobs WHERE id = $1 FOR UPDATE', [jobId]);
             const job = jobs[0];
 
             if (!job || job.customer_id !== customerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
+            if (!job.extension_requested_minutes) throw Object.assign(new Error('No pending extension request'), { status: 400 });
 
-            const [extensions] = await conn.query('SELECT id FROM job_extensions WHERE job_id = $1 AND status = $2', [jobId, 'pending']);
-            const ext = extensions[0];
-            if (!ext) throw Object.assign(new Error('No pending extension request'), { status: 400 });
+            await conn.query(`
+                UPDATE jobs 
+                SET extension_requested_minutes = NULL
+                WHERE id = $1
+            `, [jobId]);
 
-            // Reject
-            await conn.query('UPDATE job_extensions SET status = $1, resolved_at = NOW() WHERE id = $2', ['rejected', ext.id]);
             await this._recordTimerEvent(conn, jobId, 'extension_rejected', 'customer');
 
-            // Hard end the job to protect the customer
-            await this.stopJobAndBill(jobId, 'customer', conn);
+            // If a customer rejects an extension, it forces the job to stop at its current elapsed time
+            await this.stopJobAndBill(jobId, 'customer', conn, 'pending_completion');
 
             await conn.commit();
 
-            const { updateExtensionNode } = await import('./firebase.service.js');
-            await updateExtensionNode(jobId, { status: 'rejected' });
-            return true;
+            const { updateJobNode } = await import('./firebase.service.js');
+            await updateJobNode(jobId, { extension_status: 'rejected', status: 'pending_completion', timer_status: 'stopped' });
+            return { success: true };
         } catch (err) {
             await conn.rollback();
             throw err;
@@ -547,21 +538,21 @@ class BillingService {
 
             const newCount = parseInt(job.pause_count || 0, 10) + 1;
             
-            // Generate OTP for approval
-            const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-            const hash = await bcrypt.hash(otp, 10);
+            // ⭐ NEW: Enforce Max 3 Pauses
+            if (newCount > 3) throw Object.assign(new Error('Maximum 3 pauses allowed per job'), { status: 400 });
 
-            await conn.query(`UPDATE jobs SET status='pause_requested', pause_reason=$1, pause_otp_hash=$2, paused_at=NOW(), pause_count=$3 WHERE id=$4`, [reason, hash, newCount, jobId]);
+            // ⭐ FIX 2: Go straight to paused, NO OTP.
+            await conn.query(
+                `UPDATE jobs SET status='work_paused', pause_reason=$1, paused_at=NOW(), pause_count=$2 WHERE id=$3`, 
+                [reason, newCount, jobId]
+            );
             await this._recordTimerEvent(conn, jobId, 'job_pause', 'worker', `Worker paused: ${reason}`);
             
             await conn.commit();
 
-            const redis = (await import('../config/redis.js')).getRedisClient();
-            await redis.set(`zarva:otp:pause:${jobId}`, otp, 'EX', 900);
-
             const { updateJobNode } = await import('./firebase.service.js');
-            await updateJobNode(jobId, { status: 'pause_requested', timer_status: 'paused', pause_reason: reason });
-            return { paused: true, otp };
+            await updateJobNode(jobId, { status: 'work_paused', timer_status: 'paused', pause_reason: reason });
+            return { paused: true };
         } catch(e) { await conn.rollback(); throw e; } finally { conn.release(); }
     }
 
@@ -579,21 +570,18 @@ class BillingService {
             const pausedSecs = Math.floor((Date.now() - pauseStart) / 1000);
             const totalPaused = parseInt(job.total_paused_seconds || 0, 10) + pausedSecs;
 
-            // Generate OTP for approval
-            const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-            const hash = await bcrypt.hash(otp, 10);
-
-            await conn.query(`UPDATE jobs SET status='resume_requested', resume_otp_hash=$1 WHERE id=$2`, [hash, jobId]);
-            await this._recordTimerEvent(conn, jobId, 'job_resume', 'worker', `Resume requested after ${pausedSecs}s`);
+            // ⭐ FIX 2: Go straight to in_progress, NO OTP.
+            await conn.query(
+                `UPDATE jobs SET status='in_progress', paused_at=NULL, total_paused_seconds=$1 WHERE id=$2`, 
+                [totalPaused, jobId]
+            );
+            await this._recordTimerEvent(conn, jobId, 'job_resume', 'worker', `Resumed after ${pausedSecs}s`);
             
             await conn.commit();
 
-            const redis = (await import('../config/redis.js')).getRedisClient();
-            await redis.set(`zarva:otp:resume:${jobId}`, otp, 'EX', 900);
-
             const { updateJobNode } = await import('./firebase.service.js');
-            await updateJobNode(jobId, { status: 'resume_requested', timer_status: 'paused' });
-            return { resumed: true, otp };
+            await updateJobNode(jobId, { status: 'in_progress', timer_status: 'running', total_paused_seconds: totalPaused });
+            return { resumed: true, paused_seconds_added: pausedSecs };
         } catch(e) { await conn.rollback(); throw e; } finally { conn.release(); }
     }
 
@@ -605,7 +593,10 @@ class BillingService {
         const job = jobs[0];
         if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
         if (job.status !== 'in_progress') throw Object.assign(new Error('Can only pause during active work'), { status: 400 });
-        if (parseInt(job.pause_count || 0, 10) >= 2) throw Object.assign(new Error('Max 2 pauses allowed per job'), { status: 400 });
+        
+        // ⭐ NEW: Enforce Max 3 Pauses
+        if (parseInt(job.pause_count || 0, 10) >= 3) throw Object.assign(new Error('Max 3 pauses allowed per job'), { status: 400 });
+        
         if (parseInt(job.total_paused_seconds || 0, 10) >= 1800) throw Object.assign(new Error('Max 30 minutes total paused time reached'), { status: 400 });
 
         const crypto = (await import('crypto')).default;
@@ -916,7 +907,11 @@ class BillingService {
             );
             const job = jobs[0];
             if (!job || job.worker_id !== workerId) throw Object.assign(new Error('Forbidden'), { status: 403 });
-            if (job.status !== 'pending_completion') throw Object.assign(new Error('Materials must be declared during completion phase'), { status: 400 });
+            
+            // ⭐ NEW: Allow materials declaration while the customer is stopping the job
+            if (!['pending_completion', 'customer_stopping'].includes(job.status)) {
+                throw Object.assign(new Error('Materials must be declared during completion phase'), { status: 400 });
+            }
 
             // ─── Config-driven validation ────────────────────────────
             const pricingCfg = configLoader.get('pricing');
@@ -1187,6 +1182,13 @@ class BillingService {
                 WHERE user_id = $1
             `, [job.customer_id]);
             
+            // ⭐ FIX ISSUE 1: ALWAYS MARK JOB AS COMPLETED IN THE DATABASE
+            await conn.query(`
+                UPDATE jobs 
+                SET status = 'completed', updated_at = NOW()
+                WHERE id = $1
+            `, [jobId]);
+
             // If this job is a follow-up, automatically complete the original suspended parent job
             const [parentJobs] = await conn.query(`
                 UPDATE jobs 

@@ -335,46 +335,26 @@ router.post('/jobs/:id/arrived', (req, res) =>
  * Worker requests an extension of time during work progress
  * POST /api/worker/jobs/:id/extension/request
  */
-router.post('/jobs/:id/extension/request', (req, res) =>
-    handle(req, res, async (userId, pool) => {
-        const jobId = req.params.id;
-        const { requested_minutes, reason, photo_url } = req.body;
+router.post('/jobs/:id/extension/request', handle(async (userId, pool, req) => {
+    const jobId = req.params.id;
+    const { requested_minutes, reason, photo_url } = req.body;
 
-        if (!requested_minutes || !reason || !photo_url) {
-            throw Object.assign(new Error('Missing required fields for extension'), { status: 400 });
-        }
+    if (!requested_minutes || !reason || !photo_url) {
+        throw Object.assign(new Error('Missing required fields for extension'), { status: 400 });
+    }
 
-        const [jobs] = await pool.query('SELECT status, worker_id FROM jobs WHERE id = $1 AND worker_id = $2', [jobId, userId]);
-        if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
+    const { default: BillingService } = await import('../services/billing.service.js');
+    await BillingService.requestExtension(
+        jobId, 
+        userId, 
+        reason, 
+        parseInt(requested_minutes, 10), 
+        photo_url, 
+        new Date().toISOString()
+    );
 
-        // Generate an OTP for customer to approve the extension
-        const otp = crypto.randomInt(1000, 9999).toString().padStart(4, '0');
-        const hash = await bcrypt.hash(otp, 10);
-
-        await pool.query(`
-            UPDATE jobs 
-            SET extension_requested_minutes = $1,
-                extension_reason = $2,
-                extension_photo_url = $3,
-                inspection_extension_otp_hash = $4
-            WHERE id = $5
-        `, [requested_minutes, reason, photo_url, hash, jobId]);
-
-        const redisClient = getRedisClient();
-        await redisClient.set(`zarva:otp:extension:${jobId}`, otp, 'EX', 10800);
-
-        const { updateJobNode } = await import('../services/firebase.service.js');
-        await updateJobNode(jobId, {
-            extension_requested: true,
-            extension_requested_minutes: requested_minutes,
-            extension_reason: reason,
-            extension_photo_url: photo_url,
-            extension_status: 'pending'
-        });
-
-        return { success: true };
-    })
-);
+    return { success: true };
+}));
 
 /**
  * Worker verifies customer's inspection OTP to begin assessment
@@ -467,32 +447,24 @@ router.post('/jobs/:id/inspection/estimate', (req, res) =>
 
 
 /**
- * Worker requests to pause the work (needs customer approval)
+ * Worker requests to pause the work (Immediate)
  * POST /api/worker/jobs/:id/pause-request
  */
 router.post('/jobs/:id/pause-request', handle(async (userId, pool, req) => {
     const { reason } = req.body;
     const { default: BillingService } = await import('../services/billing.service.js');
     await BillingService.workerDirectPause(req.params.id, userId, reason);
-    
-    // FIX: Must fetch and return the OTP so the worker UI can display it
-    const redisClient = getRedisClient();
-    const otp = await redisClient.get(`zarva:otp:pause:${req.params.id}`);
-    return { success: true, otp };
+    return { success: true };
 }));
 
 /**
- * Worker requests to resume paused work
+ * Worker resumes paused work (Immediate)
  * POST /api/worker/jobs/:id/resume-request
  */
 router.post('/jobs/:id/resume-request', handle(async (userId, pool, req) => {
     const { default: BillingService } = await import('../services/billing.service.js');
     await BillingService.workerDirectResume(req.params.id, userId);
-    
-    // FIX: Must fetch and return the OTP so the worker UI can display it
-    const redisClient = getRedisClient();
-    const otp = await redisClient.get(`zarva:otp:resume:${req.params.id}`);
-    return { success: true, otp };
+    return { success: true };
 }));
 
 /**
@@ -856,13 +828,19 @@ router.post('/jobs/:id/finalize-direct', handle(async (userId, pool, req) => {
     if (!jobs[0]) throw Object.assign(new Error('Job not found'), { status: 404 });
     if (!jobs[0].customer_stopped_at) throw Object.assign(new Error('Job was not stopped by customer'), { status: 400 });
 
-    // Finalize billing and update statuses
     const { default: BillingService } = await import('../services/billing.service.js');
+
+    // ⭐ NEW: If the job hasn't computed the final labor yet, stop it and generate the bill first
+    if (jobs[0].status === 'customer_stopping') {
+        await BillingService.stopJobAndBill(jobId, 'worker', null, 'pending_completion');
+    }
+
+    // Finalize billing and update statuses
     await BillingService.finalizeJob(jobId);
 
     // Update Firebase so customer sees completed state immediately
     const { updateJobNode } = await import('../services/firebase.service.js');
-    await updateJobNode(jobId, { status: 'completed' });
+    await updateJobNode(jobId, { status: 'completed', timer_status: 'stopped' });
 
     return { success: true };
 }));

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTokens } from '@shared/design-system';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    Image, BackHandler, Alert, Animated, Linking, Platform, TextInput
+    Image, BackHandler, Alert, Animated, Linking, Platform, TextInput, Modal
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
@@ -12,6 +12,7 @@ import { ref, onValue, off } from 'firebase/database';
 import { db } from '@infra/firebase/app';
 import { useJobStore } from '@jobs/store';
 import apiClient from '@infra/api/client';
+import { updateJobDetails } from '@jobs/api';
 import { parseJobDescription } from '@shared/utils/jobParser';
 import FadeInView from '@shared/ui/FadeInView';
 import StatusPill from '@shared/ui/StatusPill';
@@ -213,8 +214,8 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 );
             }
 
-            // Force refresh when inspection extension is requested so customer sees OTP approval card promptly.
-            if (data.inspection_ext_pending === true && !isFetchingRef.current) {
+            // Force refresh when an extension is requested so customer sees OTP approval card promptly.
+            if ((data.inspection_ext_pending === true || data.extension_status === 'pending') && !isFetchingRef.current) {
                 fetchJobDetails();
             }
 
@@ -317,6 +318,12 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const [showStopInput, setShowStopInput] = useState(false);
     const [stopReason, setStopReason] = useState('');
 
+    // ── Editing & Rate Boosting State ──────────────────────────────────
+    const [editModalVisible, setEditModalVisible] = useState(false);
+    const [rateModalVisible, setRateModalVisible] = useState(false);
+    const [newRate, setNewRate] = useState('');
+    const [newDesc, setNewDesc] = useState('');
+
     const handleActionApproval = async (action, code) => {
         const finalCode = code || otpCode;
         if (action !== 'suspend' && finalCode.length < 4) {
@@ -328,20 +335,85 @@ export default function JobStatusDetailScreen({ route, navigation }) {
             if (action === 'pause') endpoint = `/api/jobs/${jobId}/approve-pause`;
             else if (action === 'resume') endpoint = `/api/jobs/${jobId}/approve-resume`;
             else if (action === 'suspend') endpoint = `/api/jobs/${jobId}/approve-suspend`;
-            // FIX: Map the extension action to the API
-            else if (action === 'extension') endpoint = `/api/jobs/${jobId}/inspection/approve-extension`;
             else throw new Error('Unknown action');
             
             await apiClient.post(endpoint, action === 'suspend' ? {} : { otp: finalCode }, { useLoader: false });
             setOtpCode('');
             await fetchJobDetails();
-            Alert.alert('✅ Approved', 'Your approval has been recorded.');
+            Alert.alert('\u2705 Approved', 'Your approval has been recorded.');
         } catch (err) {
             Alert.alert('Error', err.response?.data?.message || 'Action failed. Try again.');
             setOtpCode('');
         } finally {
             setOtpActionLoading(false);
         }
+    };
+
+    const handleBoostRate = async () => {
+        if (!newRate || isNaN(newRate) || parseFloat(newRate) < 50) {
+            return Alert.alert('Invalid Rate', 'Please enter a valid hourly rate (Min \u20b950).');
+        }
+        setOtpActionLoading(true);
+        try {
+            await updateJobDetails(jobId, { hourly_rate: parseFloat(newRate) });
+            setRateModalVisible(false);
+            await fetchJobDetails();
+            Alert.alert('\u26a1 Rate Boosted!', 'The new rate is now live. Workers will see this immediately.');
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Could not update rate.');
+        } finally {
+            setOtpActionLoading(false);
+        }
+    };
+
+    const handleEditDescription = async () => {
+        if (!newDesc.trim()) return Alert.alert('Invalid', 'Description cannot be empty.');
+        setOtpActionLoading(true);
+        try {
+            await updateJobDetails(jobId, { description: newDesc });
+            setEditModalVisible(false);
+            await fetchJobDetails();
+            Alert.alert('Updated', 'Job details updated successfully.');
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Could not update details.');
+        } finally {
+            setOtpActionLoading(false);
+        }
+    };
+
+
+    const handleApproveExtension = async () => {
+        setOtpActionLoading(true);
+        try {
+            await apiClient.post(`/api/jobs/${jobId}/approve-extension`);
+            await fetchJobDetails();
+            Alert.alert('✅ Approved', 'Time extension has been granted.');
+        } catch (err) {
+            Alert.alert('Error', err.response?.data?.message || 'Action failed. Try again.');
+        } finally {
+            setOtpActionLoading(false);
+        }
+    };
+
+    const handleRejectExtension = async () => {
+        Alert.alert(
+            'Reject Extension?',
+            'Rejecting the extension will immediately end the job and generate the final bill based on the work done so far. Are you sure?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Yes, Reject & End Job', style: 'destructive', onPress: async () => {
+                    setOtpActionLoading(true);
+                    try {
+                        await apiClient.post(`/api/jobs/${jobId}/reject-extension`);
+                        await fetchJobDetails();
+                    } catch (err) {
+                        Alert.alert('Error', err.response?.data?.message || 'Action failed. Try again.');
+                    } finally {
+                        setOtpActionLoading(false);
+                    }
+                }}
+            ]
+        );
     };
 
 
@@ -634,17 +706,31 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
                 {/* ── Phase Action Cards ── */}
 
-                {/* SEARCHING — animated pulsing */}
+                {/* SEARCHING — animated pulsing & Boost Feature */}
                 {status === 'searching' && (
                     <FadeInView delay={100}>
                         <View style={styles.phaseCard}>
                             <Animated.View style={[styles.searchPulse, { transform: [{ scale: pulseAnim }], borderColor: tTheme.brand.primary + '44' }]} />
                             <Text style={styles.phaseTitle}>🔍 Matching Professionals</Text>
                             <Text style={styles.phaseSub}>Our algorithm is scanning your area for verified experts. This usually takes under 2 minutes.</Text>
-                            <View style={styles.waveRow}>
+                            
+                            <View style={[styles.waveRow, { marginBottom: 20 }]}>
                                 {[1, 2, 3].map(w => (
                                     <View key={w} style={[styles.waveDot, { opacity: w === 1 ? 1 : 0.4, backgroundColor: tTheme.brand.primary }]} />
                                 ))}
+                            </View>
+
+                            {/* ⭐ BOOST RATE FEATURE */}
+                            <View style={{ backgroundColor: tTheme.brand.primary + '11', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: tTheme.brand.primary + '33' }}>
+                                <Text style={{ color: tTheme.text.primary, fontSize: 14, fontWeight: '800', marginBottom: 4 }}>Want faster responses?</Text>
+                                <Text style={{ color: tTheme.text.secondary, fontSize: 12, marginBottom: 12 }}>Current Bid: <Text style={{ fontWeight: '800', color: tTheme.brand.primary }}>₹{job?.hourly_rate}/hr</Text></Text>
+                                <PremiumButton 
+                                    title="⚡ Boost Hourly Rate" 
+                                    onPress={() => {
+                                        setNewRate(String(job?.hourly_rate || 0));
+                                        setRateModalVisible(true);
+                                    }} 
+                                />
                             </View>
                         </View>
                     </FadeInView>
@@ -706,13 +792,13 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     </FadeInView>
                 )}
 
-                {/* ── Time Extension Approval ── */}
-                {job?.inspection_ext_pending === true && status === 'inspection_active' && (
+                {/* ── Time Extension Approval (No OTP) ── */}
+                {job?.extension_status === 'pending' && ['inspection_active', 'in_progress'].includes(status) && (
                     <FadeInView delay={200}>
                         <View style={[styles.actionCard, { borderColor: '#8B5CF644' }]}>
                             <Text style={styles.actionCardTitle}>⏱️ Time Extension Requested</Text>
                             <Text style={styles.actionCardSub}>
-                                The professional needs more time to complete a thorough inspection.
+                                The professional needs more time to complete the work.
                             </Text>
                             <Text style={[styles.actionCardSub, { marginTop: 4, fontSize: 11 }]}>
                                 Reason: <Text style={{ color: tTheme.text.primary, fontWeight: '700' }}>{job?.extension_reason || 'Complex assessment'}</Text>
@@ -720,11 +806,23 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                             <Text style={[styles.actionCardSub, { marginTop: 4, fontSize: 11, color: '#F59E0B' }]}>
                                 Requesting {job?.extension_requested_minutes || 10} additional minutes.
                             </Text>
-                            <OTPInput
-                                onComplete={(code) => handleActionApproval('extension', code)}
-                                disabled={otpActionLoading}
-                            />
-                            {otpActionLoading && <Text style={styles.verifyingTxt}>Verifying…</Text>}
+                            
+                            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                                <PremiumButton 
+                                    variant="secondary" 
+                                    title="Reject (End Job)" 
+                                    onPress={handleRejectExtension} 
+                                    style={{ flex: 1 }} 
+                                    disabled={otpActionLoading}
+                                />
+                                <PremiumButton 
+                                    title="Accept Extension" 
+                                    onPress={handleApproveExtension} 
+                                    loading={otpActionLoading}
+                                    style={{ flex: 1, backgroundColor: '#8B5CF6' }} 
+                                    disabled={otpActionLoading}
+                                />
+                            </View>
                         </View>
                     </FadeInView>
                 )}
@@ -851,26 +949,53 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                     </FadeInView>
                 )}
 
-                {/* COMPLETED */}
+                {/* ── HURRAY! EPIC RECEIPT CARD ── */}
                 {status === 'completed' && (
                     <FadeInView delay={100}>
-                        <View style={[styles.phaseCard, { borderColor: tTheme.status.success.base + '55', alignItems: 'center' }]}>
-                            <Text style={{ fontSize: 54 }}>⭐</Text>
-                            <Text style={[styles.phaseTitle, { textAlign: 'center', color: tTheme.status.success.base, marginTop: 8 }]}>Job Completed!</Text>
-                            <Text style={[styles.phaseSub, { textAlign: 'center', marginBottom: 16 }]}>Your service is complete. Please review the final bill and proceed to payment.</Text>
-                            
-                            <PremiumButton
-                                title="View Bill & Pay"
-                                onPress={() => navigation.replace('Payment', { jobId })}
-                                style={{ width: '100%', marginBottom: 12 }}
-                            />
+                        <View style={styles.receiptCard}>
+                            <View style={styles.receiptHeader}>
+                                <View style={styles.successIconWrap}>
+                                    <Text style={{ fontSize: 36, marginLeft: 2 }}>🎉</Text>
+                                </View>
+                                <Text style={styles.receiptTitle}>Hurray! Job Completed</Text>
+                                <Text style={styles.receiptSub}>The professional has safely wrapped up. Please review your final bill below.</Text>
+                            </View>
 
-                            <PremiumButton
-                                variant="secondary"
-                                title="Leave a Review"
-                                onPress={() => navigation.navigate('Rating', { jobId })}
-                                style={{ width: '100%' }}
-                            />
+                            <View style={styles.receiptBody}>
+                                <View style={styles.receiptRow}>
+                                    <Text style={styles.receiptLabel}>Labor & Service</Text>
+                                    <Text style={styles.receiptValue}>₹{((job?.final_labor_paise || 0) / 100).toFixed(2)}</Text>
+                                </View>
+                                
+                                {job?.final_material_paise > 0 && (
+                                    <View style={styles.receiptRow}>
+                                        <Text style={styles.receiptLabel}>Materials Added</Text>
+                                        <Text style={styles.receiptValue}>₹{((job?.final_material_paise || 0) / 100).toFixed(2)}</Text>
+                                    </View>
+                                )}
+
+                                <View style={styles.receiptDivider} />
+                                
+                                <View style={styles.receiptTotalRow}>
+                                    <Text style={styles.receiptTotalLabel}>Grand Total</Text>
+                                    <Text style={styles.receiptTotalValue}>₹{parseFloat(job?.final_amount || 0).toFixed(2)}</Text>
+                                </View>
+                            </View>
+                            
+                            <View style={styles.receiptFooter}>
+                                <PremiumButton
+                                    title="Proceed to Payment →"
+                                    onPress={() => navigation.replace('Payment', { jobId })}
+                                    style={{ width: '100%' }}
+                                />
+
+                                <TouchableOpacity 
+                                    style={styles.slimReviewBtn} 
+                                    onPress={() => navigation.navigate('Rating', { jobId })}
+                                >
+                                    <Text style={styles.slimReviewTxt}>Leave a Review</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </FadeInView>
                 )}
@@ -1134,35 +1259,105 @@ export default function JobStatusDetailScreen({ route, navigation }) {
 
 
                 {/* ── Cancel / Edit ── */}
-                {['open', 'searching', 'no_worker_found', 'assigned', 'worker_en_route'].includes(status) && (
-
+                {['open', 'searching', 'no_worker_found'].includes(status) && (
                     <FadeInView delay={250}>
                         <View style={styles.footerActions}>
-                            <PremiumButton
-                                variant="secondary"
-                                title={t('status_cancel') || 'Cancel Request'}
-                                onPress={() => Alert.alert(
-                                    'Cancel Job',
-                                    'Are you sure you want to cancel this request?',
-                                    [
-                                        { text: 'Keep', style: 'cancel' },
-                                        {
-                                            text: 'Cancel Job', style: 'destructive',
-                                            onPress: async () => {
-                                                try {
-                                                    await apiClient.post(`/api/jobs/${jobId}/cancel`);
-                                                    navigation.replace('CustomerTabs');
-                                                } catch { }
+                            <View style={{ flexDirection: 'row', gap: 12 }}>
+                                <PremiumButton
+                                    variant="secondary"
+                                    title="Edit Details"
+                                    onPress={() => {
+                                        setNewDesc(parseJobDescription(job?.description).text);
+                                        setEditModalVisible(true);
+                                    }}
+                                    style={{ flex: 1 }}
+                                />
+                                <PremiumButton
+                                    variant="secondary"
+                                    title="Cancel Request"
+                                    onPress={() => Alert.alert(
+                                        'Cancel Job',
+                                        'Are you sure you want to cancel this request?',
+                                        [
+                                            { text: 'Keep', style: 'cancel' },
+                                            {
+                                                text: 'Cancel Job', style: 'destructive',
+                                                onPress: async () => {
+                                                    try {
+                                                        await apiClient.post(`/api/jobs/${jobId}/cancel`);
+                                                        navigation.replace('CustomerTabs');
+                                                    } catch { }
+                                                }
                                             }
-                                        }
-                                    ]
-                                )}
-                            />
+                                        ]
+                                    )}
+                                    style={{ flex: 1, borderColor: '#EF444433', backgroundColor: '#EF444408' }}
+                                    textStyle={{ color: '#EF4444' }}
+                                />
+                            </View>
                         </View>
                     </FadeInView>
                 )}
 
             </ScrollView>
+
+            {/* ── BOOST RATE MODAL ── */}
+            <Modal visible={rateModalVisible} transparent animationType="slide">
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+                    <View style={{ backgroundColor: tTheme.background.surface, padding: 24, borderTopLeftRadius: 32, borderTopRightRadius: 32 }}>
+                        <Text style={{ fontSize: 22, fontWeight: '900', color: tTheme.text.primary, marginBottom: 8 }}>⚡ Boost Hourly Rate</Text>
+                        <Text style={{ color: tTheme.text.secondary, marginBottom: 20 }}>Increase your bid to attract top-tier professionals instantly.</Text>
+                        
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: tTheme.background.app, borderRadius: 16, borderWidth: 1, borderColor: tTheme.border.default, paddingHorizontal: 16, marginBottom: 16 }}>
+                            <Text style={{ fontSize: 24, color: tTheme.brand.primary, fontWeight: '800', marginRight: 8 }}>₹</Text>
+                            <TextInput 
+                                style={{ flex: 1, fontSize: 32, fontWeight: '900', color: tTheme.text.primary, paddingVertical: 16 }}
+                                keyboardType="numeric"
+                                value={newRate}
+                                onChangeText={setNewRate}
+                                autoFocus
+                            />
+                            <Text style={{ fontSize: 16, color: tTheme.text.tertiary, fontWeight: '800' }}>/ hr</Text>
+                        </View>
+
+                        {/* Quick Add Chips */}
+                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 24 }}>
+                            {[50, 100, 200].map(amt => (
+                                <TouchableOpacity key={amt} style={{ flex: 1, backgroundColor: tTheme.background.surfaceRaised, paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: tTheme.border.default }} onPress={() => setNewRate(String(parseFloat(newRate || 0) + amt))}>
+                                    <Text style={{ color: tTheme.brand.primary, fontWeight: '800' }}>+₹{amt}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                            <PremiumButton variant="secondary" title="Cancel" onPress={() => setRateModalVisible(false)} style={{ flex: 1 }} />
+                            <PremiumButton title="Confirm Boost" onPress={handleBoostRate} loading={otpActionLoading} style={{ flex: 1 }} />
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── EDIT DETAILS MODAL ── */}
+            <Modal visible={editModalVisible} transparent animationType="slide">
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+                    <View style={{ backgroundColor: tTheme.background.surface, padding: 24, borderTopLeftRadius: 32, borderTopRightRadius: 32 }}>
+                        <Text style={{ fontSize: 22, fontWeight: '900', color: tTheme.text.primary, marginBottom: 8 }}>Edit Job Description</Text>
+                        
+                        <TextInput 
+                            style={{ backgroundColor: tTheme.background.app, color: tTheme.text.primary, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: tTheme.border.default, minHeight: 140, textAlignVertical: 'top', fontSize: 16, marginBottom: 24, marginTop: 12 }}
+                            multiline
+                            value={newDesc}
+                            onChangeText={setNewDesc}
+                        />
+
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                            <PremiumButton variant="secondary" title="Cancel" onPress={() => setEditModalVisible(false)} style={{ flex: 1 }} />
+                            <PremiumButton title="Save Details" onPress={handleEditDescription} loading={otpActionLoading} style={{ flex: 1 }} />
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
         </MainBackground>
     );
 }
@@ -1327,4 +1522,40 @@ const createStyles = (t) => StyleSheet.create({
     billRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     billLabel: { color: t.text.secondary, fontSize: 13, fontWeight: '700', flex: 1 },
     billValue: { color: t.text.primary, fontSize: 14, fontWeight: '900', textAlign: 'right' },
+
+    // ── Epic Receipt Card ──
+    receiptCard: {
+        marginHorizontal: 16, marginBottom: 12,
+        backgroundColor: t.background.surface,
+        borderRadius: 24,
+        borderWidth: 1, borderColor: t.status.success.base + '55',
+        overflow: 'hidden',
+        ...t.shadows.premium,
+    },
+    receiptHeader: {
+        backgroundColor: t.status.success.base + '11',
+        padding: 24,
+        alignItems: 'center',
+        borderBottomWidth: 1, borderBottomColor: t.status.success.base + '22',
+    },
+    successIconWrap: {
+        width: 72, height: 72, borderRadius: 36,
+        backgroundColor: t.status.success.base + '22',
+        justifyContent: 'center', alignItems: 'center',
+        marginBottom: 16,
+        borderWidth: 2, borderColor: t.status.success.base + '55',
+    },
+    receiptTitle: { color: t.status.success.base, fontSize: 22, fontWeight: '900', marginBottom: 6, letterSpacing: -0.5 },
+    receiptSub: { color: t.text.secondary, fontSize: 13, textAlign: 'center', lineHeight: 18, paddingHorizontal: 10 },
+    receiptBody: { padding: 24, gap: 16 },
+    receiptRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    receiptLabel: { color: t.text.secondary, fontSize: 14, fontWeight: '600' },
+    receiptValue: { color: t.text.primary, fontSize: 16, fontWeight: '800' },
+    receiptDivider: { borderWidth: 1, borderColor: t.border.default, borderStyle: 'dashed', marginVertical: 8, borderRadius: 1 },
+    receiptTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+    receiptTotalLabel: { color: t.text.primary, fontSize: 18, fontWeight: '900' },
+    receiptTotalValue: { color: t.status.success.base, fontSize: 32, fontWeight: '900', letterSpacing: -1 },
+    receiptFooter: { padding: 24, paddingTop: 0, gap: 16 },
+    slimReviewBtn: { paddingVertical: 12, alignItems: 'center' },
+    slimReviewTxt: { color: t.brand.primary, fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
 });

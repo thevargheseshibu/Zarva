@@ -69,7 +69,18 @@ export function useInspectionTimer(job, status) {
           end = Date.now();
         }
 
-        total += Math.max(0, Math.floor((end - start - pausedMs) / 1000));
+        let rawElapsedMs = end - start - pausedMs;
+
+        // ⭐ NEW: Freeze timer at the estimated cap
+        const capMinutes = job.billing_cap_minutes || job.estimated_duration_minutes;
+        if (capMinutes > 0) {
+            const capMs = capMinutes * 60000;
+            if (rawElapsedMs > capMs) {
+                rawElapsedMs = capMs; // Timer stops exactly at the limit
+            }
+        }
+
+        total += Math.max(0, Math.floor(rawElapsedMs / 1000));
       }
 
       setLocalElapsed(total);

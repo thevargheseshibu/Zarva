@@ -216,6 +216,11 @@ router.get('/:id', async (req, res) => {
         delete job.end_otp_hash;
         delete job.inspection_otp_hash;
 
+        // ⭐ FIX ISSUE 2: Ensure customer UI knows about pending extensions
+        if (job.extension_requested_minutes) {
+            job.extension_status = 'pending';
+        }
+
         // Build worker sub-object if a worker is assigned
         if (job.worker_id) {
             const bucket = process.env.AWS_BUCKET_NAME;
@@ -496,6 +501,68 @@ router.post('/:id/verify-end', async (req, res) => {
     }
 });
 
+// ─── PATCH /api/jobs/:id ──────────────────────────────────────────────────
+// Edit job details or dynamically adjust the hourly rate (Bidding)
+router.patch('/:id', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const jobId = req.params.id;
+        if (!jobId || !/^\d+$/.test(jobId)) return fail(res, 'Not found', 404, 'NOT_FOUND');
+
+        const { description, hourly_rate, scheduled_at } = req.body;
+
+        const pool = getPool();
+        const [jobs] = await pool.query('SELECT status, customer_id, category FROM jobs WHERE id = $1', [jobId]);
+        const job = jobs[0];
+
+        if (!job || job.customer_id != userId) return fail(res, 'Not found', 404, 'NOT_FOUND');
+
+        // Only allow edits before a worker accepts the job
+        if (!['open', 'searching', 'no_worker_found'].includes(job.status)) {
+            return fail(res, 'Job cannot be edited once a professional is assigned.', 400, 'INVALID_STATE');
+        }
+
+        const updates = [];
+        const values = [];
+        let idx = 1;
+
+        if (description !== undefined) {
+            updates.push(`description = $${idx++}`);
+            values.push(JSON.stringify(description));
+        }
+
+        if (scheduled_at !== undefined) {
+            updates.push(`scheduled_at = $${idx++}`);
+            values.push(scheduled_at);
+        }
+
+        if (hourly_rate !== undefined) {
+            updates.push(`hourly_rate = $${idx++}`);
+            values.push(parseFloat(hourly_rate));
+        }
+
+        if (updates.length === 0) return res.status(200).json({ status: 'ok', message: 'No changes' });
+
+        updates.push(`updated_at = NOW()`);
+        values.push(jobId);
+
+        await pool.query(`UPDATE jobs SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+
+        // SYNC TO FIREBASE: Instantly update all searching workers with the new rate/details
+        const { updateJobNode } = await import('../services/firebase.service.js');
+        const fbUpdates = {};
+        if (hourly_rate !== undefined) fbUpdates.hourly_rate = parseFloat(hourly_rate);
+        await updateJobNode(jobId, fbUpdates);
+
+        return res.status(200).json({ status: 'ok', success: true });
+    } catch (err) {
+        console.error('[Jobs] PATCH /:id error:', err);
+        return fail(res, 'Internal error', 500, 'INTERNAL_ERROR');
+    }
+});
+
 // ─── DELETE /api/jobs/:id ──────────────────────────────────────────────────
 // Cancel/Remove a job before matching or during searching
 router.delete('/:id', async (req, res) => {
@@ -614,6 +681,36 @@ router.post('/:id/inspection/approve-extension', async (req, res) => {
         return res.status(200).json({ status: 'ok', ...result });
     } catch (err) {
         console.error('[Jobs] POST /:id/inspection/approve-extension error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
+// Approve extension without OTP
+router.post('/:id/approve-extension', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const { default: BillingService } = await import('../services/billing.service.js');
+        const result = await BillingService.approveExtension(req.params.id, userId);
+        return res.status(200).json({ status: 'ok', ...result });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/approve-extension error:', err);
+        return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
+    }
+});
+
+// Reject extension (Ends the job immediately)
+router.post('/:id/reject-extension', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
+
+    try {
+        const { default: BillingService } = await import('../services/billing.service.js');
+        const result = await BillingService.rejectExtension(req.params.id, userId);
+        return res.status(200).json({ status: 'ok', ...result });
+    } catch (err) {
+        console.error('[Jobs] POST /:id/reject-extension error:', err);
         return fail(res, err.message || 'Internal error', err.status || 500, err.code || 'INTERNAL_ERROR');
     }
 });

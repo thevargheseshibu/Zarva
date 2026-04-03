@@ -42,4 +42,26 @@ function roleGuard(requiredRole) {
     };
 }
 
+/**
+ * requireAdmin — Flat middleware for admin-only routes.
+ * Compatible with Zarva's multi-role auth (roles[] array + active_role).
+ * Checked against BOTH the roles array AND the dedicated `role` column (future-proof).
+ */
+export const requireAdmin = (req, res, next) => {
+    const user = req.user;
+    if (!user) {
+        return res.status(401).json({ status: 'error', code: 'UNAUTHENTICATED', message: 'Authentication required.' });
+    }
+    const isAdmin =
+        (Array.isArray(user.roles) && user.roles.includes('admin')) ||
+        user.active_role === 'admin' ||
+        user.role === 'admin';
+
+    if (!isAdmin) {
+        console.warn(`[SECURITY] Unauthorized admin access attempt by User ID: ${user.id}`);
+        return res.status(403).json({ status: 'error', code: 'FORBIDDEN_ROLE', message: 'Strictly Forbidden: Admin Command Center Access Only' });
+    }
+    next();
+};
+
 export default roleGuard;

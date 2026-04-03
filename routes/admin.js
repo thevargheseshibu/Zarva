@@ -8,11 +8,13 @@ import { Router } from 'express';
 import configLoader from '../config/loader.js';
 import ticketsRouter from './admin/tickets.js';
 import walletAdminRouter from './admin/wallet.js';
+import godModeRouter from './admin/godMode.js';
 
 const router = Router();
 
 router.use('/tickets', ticketsRouter);
 router.use('/wallet', walletAdminRouter);
+router.use('/', godModeRouter);
 
 router.post('/config/reload', async (req, res) => {
     const { name } = req.query;

@@ -129,6 +129,11 @@ export default function MyCustomRequestsScreen({ navigation }) {
                     )}
                 />
             )}
+
+            {/* FLOATING ACTION BUTTON */}
+            <PressableAnimated style={styles.fab} onPress={() => navigation.navigate('CreateCustomJob')}>
+                <Text style={styles.fabIcon}>+</Text>
+            </PressableAnimated>
         </View>
     );
 }
@@ -161,4 +166,7 @@ const createStyles = (t) => StyleSheet.create({
     emptyIcon: { fontSize: 48, marginBottom: 8 },
     emptyTitle: { color: t.text.primary, fontSize: t.typography.size.title, fontWeight: t.typography.weight.bold },
     emptySub: { color: t.text.tertiary, fontSize: t.typography.size.caption, textAlign: 'center' },
+
+    fab: { position: 'absolute', bottom: 40, right: 24, width: 64, height: 64, borderRadius: 32, backgroundColor: '#0F172A', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 10, borderWidth: 1, borderColor: '#334155' },
+    fabIcon: { color: '#E5C07B', fontSize: 32, fontWeight: '300', marginBottom: 4 },
 });

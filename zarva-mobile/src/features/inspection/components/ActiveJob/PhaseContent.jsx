@@ -328,10 +328,10 @@ export function PhaseContent({
                     Reason: {job?.pause_reason || '—'}
                 </Text>
                 <Text style={[styles.phaseSub, { textAlign: 'center', marginBottom: 16, fontSize: 11 }]}>
-                    Timer is paused. Customer must approve resume OTP to restart.
+                    Timer is paused. Click below to resume work and restart the timer.
                 </Text>
                 <PremiumButton
-                    title="▶ Request Resume"
+                    title="▶ Resume Work"
                     onPress={handleRequestResume}
                     loading={actionLoading}
                 />
@@ -393,14 +393,14 @@ export function PhaseContent({
                 <Text style={{ fontSize: 40, marginBottom: 8 }}>⛔</Text>
                 <Text style={[styles.phaseTitle, { color: '#EF4444', textAlign: 'center' }]}>Customer Stopping Work</Text>
                 <Text style={[styles.phaseSub, { textAlign: 'center', marginBottom: 4 }]}>
-                    The customer has requested to stop. You have a 5-minute safe-stop window — wrap up safely.
+                    The customer has requested to stop. Please safely wrap up your tools and workspace.
                 </Text>
                 <Text style={[styles.phaseSub, { textAlign: 'center', marginBottom: 16, fontSize: 11, color: '#F59E0B' }]}>
                     Timer is frozen. You will be billed for actual elapsed time.
                 </Text>
                 <PremiumButton
-                    title="Acknowledge & Generate Bill"
-                    onPress={handleAcknowledgeStop}
+                    title="Wrap Up & Add Materials"
+                    onPress={() => setMaterialModalVisible(true)}
                     loading={actionLoading}
                     style={{ marginTop: 8, width: '100%' }}
                 />

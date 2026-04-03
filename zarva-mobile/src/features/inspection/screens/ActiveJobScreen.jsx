@@ -145,6 +145,16 @@ export default function ActiveJobScreen({ route, navigation }) {
                 } else {
                     elapsed = 0;
                 }
+
+                // ⭐ NEW: Freeze timer at the estimated cap
+                const capMinutes = job.billing_cap_minutes || job.estimated_duration_minutes;
+                if (capMinutes > 0) {
+                    const capSeconds = capMinutes * 60;
+                    if (elapsed > capSeconds) {
+                        elapsed = capSeconds; // Timer physically stops at the limit
+                    }
+                }
+
                 total += elapsed;
             }
 
@@ -349,15 +359,14 @@ export default function ActiveJobScreen({ route, navigation }) {
         setActionLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
-            const res = await apiClient.post(`/api/worker/jobs/${jobId}/pause-request`, { reason: pauseReason });
-            if (res.data?.otp) setActionOtp(res.data.otp);
+            await apiClient.post(`/api/worker/jobs/${jobId}/pause-request`, { reason: pauseReason });
             setStopSheetVisible(false);
             setIsPauseMode(null);
             setPauseReason('');
             await fetchJob(true);
-            Alert.alert('⏸ Pause Requested', 'Waiting for customer to approve with their OTP.');
+            Alert.alert('⏸ Work Paused', 'The timer has been paused successfully.');
         } catch (err) {
-            Alert.alert('Error', err.response?.data?.message || 'Could not request pause.');
+            Alert.alert('Error', err.response?.data?.message || 'Could not pause.');
         } finally {
             setActionLoading(false);
         }
@@ -367,12 +376,11 @@ export default function ActiveJobScreen({ route, navigation }) {
         setActionLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         try {
-            const res = await apiClient.post(`/api/worker/jobs/${jobId}/resume-request`);
-            if (res.data?.otp) setActionOtp(res.data.otp);
+            await apiClient.post(`/api/worker/jobs/${jobId}/resume-request`);
             await fetchJob(true);
-            Alert.alert('▶ Resume Requested', 'Waiting for customer to approve resume with their OTP.');
+            Alert.alert('▶ Work Resumed', 'The timer has restarted.');
         } catch (err) {
-            Alert.alert('Error', err.response?.data?.message || 'Could not request resume.');
+            Alert.alert('Error', err.response?.data?.message || 'Could not resume.');
         } finally {
             setActionLoading(false);
         }
@@ -479,11 +487,21 @@ export default function ActiveJobScreen({ route, navigation }) {
             setMaterialsVisible(false);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-            // Navigate to the summary screen to review the bill
-            navigation.navigate('JobCompleteSummary', { 
-                jobId,
-                isCustomerStopped: status === 'customer_stopping' || job?.customer_stopped_at != null
-            });
+            // ⭐ NEW: If customer stopped the job, finalize it instantly without asking for OTP
+            if (status === 'customer_stopping' || job?.customer_stopped_at != null) {
+                await apiClient.post(`/api/worker/jobs/${jobId}/finalize-direct`);
+                setStatus('completed');
+                navigation.navigate('JobCompleteSummary', { 
+                    jobId,
+                    isCustomerStopped: true
+                });
+            } else {
+                // Normal completion flow (requires customer OTP later)
+                navigation.navigate('JobCompleteSummary', { 
+                    jobId,
+                    isCustomerStopped: false
+                });
+            }
         } catch (err) {
             Alert.alert('Error', err.response?.data?.message || 'Could not save materials.');
         } finally {
@@ -559,11 +577,16 @@ export default function ActiveJobScreen({ route, navigation }) {
                 tTheme={tTheme}
                 stopSheetVisible={stopSheetVisible}
                 setStopSheetVisible={setStopSheetVisible}
-                handlePauseResume={handleRequestPause}
-                handleReschedule={() => {
-                    handlePickRescheduleDate();
-                    // We don't close sheet here because user might cancel date pick
-                }}
+                isPauseMode={isPauseMode}
+                setIsPauseMode={setIsPauseMode}
+                pauseReason={pauseReason}
+                setPauseReason={setPauseReason}
+                rescheduleDate={rescheduleDate}
+                setRescheduleDate={setRescheduleDate}
+                rescheduleReason={rescheduleReason}
+                setRescheduleReason={setRescheduleReason}
+                handlePauseSubmit={handleRequestPause}
+                handleRescheduleSubmit={handleRequestSuspend}
                 materialModalVisible={materialsVisible}
                 setMaterialModalVisible={setMaterialsVisible}
                 materialData={materials}
