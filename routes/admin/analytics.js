@@ -107,9 +107,9 @@ router.get('/overview', handle(async (adminId, pool) => {
             SELECT
                 COUNT(*)                                               AS total_workers,
                 COUNT(*) FILTER (WHERE is_online = true)              AS online,
-                COUNT(*) FILTER (WHERE kyc_status = 'pending')        AS kyc_pending,
+                COUNT(*) FILTER (WHERE kyc_status = 'pending_review')   AS kyc_pending,
                 COUNT(*) FILTER (WHERE is_verified = false
-                                   AND kyc_status != 'pending')       AS unverified
+                                   AND kyc_status != 'pending_review')       AS unverified
             FROM worker_profiles
         `),
         pool.query(`

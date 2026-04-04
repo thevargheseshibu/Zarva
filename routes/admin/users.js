@@ -32,58 +32,59 @@ router.get('/', handle(async (adminId, pool, req) => {
 
     const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
-    let query = `
+    // 1. Build an airtight dynamic array for SQL parameter binding
+    const conditions = ['1=1'];
+    const values = [];
+
+    if (role) {
+        values.push(role);
+        conditions.push(`u.role = $${values.length}`);
+    }
+
+    if (search) {
+        values.push(`%${search}%`);
+        conditions.push(`(u.phone ILIKE $${values.length} OR wp.name ILIKE $${values.length} OR cp.name ILIKE $${values.length})`);
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    const safeSortField = ALLOWED_SORT_FIELDS.has(sortField) ? sortField : 'created_at';
+    const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    // 2. Count Query (Using the exact same bindings without shifting)
+    const countQuery = `
+        SELECT COUNT(*) AS total
+        FROM users u
+        LEFT JOIN worker_profiles  wp ON u.id = wp.user_id
+        LEFT JOIN customer_profiles cp ON u.id = cp.user_id
+        WHERE ${whereClause}
+    `;
+    const [countRows] = await pool.query(countQuery, values);
+    const total = parseInt(countRows[0]?.total ?? 0, 10);
+
+    // 3. Data Query (Push pagination params strictly at the end)
+    values.push(parseInt(limit, 10), offset);
+    const query = `
         SELECT
-            u.id, u.phone, u.role, u.is_suspended, u.created_at,
+            u.id, u.phone, u.role, u.is_blocked, u.created_at,
             COALESCE(wp.name, cp.name) AS name,
             wp.kyc_status, wp.category, wp.average_rating, wp.total_jobs,
             wp.is_verified, wp.is_online
         FROM users u
         LEFT JOIN worker_profiles  wp ON u.id = wp.user_id
         LEFT JOIN customer_profiles cp ON u.id = cp.user_id
-        WHERE 1=1
+        WHERE ${whereClause}
+        ORDER BY ${safeSortField} ${safeSortOrder} 
+        LIMIT $${values.length - 1} OFFSET $${values.length}
     `;
-    const values = [];
-    let idx = 1;
-
-    if (role) {
-        query += ` AND u.role = $${idx++}`;
-        values.push(role);
-    }
-
-    if (search) {
-        query += ` AND (u.phone ILIKE $${idx} OR wp.name ILIKE $${idx} OR cp.name ILIKE $${idx})`;
-        values.push(`%${search}%`);
-        idx++;
-    }
-
-    const safeSortField = ALLOWED_SORT_FIELDS.has(sortField) ? sortField : 'created_at';
-    const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-    // Build count query BEFORE appending LIMIT/OFFSET
-    const countQuery = `
-        SELECT COUNT(*) AS total
-        FROM users u
-        LEFT JOIN worker_profiles  wp ON u.id = wp.user_id
-        LEFT JOIN customer_profiles cp ON u.id = cp.user_id
-        WHERE 1=1
-        ${role   ? `AND u.role = $1` : ''}
-        ${search ? `AND (u.phone ILIKE $${role ? 2 : 1} OR wp.name ILIKE $${role ? 2 : 1} OR cp.name ILIKE $${role ? 2 : 1})` : ''}
-    `;
-    const countValues = values.slice(); // snapshot before pushing LIMIT/OFFSET
-
-    query += ` ORDER BY ${safeSortField} ${safeSortOrder} LIMIT $${idx++} OFFSET $${idx++}`;
-    values.push(parseInt(limit, 10), offset);
-
-    const [rows]      = await pool.query(query, values);
-    const [countRows] = await pool.query(countQuery, countValues);
-    const total       = parseInt(countRows[0]?.total ?? 0, 10);
+    
+    const [rows] = await pool.query(query, values);
 
     return {
         users: rows,
         total,
-        page:  parseInt(page, 10),
-        pages: Math.ceil(total / parseInt(limit, 10)),
+        page: parseInt(page, 10),
+        pages: Math.ceil(total / parseInt(limit, 10)) || 1,
     };
 }));
 
@@ -94,14 +95,14 @@ router.get('/', handle(async (adminId, pool, req) => {
  */
 router.patch('/:id', handle(async (adminId, pool, req) => {
     const targetId = req.params.id;
-    const { is_suspended, role } = req.body;
+    const { is_blocked, role } = req.body;
 
     const updates = [];
     const values  = [];
     let idx = 1;
 
-    if (is_suspended !== undefined) { updates.push(`is_suspended = $${idx++}`); values.push(is_suspended); }
-    if (role          !== undefined) { updates.push(`role = $${idx++}`);         values.push(role); }
+    if (is_blocked !== undefined) { updates.push(`is_blocked = $${idx++}`); values.push(is_blocked); }
+    if (role       !== undefined) { updates.push(`role = $${idx++}`);       values.push(role); }
 
     if (updates.length === 0) throw Object.assign(new Error('No valid fields to update'), { status: 400 });
 
