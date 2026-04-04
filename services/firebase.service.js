@@ -60,6 +60,20 @@ export async function updateJobNode(jobId, fields) {
     await ref.update({ ...fields, last_updated: Date.now() });
 }
 
+/**
+ * Merge fields into worker_presence/{workerId}.
+ * Used by the admin KYC approval pipeline to instantly unlock a worker's app.
+ */
+export async function updateWorkerNode(workerId, fields) {
+    if (!isLiveTracking()) {
+        console.log(`[Firebase Mock] worker_presence/${workerId} update =`, JSON.stringify(fields));
+        return;
+    }
+    const ref = await dbRef(`worker_presence/${workerId}`);
+    if (!ref) return;
+    await ref.update({ ...fields, last_updated: Date.now() });
+}
+
 
 export async function createJobNode(jobId, workerId, customerLat, customerLng, worker = null) {
     const data = {

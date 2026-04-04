@@ -12,10 +12,11 @@
  */
 
 /**
- * @param {string} requiredRole  'customer' | 'worker' | 'admin'
+ * @param {string|string[]} requiredRole  'customer' | 'worker' | 'admin' | ['admin','superadmin']
  * @returns {import('express').RequestHandler}
  */
 function roleGuard(requiredRole) {
+    const allowed = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
     return function (req, res, next) {
         const user = req.user;
 
@@ -27,14 +28,14 @@ function roleGuard(requiredRole) {
             });
         }
 
-        const hasRole = Array.isArray(user.roles) && user.roles.includes(requiredRole);
-        const isActiveRole = user.active_role === requiredRole;
+        const userRoles = Array.isArray(user.roles) ? user.roles : [];
+        const hasRole = allowed.some(r => userRoles.includes(r) || user.active_role === r || user.role === r);
 
-        if (!hasRole || !isActiveRole) {
+        if (!hasRole) {
             return res.status(403).json({
                 status: 'error',
                 code: 'FORBIDDEN',
-                message: `Access requires the '${requiredRole}' role.`,
+                message: `Access requires one of the following roles: ${allowed.join(', ')}.`,
             });
         }
 
