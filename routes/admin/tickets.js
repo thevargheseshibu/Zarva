@@ -15,7 +15,7 @@ const fail = (res, message, status = 400, code = 'BAD_REQUEST') =>
 router.get('/', async (req, res) => {
     try {
         const pool = getPool();
-        const { status, type, priority, limit = 50, offset = 0 } = req.query;
+        const { status, type, priority, limit, offset } = req.query;
 
         let query = `
             SELECT t.*, u.phone as raised_by_phone, COALESCE(cp.name, wp.name, 'Zarva User') as raised_by_name,
@@ -35,11 +35,18 @@ router.get('/', async (req, res) => {
         if (priority) { conditions.push(`t.priority = $${idx++}`);    params.push(priority); }
 
         if (conditions.length) query += ` WHERE ${conditions.join(' AND ')}`;
+        
+        // ⭐ FIX: Safely parse limits to prevent NaN SQL errors
+        const safeLimit = parseInt(limit) || 50;
+        const safeOffset = parseInt(offset) || 0;
+        
         query += ` ORDER BY t.last_activity_at DESC LIMIT $${idx++} OFFSET $${idx}`;
-        params.push(parseInt(limit), parseInt(offset));
+        params.push(safeLimit, safeOffset);
 
-        const result = await pool.query(query, params);
-        return ok(res, { tickets: result.rows, count: result.rowCount });
+        // ⭐ FIX: Array destructuring matches your DB wrapper instead of result.rows
+        const [rows] = await pool.query(query, params);
+        
+        return ok(res, { tickets: rows, count: rows.length });
     } catch (err) {
         console.error('[Admin Tickets] List error:', err);
         return fail(res, 'Failed to fetch tickets', 500, 'SERVER_ERROR');
@@ -55,7 +62,8 @@ router.get('/:id', async (req, res) => {
         const pool = getPool();
         const { id } = req.params;
 
-        const ticketRes = await pool.query(`
+        // ⭐ FIX: Destructure as [ticketRows]
+        const [ticketRows] = await pool.query(`
             SELECT t.*, u.phone as raised_by_phone, COALESCE(cp.name, wp.name, 'Zarva User') as raised_by_name,
                    j.category as job_category, j.status as job_current_status
             FROM support_tickets t
@@ -66,9 +74,10 @@ router.get('/:id', async (req, res) => {
             WHERE t.id = $1
         `, [id]);
 
-        if (!ticketRes.rows[0]) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
+        if (!ticketRows[0]) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
 
-        const msgsRes = await pool.query(`
+        // ⭐ FIX: Destructure as [msgsRows]
+        const [msgsRows] = await pool.query(`
             SELECT m.*, u.phone as sender_phone
             FROM ticket_messages m
             LEFT JOIN users u ON m.sender_id = u.id
@@ -82,7 +91,7 @@ router.get('/:id', async (req, res) => {
             [id]
         );
 
-        return ok(res, { ticket: ticketRes.rows[0], messages: msgsRes.rows });
+        return ok(res, { ticket: ticketRows[0], messages: msgsRows });
     } catch (err) {
         console.error('[Admin Tickets] View error:', err);
         return fail(res, 'Failed to fetch ticket info', 500, 'SERVER_ERROR');
@@ -102,13 +111,15 @@ router.patch('/:id/status', async (req, res) => {
         const VALID = ['open', 'admin_replied', 'awaiting_user', 'awaiting_admin', 'resolved', 'closed'];
         if (!VALID.includes(status)) return fail(res, `Invalid status. Must be one of: ${VALID.join(', ')}`);
 
-        const result = await pool.query(
+        // ⭐ FIX: Destructure as [resultRows]
+        const [resultRows] = await pool.query(
             `UPDATE support_tickets SET status = $1, last_activity_at = NOW() WHERE id = $2 RETURNING *`,
             [status, id]
         );
-        if (!result.rows[0]) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
+        
+        if (!resultRows[0]) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
 
-        return ok(res, { ticket: result.rows[0] });
+        return ok(res, { ticket: resultRows[0] });
     } catch (err) {
         console.error('[Admin Tickets] Update status error:', err);
         return fail(res, 'Failed to update ticket', 500, 'SERVER_ERROR');
@@ -124,21 +135,23 @@ router.post('/:id/message', async (req, res) => {
         if (!req.user?.id) return fail(res, 'Authentication required', 401, 'UNAUTHORIZED');
         const pool = getPool();
         const { id } = req.params;
-        const { message_text, is_internal_note, attachment_urls } = req.body;
+        
+        // ⭐ FIX: Safely parse payload regardless of camelCase/snake_case
+        const message_text = req.body.message_text || req.body.content;
+        const is_internal_note = req.body.is_internal_note !== undefined ? req.body.is_internal_note : req.body.isInternalNote;
+        const attachment_urls = req.body.attachment_urls;
 
-        if (!message_text?.trim()) return fail(res, 'message_text is required');
+        if (!message_text?.trim()) return fail(res, 'Message text is required');
 
-        // Check ticket exists
-        const ticketRes = await pool.query(`SELECT id, status FROM support_tickets WHERE id = $1`, [id]);
-        if (!ticketRes.rows[0]) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
+        const [ticketRows] = await pool.query(`SELECT id, status FROM support_tickets WHERE id = $1`, [id]);
+        if (!ticketRows[0]) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
 
         if (is_internal_note) {
-            // Insert as internal note, no Firebase push
-            const msgRes = await pool.query(`
+            const [msgRows] = await pool.query(`
                 INSERT INTO ticket_messages (ticket_id, sender_id, sender_role, message_text, is_internal_note)
                 VALUES ($1, $2, 'admin', $3, TRUE) RETURNING *
             `, [id, req.user.id, message_text.trim()]);
-            return ok(res, { message: msgRes.rows[0] });
+            return ok(res, { message: msgRows[0] });
         }
 
         const msg = await supportService.addMessage(
@@ -149,7 +162,6 @@ router.post('/:id/message', async (req, res) => {
             attachment_urls || []
         );
 
-        // Update ticket status to admin_replied
         await pool.query(
             `UPDATE support_tickets SET status = 'admin_replied', last_activity_at = NOW() WHERE id = $1`,
             [id]

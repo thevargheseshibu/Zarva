@@ -50,13 +50,13 @@ export default function TicketListScreen() {
     };
 
     const StatusBadge = ({ status }) => {
-        let bg = t.background.surfaceRaised;
-        let c = t.text.tertiary;
+        let bg = tTheme.background.surfaceRaised;
+        let c = tTheme.text.tertiary;
         const low = (status || '').toLowerCase();
 
         if (low === 'open') {
-            bg = t.brand.primary + '22';
-            c = t.brand.primary;
+            bg = tTheme.brand.primary + '22';
+            c = tTheme.brand.primary;
         } else if (low === 'resolved' || low === 'closed') {
             bg = '#4CAF5022';
             c = '#4CAF50';
@@ -74,7 +74,7 @@ export default function TicketListScreen() {
             <MainBackground>
                 <PremiumHeader title={t('my_tickets', { defaultValue: 'My Tickets' })} onBack={() => navigation.goBack()} />
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color={t.brand.primary} />
+                    <ActivityIndicator size="large" color={tTheme.brand.primary} />
                 </View>
             </MainBackground>
         );
@@ -86,7 +86,7 @@ export default function TicketListScreen() {
 
             <FlatList
                 contentContainerStyle={styles.list}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.brand.primary} />}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tTheme.brand.primary} />}
                 data={tickets}
                 keyExtractor={item => item.id}
                 ListEmptyComponent={() => (

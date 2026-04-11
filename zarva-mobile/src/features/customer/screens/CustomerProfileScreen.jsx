@@ -284,7 +284,7 @@ export default function CustomerProfileScreen() {
                             <Text style={styles.chevron}>›</Text>
                         </PressableAnimated>
 
-                        <PressableAnimated style={styles.settingCard} onPress={() => navigation.navigate('SupportNavigator', { screen: 'SupportHome' })}>
+                        <PressableAnimated style={styles.settingCard} onPress={() => navigation.navigate('Support')}>
                             <View style={[styles.settingIconBox, { backgroundColor: tTheme.status.error.base + '22' }]}>
                                 <Text style={styles.settingIcon}>🎧</Text>
                             </View>

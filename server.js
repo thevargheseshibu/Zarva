@@ -56,6 +56,53 @@ async function bootstrap() {
 
     // 3. Create Express app
     const app = express();
+
+    // ⭐ CRITICAL: Razorpay Webhook — must be BEFORE express.json()
+    // Webhooks MUST be parsed as raw buffers to verify the cryptographic signature.
+    const crypto = await import('crypto');
+    
+    app.post('/webhook/razorpay', express.raw({ type: 'application/json' }), async (req, res) => {
+        try {
+            const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+            const signature = req.headers['x-razorpay-signature'];
+            
+            if (!secret || !signature) {
+                console.error('[Webhook] Missing secret or signature');
+                return res.status(400).send('Missing signature');
+            }
+
+            const expectedSig = crypto.default
+                .createHmac('sha256', secret)
+                .update(req.body)
+                .digest('hex');
+
+            if (expectedSig !== signature) {
+                console.error('[Webhook] Invalid signature');
+                return res.status(400).send('Invalid signature');
+            }
+
+            const event = JSON.parse(req.body);
+            console.log(`[Webhook] Razorpay Event: ${event.event}`);
+
+            const webhookPool = getPool();
+            
+            if (event.event === 'payment.captured') {
+                const payment = event.payload.payment.entity;
+                await webhookPool.query(
+                    `UPDATE payments SET status='captured', razorpay_payment_id=$1, captured_at=NOW() WHERE razorpay_order_id=$2`,
+                    [payment.id, payment.order_id]
+                );
+                console.log(`[Webhook] Payment ${payment.id} verified and captured for order ${payment.order_id}.`);
+            }
+
+            res.status(200).json({ status: 'ok' });
+        } catch (err) {
+            console.error('[Webhook] Error:', err);
+            res.status(500).send('Webhook Error');
+        }
+    });
+
+    // Standard parsers for all other routes
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 

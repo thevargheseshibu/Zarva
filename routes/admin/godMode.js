@@ -4,12 +4,6 @@
  * Admin Command Center — God-Mode CRUD Backend
  * Allows super admins to read and edit ANY field in ANY whitelisted table.
  * Every mutation is recorded in admin_audit_logs for full traceability.
- *
- * Endpoints:
- *   GET   /api/admin/tables/:table/:id       — Fetch a single entity
- *   PATCH /api/admin/tables/:table/:id       — Dynamic field updater + audit
- *   POST  /api/admin/workers/:id/approve     — KYC approval pipeline
- *   GET   /api/admin/audit-logs              — Audit log viewer
  */
 
 import express from 'express';
@@ -17,16 +11,16 @@ import { getPool, fail } from '../../lib/db.js';
 
 const router = express.Router();
 
-// ─── Whitelist: only these tables may be read / patched via God Mode ──────────
+// ⭐ FIX 1: Updated to correct table names (support_tickets, ticket_messages)
 const ALLOWED_TABLES = new Set([
     'users',
     'customer_profiles',
     'worker_profiles',
     'jobs',
     'job_materials',
-    'tickets',
+    'support_tickets',
+    'ticket_messages',
     'payments',
-    'dispute_messages',
 ]);
 
 // ─── Helper: validate column name to prevent injection ──────────────────────
@@ -44,9 +38,6 @@ const BLOCKED_COLUMNS = new Set([
 /**
  * ─── ENTITY READER ────────────────────────────────────────────────────────
  * GET /api/admin/tables/:table/:id
- *
- * Returns every column of a single row for the Entity Editor Drawer.
- * Strips sensitive hash columns before returning.
  */
 router.get('/tables/:table/:id', async (req, res) => {
     const { table, id } = req.params;
@@ -54,13 +45,14 @@ router.get('/tables/:table/:id', async (req, res) => {
     if (!ALLOWED_TABLES.has(table)) {
         return fail(res, `Table '${table}' is not permitted`, 400, 'TABLE_FORBIDDEN');
     }
-    if (!id || !/^\d+$/.test(id)) {
-        return fail(res, 'Invalid record ID', 400, 'INVALID_ID');
+    
+    // ⭐ FIX 2: Allow UUIDs (alphanumeric and dashes) instead of just digits
+    if (!id || !/^[a-zA-Z0-9-]+$/.test(id)) {
+        return fail(res, 'Invalid record ID format', 400, 'INVALID_ID');
     }
 
     const pool = getPool();
     try {
-        // Determine the ID column — worker_profiles use user_id, everything else uses id
         const idCol = table === 'worker_profiles' || table === 'customer_profiles' ? 'user_id' : 'id';
         const [rows] = await pool.query(`SELECT * FROM ${table} WHERE ${idCol} = $1`, [id]);
 
@@ -85,9 +77,6 @@ router.get('/tables/:table/:id', async (req, res) => {
 /**
  * ─── DYNAMIC FIELD UPDATER ────────────────────────────────────────────────
  * PATCH /api/admin/tables/:table/:id
- *
- * Body: { fieldName: newValue, ... }
- * Updates any column in a whitelisted table, records a full audit trail.
  */
 router.patch('/tables/:table/:id', async (req, res) => {
     const adminId = req.user.id;
@@ -97,11 +86,12 @@ router.patch('/tables/:table/:id', async (req, res) => {
     if (!ALLOWED_TABLES.has(table)) {
         return fail(res, `Table '${table}' is not permitted for editing`, 400, 'TABLE_FORBIDDEN');
     }
-    if (!id || !/^\d+$/.test(id)) {
-        return fail(res, 'Invalid record ID', 400, 'INVALID_ID');
+    
+    // ⭐ FIX 2: Allow UUIDs (alphanumeric and dashes) instead of just digits
+    if (!id || !/^[a-zA-Z0-9-]+$/.test(id)) {
+        return fail(res, 'Invalid record ID format', 400, 'INVALID_ID');
     }
 
-    // Filter: only safe column names, never blocked columns
     const updateEntries = Object.entries(updates)
         .filter(([key]) => safeCol(key) && !BLOCKED_COLUMNS.has(key));
 
@@ -116,11 +106,9 @@ router.patch('/tables/:table/:id', async (req, res) => {
     try {
         const idCol = table === 'worker_profiles' || table === 'customer_profiles' ? 'user_id' : 'id';
 
-        // 1. Snapshot previous data for audit
         const [prevRows] = await conn.query(`SELECT * FROM ${table} WHERE ${idCol} = $1`, [id]);
         if (!prevRows[0]) throw Object.assign(new Error('Record not found'), { status: 404 });
 
-        // 2. Build parameterised UPDATE
         const setClauses = [];
         const values = [];
         let idx = 1;
@@ -130,7 +118,6 @@ router.patch('/tables/:table/:id', async (req, res) => {
             values.push(value);
         }
 
-        // Append updated_at if the table has it
         const prevKeys = Object.keys(prevRows[0]);
         if (prevKeys.includes('updated_at')) {
             setClauses.push(`updated_at = NOW()`);
@@ -143,7 +130,6 @@ router.patch('/tables/:table/:id', async (req, res) => {
             values
         );
 
-        // 3. Write immutable audit record
         await conn.query(`
             INSERT INTO admin_audit_logs
                 (admin_id, action, target_table, target_id, previous_data, new_data, ip_address)
@@ -159,7 +145,6 @@ router.patch('/tables/:table/:id', async (req, res) => {
 
         await conn.commit();
 
-        // 4. If editing a live job, sync the diff to Firebase (non-blocking)
         if (table === 'jobs') {
             import('../../services/firebase.service.js')
                 .then(({ updateJobNode }) => updateJobNode(id, Object.fromEntries(updateEntries)))
@@ -208,7 +193,6 @@ router.post('/workers/:id/approve', async (req, res) => {
             VALUES ($1, 'APPROVE_WORKER', 'worker_profiles', $2, $3)
         `, [adminId, workerId, req.ip]);
 
-        // Fire push notification — non-blocking
         try {
             const { sendPushNotification } = await import('../../services/fcmService.js');
             await sendPushNotification(

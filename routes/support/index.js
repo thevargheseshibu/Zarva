@@ -27,6 +27,19 @@ router.post('/tickets/create', async (req, res) => {
             description: description.trim()
         });
 
+        // Insert the initial description as the first message so it appears in Admin
+        // ⭐ FIX: Correctly extract ticket_id (not result.id) to ensure the first message saves
+        const ticketId = result.ticket_id || result.id || result.ticket?.id;
+        if (ticketId) {
+            await supportService.addMessage(
+                ticketId, 
+                req.user.id, 
+                req.user.role || 'customer', 
+                description.trim(), 
+                []
+            );
+        }
+
         return ok(res, result, 201);
     } catch (error) {
         console.error('[Support] Create ticket:', error);
@@ -57,8 +70,8 @@ router.get('/tickets', async (req, res) => {
 
         sql += ' ORDER BY st.last_activity_at DESC LIMIT 50';
 
-        const result = await pool.query(sql, params);
-        return ok(res, { tickets: result.rows });
+        const [rows] = await pool.query(sql, params);
+        return ok(res, { tickets: rows });
     } catch (err) {
         console.error('[Support] List tickets:', err);
         return fail(res, 'Failed to fetch tickets', 500, 'SERVER_ERROR');
@@ -72,7 +85,7 @@ router.get('/tickets/:ticketId', async (req, res) => {
         const pool = getPool();
         const { ticketId } = req.params;
 
-        const ticketRes = await pool.query(
+        const [ticketRows] = await pool.query(
             `SELECT st.*, j.category as job_category, j.status as job_status
              FROM support_tickets st
              LEFT JOIN jobs j ON st.job_id = j.id
@@ -80,9 +93,9 @@ router.get('/tickets/:ticketId', async (req, res) => {
             [ticketId, req.user.id]
         );
 
-        if (!ticketRes.rows[0]) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
+        if (!ticketRows[0]) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
 
-        const msgsRes = await pool.query(
+        const [msgsRows] = await pool.query(
             `SELECT * FROM ticket_messages WHERE ticket_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC`,
             [ticketId]
         );
@@ -93,7 +106,7 @@ router.get('/tickets/:ticketId', async (req, res) => {
             [ticketId]
         );
 
-        return ok(res, { ticket: ticketRes.rows[0], messages: msgsRes.rows });
+        return ok(res, { ticket: ticketRows[0], messages: msgsRows });
     } catch (err) {
         console.error('[Support] Get ticket:', err);
         return fail(res, 'Failed to fetch ticket', 500, 'SERVER_ERROR');
@@ -113,11 +126,11 @@ router.post('/tickets/:ticketId/messages', async (req, res) => {
         }
 
         // Verify ownership & that ticket is still open
-        const ticketRes = await pool.query(
+        const [ticketRows_msg] = await pool.query(
             `SELECT id, status, raised_by_user_id FROM support_tickets WHERE id = $1`,
             [ticketId]
         );
-        const ticket = ticketRes.rows[0];
+        const ticket = ticketRows_msg[0];
         if (!ticket) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
         if (String(ticket.raised_by_user_id) !== String(req.user.id))
             return fail(res, 'Unauthorized', 403, 'FORBIDDEN');
@@ -154,11 +167,11 @@ router.post('/tickets/:ticketId/close', async (req, res) => {
         const pool = getPool();
         const { ticketId } = req.params;
 
-        const ticketRes = await pool.query(
+        const [ticketRows_close] = await pool.query(
             `SELECT id, status, raised_by_user_id FROM support_tickets WHERE id = $1`,
             [ticketId]
         );
-        const ticket = ticketRes.rows[0];
+        const ticket = ticketRows_close[0];
         if (!ticket) return fail(res, 'Ticket not found', 404, 'NOT_FOUND');
         if (String(ticket.raised_by_user_id) !== String(req.user.id))
             return fail(res, 'Unauthorized', 403, 'FORBIDDEN');
@@ -188,29 +201,29 @@ router.get('/eligible-jobs', async (req, res) => {
         const ACTIVE_STATUSES = ['assigned', 'worker_en_route', 'worker_arrived', 'in_progress', 'pending_completion', 'estimate_submitted', 'disputed'];
         const HISTORY_STATUSES = ['completed', 'cancelled'];
 
-        const currentRes = await pool.query(
-            `SELECT j.id, j.category, j.status, j.created_at, j.customer_address,
-                    wp.name as worker_name, wp.photo as worker_photo
+        const [currentRows] = await pool.query(
+            `SELECT j.id, j.category, j.status, j.created_at, j.address,
+                    wp.name as worker_name, wp.profile_s3_key as worker_photo
              FROM jobs j
              LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
              WHERE (j.customer_id = $1 OR j.worker_id = $1)
-               AND j.status = ANY($2::text[])
+               AND j.status = ANY($2)
              ORDER BY j.created_at DESC LIMIT 20`,
             [req.user.id, ACTIVE_STATUSES]
         );
 
-        const historyRes = await pool.query(
-            `SELECT j.id, j.category, j.status, j.created_at, j.customer_address,
-                    wp.name as worker_name, wp.photo as worker_photo
+        const [historyRows] = await pool.query(
+            `SELECT j.id, j.category, j.status, j.created_at, j.address,
+                    wp.name as worker_name, wp.profile_s3_key as worker_photo
              FROM jobs j
              LEFT JOIN worker_profiles wp ON j.worker_id = wp.user_id
              WHERE (j.customer_id = $1 OR j.worker_id = $1)
-               AND j.status = ANY($2::text[])
+               AND j.status = ANY($2)
              ORDER BY j.created_at DESC LIMIT 30`,
             [req.user.id, HISTORY_STATUSES]
         );
 
-        return ok(res, { current: currentRes.rows, history: historyRes.rows });
+        return ok(res, { current: currentRows, history: historyRows });
     } catch (err) {
         console.error('[Support] Eligible jobs:', err);
         return fail(res, 'Failed to fetch jobs', 500, 'SERVER_ERROR');
@@ -224,8 +237,8 @@ router.get('/categories', async (req, res) => {
         const { role } = req.query;
         let sql = `SELECT category_key, category_name, who_can_raise, priority_default, sla_hours FROM dispute_categories WHERE active = TRUE`;
         if (role) sql += ` AND (who_can_raise = $1 OR who_can_raise = 'both')`;
-        const result = await pool.query(sql, role ? [role] : []);
-        return ok(res, { categories: result.rows });
+        const [rows] = await pool.query(sql, role ? [role] : []);
+        return ok(res, { categories: rows });
     } catch (err) {
         console.error('[Support] Categories:', err);
         return fail(res, 'Failed to fetch categories', 500, 'SERVER_ERROR');

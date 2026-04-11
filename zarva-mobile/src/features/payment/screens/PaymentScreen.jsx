@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking, Platform, Modal } from 'react-native';
+import { WebView } from 'react-native-webview'; // ⭐ Razorpay Gateway via WebView
 import * as Haptics from 'expo-haptics';
 import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import FadeInView from '@shared/ui/FadeInView';
 import PremiumButton from '@shared/ui/PremiumButton';
-import PressableAnimated from '@shared/design-system/components/PressableAnimated';
 import Card from '@shared/ui/ZCard';
 
 export default function PaymentScreen({ route, navigation }) {
@@ -14,15 +14,18 @@ export default function PaymentScreen({ route, navigation }) {
     const styles = useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
     const { jobId } = route.params || { jobId: 'mock-123' };
+    
     const [loading, setLoading] = useState(false);
     const [invoice, setInvoice] = useState(null);
     const [fetchingInvoice, setFetchingInvoice] = useState(true);
+    
+    // ⭐ Gateway States
+    const [showGateway, setShowGateway] = useState(false);
+    const [checkoutHTML, setCheckoutHTML] = useState('');
 
     useEffect(() => {
         apiClient.get(`/api/payment/invoice/${jobId}`)
-            .then(res => {
-                setInvoice(res.data?.data);
-            })
+            .then(res => setInvoice(res.data?.data))
             .catch(err => {
                 Alert.alert('Error', 'Unable to fetch invoice details.');
                 console.error(err);
@@ -30,21 +33,111 @@ export default function PaymentScreen({ route, navigation }) {
             .finally(() => setFetchingInvoice(false));
     }, [jobId]);
 
+    // ⭐ Gateway HTML Builder — renders the Razorpay checkout inside a WebView
+    const generateRazorpayHTML = (orderData) => `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        </head>
+        <body style="background-color: #121212; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
+            <p style="color: #6F5BDD; font-family: sans-serif;">Initializing Secure Gateway...</p>
+            <script>
+                var options = {
+                    key: "${orderData.key_id}",
+                    amount: "${Math.round(orderData.amount * 100)}", 
+                    currency: "INR",
+                    name: "ZARVA Services",
+                    description: "Payment for Job #${jobId}",
+                    order_id: "${orderData.order_id}",
+                    theme: { color: "#6F5BDD" },
+                    handler: function(response) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ type: "SUCCESS", data: response }));
+                    },
+                    modal: {
+                        ondismiss: function() {
+                            window.ReactNativeWebView.postMessage(JSON.stringify({ type: "CANCELLED" }));
+                        }
+                    }
+                };
+                var rzp = new Razorpay(options);
+                rzp.on("payment.failed", function(response) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({ type: "FAILED", data: response.error }));
+                });
+                rzp.open();
+            </script>
+        </body>
+        </html>
+    `;
+
+    // ⭐ Initialize Payment — creates an order on the backend, then opens the WebView
     const handleDigitalPayment = async () => {
         if (loading) return;
         setLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
         try {
-            // Temporary stub: directly mark payment as completed on the server
-            await apiClient.post('/api/payment/finalize-mock', { job_id: jobId });
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert('Payment Successful', 'Transaction processed successfully.');
-            navigation.replace('Rating', { jobId });
+            // 1. Create order on ZARVA backend (Server Source of Truth)
+            const res = await apiClient.post('/api/payment/create-order', { 
+                job_id: jobId, 
+                payment_type: 'final' 
+            });
+            
+            // 2. Generate HTML and show WebView
+            const html = generateRazorpayHTML(res.data.data);
+            setCheckoutHTML(html);
+            setShowGateway(true);
+            
         } catch (err) {
-            Alert.alert('Payment Failed', 'Transaction could not be initiated. Please try again.');
+            console.error(err);
+            Alert.alert('Payment Error', 'Could not initialize payment gateway.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // ⭐ Handle WebView Messages — routes SUCCESS/FAIL/CANCEL from the gateway
+    const onGatewayMessage = async (event) => {
+        let message;
+        try {
+            message = JSON.parse(event.nativeEvent.data);
+        } catch {
+            return; // Ignore non-JSON messages from WebView
+        }
+        
+        if (message.type === "CANCELLED") {
+            setShowGateway(false);
+            Alert.alert("Cancelled", "Payment was cancelled.");
+            return;
+        }
+
+        if (message.type === "FAILED") {
+            setShowGateway(false);
+            Alert.alert("Failed", message.data?.description || "Payment failed. Please try again.");
+            return;
+        }
+
+        if (message.type === "SUCCESS") {
+            setShowGateway(false);
+            setLoading(true);
+            try {
+                // ZCAP Rule: Frontend is unreliable. Send to backend for crypto verification.
+                await apiClient.post('/api/payment/verify', {
+                    razorpay_order_id: message.data.razorpay_order_id,
+                    razorpay_payment_id: message.data.razorpay_payment_id,
+                    razorpay_signature: message.data.razorpay_signature
+                });
+                
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('Payment Successful', 'Transaction processed and verified securely.');
+                navigation.replace('Rating', { jobId });
+            } catch (err) {
+                console.error(err);
+                Alert.alert("Verification Error", "Payment was made but verification failed. Please contact support.");
+            } finally {
+                setLoading(false);
+            }
         }
     };
 
@@ -90,7 +183,8 @@ export default function PaymentScreen({ route, navigation }) {
                     job_id: jobId,
                     description: reason
                 });
-                navigation.navigate('SupportNavigator', { screen: 'TicketChat', params: { ticketId: res.data.ticket_id }});
+                const newTicketId = res.data?.id || res.data?.ticket?.id || res.data?.ticket_id;
+                navigation.navigate('Support', { screen: 'TicketChat', params: { ticketId: newTicketId }});
             } catch (err) {
                 Alert.alert('Error', err.response?.data?.message || 'Failed to open support chat.');
             } finally {
@@ -134,6 +228,37 @@ export default function PaymentScreen({ route, navigation }) {
         );
     }
 
+    // ⭐ Render Gateway Modal if active — full-screen WebView with cancel button
+    if (showGateway) {
+        return (
+            <Modal visible={true} animationType="slide">
+                <View style={{ flex: 1, backgroundColor: '#121212', paddingTop: Platform.OS === 'ios' ? 50 : 0 }}>
+                    <TouchableOpacity 
+                        onPress={() => setShowGateway(false)} 
+                        style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                    >
+                        <Text style={{ color: '#fff', fontSize: 16 }}>✕</Text>
+                        <Text style={{ color: '#aaa', fontSize: 14 }}>Cancel Checkout</Text>
+                    </TouchableOpacity>
+                    <WebView
+                        source={{ html: checkoutHTML }}
+                        onMessage={onGatewayMessage}
+                        javaScriptEnabled={true}
+                        domStorageEnabled={true}
+                        startInLoadingState={true}
+                        renderLoading={() => (
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
+                                <ActivityIndicator size="large" color="#6F5BDD" />
+                                <Text style={{ color: '#6F5BDD', marginTop: 12, fontSize: 13 }}>Loading Secure Gateway...</Text>
+                            </View>
+                        )}
+                        style={{ flex: 1 }}
+                    />
+                </View>
+            </Modal>
+        );
+    }
+
     if (!invoice) {
         return (
             <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -153,7 +278,7 @@ export default function PaymentScreen({ route, navigation }) {
 
     return (
         <View style={styles.screen}>
-            {/* Header — uses replace not goBack since we arrived via replace */}
+            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backBtn}

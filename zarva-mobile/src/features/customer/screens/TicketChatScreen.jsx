@@ -5,12 +5,33 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { ref, onValue, off } from 'firebase/database';
 import { database } from '@infra/firebase/app';
 
-
 import { useAuthStore } from '@auth/store';
 import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import PremiumHeader from '@shared/ui/PremiumHeader';
 import MainBackground from '@shared/ui/MainBackground';
+
+// ⭐ FIX: Helper functions to safely parse strict SQL/Firebase dates on iOS/Android
+const getSafeTimeMs = (dateInput) => {
+    if (!dateInput) return 0;
+    let d = new Date(dateInput);
+    if (isNaN(d.getTime()) && typeof dateInput === 'string') {
+        const fixedStr = dateInput.replace(' ', 'T') + (dateInput.includes('Z') ? '' : 'Z');
+        d = new Date(fixedStr);
+    }
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+};
+
+const formatSafeTime = (dateInput) => {
+    if (!dateInput) return '';
+    let d = new Date(dateInput);
+    if (isNaN(d.getTime()) && typeof dateInput === 'string') {
+        const fixedStr = dateInput.replace(' ', 'T') + (dateInput.includes('Z') ? '' : 'Z');
+        d = new Date(fixedStr);
+    }
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 export default function TicketChatScreen() {
     const tTheme = useTokens();
@@ -57,7 +78,12 @@ export default function TicketChatScreen() {
         const handleNewData = (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
-                const msgsArray = Object.values(data).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                
+                // ⭐ FIX: Apply safe time parser to sorting logic
+                const msgsArray = Object.values(data).sort((a, b) => 
+                    getSafeTimeMs(a.created_at) - getSafeTimeMs(b.created_at)
+                );
+                
                 setMessages(msgsArray);
 
                 // Scroll to bottom on new message
@@ -106,10 +132,12 @@ export default function TicketChatScreen() {
                     </Text>
                 )}
                 <Text style={[styles.messageText, isMe ? styles.myText : styles.theirText]}>
-                    {item.message_text}
+                    {item.message_text || item.content}
                 </Text>
+                
+                {/* ⭐ FIX: Apply safe time parser to bubble render */}
                 <Text style={[styles.timeText, isMe ? styles.myTime : styles.theirTime]}>
-                    {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatSafeTime(item.created_at)}
                 </Text>
             </View>
         );
@@ -153,7 +181,7 @@ export default function TicketChatScreen() {
                 <FlatList
                     ref={flatListRef}
                     data={messages}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => String(item.id || Math.random())}
                     renderItem={renderMessage}
                     contentContainerStyle={styles.listContent}
                     onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}

@@ -259,7 +259,7 @@ export default function WorkerProfileScreen({ navigation }) {
 
                         <View style={styles.innerDivider} />
 
-                        <PressableAnimated style={styles.settingRow} onPress={() => navigation.navigate('SupportNavigator', { screen: 'SupportHome' })}>
+                        <PressableAnimated style={styles.settingRow} onPress={() => navigation.navigate('Support')}>
                             <View style={styles.rowIcon}>
                                 <Text style={styles.iconTxt}>💬</Text>
                             </View>

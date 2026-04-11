@@ -15,6 +15,7 @@ import { useAuthStore } from '@auth/store';
 import { useJobStore } from '@jobs/store';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
+import SupportNavigator from './SupportNavigator';
 
 export const navigationRef = createNavigationContainerRef();
 const Stack = createStackNavigator();
@@ -155,8 +156,23 @@ export default function RootNavigator() {
             );
         }
 
-        if (role === 'customer') return <CustomerStack />;
-        if (role === 'worker') return <WorkerStack />;
+        if (role === 'customer') {
+            return (
+                <Stack.Navigator screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="CustomerApp" component={CustomerStack} />
+                    <Stack.Screen name="SupportNavigator" component={SupportNavigator} />
+                </Stack.Navigator>
+            );
+        }
+        
+        if (role === 'worker') {
+            return (
+                <Stack.Navigator screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="WorkerApp" component={WorkerStack} />
+                    <Stack.Screen name="SupportNavigator" component={SupportNavigator} />
+                </Stack.Navigator>
+            );
+        }
 
         // Fallback to auth
         return <AuthNavigator />;

@@ -513,27 +513,31 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                 { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Submit Dispute', style: 'destructive', onPress: () => {
-                        Alert.prompt
-                            ? Alert.prompt('Dispute Reason', 'Describe the issue:', async (reason) => {
+                        const submitDispute = async (reason) => {
+                            try {
+                                const res = await apiClient.post('/api/support/tickets/create', {
+                                    ticket_type: 'job_dispute',
+                                    job_id: jobId,
+                                    description: reason
+                                });
+                                const newTicketId = res.data?.id || res.data?.ticket?.id || res.data?.ticket_id;
+                                navigation.navigate('Support', { 
+                                    screen: 'TicketChat', 
+                                    params: { ticketId: newTicketId } 
+                                });
+                            } catch (err) {
+                                Alert.alert('Error', err.response?.data?.message || 'Failed to open support chat.');
+                            }
+                        };
+
+                        if (Platform.OS === 'ios') {
+                            Alert.prompt('Dispute Reason', 'Describe the issue to ZARVA Admin:', async (reason) => {
                                 if (!reason || !reason.trim()) return Alert.alert('Required', 'A reason is required to dispute the bill.');
-                                try {
-                                    await apiClient.post(`/api/jobs/${jobId}/dispute`, { reason });
-                                    await fetchJobDetails();
-                                    Alert.alert('Dispute Raised', 'A support ticket has been created. Our team will contact you shortly.');
-                                } catch (err) {
-                                    Alert.alert('Error', err.response?.data?.message || 'Failed to raise dispute.');
-                                }
-                            })
-                            : (async () => {
-                                // Android fallback — Alert.prompt is iOS only
-                                try {
-                                    await apiClient.post(`/api/jobs/${jobId}/dispute`, { reason: 'Customer disputes the bill (submitted via quick action)' });
-                                    await fetchJobDetails();
-                                    Alert.alert('Dispute Raised', 'A support ticket has been created. Our team will contact you shortly.');
-                                } catch (err) {
-                                    Alert.alert('Error', err.response?.data?.message || 'Failed to raise dispute.');
-                                }
-                            })()
+                                submitDispute(reason);
+                            });
+                        } else {
+                            submitDispute('Customer reported an issue regarding this bill.');
+                        }
                     }
                 }
             ]

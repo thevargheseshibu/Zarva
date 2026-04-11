@@ -6,7 +6,7 @@ import EntityEditorDrawer from '../components/EntityEditorDrawer';
 import { Badge } from '@/components/ui/badge';
 import {
   AlertTriangle, Clock, User, Wrench,
-  MapPin, Eye, Database, Loader2
+  MapPin, Eye, Database, Loader2, RefreshCw
 } from 'lucide-react';
 
 /**
@@ -66,14 +66,23 @@ export default function DisputesPage() {
     <div className="flex h-full gap-0 overflow-hidden rounded-xl border border-zinc-800">
       {/* ── Left Panel: Dispute List ───────────────────── */}
       <div className="flex w-80 flex-none flex-col border-r border-zinc-800 bg-zinc-950/50">
-        <div className="border-b border-zinc-800 px-4 py-3">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-red-400" />
-            Active Disputes
-          </h2>
-          <p className="text-[11px] text-zinc-500 mt-0.5">
-            {disputes.length} open case{disputes.length !== 1 ? 's' : ''}
-          </p>
+        <div className="border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-400" />
+              Active Disputes
+            </h2>
+            <p className="text-[11px] text-zinc-500 mt-0.5">
+              {disputes.length} open case{disputes.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          {/* ⭐ FIX: Add manual refresh button so new incoming tickets load instantly */}
+          <button 
+            onClick={fetchDisputes} 
+            className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">

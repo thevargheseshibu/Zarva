@@ -492,7 +492,10 @@ export default function ActiveJobScreen({ route, navigation }) {
                 
                 // Navigate directly to the Chat window. The backend is now idempotent, 
                 // so even if a ticket exists, it cleanly returns the existing ticket_id.
-                navigation.navigate('TicketChat', { ticketId: res.data.ticket_id });
+                navigation.navigate('SupportNavigator', { 
+                    screen: 'TicketChat', 
+                    params: { ticketId: res.data.ticket_id } 
+                });
                 
             } catch (err) {
                 Alert.alert('Error', err.response?.data?.message || 'Failed to open support chat.');
