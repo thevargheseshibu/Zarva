@@ -127,13 +127,10 @@ export default function PhoneScreen({ navigation }) {
             }
 
             // ── Navigate to OTP screen ─────────────────────────────────────────
-            const st = useAuthStore.getState();
-            if (!st.isAuthenticated) {
-                navigation.navigate('OTP', {
-                    phone: `+91${phone}`,
-                    authMethod: method,
-                });
-            }
+            navigation.navigate('OTP', {
+                phone: `+91${phone}`,
+                authMethod: method,
+            });
 
         } catch (err) {
             console.error('[handleSend unexpected error]', err);

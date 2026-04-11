@@ -110,7 +110,7 @@ export default function RootNavigator() {
             );
         }
 
-        if (!user.active_role) {
+        if (!user.active_role || user.active_role === 'admin') {
             return (
                 <Stack.Navigator screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="RoleSelection" component={RoleSelection} />

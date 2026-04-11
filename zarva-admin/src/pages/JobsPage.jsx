@@ -1,12 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
+import { themeQuartz } from 'ag-grid-community';
 import { api } from '../lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search } from 'lucide-react';
+import { Search, Database } from 'lucide-react';
+import EntityEditorDrawer from '../components/EntityEditorDrawer';
 
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
+const darkTheme = themeQuartz.withParams({
+  backgroundColor: '#18181b',
+  headerBackgroundColor: '#111113',
+  oddRowBackgroundColor: '#1c1c1f',
+  rowHoverColor: '#27272a',
+  foregroundColor: '#e4e4e7',
+  headerFontSize: 12,
+  fontSize: 13,
+  borderColor: '#27272a',
+  fontFamily: 'Inter, system-ui, sans-serif',
+});
 
 // ── Cell Renderers ──────────────────────────
 
@@ -34,6 +45,22 @@ const DateCell = ({ value }) => {
   return <span className="text-sm text-zinc-300">{new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</span>;
 };
 
+const ActionsCellRenderer = ({ data, context }) => {
+  return (
+    <div className="flex items-center gap-2 pt-1">
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 w-7 p-0 text-zinc-500 hover:text-purple-400 hover:bg-purple-500/10"
+        title="God Mode: Edit Job"
+        onClick={() => context.handleEdit(data.id)}
+      >
+        <Database className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
+
 // ── Main Component ──────────────────────────
 
 export default function JobsPage() {
@@ -43,6 +70,7 @@ export default function JobsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch]     = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [editorState, setEditorState] = useState({ open: false, id: null });
   const debounceRef             = useRef(null);
   const gridRef                 = useRef(null);
 
@@ -88,6 +116,7 @@ export default function JobsPage() {
     { field: 'hourly_rate', headerName: 'Rate', width: 90, cellRenderer: AmountCell },
     { field: 'final_amount', headerName: 'Final', width: 100, cellRenderer: AmountCell },
     { field: 'created_at', headerName: 'Created', width: 110, cellRenderer: DateCell },
+    { field: 'actions', headerName: 'Actions', width: 100, cellRenderer: ActionsCellRenderer },
   ];
 
   return (
@@ -121,18 +150,18 @@ export default function JobsPage() {
         </div>
       </div>
 
-      <div className="ag-theme-alpine flex-1 rounded-xl border border-zinc-800 overflow-hidden">
+      <div className="flex-1 rounded-xl border border-zinc-800 overflow-hidden">
         <AgGridReact
           ref={gridRef}
+          theme={darkTheme}
           rowData={rowData}
           columnDefs={columnDefs}
+          context={{ handleEdit: (id) => setEditorState({ open: true, id }) }}
           suppressPaginationPanel={true}
           domLayout="normal"
           rowHeight={44}
           headerHeight={40}
           defaultColDef={{ resizable: true, sortable: false }}
-          overlayLoadingTemplate='<span class="text-zinc-400 text-sm">Loading jobs...</span>'
-          overlayNoRowsTemplate='<span class="text-zinc-500 text-sm">No jobs found</span>'
         />
       </div>
 
@@ -147,6 +176,15 @@ export default function JobsPage() {
           Next →
         </Button>
       </div>
+
+      {editorState.open && (
+        <EntityEditorDrawer
+          tableName="jobs"
+          entityId={editorState.id}
+          onClose={() => setEditorState({ open: false, id: null })}
+          onSave={() => fetchJobs(page, search, statusFilter)}
+        />
+      )}
     </div>
   );
 }

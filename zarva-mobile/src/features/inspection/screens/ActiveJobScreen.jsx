@@ -479,6 +479,40 @@ export default function ActiveJobScreen({ route, navigation }) {
         );
     };
 
+    const handleDispute = () => {
+        if (actionLoading) return;
+        const createAndNavigate = async (reason) => {
+            setActionLoading(true);
+            try {
+                const res = await apiClient.post('/api/support/tickets/create', {
+                    ticket_type: 'job_dispute',
+                    job_id: jobId,
+                    description: reason
+                });
+                
+                // Navigate directly to the Chat window. The backend is now idempotent, 
+                // so even if a ticket exists, it cleanly returns the existing ticket_id.
+                navigation.navigate('TicketChat', { ticketId: res.data.ticket_id });
+                
+            } catch (err) {
+                Alert.alert('Error', err.response?.data?.message || 'Failed to open support chat.');
+            } finally {
+                setActionLoading(false);
+            }
+        };
+
+        if (Platform.OS === 'ios') {
+            Alert.prompt('Contact Support', 'Describe the issue to ZARVA Admin:', (reason) => {
+                if (reason) createAndNavigate(reason);
+            });
+        } else {
+            Alert.alert('Contact Support', 'Do you want to open a support chat with Admin?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Yes, Open Chat', onPress: () => createAndNavigate('Worker reported an issue regarding this job.') }
+            ]);
+        }
+    };
+
     const handleSubmitMaterials = async (skip = false) => {
         setActionLoading(true);
         try {
@@ -570,6 +604,12 @@ export default function ActiveJobScreen({ route, navigation }) {
                     handleAcknowledgeStop={handleAcknowledgeStop}
                     setMaterialModalVisible={setMaterialsVisible}
                 />
+
+                <View style={{ paddingBottom: 40, alignItems: 'center', marginTop: 16 }}>
+                    <TouchableOpacity onPress={handleDispute} style={{ paddingVertical: 12, paddingHorizontal: 20, backgroundColor: tTheme.status.error.base + '11', borderRadius: 12, borderWidth: 1, borderColor: tTheme.status.error.base + '33' }}>
+                        <Text style={{ color: tTheme.status.error.base, fontWeight: '700' }}>⚠️ Report Issue to ZARVA Admin</Text>
+                    </TouchableOpacity>
+                </View>
             </ScrollView>
 
             <ActiveJobModals 

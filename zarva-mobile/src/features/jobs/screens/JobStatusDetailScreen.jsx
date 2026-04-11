@@ -165,6 +165,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
     const [typedEndOtp, setTypedEndOtp] = useState('');
     const [chatUnread, setChatUnread] = useState(0);
     const [workerLocation, setWorkerLocation] = useState(null); // { lat, lng }
+    const [billSent, setBillSent] = useState(false);
     const pulseAnim = useRef(new Animated.Value(1)).current;
 
     // Prefer latest API job.status over store searchPhase to avoid stale phase/timer UI after transitions.
@@ -205,6 +206,7 @@ export default function JobStatusDetailScreen({ route, navigation }) {
         const jobRootListener = onValue(jobRootRef, snap => {
             const data = snap.val();
             if (!data) return;
+            if (data.bill_sent !== undefined) setBillSent(data.bill_sent);
             const lat = data.worker_lat;
             const lng = data.worker_lng;
             if (lat && lng) {
@@ -926,79 +928,99 @@ export default function JobStatusDetailScreen({ route, navigation }) {
                                     <Text style={{ fontSize: 22 }}>🧾</Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.phaseMeta}>AWAITING YOUR APPROVAL</Text>
-                                    <Text style={styles.phaseTitle}>Review Final Bill</Text>
+                                    <Text style={styles.phaseMeta}>{!billSent ? 'AWAITING PROFESSIONAL' : 'AWAITING YOUR APPROVAL'}</Text>
+                                    <Text style={styles.phaseTitle}>{!billSent ? 'Preparing Final Bill' : 'Review Final Bill'}</Text>
                                 </View>
                             </View>
-                            <Text style={styles.phaseSub}>
-                                The professional has finalized the bill. Please review the itemized breakdown and enter the completion code to finish the job.
-                            </Text>
-
-                            <PremiumButton
-                                title="Review Bill & Enter OTP"
-                                onPress={() => navigation.navigate('BillReview', { jobId })}
-                                style={{ marginTop: 20 }}
-                            />
-                            
-                            <TouchableOpacity onPress={handleDisputeBill} style={{ marginTop: 24, paddingVertical: 8 }}>
-                                <Text style={{ color: tTheme.status.error.base, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
-                                    Disagree with this bill? Raise a Dispute
-                                </Text>
-                            </TouchableOpacity>
+                            {!billSent ? (
+                                <>
+                                    <Text style={styles.phaseSub}>
+                                        The professional is currently adding any material costs and finalizing the bill. Please wait a moment.
+                                    </Text>
+                                    <View style={[styles.liveIndicator, { backgroundColor: tTheme.status.warning.base + '11', marginTop: 12 }]}>
+                                        <View style={[styles.liveDot, { backgroundColor: tTheme.status.warning.base }]} />
+                                        <Text style={[styles.liveTxt, { color: tTheme.status.warning.base }]}>Waiting for bill to be sent...</Text>
+                                    </View>
+                                </>
+                            ) : (
+                                <>
+                                    <Text style={styles.phaseSub}>
+                                        The professional has finalized the bill. Please review the itemized breakdown and enter the completion code to finish the job.
+                                    </Text>
+        
+                                    <PremiumButton
+                                        title="Review Bill & Enter OTP"
+                                        onPress={() => navigation.navigate('BillReview', { jobId })}
+                                        style={{ marginTop: 20 }}
+                                    />
+                                    
+                                    <TouchableOpacity onPress={handleDisputeBill} style={{ marginTop: 24, paddingVertical: 8 }}>
+                                        <Text style={{ color: tTheme.status.error.base, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+                                            Disagree with this bill? Raise a Dispute
+                                        </Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
                         </View>
                     </FadeInView>
                 )}
 
                 {/* ── HURRAY! EPIC RECEIPT CARD ── */}
-                {status === 'completed' && (
-                    <FadeInView delay={100}>
-                        <View style={styles.receiptCard}>
-                            <View style={styles.receiptHeader}>
-                                <View style={styles.successIconWrap}>
-                                    <Text style={{ fontSize: 36, marginLeft: 2 }}>🎉</Text>
-                                </View>
-                                <Text style={styles.receiptTitle}>Hurray! Job Completed</Text>
-                                <Text style={styles.receiptSub}>The professional has safely wrapped up. Please review your final bill below.</Text>
-                            </View>
-
-                            <View style={styles.receiptBody}>
-                                <View style={styles.receiptRow}>
-                                    <Text style={styles.receiptLabel}>Labor & Service</Text>
-                                    <Text style={styles.receiptValue}>₹{((job?.final_labor_paise || 0) / 100).toFixed(2)}</Text>
-                                </View>
-                                
-                                {job?.final_material_paise > 0 && (
-                                    <View style={styles.receiptRow}>
-                                        <Text style={styles.receiptLabel}>Materials Added</Text>
-                                        <Text style={styles.receiptValue}>₹{((job?.final_material_paise || 0) / 100).toFixed(2)}</Text>
+                {status === 'completed' && (() => {
+                    const laborAmt = (job?.final_labor_paise || 0) / 100;
+                    const materialAmt = (job?.final_material_paise || 0) / 100;
+                    const totalAmt = laborAmt + materialAmt;
+                    
+                    return (
+                        <FadeInView delay={100}>
+                            <View style={styles.receiptCard}>
+                                <View style={styles.receiptHeader}>
+                                    <View style={styles.successIconWrap}>
+                                        <Text style={{ fontSize: 36, marginLeft: 2 }}>🎉</Text>
                                     </View>
-                                )}
+                                    <Text style={styles.receiptTitle}>Hurray! Job Completed</Text>
+                                    <Text style={styles.receiptSub}>The professional has safely wrapped up. Please review your final bill below.</Text>
+                                </View>
 
-                                <View style={styles.receiptDivider} />
+                                <View style={styles.receiptBody}>
+                                    <View style={styles.receiptRow}>
+                                        <Text style={styles.receiptLabel}>Labor & Service</Text>
+                                        <Text style={styles.receiptValue}>₹{laborAmt.toFixed(2)}</Text>
+                                    </View>
+                                    
+                                    {materialAmt > 0 && (
+                                        <View style={styles.receiptRow}>
+                                            <Text style={styles.receiptLabel}>Materials Added</Text>
+                                            <Text style={styles.receiptValue}>₹{materialAmt.toFixed(2)}</Text>
+                                        </View>
+                                    )}
+
+                                    <View style={styles.receiptDivider} />
+                                    
+                                    <View style={styles.receiptTotalRow}>
+                                        <Text style={styles.receiptTotalLabel}>Grand Total</Text>
+                                        <Text style={styles.receiptTotalValue}>₹{totalAmt.toFixed(2)}</Text>
+                                    </View>
+                                </View>
                                 
-                                <View style={styles.receiptTotalRow}>
-                                    <Text style={styles.receiptTotalLabel}>Grand Total</Text>
-                                    <Text style={styles.receiptTotalValue}>₹{parseFloat(job?.final_amount || 0).toFixed(2)}</Text>
+                                <View style={styles.receiptFooter}>
+                                    <PremiumButton
+                                        title="Proceed to Payment →"
+                                        onPress={() => navigation.replace('Payment', { jobId })}
+                                        style={{ width: '100%' }}
+                                    />
+
+                                    <TouchableOpacity 
+                                        style={styles.slimReviewBtn} 
+                                        onPress={() => navigation.navigate('Rating', { jobId })}
+                                    >
+                                        <Text style={styles.slimReviewTxt}>Leave a Review</Text>
+                                    </TouchableOpacity>
                                 </View>
                             </View>
-                            
-                            <View style={styles.receiptFooter}>
-                                <PremiumButton
-                                    title="Proceed to Payment →"
-                                    onPress={() => navigation.replace('Payment', { jobId })}
-                                    style={{ width: '100%' }}
-                                />
-
-                                <TouchableOpacity 
-                                    style={styles.slimReviewBtn} 
-                                    onPress={() => navigation.navigate('Rating', { jobId })}
-                                >
-                                    <Text style={styles.slimReviewTxt}>Leave a Review</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </FadeInView>
-                )}
+                        </FadeInView>
+                    );
+                })()}
 
                 {/* SUSPENDED / RESCHEDULED */}
                 {status === 'suspended' && (

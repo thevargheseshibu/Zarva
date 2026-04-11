@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: `.env.${process.env.NODE_ENV || 'development'}`, override: false });
 dotenv.config({ override: false }); // fallback to plain .env
 
+import http from 'http';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -15,7 +16,8 @@ import { fileURLToPath } from 'url';
 import configLoader from './config/loader.js';
 import { getPool } from './config/database.js';
 import { connectRedis } from './config/redis.js';
-import { initCronJobs } from './services/cron.service.js'; // Added this line
+import { initCronJobs } from './services/cron.service.js';
+import { initDisputeSocket } from './services/disputeSocket.service.js';
 import healthRouter from './routes/health.js';
 import adminRouter from './routes/admin.js';
 import authRouter from './routes/auth.js';
@@ -127,11 +129,16 @@ async function bootstrap() {
     });
 
     // 7. Initialize Background Sweeps
-    initCronJobs(); // Added this line
+    initCronJobs();
 
-    // 8. Start listening
-    app.listen(PORT, '0.0.0.0', () => {
+    // 8. Create HTTP server & attach Socket.io
+    const httpServer = http.createServer(app);
+    initDisputeSocket(httpServer);
+
+    // 9. Start listening
+    httpServer.listen(PORT, '0.0.0.0', () => {
         console.log(`[Server] Zarva API running on port ${PORT} (0.0.0.0) in ${ENV}`);
+        console.log(`[Server] Socket.io dispute hub attached on /ws/disputes`);
     });
 }
 

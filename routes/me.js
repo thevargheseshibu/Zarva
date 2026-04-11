@@ -169,7 +169,7 @@ router.put('/', async (req, res) => {
         const pool = getPool();
         const profile = await getUserProfile(req.user.id, pool);
 
-        if (profile.active_role) {
+        if (profile.active_role && profile.active_role !== 'admin') {
             return res.status(409).json({
                 status: 'error',
                 code: 'ROLE_ALREADY_SET',
@@ -182,16 +182,21 @@ router.put('/', async (req, res) => {
         await conn.beginTransaction();
 
         try {
-            await conn.query(
-                `UPDATE users SET active_role = $1, role = $2 WHERE id = $3`, [active_role, active_role, req.user.id]
-            );
+            // Preserve 'admin' primary role but set session 'active_role'
+            if (profile.role === 'admin') {
+                await conn.query(
+                    `UPDATE users SET active_role = $1 WHERE id = $2`, [active_role, req.user.id]
+                );
+            } else {
+                await conn.query(
+                    `UPDATE users SET active_role = $1, role = $2 WHERE id = $3`, [active_role, active_role, req.user.id]
+                );
+            }
 
             if (active_role === 'customer') {
-                await conn.query(`INSERT INTO customer_profiles (user_id) VALUES ($1) ON CONFLICT DO NOTHING`, [req.user.id]
-                );
+                await conn.query(`INSERT INTO customer_profiles (user_id) VALUES ($1) ON CONFLICT DO NOTHING`, [req.user.id]);
             } else if (active_role === 'worker') {
-                await conn.query(`INSERT INTO worker_profiles (user_id, name, category) VALUES ($1, $2, 'Service') ON CONFLICT DO NOTHING`, [req.user.id, profile.name || 'Worker']
-                );
+                await conn.query(`INSERT INTO worker_profiles (user_id, name, category) VALUES ($1, $2, 'Service') ON CONFLICT DO NOTHING`, [req.user.id, profile.name || 'Worker']);
             }
 
             await conn.commit();

@@ -1,12 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
+import { themeQuartz } from 'ag-grid-community';
 import { api } from '../lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, UserCheck, Filter } from 'lucide-react';
+import { Search, UserCheck, Filter, Database } from 'lucide-react';
+import EntityEditorDrawer from '../components/EntityEditorDrawer';
 
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
+// Dark theme for AG Grid
+const darkTheme = themeQuartz.withParams({
+  backgroundColor: '#18181b',
+  headerBackgroundColor: '#111113',
+  oddRowBackgroundColor: '#1c1c1f',
+  rowHoverColor: '#27272a',
+  foregroundColor: '#e4e4e7',
+  headerFontSize: 12,
+  fontSize: 13,
+  borderColor: '#27272a',
+  fontFamily: 'Inter, system-ui, sans-serif',
+});
 
 // ── Decoupled Cell Renderers (prevents stale closures) ─────────
 
@@ -48,19 +60,29 @@ const RatingCellRenderer = ({ value }) => {
 };
 
 const ActionsCellRenderer = ({ data, context }) => {
-  if (data.role === 'worker' && data.kyc_status && data.kyc_status !== 'approved') {
-    return (
+  return (
+    <div className="flex items-center gap-2 pt-1">
+      {data.role === 'worker' && data.kyc_status && data.kyc_status !== 'approved' && (
+        <Button
+          size="sm"
+          className="h-7 border-emerald-500/30 bg-emerald-500/10 px-3 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20"
+          onClick={() => context.handleApproveKYC(data.id)}
+        >
+          <UserCheck className="mr-1 h-3 w-3" />
+          Approve
+        </Button>
+      )}
       <Button
         size="sm"
-        className="h-7 border-emerald-500/30 bg-emerald-500/10 px-3 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20"
-        onClick={() => context.handleApproveKYC(data.id)}
+        variant="ghost"
+        className="h-7 w-7 p-0 text-zinc-500 hover:text-purple-400 hover:bg-purple-500/10"
+        title="God Mode: Edit User"
+        onClick={() => context.handleEdit(data.id)}
       >
-        <UserCheck className="mr-1 h-3 w-3" />
-        Approve
+        <Database className="h-4 w-4" />
       </Button>
-    );
-  }
-  return null;
+    </div>
+  );
 };
 
 // ── Main Component ─────────────────────────────────────────────
@@ -72,6 +94,7 @@ export default function WorkersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal]           = useState(0);
   const [search, setSearch]         = useState('');
+  const [editorState, setEditorState] = useState({ open: false, id: null });
   const debounceRef                 = useRef(null);
   const gridRef                     = useRef(null);
 
@@ -128,7 +151,7 @@ export default function WorkersPage() {
     { field: 'is_online', headerName: 'Status', width: 100, cellRenderer: OnlineCellRenderer },
     { field: 'kyc_status', headerName: 'KYC', width: 110, cellRenderer: KycCellRenderer },
     { field: 'is_blocked', headerName: 'Account', width: 100, cellRenderer: StatusCellRenderer },
-    { field: 'actions', headerName: '', width: 120, cellRenderer: ActionsCellRenderer },
+    { field: 'actions', headerName: 'Actions', width: 150, cellRenderer: ActionsCellRenderer },
   ];
 
   return (
@@ -152,12 +175,13 @@ export default function WorkersPage() {
       </div>
 
       {/* Grid */}
-      <div className="ag-theme-alpine flex-1 rounded-xl border border-zinc-800 overflow-hidden">
+      <div className="flex-1 rounded-xl border border-zinc-800 overflow-hidden">
         <AgGridReact
           ref={gridRef}
+          theme={darkTheme}
           rowData={rowData}
           columnDefs={columnDefs}
-          context={{ handleApproveKYC }}
+          context={{ handleApproveKYC, handleEdit: (id) => setEditorState({ open: true, id }) }}
           suppressPaginationPanel={true}
           domLayout="normal"
           rowHeight={44}
@@ -166,8 +190,6 @@ export default function WorkersPage() {
             resizable: true,
             sortable: false,
           }}
-          overlayLoadingTemplate='<span class="text-zinc-400 text-sm">Loading workers...</span>'
-          overlayNoRowsTemplate='<span class="text-zinc-500 text-sm">No workers found</span>'
         />
       </div>
 
@@ -194,6 +216,15 @@ export default function WorkersPage() {
           Next →
         </Button>
       </div>
+
+      {editorState.open && (
+        <EntityEditorDrawer
+          tableName="users"
+          entityId={editorState.id}
+          onClose={() => setEditorState({ open: false, id: null })}
+          onSave={() => fetchWorkers(page, search)}
+        />
+      )}
     </div>
   );
 }

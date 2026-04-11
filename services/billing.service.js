@@ -1135,7 +1135,7 @@ class BillingService {
                     invoice_number = EXCLUDED.invoice_number,
                     subtotal = EXCLUDED.subtotal,
                     total = EXCLUDED.total
-            `, [jobId, invoiceNumber, totalAmount, totalAmount]);
+            `, [jobId, invoiceNumber, laborAmount, totalAmount]);
             
             // Record job_end timer event if not already recorded
             const [existingEnd] = await conn.query(

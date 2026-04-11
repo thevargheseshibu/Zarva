@@ -10,23 +10,25 @@ class SupportService {
     const { user_id, user_role, ticket_type, job_id, category, description } = data;
 
     const pool = getPool();
-    // Validate job ownership if job_id provided
+
+    // 1. Idempotent Check: If an active ticket already exists for this job, return it directly.
+    // This allows users to tap "Report Issue" repeatedly to seamlessly re-enter their open chat.
     if (job_id && ticket_type !== 'general_chat') {
+      const [existing] = await pool.query(
+        `SELECT id, ticket_number FROM support_tickets
+         WHERE job_id = $1 AND raised_by_user_id = $2 AND status NOT IN ('resolved', 'closed')`,
+        [job_id, user_id]
+      );
+      if (existing.length > 0) {
+        return { ticket_id: existing[0].id, ticket_number: existing[0].ticket_number, is_existing: true };
+      }
+
+      // 2. Validate job ownership for new tickets
       const [job] = await pool.query(
         `SELECT * FROM jobs WHERE id = $1 AND (customer_id = $2 OR worker_id = $2)`,
         [job_id, user_id]
       );
       if (!job[0]) throw new Error('Job not found or unauthorized');
-
-      // Check: Already has an open ticket for this job?
-      const [existing] = await pool.query(
-        `SELECT id FROM support_tickets
-         WHERE job_id = $1 AND raised_by_user_id = $2 AND status NOT IN ('resolved', 'closed')`,
-        [job_id, user_id]
-      );
-      if (existing.length > 0) {
-        throw new Error('You already have an open ticket for this job');
-      }
     }
 
     // If formal dispute: check concurrency lock
@@ -59,7 +61,7 @@ class SupportService {
     let affects_completion = false;
     if (job_id && ticket_type === 'job_dispute') {
       const [job] = await pool.query(`SELECT status FROM jobs WHERE id = $1`, [job_id]);
-      affects_completion = job[0]?.status === 'awaiting_completion_verification';
+      affects_completion = ['pending_completion', 'in_progress', 'worker_arrived', 'estimate_submitted'].includes(job[0]?.status);
     }
 
     // Create ticket

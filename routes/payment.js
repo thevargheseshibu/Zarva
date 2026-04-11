@@ -248,8 +248,9 @@ router.get('/invoice/:job_id', async (req, res) => {
             invoice_number: rawInv.invoice_number,
             actual_hours: job.actual_hours,
             invoice_breakdown: {
-                base_amount: parseFloat(rawInv.subtotal) - parseFloat(rawInv.travel_charge),
-                travel_charge: parseFloat(rawInv.travel_charge),
+                base_amount: parseFloat(rawInv.subtotal) - parseFloat(rawInv.travel_charge || 0),
+                travel_charge: parseFloat(rawInv.travel_charge || 0),
+                materials_amount: Number((parseFloat(rawInv.total) - parseFloat(rawInv.subtotal)).toFixed(2)),
                 subtotal: parseFloat(rawInv.subtotal),
                 platform_fee: parseFloat(rawInv.platform_fee),
                 discount: parseFloat(rawInv.discount),
@@ -322,8 +323,12 @@ router.get('/invoice/:job_id/pdf', async (req, res) => {
         doc.moveDown();
 
         doc.text(`Subtotal: ₹${parseFloat(rawInv.subtotal).toFixed(2)}`);
-        doc.text(`Travel Charge: ₹${parseFloat(rawInv.travel_charge).toFixed(2)}`);
-        doc.text(`Platform Fee: ₹${parseFloat(rawInv.platform_fee).toFixed(2)}`);
+        doc.text(`Travel Charge: ₹${parseFloat(rawInv.travel_charge || 0).toFixed(2)}`);
+        const matCost = parseFloat(rawInv.total) - parseFloat(rawInv.subtotal);
+        if (matCost > 0) {
+            doc.text(`Materials Cost: ₹${matCost.toFixed(2)}`);
+        }
+        doc.text(`Platform Fee: ₹${parseFloat(rawInv.platform_fee || 0).toFixed(2)}`);
         doc.text(`Discount: ₹${parseFloat(rawInv.discount).toFixed(2)}`);
         doc.text(`Tax: ₹${parseFloat(rawInv.tax).toFixed(2)}`);
         doc.text(`Total Amount: ₹${totalAmount.toFixed(2)}`);

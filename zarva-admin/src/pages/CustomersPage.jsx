@@ -1,12 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
+import { themeQuartz } from 'ag-grid-community';
 import { api } from '../lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, UserCheck } from 'lucide-react';
+import { Search, UserCheck, Database } from 'lucide-react';
+import EntityEditorDrawer from '../components/EntityEditorDrawer';
 
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
+const darkTheme = themeQuartz.withParams({
+  backgroundColor: '#18181b',
+  headerBackgroundColor: '#111113',
+  oddRowBackgroundColor: '#1c1c1f',
+  rowHoverColor: '#27272a',
+  foregroundColor: '#e4e4e7',
+  headerFontSize: 12,
+  fontSize: 13,
+  borderColor: '#27272a',
+  fontFamily: 'Inter, system-ui, sans-serif',
+});
 
 // ── Cell Renderers ──────────────────────────
 
@@ -19,6 +30,22 @@ const StatusCellRenderer = ({ value }) => (
   </Badge>
 );
 
+const ActionsCellRenderer = ({ data, context }) => {
+  return (
+    <div className="flex items-center gap-2 pt-1">
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-7 w-7 p-0 text-zinc-500 hover:text-purple-400 hover:bg-purple-500/10"
+        title="God Mode: Edit Customer"
+        onClick={() => context.handleEdit(data.id)}
+      >
+        <Database className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
+
 // ── Main Component ──────────────────────────
 
 export default function CustomersPage() {
@@ -28,6 +55,7 @@ export default function CustomersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal]           = useState(0);
   const [search, setSearch]         = useState('');
+  const [editorState, setEditorState] = useState({ open: false, id: null });
   const debounceRef                 = useRef(null);
   const gridRef                     = useRef(null);
 
@@ -69,6 +97,7 @@ export default function CustomersPage() {
     { field: 'created_at', headerName: 'Joined', width: 130,
       valueFormatter: p => p.value ? new Date(p.value).toLocaleDateString('en-IN') : '—' },
     { field: 'is_blocked', headerName: 'Status', width: 110, cellRenderer: StatusCellRenderer },
+    { field: 'actions', headerName: 'Actions', width: 100, cellRenderer: ActionsCellRenderer },
   ];
 
   return (
@@ -90,18 +119,18 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <div className="ag-theme-alpine flex-1 rounded-xl border border-zinc-800 overflow-hidden">
+      <div className="flex-1 rounded-xl border border-zinc-800 overflow-hidden">
         <AgGridReact
           ref={gridRef}
+          theme={darkTheme}
           rowData={rowData}
           columnDefs={columnDefs}
+          context={{ handleEdit: (id) => setEditorState({ open: true, id }) }}
           suppressPaginationPanel={true}
           domLayout="normal"
           rowHeight={44}
           headerHeight={40}
           defaultColDef={{ resizable: true, sortable: false }}
-          overlayLoadingTemplate='<span class="text-zinc-400 text-sm">Loading customers...</span>'
-          overlayNoRowsTemplate='<span class="text-zinc-500 text-sm">No customers found</span>'
         />
       </div>
 
@@ -119,6 +148,15 @@ export default function CustomersPage() {
           Next →
         </Button>
       </div>
+
+      {editorState.open && (
+        <EntityEditorDrawer
+          tableName="users"
+          entityId={editorState.id}
+          onClose={() => setEditorState({ open: false, id: null })}
+          onSave={() => fetchCustomers(page, search)}
+        />
+      )}
     </div>
   );
 }

@@ -243,6 +243,7 @@ async function getUserProfile(userId, pool) {
 
     const row = userRows[0];
     const role = row.role;
+    const effectiveRole = row.active_role || row.role;
 
     const base = {
         id: row.id,
@@ -259,7 +260,7 @@ async function getUserProfile(userId, pool) {
         created_at: row.created_at,
     };
 
-    if (role === 'worker') {
+    if (effectiveRole === 'worker') {
         base.profile = {
             category: row.worker_category,
             average_rating: row.average_rating,

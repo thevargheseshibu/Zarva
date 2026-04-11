@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
@@ -78,6 +78,36 @@ export default function PaymentScreen({ route, navigation }) {
                 }
             ]
         );
+    };
+
+    const handleReportIssue = () => {
+        if (loading) return;
+        const createAndNavigate = async (reason) => {
+            setLoading(true);
+            try {
+                const res = await apiClient.post('/api/support/tickets/create', {
+                    ticket_type: 'job_dispute',
+                    job_id: jobId,
+                    description: reason
+                });
+                navigation.navigate('SupportNavigator', { screen: 'TicketChat', params: { ticketId: res.data.ticket_id }});
+            } catch (err) {
+                Alert.alert('Error', err.response?.data?.message || 'Failed to open support chat.');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (Platform.OS === 'ios') {
+            Alert.prompt('Contact Support', 'Describe your issue to ZARVA Admin:', (reason) => {
+                if (reason) createAndNavigate(reason);
+            });
+        } else {
+            Alert.alert('Contact Support', 'Do you want to open a support chat with Admin?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Yes, Open Chat', onPress: () => createAndNavigate('Customer reported an issue during payment.') }
+            ]);
+        }
     };
 
     const handleDownloadInvoicePdf = async () => {
@@ -230,6 +260,14 @@ export default function PaymentScreen({ route, navigation }) {
                         <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadInvoicePdf}>
                             <Text style={styles.pdfBtnTxt}>
                                 {t('download_invoice_pdf', { defaultValue: 'Download Invoice PDF' })}
+                            </Text>
+                        </TouchableOpacity>
+                    </FadeInView>
+
+                    <FadeInView delay={650}>
+                        <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={handleReportIssue}>
+                            <Text style={{ color: tTheme.status.error.base, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' }}>
+                                ⚠️ Report Issue to ZARVA Admin
                             </Text>
                         </TouchableOpacity>
                     </FadeInView>

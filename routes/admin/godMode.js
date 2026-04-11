@@ -1,25 +1,23 @@
 /**
  * routes/admin/godMode.js
  *
- * Admin Command Center — God-Mode Backend
- * All routes are guarded by requireAdmin (applied via router.use below).
+ * Admin Command Center — God-Mode CRUD Backend
+ * Allows super admins to read and edit ANY field in ANY whitelisted table.
+ * Every mutation is recorded in admin_audit_logs for full traceability.
  *
  * Endpoints:
- *   PATCH /api/admin/tables/:table/:id      — Inline Data Grid cell editor + audit log
- *   POST  /api/admin/workers/:id/approve    — KYC approval pipeline
- *   GET   /api/admin/analytics/density      — Geospatial heatmap data (supply vs demand)
+ *   GET   /api/admin/tables/:table/:id       — Fetch a single entity
+ *   PATCH /api/admin/tables/:table/:id       — Dynamic field updater + audit
+ *   POST  /api/admin/workers/:id/approve     — KYC approval pipeline
+ *   GET   /api/admin/audit-logs              — Audit log viewer
  */
 
 import express from 'express';
 import { getPool, fail } from '../../lib/db.js';
-import { requireAdmin } from '../../middleware/roleGuard.js';
 
 const router = express.Router();
 
-// ─── GATE: every route in this file requires admin ──────────────────────────
-router.use(requireAdmin);
-
-// ─── Whitelist: only these tables may be patched via the Data Grid ───────────
+// ─── Whitelist: only these tables may be read / patched via God Mode ──────────
 const ALLOWED_TABLES = new Set([
     'users',
     'customer_profiles',
@@ -27,13 +25,65 @@ const ALLOWED_TABLES = new Set([
     'jobs',
     'job_materials',
     'tickets',
+    'payments',
+    'dispute_messages',
 ]);
 
-// ─── Helper: safely quote column names (allow only word chars) ───────────────
+// ─── Helper: validate column name to prevent injection ──────────────────────
 const safeCol = (col) => /^[a-zA-Z0-9_]+$/.test(col);
 
+// ─── Columns that must NEVER be exposed or editable ─────────────────────────
+const BLOCKED_COLUMNS = new Set([
+    'password_hash', 'start_otp_hash', 'end_otp_hash',
+    'inspection_otp_hash', 'pause_otp_hash', 'resume_otp_hash',
+    'suspend_otp_hash', 'extension_otp_hash',
+    'token_hash', 'jwt_secret',
+]);
+
+
 /**
- * ─── DYNAMIC DATA GRID UPDATER (INLINE EDITING) ──────────────────────────
+ * ─── ENTITY READER ────────────────────────────────────────────────────────
+ * GET /api/admin/tables/:table/:id
+ *
+ * Returns every column of a single row for the Entity Editor Drawer.
+ * Strips sensitive hash columns before returning.
+ */
+router.get('/tables/:table/:id', async (req, res) => {
+    const { table, id } = req.params;
+
+    if (!ALLOWED_TABLES.has(table)) {
+        return fail(res, `Table '${table}' is not permitted`, 400, 'TABLE_FORBIDDEN');
+    }
+    if (!id || !/^\d+$/.test(id)) {
+        return fail(res, 'Invalid record ID', 400, 'INVALID_ID');
+    }
+
+    const pool = getPool();
+    try {
+        // Determine the ID column — worker_profiles use user_id, everything else uses id
+        const idCol = table === 'worker_profiles' || table === 'customer_profiles' ? 'user_id' : 'id';
+        const [rows] = await pool.query(`SELECT * FROM ${table} WHERE ${idCol} = $1`, [id]);
+
+        if (!rows[0]) {
+            return fail(res, 'Record not found', 404, 'NOT_FOUND');
+        }
+
+        // Strip sensitive hash columns
+        const entity = { ...rows[0] };
+        for (const col of BLOCKED_COLUMNS) {
+            delete entity[col];
+        }
+
+        return res.status(200).json({ status: 'ok', entity, table });
+    } catch (err) {
+        console.error(`[GodMode] GET ${table}/${id} error:`, err);
+        return fail(res, 'Failed to fetch entity', 500);
+    }
+});
+
+
+/**
+ * ─── DYNAMIC FIELD UPDATER ────────────────────────────────────────────────
  * PATCH /api/admin/tables/:table/:id
  *
  * Body: { fieldName: newValue, ... }
@@ -45,12 +95,16 @@ router.patch('/tables/:table/:id', async (req, res) => {
     const updates = req.body;
 
     if (!ALLOWED_TABLES.has(table)) {
-        return fail(res, `Table '${table}' is not permitted for dynamic editing`, 400, 'TABLE_FORBIDDEN');
+        return fail(res, `Table '${table}' is not permitted for editing`, 400, 'TABLE_FORBIDDEN');
     }
     if (!id || !/^\d+$/.test(id)) {
         return fail(res, 'Invalid record ID', 400, 'INVALID_ID');
     }
-    const updateEntries = Object.entries(updates).filter(([key]) => safeCol(key));
+
+    // Filter: only safe column names, never blocked columns
+    const updateEntries = Object.entries(updates)
+        .filter(([key]) => safeCol(key) && !BLOCKED_COLUMNS.has(key));
+
     if (updateEntries.length === 0) {
         return res.status(200).json({ status: 'ok', message: 'No changes' });
     }
@@ -60,8 +114,10 @@ router.patch('/tables/:table/:id', async (req, res) => {
     await conn.beginTransaction();
 
     try {
-        // 1. Snapshot previous data for the audit log
-        const [prevRows] = await conn.query(`SELECT * FROM ${table} WHERE id = $1`, [id]);
+        const idCol = table === 'worker_profiles' || table === 'customer_profiles' ? 'user_id' : 'id';
+
+        // 1. Snapshot previous data for audit
+        const [prevRows] = await conn.query(`SELECT * FROM ${table} WHERE ${idCol} = $1`, [id]);
         if (!prevRows[0]) throw Object.assign(new Error('Record not found'), { status: 404 });
 
         // 2. Build parameterised UPDATE
@@ -73,11 +129,17 @@ router.patch('/tables/:table/:id', async (req, res) => {
             setClauses.push(`${key} = $${idx++}`);
             values.push(value);
         }
-        setClauses.push(`updated_at = NOW()`);
+
+        // Append updated_at if the table has it
+        const prevKeys = Object.keys(prevRows[0]);
+        if (prevKeys.includes('updated_at')) {
+            setClauses.push(`updated_at = NOW()`);
+        }
+
         values.push(id);
 
         await conn.query(
-            `UPDATE ${table} SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+            `UPDATE ${table} SET ${setClauses.join(', ')} WHERE ${idCol} = $${idx}`,
             values
         );
 
@@ -97,17 +159,17 @@ router.patch('/tables/:table/:id', async (req, res) => {
 
         await conn.commit();
 
-        // 4. If editing a live job, sync the diff to Firebase in the background
+        // 4. If editing a live job, sync the diff to Firebase (non-blocking)
         if (table === 'jobs') {
             import('../../services/firebase.service.js')
                 .then(({ updateJobNode }) => updateJobNode(id, Object.fromEntries(updateEntries)))
-                .catch((e) => console.warn('[Admin GodMode] Firebase sync skipped:', e.message));
+                .catch((e) => console.warn('[GodMode] Firebase sync skipped:', e.message));
         }
 
-        return res.status(200).json({ status: 'ok', success: true });
+        return res.status(200).json({ status: 'ok', success: true, modified: updateEntries.length });
     } catch (err) {
         await conn.rollback();
-        console.error(`[Admin GodMode] PATCH ${table}/${id} error:`, err);
+        console.error(`[GodMode] PATCH ${table}/${id} error:`, err);
         return fail(res, err.message || 'Internal error', err.status || 500);
     } finally {
         conn.release();
@@ -116,11 +178,8 @@ router.patch('/tables/:table/:id', async (req, res) => {
 
 
 /**
- * ─── WORKER KYC APPROVAL PIPELINE ─────────────────────────────────────────
+ * ─── WORKER KYC APPROVAL ─────────────────────────────────────────────────
  * POST /api/admin/workers/:id/approve
- *
- * Flips kyc_status → 'approved', is_verified → true,
- * writes an audit record, and fires a push notification.
  */
 router.post('/workers/:id/approve', async (req, res) => {
     const adminId = req.user.id;
@@ -149,7 +208,7 @@ router.post('/workers/:id/approve', async (req, res) => {
             VALUES ($1, 'APPROVE_WORKER', 'worker_profiles', $2, $3)
         `, [adminId, workerId, req.ip]);
 
-        // Fire push notification — non-blocking, failure is tolerated
+        // Fire push notification — non-blocking
         try {
             const { sendPushNotification } = await import('../../services/fcmService.js');
             await sendPushNotification(
@@ -158,71 +217,20 @@ router.post('/workers/:id/approve', async (req, res) => {
                 'You can now go online and start accepting jobs on Zarva.'
             );
         } catch (notifyErr) {
-            console.warn('[Admin GodMode] Push notification failed (non-fatal):', notifyErr.message);
+            console.warn('[GodMode] Push notification failed (non-fatal):', notifyErr.message);
         }
 
         return res.status(200).json({ status: 'ok', message: 'Worker approved and notified.' });
     } catch (err) {
-        console.error('[Admin GodMode] Approve worker error:', err);
+        console.error('[GodMode] Approve worker error:', err);
         return fail(res, 'Failed to approve worker', 500);
     }
 });
 
 
 /**
- * ─── GEOSPATIAL ANALYTICS (HEATMAP / RADAR DATA) ───────────────────────────
- * GET /api/admin/analytics/density
- *
- * Returns:
- *   supply: online, verified workers with GPS coordinates
- *   demand: jobs currently in 'searching' state
- */
-router.get('/analytics/density', async (req, res) => {
-    const pool = getPool();
-    try {
-        const [workers] = await pool.query(`
-            SELECT
-                user_id,
-                name,
-                category,
-                last_location_lat  AS lat,
-                last_location_lng  AS lng
-            FROM worker_profiles
-            WHERE is_online = true
-              AND is_verified = true
-              AND last_location_lat IS NOT NULL
-              AND last_location_lng IS NOT NULL
-        `);
-
-        const [demand] = await pool.query(`
-            SELECT
-                id,
-                category,
-                hourly_rate,
-                latitude   AS lat,
-                longitude  AS lng
-            FROM jobs
-            WHERE status = 'searching'
-              AND latitude IS NOT NULL
-              AND longitude IS NOT NULL
-        `);
-
-        return res.status(200).json({
-            status: 'ok',
-            supply: workers,
-            demand: demand,
-        });
-    } catch (err) {
-        console.error('[Admin GodMode] Analytics density error:', err);
-        return fail(res, 'Failed to fetch geospatial data', 500);
-    }
-});
-
-
-/**
- * ─── AUDIT LOG VIEWER ──────────────────────────────────────────────────────
+ * ─── AUDIT LOG VIEWER ─────────────────────────────────────────────────────
  * GET /api/admin/audit-logs?table=jobs&limit=50
- * Returns the last N audit log entries, optionally filtered by target_table.
  */
 router.get('/audit-logs', async (req, res) => {
     const pool = getPool();
@@ -240,7 +248,7 @@ router.get('/audit-logs', async (req, res) => {
             SELECT
                 a.id, a.action, a.target_table, a.target_id,
                 a.previous_data, a.new_data, a.ip_address, a.created_at,
-                u.email AS admin_email
+                u.name AS admin_name, u.phone AS admin_phone
             FROM admin_audit_logs a
             LEFT JOIN users u ON a.admin_id = u.id
             ${where}
@@ -250,7 +258,7 @@ router.get('/audit-logs', async (req, res) => {
 
         return res.status(200).json({ status: 'ok', logs: rows });
     } catch (err) {
-        console.error('[Admin GodMode] Audit log fetch error:', err);
+        console.error('[GodMode] Audit log fetch error:', err);
         return fail(res, 'Failed to fetch audit logs', 500);
     }
 });
