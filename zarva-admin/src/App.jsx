@@ -7,6 +7,7 @@ import WorkersPage from './pages/WorkersPage';
 import MapPage from './pages/MapPage';
 import JobsPage from './pages/JobsPage';
 import DisputesPage from './pages/DisputesPage';
+import FinancePage from './pages/FinancePage';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Route path="/map" element={<MapPage />} />
           <Route path="/jobs" element={<JobsPage />} />
           <Route path="/disputes" element={<DisputesPage />} />
+          <Route path="/finance" element={<FinancePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

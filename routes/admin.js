@@ -17,6 +17,7 @@ import jobsRouter      from './admin/jobs.js';
 import analyticsRouter from './admin/analytics.js';
 import ticketsRouter   from './admin/tickets.js';
 import walletRouter    from './admin/wallet.js';
+import financeRouter   from './admin/finance.js';
 import godModeRouter   from './admin/godMode.js';  // dynamic table PATCH + audit viewer
 import configLoader    from '../config/loader.js';
 
@@ -31,6 +32,7 @@ router.use('/jobs',      jobsRouter);
 router.use('/analytics', analyticsRouter);
 router.use('/tickets',   ticketsRouter);
 router.use('/wallet',    walletRouter);
+router.use('/finance',   financeRouter);
 
 // God-mode: dynamic table PATCH, audit log viewer, worker approve, density
 // mounts at /tables/:table/:id, /workers/:id/approve, /audit-logs

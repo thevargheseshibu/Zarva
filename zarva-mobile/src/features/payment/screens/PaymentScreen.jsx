@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking, Platform, Modal } from 'react-native';
-import { WebView } from 'react-native-webview'; // ⭐ Razorpay Gateway via WebView
+import { WebView } from 'react-native-webview'; 
 import * as Haptics from 'expo-haptics';
 import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
 import FadeInView from '@shared/ui/FadeInView';
 import PremiumButton from '@shared/ui/PremiumButton';
 import Card from '@shared/ui/ZCard';
+import PremiumHeader from '@shared/ui/PremiumHeader';
+import MainBackground from '@shared/ui/MainBackground';
 
 export default function PaymentScreen({ route, navigation }) {
     const tTheme = useTokens();
@@ -23,6 +25,10 @@ export default function PaymentScreen({ route, navigation }) {
     const [showGateway, setShowGateway] = useState(false);
     const [checkoutHTML, setCheckoutHTML] = useState('');
 
+    // ⭐ Secure Polling States
+    const [pollingOrderId, setPollingOrderId] = useState(null);
+    const [pollTimeLeft, setPollTimeLeft] = useState(0);
+
     useEffect(() => {
         apiClient.get(`/api/payment/invoice/${jobId}`)
             .then(res => setInvoice(res.data?.data))
@@ -33,7 +39,46 @@ export default function PaymentScreen({ route, navigation }) {
             .finally(() => setFetchingInvoice(false));
     }, [jobId]);
 
-    // ⭐ Gateway HTML Builder — renders the Razorpay checkout inside a WebView
+    // ⭐ Polling Effect (Checks DB for Webhook Confirmation)
+    useEffect(() => {
+        let interval;
+        if (pollingOrderId && pollTimeLeft > 0) {
+            interval = setInterval(async () => {
+                try {
+                    const res = await apiClient.get(`/api/payment/status/${pollingOrderId}`);
+                    const dbStatus = res.data?.data?.status;
+
+                    if (dbStatus === 'captured') {
+                        clearInterval(interval);
+                        setPollingOrderId(null);
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        Alert.alert('Payment Verified', 'Bank confirmation received securely.');
+                        navigation.replace('Rating', { jobId });
+                    } else if (dbStatus === 'failed') {
+                        clearInterval(interval);
+                        setPollingOrderId(null);
+                        Alert.alert('Payment Failed', 'The bank declined or failed the transaction.');
+                    } else {
+                        // Tick down 3 seconds
+                        setPollTimeLeft(prev => Math.max(0, prev - 3));
+                    }
+                } catch (err) {
+                    console.error('Polling check failed', err);
+                }
+            }, 3000); // Check every 3 seconds
+        } else if (pollingOrderId && pollTimeLeft <= 0) {
+            // Timeout reached
+            setPollingOrderId(null);
+            Alert.alert(
+                'Payment Pending', 
+                'We have not received final confirmation from your bank yet. We will automatically update your job status once the confirmation arrives.'
+            );
+            navigation.replace('CustomerTabs'); // Return to home
+        }
+
+        return () => clearInterval(interval);
+    }, [pollingOrderId, pollTimeLeft, jobId, navigation]);
+
     const generateRazorpayHTML = (orderData) => `
         <!DOCTYPE html>
         <html>
@@ -71,24 +116,19 @@ export default function PaymentScreen({ route, navigation }) {
         </html>
     `;
 
-    // ⭐ Initialize Payment — creates an order on the backend, then opens the WebView
     const handleDigitalPayment = async () => {
         if (loading) return;
         setLoading(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
         try {
-            // 1. Create order on ZARVA backend (Server Source of Truth)
             const res = await apiClient.post('/api/payment/create-order', { 
                 job_id: jobId, 
                 payment_type: 'final' 
             });
-            
-            // 2. Generate HTML and show WebView
             const html = generateRazorpayHTML(res.data.data);
             setCheckoutHTML(html);
             setShowGateway(true);
-            
         } catch (err) {
             console.error(err);
             Alert.alert('Payment Error', 'Could not initialize payment gateway.');
@@ -97,13 +137,12 @@ export default function PaymentScreen({ route, navigation }) {
         }
     };
 
-    // ⭐ Handle WebView Messages — routes SUCCESS/FAIL/CANCEL from the gateway
     const onGatewayMessage = async (event) => {
         let message;
         try {
             message = JSON.parse(event.nativeEvent.data);
         } catch {
-            return; // Ignore non-JSON messages from WebView
+            return;
         }
         
         if (message.type === "CANCELLED") {
@@ -114,131 +153,84 @@ export default function PaymentScreen({ route, navigation }) {
 
         if (message.type === "FAILED") {
             setShowGateway(false);
-            Alert.alert("Failed", message.data?.description || "Payment failed. Please try again.");
+            Alert.alert("Failed", message.data?.description || "Payment failed.");
             return;
         }
 
         if (message.type === "SUCCESS") {
             setShowGateway(false);
-            setLoading(true);
+            
+            // 1. Send the signature verify to backend (Primary check)
             try {
-                // ZCAP Rule: Frontend is unreliable. Send to backend for crypto verification.
                 await apiClient.post('/api/payment/verify', {
                     razorpay_order_id: message.data.razorpay_order_id,
                     razorpay_payment_id: message.data.razorpay_payment_id,
                     razorpay_signature: message.data.razorpay_signature
                 });
-                
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert('Payment Successful', 'Transaction processed and verified securely.');
-                navigation.replace('Rating', { jobId });
             } catch (err) {
-                console.error(err);
-                Alert.alert("Verification Error", "Payment was made but verification failed. Please contact support.");
-            } finally {
-                setLoading(false);
+                console.warn('Frontend verify ping failed, relying on webhook polling.');
             }
+
+            // 2. Start Polling for Webhook confirmation
+            setPollingOrderId(message.data.razorpay_order_id);
+            setPollTimeLeft(60); 
         }
     };
 
     const confirmingRef = useRef(false);
-
     const handleCashPaid = async () => {
         if (loading || confirmingRef.current) return;
-        Alert.alert(
-            'Confirm Cash Payment',
-            'I confirm the service provider has collected the full cash amount.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Confirm Cash Payment',
-                    style: 'default',
-                    onPress: async () => {
-                        if (confirmingRef.current) return;
-                        confirmingRef.current = true;
-                        setLoading(true);
-                        try {
-                            await apiClient.post('/api/payment/cash-confirm', { job_id: jobId, payment_type: 'final' });
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                            navigation.replace('Rating', { jobId });
-                        } catch (err) {
-                            Alert.alert('Error', 'Failed to confirm cash payment.');
-                        } finally {
-                            setLoading(false);
-                            confirmingRef.current = false;
-                        }
-                    }
+        Alert.alert('Confirm Cash', 'I confirm cash has been collected.', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Confirm', onPress: async () => {
+                confirmingRef.current = true;
+                setLoading(true);
+                try {
+                    await apiClient.post('/api/payment/cash-confirm', { job_id: jobId, payment_type: 'final' });
+                    navigation.replace('Rating', { jobId });
+                } catch (err) {
+                    Alert.alert('Error', 'Failed to confirm cash payment.');
+                } finally {
+                    setLoading(false);
+                    confirmingRef.current = false;
                 }
-            ]
-        );
-    };
-
-    const handleReportIssue = () => {
-        if (loading) return;
-        const createAndNavigate = async (reason) => {
-            setLoading(true);
-            try {
-                const res = await apiClient.post('/api/support/tickets/create', {
-                    ticket_type: 'job_dispute',
-                    job_id: jobId,
-                    description: reason
-                });
-                const newTicketId = res.data?.id || res.data?.ticket?.id || res.data?.ticket_id;
-                navigation.navigate('Support', { screen: 'TicketChat', params: { ticketId: newTicketId }});
-            } catch (err) {
-                Alert.alert('Error', err.response?.data?.message || 'Failed to open support chat.');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        if (Platform.OS === 'ios') {
-            Alert.prompt('Contact Support', 'Describe your issue to ZARVA Admin:', (reason) => {
-                if (reason) createAndNavigate(reason);
-            });
-        } else {
-            Alert.alert('Contact Support', 'Do you want to open a support chat with Admin?', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Yes, Open Chat', onPress: () => createAndNavigate('Customer reported an issue during payment.') }
-            ]);
-        }
+            }}
+        ]);
     };
 
     const handleDownloadInvoicePdf = async () => {
         if (!invoice) return;
         try {
-            const baseURL = apiClient.defaults.baseURL || '';
-            const url = `${baseURL}/api/payment/invoice/${jobId}/pdf`;
-            const supported = await Linking.canOpenURL(url);
-            if (!supported) {
-                Alert.alert('Error', 'Cannot open invoice PDF on this device.');
-                return;
-            }
+            const url = `${apiClient.defaults.baseURL}/api/payment/invoice/${jobId}/pdf`;
             await Linking.openURL(url);
         } catch (err) {
             Alert.alert('Error', 'Failed to open invoice PDF.');
         }
     };
 
-    if (fetchingInvoice) {
+    // ⭐ Polling Screen Render
+    if (pollingOrderId) {
         return (
-            <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={tTheme.brand.primary} />
-            </View>
+            <MainBackground>
+                <PremiumHeader title="Verifying Payment" onBack={() => {}} />
+                <View style={styles.center}>
+                    <ActivityIndicator size="large" color={tTheme.brand.primary} />
+                    <Text style={styles.pollTitle}>Verifying with Bank</Text>
+                    <Text style={styles.pollSub}>Please do not close the app while we secure your confirmation.</Text>
+                    <Text style={styles.pollTimer}>Timeout in {pollTimeLeft}s</Text>
+                </View>
+            </MainBackground>
         );
     }
 
-    // ⭐ Render Gateway Modal if active — full-screen WebView with cancel button
+    if (fetchingInvoice) return <MainBackground><ActivityIndicator size="large" color={tTheme.brand.primary} style={{ flex: 1 }} /></MainBackground>;
+
     if (showGateway) {
         return (
             <Modal visible={true} animationType="slide">
                 <View style={{ flex: 1, backgroundColor: '#121212', paddingTop: Platform.OS === 'ios' ? 50 : 0 }}>
-                    <TouchableOpacity 
-                        onPress={() => setShowGateway(false)} 
-                        style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-                    >
-                        <Text style={{ color: '#fff', fontSize: 16 }}>✕</Text>
-                        <Text style={{ color: '#aaa', fontSize: 14 }}>Cancel Checkout</Text>
+                    <TouchableOpacity onPress={() => setShowGateway(false)} style={{ padding: 16 }}>
+                        <Text style={{ color: '#fff' }}>✕ Cancel Checkout</Text>
                     </TouchableOpacity>
                     <WebView
                         source={{ html: checkoutHTML }}
@@ -246,12 +238,6 @@ export default function PaymentScreen({ route, navigation }) {
                         javaScriptEnabled={true}
                         domStorageEnabled={true}
                         startInLoadingState={true}
-                        renderLoading={() => (
-                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
-                                <ActivityIndicator size="large" color="#6F5BDD" />
-                                <Text style={{ color: '#6F5BDD', marginTop: 12, fontSize: 13 }}>Loading Secure Gateway...</Text>
-                            </View>
-                        )}
                         style={{ flex: 1 }}
                     />
                 </View>
@@ -259,49 +245,18 @@ export default function PaymentScreen({ route, navigation }) {
         );
     }
 
-    if (!invoice) {
-        return (
-            <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ color: tTheme.text.tertiary }}>Error generating invoice.</Text>
-                <PremiumButton title="Retry" onPress={() => navigation.replace('Payment', { jobId })} style={{ marginTop: 20 }} />
-                <PremiumButton
-                    title="Go Home"
-                    variant="ghost"
-                    onPress={() => navigation.replace('CustomerTabs')}
-                    style={{ marginTop: 12 }}
-                />
-            </View>
-        );
-    }
-
     const { invoice_breakdown: ib } = invoice;
 
     return (
-        <View style={styles.screen}>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.backBtn}
-                    onPress={() => navigation.replace('CustomerTabs')}
-                    activeOpacity={0.7}
-                >
-                    <Text style={styles.backBtnTxt}>← Home</Text>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('secure_checkout')}</Text>
-                <View style={{ width: 60 }} />
-            </View>
-
+        <MainBackground>
+            <PremiumHeader title={t('secure_checkout')} onBack={() => navigation.replace('CustomerTabs')} />
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-                <FadeInView delay={50} style={styles.introBox}>
-                    <View style={styles.checkCircle}>
-                        <Text style={styles.checkIcon}>✅</Text>
-                    </View>
+                <FadeInView style={styles.introBox}>
+                    <View style={styles.checkCircle}><Text style={styles.checkIcon}>✅</Text></View>
                     <Text style={styles.introTitle}>{t('job_complete')}</Text>
                     <Text style={styles.introSub}>{t('review_invoice')}</Text>
                 </FadeInView>
 
-                {/* Invoice Card */}
                 <FadeInView delay={200}>
                     <Card style={styles.invoiceCard}>
                         <View style={styles.invoiceHeader}>
@@ -313,179 +268,71 @@ export default function PaymentScreen({ route, navigation }) {
                                 <Text style={styles.hoursTxt}>{t('session_hours').replace('%{hours}', invoice.actual_hours)}</Text>
                             </View>
                         </View>
-
                         <View style={styles.divider} />
-
-                        <View style={styles.row}>
-                            <Text style={styles.label}>{t('labour_cost')}</Text>
-                            <Text style={styles.value}>₹{ib.base_amount}</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>{t('travel_allowance')}</Text>
-                            <Text style={styles.value}>₹{ib.travel_charge}</Text>
-                        </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>{t('platform_service_fee')}</Text>
-                            <Text style={styles.value}>₹{ib.platform_fee}</Text>
-                        </View>
+                        <View style={styles.row}><Text style={styles.label}>{t('labour_cost')}</Text><Text style={styles.value}>₹{ib.base_amount}</Text></View>
+                        <View style={styles.row}><Text style={styles.label}>{t('travel_allowance')}</Text><Text style={styles.value}>₹{ib.travel_charge}</Text></View>
+                        <View style={styles.row}><Text style={styles.label}>{t('platform_service_fee')}</Text><Text style={styles.value}>₹{ib.platform_fee}</Text></View>
 
                         <View style={styles.advanceRow}>
-                            <View style={styles.advanceInfo}>
-                                <Text style={styles.advanceLabel}>{t('advance_paid')}</Text>
-                                <Text style={styles.advanceValue}>- ₹{ib.advance_amount_paid}</Text>
-                            </View>
-                            <View style={styles.paidBadge}>
-                                <Text style={styles.paidBadgeTxt}>{t('paid_caps')}</Text>
-                            </View>
+                            <View style={styles.advanceInfo}><Text style={styles.advanceLabel}>{t('advance_paid')}</Text><Text style={styles.advanceValue}>- ₹{ib.advance_amount_paid}</Text></View>
                         </View>
 
                         <View style={styles.totalBlock}>
-                            <View>
-                                <Text style={styles.balanceLabel}>{t('balance_due')}</Text>
-                                <Text style={styles.totalValue}>₹{ib.balance_due}</Text>
-                            </View>
-                            <Text style={styles.secureBadge}>{t('secure_transmission')}</Text>
+                            <View><Text style={styles.balanceLabel}>{t('balance_due')}</Text><Text style={styles.totalValue}>₹{ib.balance_due}</Text></View>
                         </View>
                     </Card>
                 </FadeInView>
 
-                {/* Action Buttons */}
                 <View style={styles.footer}>
                     {ib.balance_due > 0 ? (
                         <>
-                            <FadeInView delay={350}>
-                                <PremiumButton
-                                    title={t('pay_now').replace('%{amount}', ib.balance_due)}
-                                    loading={loading}
-                                    onPress={handleDigitalPayment}
-                                />
-                            </FadeInView>
-
-                            <FadeInView delay={450}>
-                                <TouchableOpacity
-                                    style={styles.cashBtn}
-                                    onPress={handleCashPaid}
-                                    disabled={loading}
-                                >
-                                    <Text style={styles.cashBtnTxt}>
-                                        {loading ? t('processing') : t('paid_via_cash')}
-                                    </Text>
-                                </TouchableOpacity>
-                            </FadeInView>
+                            <PremiumButton title={t('pay_now').replace('%{amount}', ib.balance_due)} loading={loading} onPress={handleDigitalPayment} />
+                            <TouchableOpacity style={styles.cashBtn} onPress={handleCashPaid} disabled={loading}><Text style={styles.cashBtnTxt}>{t('paid_via_cash')}</Text></TouchableOpacity>
                         </>
                     ) : (
-                        <FadeInView delay={350}>
-                            <PremiumButton
-                                title={t('leave_feedback')}
-                                onPress={() => navigation.replace('Rating', { jobId })}
-                            />
-                        </FadeInView>
+                        <PremiumButton title={t('leave_feedback')} onPress={() => navigation.replace('Rating', { jobId })} />
                     )}
-                    <FadeInView delay={550}>
-                        <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadInvoicePdf}>
-                            <Text style={styles.pdfBtnTxt}>
-                                {t('download_invoice_pdf', { defaultValue: 'Download Invoice PDF' })}
-                            </Text>
-                        </TouchableOpacity>
-                    </FadeInView>
-
-                    <FadeInView delay={650}>
-                        <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={handleReportIssue}>
-                            <Text style={{ color: tTheme.status.error.base, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' }}>
-                                ⚠️ Report Issue to ZARVA Admin
-                            </Text>
-                        </TouchableOpacity>
-                    </FadeInView>
+                    <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadInvoicePdf}><Text style={styles.pdfBtnTxt}>{t('download_invoice_pdf')}</Text></TouchableOpacity>
                 </View>
-
             </ScrollView>
-        </View>
+        </MainBackground>
     );
 }
 
 const createStyles = (t) => StyleSheet.create({
-    screen: { flex: 1, backgroundColor: t.background.app },
-    header: {
-        paddingTop: 60,
-        paddingHorizontal: t.spacing['2xl'],
-        paddingBottom: t.spacing.lg,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    headerTitle: {
-        color: t.brand.primary,
-        fontSize: 10,
-        fontWeight: t.typography.weight.bold,
-        letterSpacing: 3,
-        textAlign: 'center',
-        flex: 1,
-    },
-    backBtn: {
-        width: 60,
-        paddingVertical: 4,
-    },
-    backBtnTxt: {
-        color: t.text.secondary,
-        fontSize: 13,
-        fontWeight: '600',
-    },
+    screen: { flex: 1 },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
+    pollTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginTop: 20 },
+    pollSub: { color: t.text.tertiary, textAlign: 'center', marginTop: 10, lineHeight: 20 },
+    pollTimer: { color: t.status.warning.base, fontWeight: 'bold', marginTop: 30 },
 
-    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 120 },
-
-    introBox: { alignItems: 'center', gap: t.spacing.md, marginBottom: t.spacing[32] },
+    scrollContent: { padding: t.spacing['2xl'], paddingBottom: 60 },
+    introBox: { alignItems: 'center', marginBottom: 30 },
     checkCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: t.brand.primary + '11', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: t.border.default + '44' },
     checkIcon: { fontSize: 24 },
-    introTitle: { color: t.text.primary, fontSize: t.typography.size.hero, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.hero },
-    introSub: { color: t.text.secondary, fontSize: t.typography.size.body, textAlign: 'center', marginTop: 4 },
+    introTitle: { color: t.text.primary, fontSize: 24, fontWeight: 'bold' },
+    introSub: { color: t.text.secondary, fontSize: 14, marginTop: 4 },
 
     invoiceCard: { padding: t.spacing['2xl'], gap: t.spacing.lg },
     invoiceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    invoiceLabel: { color: t.brand.primary, fontSize: 9, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
-    invoiceNo: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
-    hoursBadge: { backgroundColor: t.background.surfaceRaised, paddingHorizontal: 10, paddingVertical: 4, borderRadius: t.radius.md, borderWidth: 1, borderColor: t.background.surface },
-    hoursTxt: { color: t.text.primary, fontSize: 10, fontWeight: t.typography.weight.bold },
+    invoiceLabel: { color: t.brand.primary, fontSize: 10, fontWeight: 'bold' },
+    invoiceNo: { color: t.text.primary, fontSize: 16, fontWeight: 'bold' },
+    hoursBadge: { backgroundColor: t.background.surfaceRaised, padding: 6, borderRadius: 6 },
+    hoursTxt: { color: t.text.primary, fontSize: 10, fontWeight: 'bold' },
+    divider: { height: 1, backgroundColor: t.background.surface },
+    row: { flexDirection: 'row', justifyContent: 'space-between' },
+    label: { color: t.text.secondary, fontSize: 14 },
+    value: { color: t.text.primary, fontSize: 14, fontWeight: 'bold' },
+    advanceRow: { backgroundColor: t.background.surface, padding: 12, borderRadius: 8 },
+    advanceLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: 'bold' },
+    advanceValue: { color: t.brand.primary, fontSize: 16, fontWeight: 'bold' },
+    totalBlock: { backgroundColor: t.background.surfaceRaised, padding: 20, borderRadius: 12 },
+    balanceLabel: { color: t.brand.primary, fontSize: 10, fontWeight: 'bold' },
+    totalValue: { color: t.text.primary, fontSize: 32, fontWeight: 'bold' },
 
-    divider: { height: 1, backgroundColor: t.background.surface, marginVertical: 4 },
-
-    row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    label: { color: t.text.secondary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.medium },
-    value: { color: t.text.primary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.semibold },
-
-    advanceRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: t.background.surface,
-        padding: t.spacing.lg,
-        borderRadius: t.radius.lg,
-        borderWidth: 1,
-        borderColor: t.border.default + '22'
-    },
-    advanceInfo: { gap: 4 },
-    advanceLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },
-    advanceValue: { color: t.brand.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
-    paidBadge: { backgroundColor: t.brand.primary + '11', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-    paidBadgeTxt: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold },
-
-    totalBlock: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
-        marginTop: t.spacing.sm,
-        padding: t.spacing[20],
-        backgroundColor: t.background.surfaceRaised,
-        borderRadius: t.radius.xl,
-        borderWidth: 1,
-        borderColor: t.background.surface
-    },
-    balanceLabel: { color: t.brand.primary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 2 },
-    totalValue: { color: t.text.primary, fontSize: 32, fontWeight: '900', marginTop: 4 },
-    secureBadge: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium },
-
-    footer: { marginTop: t.spacing[40], gap: t.spacing.lg },
-    cashBtn: { paddingVertical: t.spacing.lg, alignItems: 'center' },
-    cashBtnTxt: { color: t.text.tertiary, fontSize: t.typography.size.caption, fontWeight: t.typography.weight.semibold, textDecorationLine: 'underline' },
-    pdfBtn: { paddingVertical: t.spacing.sm, alignItems: 'center' },
-    pdfBtnTxt: { color: t.text.secondary, fontSize: 12, textDecorationLine: 'underline' }
+    footer: { marginTop: 30, gap: 16 },
+    cashBtn: { padding: 12, alignItems: 'center' },
+    cashBtnTxt: { color: t.text.tertiary, textDecorationLine: 'underline' },
+    pdfBtn: { padding: 8, alignItems: 'center' },
+    pdfBtnTxt: { color: t.text.secondary, textDecorationLine: 'underline' }
 });

@@ -81,18 +81,57 @@ async function bootstrap() {
                 return res.status(400).send('Invalid signature');
             }
 
-            const event = JSON.parse(req.body);
-            console.log(`[Webhook] Razorpay Event: ${event.event}`);
+            const payload = JSON.parse(req.body);
+            const event = payload.event;
+            console.log(`[Webhook] Razorpay Event: ${event}`);
 
-            const webhookPool = getPool();
+            const pool = getPool();
             
-            if (event.event === 'payment.captured') {
-                const payment = event.payload.payment.entity;
-                await webhookPool.query(
-                    `UPDATE payments SET status='captured', razorpay_payment_id=$1, captured_at=NOW() WHERE razorpay_order_id=$2`,
-                    [payment.id, payment.order_id]
+            if (event === 'payment.captured' || event === 'order.paid') {
+                const entity = event === 'payment.captured' 
+                    ? payload.payload.payment.entity 
+                    : payload.payload.order.entity;
+                
+                const orderId = event === 'payment.captured' ? entity.order_id : entity.id;
+                const paymentId = event === 'payment.captured' ? entity.id : null;
+
+                // Atomic Idempotent Update
+                const [result] = await pool.query(
+                    `UPDATE payments 
+                     SET status = 'captured', 
+                         razorpay_payment_id = COALESCE($1, razorpay_payment_id), 
+                         captured_at = NOW() 
+                     WHERE razorpay_order_id = $2 AND status != 'captured'`,
+                    [paymentId, orderId]
                 );
-                console.log(`[Webhook] Payment ${payment.id} verified and captured for order ${payment.order_id}.`);
+
+                if (result.rowCount > 0 || (result.affectedRows && result.affectedRows > 0)) {
+                    // Update Job status if applicable
+                    await pool.query(
+                        `UPDATE jobs SET payment_status = 'paid' 
+                         WHERE id = (SELECT job_id FROM payments WHERE razorpay_order_id = $1)
+                         AND payment_status != 'paid'`,
+                        [orderId]
+                    );
+
+                    // ⭐ NEW: Trigger ledger split to pay the worker
+                    const [jobCheck] = await pool.query(`SELECT job_id FROM payments WHERE razorpay_order_id = $1`, [orderId]);
+                    if (jobCheck[0]?.job_id) {
+                        const { default: BillingService } = await import('./services/billing.service.js');
+                        await BillingService.finalizeJob(jobCheck[0].job_id);
+
+                        const { updateJobNode } = await import('./services/firebase.service.js');
+                        await updateJobNode(jobCheck[0].job_id, { status: 'completed', payment_status: 'paid' });
+                    }
+
+                    console.log(`[Webhook] Payment ${paymentId} verified and captured for order ${orderId}. Job finalized & Worker paid.`);
+                }
+            } else if (event === 'payment.failed') {
+                const payment = payload.payload.payment.entity;
+                await pool.query(
+                    `UPDATE payments SET status = 'failed' WHERE razorpay_order_id = $1`,
+                    [payment.order_id]
+                );
             }
 
             res.status(200).json({ status: 'ok' });

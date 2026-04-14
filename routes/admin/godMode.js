@@ -21,6 +21,8 @@ const ALLOWED_TABLES = new Set([
     'support_tickets',
     'ticket_messages',
     'payments',
+    'withdrawal_requests',
+    'worker_bank_accounts',
 ]);
 
 // ─── Helper: validate column name to prevent injection ──────────────────────

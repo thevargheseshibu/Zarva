@@ -28,17 +28,35 @@ function paiseToINR(paise) {
 router.get('/worker/balance', roleGuard('worker'), async (req, res) => {
     try {
         const workerId = req.user.id;
-        const [available, pending, total] = await Promise.all([
-            walletService.getAvailableBalance(workerId),
-            walletService.getBalance(workerId, 'WORKER_EARNINGS') - (await walletService.getAvailableBalance(workerId)),
-            walletService.getBalance(workerId, 'WORKER_EARNINGS')
-        ]);
+        const pool = getPool();
+        
+        // 1. Available is exactly the current net ledger balance
+        const available = await walletService.getAvailableBalance(workerId);
+        
+        // 2. Pending is the sum of processing withdrawals
+        const [pendingRows] = await pool.query(
+            `SELECT COALESCE(SUM(amount_paise), 0)::BIGINT AS pending 
+             FROM withdrawal_requests WHERE worker_id = $1 AND status IN ('pending', 'processing')`,
+            [workerId]
+        );
+        const pending = Number(pendingRows[0].pending);
+        
+        // 3. Lifetime Earnings (Total Credits to WORKER_EARNINGS, ignoring withdrawals)
+        const [lifetimeRows] = await pool.query(
+            `SELECT COALESCE(SUM(amount_paise), 0)::BIGINT AS total
+             FROM ledger_entries le
+             JOIN user_accounts ua ON le.user_account_id = ua.id
+             WHERE ua.user_id = $1 AND ua.account_code = 'WORKER_EARNINGS' AND le.entry_type = 'credit'`,
+            [workerId]
+        );
+        const total = Number(lifetimeRows[0].total);
+
         return ok(res, {
             available_paise: available,
             pending_paise: pending,
             total_paise: total,
             available_inr: paiseToINR(available),
-            pending_inr: paiseToINR(Math.max(0, pending)),
+            pending_inr: paiseToINR(pending),
             total_inr: paiseToINR(total)
         });
     } catch (err) {

@@ -3,7 +3,7 @@ import { Navigate, Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Wrench, Map, Briefcase,
   AlertTriangle, Settings, ChevronLeft, ChevronRight,
-  Search, LogOut, Shield, Bell, Menu
+  Search, LogOut, Shield, Bell, Menu, Wallet
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/map',      icon: Map,             label: 'Live Map' },
   { to: '/jobs',     icon: Briefcase,       label: 'Jobs' },
   { to: '/disputes', icon: AlertTriangle,   label: 'Disputes' },
+  { to: '/finance',  icon: Wallet,           label: 'Finance' },
   { to: '/settings', icon: Settings,        label: 'Settings' },
 ];
 

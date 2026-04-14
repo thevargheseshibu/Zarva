@@ -35,8 +35,8 @@ const initRazorpay = () => {
 router.use((req, res, next) => {
     const isEnabled = configLoader.get('features')?.payment?.enabled ?? true;
 
-    // If real gateway is disabled, short-circuit most routes except read-only invoice + internal mock-finalization
-    if (!isEnabled && !req.path.startsWith('/invoice') && !req.path.startsWith('/finalize-mock')) {
+    // If real gateway is disabled, short-circuit most routes except read-only invoice, status polling, and internal mock-finalization
+    if (!isEnabled && !req.path.startsWith('/invoice') && !req.path.startsWith('/finalize-mock') && !req.path.startsWith('/status')) {
         return ok(res, {
             success: true,
             mock: true,
@@ -180,6 +180,16 @@ router.post('/verify', async (req, res) => {
         await pool.query(`UPDATE payments SET status='captured', razorpay_payment_id=$1, razorpay_signature=$2, captured_at=NOW() WHERE id=$3`, [razorpay_payment_id, razorpay_signature, payments[0].id]
         );
 
+        // ⭐ NEW: Trigger ledger split to pay the worker
+        const [jobCheck] = await pool.query('SELECT job_id FROM payments WHERE id=$1', [payments[0].id]);
+        if (jobCheck[0]?.job_id) {
+            const { default: BillingService } = await import('../services/billing.service.js');
+            await BillingService.finalizeJob(jobCheck[0].job_id);
+
+            const { updateJobNode } = await import('../services/firebase.service.js');
+            await updateJobNode(jobCheck[0].job_id, { status: 'completed', payment_status: 'paid' });
+        }
+
         return ok(res, { success: true, payment_id: payments[0].id });
     } catch (err) {
         console.log(err);
@@ -210,6 +220,14 @@ router.post('/cash-confirm', async (req, res) => {
 
         await pool.query(`UPDATE payments SET status='captured', method='cash', captured_at=NOW() WHERE id=$1`, [payments[0].id]
         );
+
+        // ⭐ NEW: Trigger ledger split to pay the worker
+        const { default: BillingService } = await import('../services/billing.service.js');
+        await BillingService.finalizeJob(job_id);
+
+        // ⭐ NEW: Update Firebase so the app navigates correctly
+        const { updateJobNode } = await import('../services/firebase.service.js');
+        await updateJobNode(job_id, { status: 'completed', payment_status: 'paid' });
 
         return ok(res, { success: true, method: 'cash', payment_id: payments[0].id });
     } catch (err) {
@@ -409,6 +427,13 @@ router.post('/finalize-mock', async (req, res) => {
             const amountPaise = Math.round(amountToCharge * 100);
             await walletModule.postPaymentReceivedEntries(job.customer_id, amountPaise, `mock_${paymentId}`, job_id, conn);
 
+            // ⭐ NEW: Trigger ledger split to pay the worker
+            const { default: BillingService } = await import('../services/billing.service.js');
+            await BillingService.finalizeJob(job_id);
+
+            const { updateJobNode } = await import('../services/firebase.service.js');
+            await updateJobNode(job_id, { status: 'completed', payment_status: 'paid' });
+
             await conn.commit();
 
             return ok(res, {
@@ -425,6 +450,32 @@ router.post('/finalize-mock', async (req, res) => {
             conn.release();
         }
     } catch (err) {
+        return fail(res, err.message, 500);
+    }
+});
+
+/**
+ * 7. GET /api/payment/status/:orderId
+ * 
+ * Allows mobile screens to poll for webhook completion status.
+ */
+router.get('/status/:orderId', async (req, res) => {
+    try {
+        const pool = getPool();
+        const { orderId } = req.params;
+
+        const [rows] = await pool.query(
+            'SELECT status FROM payments WHERE razorpay_order_id = $1',
+            [orderId]
+        );
+
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Order not found' });
+        }
+
+        return ok(res, { status: rows[0].status });
+    } catch (err) {
+        console.error('[Payment Route] Status check error:', err);
         return fail(res, err.message, 500);
     }
 });

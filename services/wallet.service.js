@@ -118,15 +118,10 @@ export async function getBalance(userId, accountCode) {
 
 /** Get available balance (earnings minus pending withdrawals) */
 export async function getAvailableBalance(workerId) {
+    // ⭐ FIX: The ledger balance is the single source of truth. 
+    // postWithdrawalEntries immediately debits this account, so we do not need to subtract pending requests again.
     const totalEarnings = await getBalance(workerId, 'WORKER_EARNINGS');
-    const pool = getPool();
-    const [rows] = await pool.query(
-        `SELECT COALESCE(SUM(amount_paise), 0)::BIGINT AS pending
-         FROM withdrawal_requests WHERE worker_id = $1 AND status IN ('pending', 'processing')`,
-        [workerId]
-    );
-    const pending = Number(rows[0]?.pending ?? 0);
-    return Math.max(0, totalEarnings - pending);
+    return Math.max(0, totalEarnings);
 }
 
 /** Get customer outstanding (what they owe) */
@@ -219,79 +214,42 @@ export async function postJobStartEntries(jobId, estimatedAmountPaise, customerI
  * Release escrow, split to worker/platform/gateway/gst
  */
 export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAmountPaise, customerId, workerId, pool) {
-    // Ensure numeric addition (prevents string concatenation if inputs are from DB)
     let l = Number(laborAmountPaise || 0);
     let m = Number(materialAmountPaise || 0);
     let finalAmountPaiseVal = l + m;
 
-    if (finalAmountPaiseVal <= 0 || finalAmountPaiseVal > MAX_SINGLE_JOB_PAISE) {
-        throw new Error(`Invalid final amount: ${finalAmountPaiseVal} paise (labor: ${l}, materials: ${m})`);
-    }
-    
-    // Validate that the amounts are consistent with job data to prevent double ledger issues
+    // ⭐ FIX 2: Query the correct Schema columns (Rupees) and convert them to Paise safely
     const [jobCheck] = await pool.query(`
-        SELECT final_labor_paise, final_material_paise, grand_total_paise, status
+        SELECT final_amount, materials_cost, status, customer_id, worker_id
         FROM jobs WHERE id = $1
     `, [jobId]);
     
     if (jobCheck.length > 0) {
         const job = jobCheck[0];
-        const expectedTotal = Number(job.final_labor_paise || 0) + Number(job.final_material_paise || 0);
-        const declaredTotal = Number(job.grand_total_paise || 0);
+        const declaredTotal = Math.round(Number(job.final_amount || 0) * 100);
+        const declaredMaterials = Math.round(Number(job.materials_cost || 0) * 100);
+        const expectedLabor = Math.max(0, declaredTotal - declaredMaterials);
         
-        if (l !== Number(job.final_labor_paise || 0) || 
-            m !== Number(job.final_material_paise || 0) ||
-            finalAmountPaiseVal !== declaredTotal) {
-            console.warn(`[Wallet] Amount mismatch detected for job ${jobId}: 
-                labor expected ${job.final_labor_paise}, got ${l}
-                materials expected ${job.final_material_paise}, got ${m}
-                total expected ${declaredTotal}, got ${finalAmountPaiseVal}`);
-            
-            // Use the job's declared amounts to prevent ledger imbalance
-            l = Number(job.final_labor_paise || 0);
-            m = Number(job.final_material_paise || 0);
-            finalAmountPaiseVal = declaredTotal;
-            
-            console.log(`[Wallet] Using corrected amounts for job ${jobId}: labor=${l}, materials=${m}, total=${finalAmountPaiseVal}`);
-        }
+        // Lock to DB truth to prevent ledger imbalances
+        l = expectedLabor;
+        m = declaredMaterials;
+        finalAmountPaiseVal = declaredTotal;
+        customerId = customerId || job.customer_id;
+        workerId = workerId || job.worker_id;
     }
     
     const idempotencyKey = `job_complete_${jobId}`;
-    // Check if ANY entry for this job's completion already exists (idempotency)
     const existing = await checkIdempotencyPrefix(pool, idempotencyKey);
     if (existing) {
-        console.log(`[Wallet] Job completion entries already exist for job ${jobId}, skipping duplicate ledger entries`);
         return { transaction_id: existing };
     }
 
-    // ─── Correct Split Architecture ──────────────────────────────────────────
-    // Materials = pure pass-through. No gateway fee or GST charged on them.
-    // ALL fees are calculated ONLY on the labor portion:
-    //   70% worker labor share + 25% platform + 2% gateway + ~3% GST remainder
-    // This guarantees: credits always = finalAmountPaiseVal, regardless of labor ratio.
+    // Split Architecture (Platform only takes a cut of Labor, Materials are 100% Worker's)
     const workerLaborSharePaise = Math.floor(l * 0.70);
     const platformSharePaise = Math.floor(l * 0.25);
     const gatewayFeePaise = Math.floor(l * 0.02);
-    // GST = remainder of labor (always >= 0 since 70+25+2=97%, remainder=3+ rounding)
     const gstFromLaborPaise = l - workerLaborSharePaise - platformSharePaise - gatewayFeePaise;
-    // Worker total = labor share + 100% of materials
     const workerTotalSharePaise = workerLaborSharePaise + m;
-
-    console.log(`[Wallet] Job ${jobId} Complete Split:`, {
-        labor: l,
-        materials: m,
-        finalTotal: finalAmountPaiseVal,
-        workerShare: workerTotalSharePaise,
-        platformShare: platformSharePaise,
-        gatewayFee: gatewayFeePaise,
-        gst: gstFromLaborPaise,
-        checkSum: workerTotalSharePaise + platformSharePaise + gatewayFeePaise + gstFromLaborPaise,
-    });
-
-    // Sanity guard — must always balance before touching the DB
-    if (workerTotalSharePaise + platformSharePaise + gatewayFeePaise + gstFromLaborPaise !== finalAmountPaiseVal) {
-        throw new Error(`[Wallet] Ledger would be unbalanced for job ${jobId}. Aborting.`);
-    }
 
     const escrowId = await getAccountId(pool, 'ESCROW');
     const customerPayableId = await getAccountId(pool, 'CUSTOMER_PAYABLE');
@@ -305,7 +263,6 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
 
     const txnId = uuidv4();
     let seq = 1;
-
     const entries = [];
 
     // DEBIT: Release full amount from escrow
@@ -330,7 +287,6 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
         triggered_by_system: true,
     });
 
-    // CREDIT: Platform commission (only on labor, skipped if labor=0)
     if (platformSharePaise > 0) {
         entries.push({
             transaction_id: txnId, entry_sequence: seq++,
@@ -343,7 +299,6 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
         });
     }
 
-    // CREDIT: Payment gateway fee (only on labor, skipped if labor=0)
     if (gatewayFeePaise > 0) {
         entries.push({
             transaction_id: txnId, entry_sequence: seq++,
@@ -356,7 +311,6 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
         });
     }
 
-    // CREDIT: GST remainder from labor (skipped if labor=0)
     if (gstFromLaborPaise > 0) {
         entries.push({
             transaction_id: txnId, entry_sequence: seq++,
@@ -369,7 +323,6 @@ export async function postJobCompleteEntries(jobId, laborAmountPaise, materialAm
         });
     }
 
-    // Execute batch insert to satisfy double-entry trigger
     await batchInsertEntries(pool, entries);
 
     await pool.query(
@@ -696,6 +649,46 @@ export async function postMaterialDisputeResolution(jobId, materialId, amountPai
     );
 
     console.log(`[Wallet] Material ${materialId} dispute resolved: ${resolution}, ${amountPaise} paise`);
+    return { transaction_id: txnId };
+}
+
+/**
+ * EVENT 8: Admin or Bank rejects/fails a withdrawal.
+ * Reverse the BANK_OUTFLOW and credit WORKER_EARNINGS back.
+ */
+export async function postWithdrawalReversalEntries(workerId, amountPaise, withdrawalRequestId, pool) {
+    const idempotencyKey = `withdrawal_reversal_${withdrawalRequestId}`;
+    const existing = await checkIdempotency(pool, idempotencyKey);
+    if (existing) return { transaction_id: existing };
+
+    const workerEarningsId = await getAccountId(pool, 'WORKER_EARNINGS');
+    const bankOutflowId = await getAccountId(pool, 'BANK_OUTFLOW');
+    const workerAccountId = await getOrCreateUserAccount(pool, workerId, 'WORKER_EARNINGS');
+    const txnId = uuidv4();
+
+    const entries = [
+        {
+            transaction_id: txnId, entry_sequence: 1,
+            account_id: bankOutflowId, user_account_id: null,
+            entry_type: 'debit', amount_paise: amountPaise,
+            event_type: 'worker_withdrawal_failed',
+            idempotency_key: idempotencyKey,
+            description: `Withdrawal ${withdrawalRequestId} Failed – reversing bank outflow`,
+            triggered_by_system: true
+        },
+        {
+            transaction_id: txnId, entry_sequence: 2,
+            account_id: workerEarningsId, user_account_id: workerAccountId,
+            entry_type: 'credit', amount_paise: amountPaise,
+            event_type: 'worker_withdrawal_failed',
+            idempotency_key: `${idempotencyKey}_credit`,
+            description: `Withdrawal ${withdrawalRequestId} Failed – refunding worker earnings`,
+            triggered_by_system: true
+        }
+    ];
+
+    await batchInsertEntries(pool, entries);
+    await recomputeBalanceCache(workerAccountId);
     return { transaction_id: txnId };
 }
 

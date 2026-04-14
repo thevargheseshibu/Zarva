@@ -133,7 +133,7 @@ export default function EarningsScreen({ navigation }) {
 
                     {loading ? (
                         <View style={styles.loaderBox}>
-                            <ActivityIndicator color={t.brand.primary} />
+                            <ActivityIndicator color={tTheme.brand.primary} />
                         </View>
                     ) : (
                         <FlatList
