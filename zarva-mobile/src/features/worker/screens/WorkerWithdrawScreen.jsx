@@ -1,8 +1,4 @@
-/**
- * src/screens/worker/WorkerWithdrawScreen.jsx
- * Initiate withdrawal: amount, bank account, confirm.
- */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -12,14 +8,16 @@ import { useWorkerWalletStore } from '@payment/workerWalletStore';
 import { paiseToINR } from '@shared/utils/paiseToINR';
 import PremiumButton from '@shared/ui/PremiumButton';
 import PressableAnimated from '@shared/design-system/components/PressableAnimated';
+import MainBackground from '@shared/ui/MainBackground';
 
 export default function WorkerWithdrawScreen({ navigation }) {
     const tTheme = useTokens();
     const styles = React.useMemo(() => createStyles(tTheme), [tTheme]);
     const t = useT();
-    const { availablePaise, bankAccounts, fetchBalance, fetchBankAccounts, requestWithdrawal } = useWorkerWalletStore();
+    const { availablePaise, pendingPaise, bankAccounts, fetchBalance, fetchBankAccounts, requestWithdrawal } = useWorkerWalletStore();
+    
     const [amount, setAmount] = useState('');
-    const [selectedAccountId, setSelectedAccountId] = useState(null);
+    const [selectedMethod, setSelectedMethod] = useState(null); // 'upi' or 'bank'
     const [submitting, setSubmitting] = useState(false);
 
     useFocusEffect(
@@ -30,17 +28,45 @@ export default function WorkerWithdrawScreen({ navigation }) {
         }, [fetchBalance, fetchBankAccounts])
     );
 
-    const MIN_WITHDRAWAL_PAISE = 100_000; // ₹1,000 minimum
+    // ⭐ AUTO-SELECT METHOD: If they only have one method, pick it automatically
+    useEffect(() => {
+        if (bankAccounts.length > 0 && !selectedMethod) {
+            const acc = bankAccounts[0];
+            if (acc.upi_id && !acc.ifsc_code) setSelectedMethod('upi');
+            else if (acc.ifsc_code && !acc.upi_id) setSelectedMethod('bank');
+            else if (acc.upi_id) setSelectedMethod('upi'); // Default to UPI if both exist
+        }
+    }, [bankAccounts]);
+
+    const MIN_WITHDRAWAL_PAISE = 100_000; // ₹1,000
     const amountPaise = Math.round(parseFloat(String(amount || 0).replace(/[^0-9.]/g, '')) * 100) || 0;
-    const isValid = amountPaise >= MIN_WITHDRAWAL_PAISE && amountPaise <= availablePaise && selectedAccountId;
-    const verifiedAccounts = (bankAccounts || []);
+    
+    // Logic for button states
+    const isAmountValid = amountPaise >= MIN_WITHDRAWAL_PAISE;
+    const isBalanceSufficient = amountPaise <= availablePaise;
+    const isMethodSelected = !!selectedMethod;
+    const isValid = isAmountValid && isBalanceSufficient && isMethodSelected;
+
+    const account = bankAccounts[0] || {}; 
+    const hasUPI = !!account.upi_id;
+    const hasBank = !!account.ifsc_code;
+
+    // ⭐ DYNAMIC BUTTON TEXT: Tell the user EXACTLY why they can't click
+    const getButtonTitle = () => {
+        if (submitting) return "Processing...";
+        if (!isMethodSelected) return "Select Payout Method";
+        if (amountPaise === 0) return "Enter Amount";
+        if (!isAmountValid) return "Min. Withdrawal ₹1,000";
+        if (!isBalanceSufficient) return "Insufficient Balance";
+        return "Submit Request";
+    };
 
     const handleConfirm = async () => {
         if (!isValid) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         Alert.alert(
-            t('confirm_withdrawal'),
-            t('withdrawal_confirm_msg').replace('{{amount}}', paiseToINR(amountPaise)).replace('{{time}}', t('usually_2_hours')),
+            "Confirm Transfer",
+            `Amount: ${paiseToINR(amountPaise)}\nMethod: ${selectedMethod.toUpperCase()}\nStatus: Will be marked as 'Processing' until admin clears it.`,
             [
                 { text: t('cancel'), style: 'cancel' },
                 {
@@ -48,13 +74,11 @@ export default function WorkerWithdrawScreen({ navigation }) {
                     onPress: async () => {
                         setSubmitting(true);
                         try {
-                            await requestWithdrawal(amountPaise, selectedAccountId);
-                            setAmount('');
-                            setSelectedAccountId(null);
-                            Alert.alert(t('success'), t('withdrawal_initiated'));
+                            await requestWithdrawal(amountPaise, account.id, selectedMethod);
+                            Alert.alert('Success', 'Withdrawal request is now processing.');
                             navigation.goBack();
                         } catch (err) {
-                            Alert.alert(t('error'), err?.response?.data?.message || err.message);
+                            Alert.alert('Error', err?.response?.data?.message || err.message);
                         } finally {
                             setSubmitting(false);
                         }
@@ -65,82 +89,105 @@ export default function WorkerWithdrawScreen({ navigation }) {
     };
 
     return (
-        <View style={styles.screen}>
+        <MainBackground>
             <View style={styles.header}>
                 <PressableAnimated onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Text style={styles.headerBtnTxt}>←</Text>
                 </PressableAnimated>
-                <Text style={styles.headerTitle}>{t('withdraw')}</Text>
+                <Text style={styles.headerTitle}>{t('withdraw', { defaultValue: 'Withdraw' })}</Text>
                 <View style={{ width: 44 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-                <Text style={styles.label}>{t('available_balance')}</Text>
+                <Text style={styles.label}>{t('available_balance', { defaultValue: 'Available Balance' })}</Text>
                 <Text style={styles.amount}>{paiseToINR(availablePaise)}</Text>
+                
+                {pendingPaise > 0 && (
+                    <View style={styles.warningBox}>
+                        <Text style={styles.warningTxt}>Note: You currently have a payout of {paiseToINR(pendingPaise)} processing.</Text>
+                    </View>
+                )}
 
-                <Text style={styles.inputLabel}>{t('amount_to_withdraw')}</Text>
-                <Text style={styles.minHint}>{t('min_withdrawal_hint')}</Text>
+                <Text style={styles.inputLabel}>{t('amount_to_withdraw', { defaultValue: 'Amount' })}</Text>
                 <TextInput
                     style={styles.input}
                     value={amount}
                     onChangeText={setAmount}
-                    placeholder="0.00"
+                    placeholder="e.g. 1500"
                     placeholderTextColor={tTheme.text.tertiary}
                     keyboardType="decimal-pad"
                 />
 
-                <Text style={styles.inputLabel}>{t('select_bank_account')}</Text>
-                {verifiedAccounts.length === 0 ? (
+                <View style={styles.rowBetween}>
+                    <Text style={styles.inputLabel}>Payout Method</Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('AddBankAccount', { returnTo: 'WorkerWithdraw' })}>
+                        <Text style={styles.editBtn}>Edit Methods</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {!hasUPI && !hasBank ? (
                     <TouchableOpacity style={styles.addAccount} onPress={() => navigation.navigate('AddBankAccount', { returnTo: 'WorkerWithdraw' })}>
-                        <Text style={styles.addAccountTxt}>{t('add_bank_account')}</Text>
+                        <Text style={styles.addAccountTxt}>+ Add Payment Method</Text>
                     </TouchableOpacity>
                 ) : (
-                    verifiedAccounts.map((acc) => (
-                        <TouchableOpacity
-                            key={acc.id}
-                            style={[styles.accountCard, selectedAccountId === acc.id && styles.accountCardSelected]}
-                            onPress={() => {
-                                Haptics.selectionAsync();
-                                setSelectedAccountId(acc.id);
-                            }}
-                        >
-                            <Text style={styles.accountName}>{acc.account_holder_name}</Text>
-                            <Text style={styles.accountDetail}>{acc.ifsc_code} • ••••••••</Text>
-                        </TouchableOpacity>
-                    ))
+                    <View style={{ gap: 12, marginBottom: 24 }}>
+                        {hasUPI && (
+                            <TouchableOpacity 
+                                style={[styles.methodCard, selectedMethod === 'upi' && styles.methodSelected]} 
+                                onPress={() => setSelectedMethod('upi')}
+                            >
+                                <View style={styles.radio}><View style={selectedMethod === 'upi' && styles.radioFilled} /></View>
+                                <View>
+                                    <Text style={styles.methodTitle}>UPI Transfer</Text>
+                                    <Text style={styles.methodDesc}>{account.upi_id}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        )}
+                        {hasBank && (
+                            <TouchableOpacity 
+                                style={[styles.methodCard, selectedMethod === 'bank' && styles.methodSelected]} 
+                                onPress={() => setSelectedMethod('bank')}
+                            >
+                                <View style={styles.radio}><View style={selectedMethod === 'bank' && styles.radioFilled} /></View>
+                                <View>
+                                    <Text style={styles.methodTitle}>Bank Account (IMPS)</Text>
+                                    <Text style={styles.methodDesc}>{account.bank_name || 'Bank'} • {account.ifsc_code}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 )}
 
-                <Text style={styles.hint}>{t('estimated_arrival')}: {t('usually_2_hours')}</Text>
-
-                <PremiumButton
-                    title={submitting ? t('processing') : t('withdraw')}
-                    onPress={handleConfirm}
-                    disabled={!isValid || submitting}
-                    style={styles.submitBtn}
+                <PremiumButton 
+                    title={getButtonTitle()} 
+                    onPress={handleConfirm} 
+                    disabled={!isValid || submitting} 
                 />
             </ScrollView>
-        </View>
+        </MainBackground>
     );
 }
 
 const createStyles = (t) => StyleSheet.create({
-    screen: { flex: 1, backgroundColor: t.background.app },
-    header: { paddingTop: 60, paddingHorizontal: t.spacing['2xl'], paddingBottom: t.spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    header: { paddingTop: 60, paddingHorizontal: 24, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: t.background.surface, justifyContent: 'center', alignItems: 'center' },
     headerBtnTxt: { color: t.text.primary, fontSize: 20 },
     headerTitle: { color: t.text.primary, fontSize: 18, fontWeight: '700' },
-    scroll: { padding: t.spacing['2xl'], paddingBottom: 120 },
+    scroll: { padding: 24, paddingBottom: 120 },
     label: { color: t.text.tertiary, fontSize: 12 },
-    amount: { color: t.text.primary, fontSize: 28, fontWeight: '800', marginBottom: 24 },
-    inputLabel: { color: t.text.secondary, fontSize: 14, marginBottom: 8 },
-    minHint: { color: t.text.tertiary, fontSize: 12, marginBottom: 4 },
-    input: { backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 16, color: t.text.primary, fontSize: 18, marginBottom: 24 },
-    accountCard: { backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border, borderRadius: 12, padding: 16, marginBottom: 12 },
-    accountCardSelected: { borderColor: t.brand.primary },
-    accountName: { color: t.text.primary, fontSize: 16, fontWeight: '600' },
-    accountDetail: { color: t.text.tertiary, fontSize: 12, marginTop: 4 },
-    addAccount: { backgroundColor: t.brand.primary + '22', borderWidth: 1, borderColor: t.brand.primary, borderRadius: 12, padding: 16, marginBottom: 12 },
-    addAccountTxt: { color: t.brand.primary, textAlign: 'center', fontWeight: '600' },
-    hint: { color: t.text.tertiary, fontSize: 12, marginTop: 12, marginBottom: 24 },
-    submitBtn: {}
+    amount: { color: t.text.primary, fontSize: 36, fontWeight: '900', marginBottom: 24 },
+    warningBox: { backgroundColor: t.status.warning.base + '22', padding: 12, borderRadius: 8, marginBottom: 24 },
+    warningTxt: { color: t.status.warning.base, fontSize: 12, fontWeight: 'bold' },
+    rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 },
+    inputLabel: { color: t.text.secondary, fontSize: 14 },
+    editBtn: { color: t.brand.primary, fontSize: 12, fontWeight: 'bold' },
+    input: { backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border.default + '33', borderRadius: 12, padding: 16, color: t.text.primary, fontSize: 18, marginBottom: 32 },
+    methodCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border.default + '22', borderRadius: 12, padding: 16 },
+    methodSelected: { borderColor: t.brand.primary, backgroundColor: t.brand.primary + '11' },
+    radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: t.border.default + '66', marginRight: 16, justifyContent: 'center', alignItems: 'center' },
+    radioFilled: { width: 10, height: 10, borderRadius: 5, backgroundColor: t.brand.primary },
+    methodTitle: { color: t.text.primary, fontSize: 14, fontWeight: '600' },
+    methodDesc: { color: t.text.tertiary, fontSize: 12, marginTop: 2 },
+    addAccount: { backgroundColor: t.brand.primary + '22', borderWidth: 1, borderColor: t.brand.primary, borderRadius: 12, padding: 16, marginBottom: 24 },
+    addAccountTxt: { color: t.brand.primary, textAlign: 'center', fontWeight: '600' }
 });

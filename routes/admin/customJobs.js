@@ -1,67 +1,32 @@
-import express from 'express';
-import { authenticateJWT as authenticateToken } from '../../middleware/index.js';
+import { Router } from 'express';
+import { getPool } from '../../config/database.js';
 import CustomJobService from '../../services/customJob.service.js';
 
-// NOTE: In a real app, authenticateToken should be followed by an `isAdmin` middleware
-const router = express.Router();
+const router = Router();
+const ok = (res, data) => res.status(200).json({ status: 'ok', ...data });
+const fail = (res, message, status = 400) => res.status(status).json({ status: 'error', message });
 
-/**
- * GET /api/admin/custom-jobs/pending
- * List all pending templates
- */
-router.get('/pending', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const { getPool } = await import('../../config/database.js');
         const pool = getPool();
-        const [rows] = await pool.query(`
-      SELECT t.*, cp.name as customer_name, u.phone as phone_number 
-      FROM custom_job_templates t
-      JOIN users u ON t.customer_id = u.id
-      LEFT JOIN customer_profiles cp ON cp.user_id = u.id
-      WHERE t.approval_status = 'pending' AND t.is_archived = FALSE
-      ORDER BY t.created_at ASC
-    `);
-        res.json(rows);
-    } catch (error) {
-        console.error('Admin Get Pending Custom Jobs Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+        const [rows] = await pool.query(`SELECT * FROM custom_job_templates ORDER BY created_at DESC`);
+        return ok(res, { templates: rows });
+    } catch (e) { return fail(res, e.message, 500); }
 });
 
-/**
- * POST /api/admin/custom-jobs/:id/approve
- */
-router.post('/:id/approve', authenticateToken, async (req, res) => {
+router.post('/:id/approve', async (req, res) => {
     try {
-        const adminId = req.user.id;
-        const { id } = req.params;
-        const { notes } = req.body;
-
-        await CustomJobService.adminApproveTemplate(adminId, id, notes);
-        res.json({ message: 'Template approved successfully' });
-    } catch (error) {
-        console.error('Admin Approve Custom Job Error:', error);
-        res.status(error.status || 500).json({ error: error.message || 'Internal server error' });
-    }
+        const { notes, estimatedCost } = req.body;
+        await CustomJobService.adminApproveTemplate(req.user.id, req.params.id, notes || '', estimatedCost);
+        return ok(res, { success: true });
+    } catch (e) { return fail(res, e.message, 500); }
 });
 
-/**
- * POST /api/admin/custom-jobs/:id/reject
- */
-router.post('/:id/reject', authenticateToken, async (req, res) => {
+router.post('/:id/reject', async (req, res) => {
     try {
-        const adminId = req.user.id;
-        const { id } = req.params;
-        const { reason } = req.body;
-
-        if (!reason) return res.status(400).json({ error: 'Rejection reason is required' });
-
-        await CustomJobService.adminRejectTemplate(adminId, id, reason);
-        res.json({ message: 'Template rejected successfully' });
-    } catch (error) {
-        console.error('Admin Reject Custom Job Error:', error);
-        res.status(error.status || 500).json({ error: error.message || 'Internal server error' });
-    }
+        await CustomJobService.adminRejectTemplate(req.user.id, req.params.id, req.body.reason);
+        return ok(res, { success: true });
+    } catch (e) { return fail(res, e.message, 500); }
 });
 
 export default router;

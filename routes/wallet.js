@@ -159,10 +159,11 @@ router.get('/worker/earnings/:jobId', roleGuard('worker'), async (req, res) => {
 });
 
 /** POST /api/wallet/worker/withdraw */
-router.post('/worker/withdraw', roleGuard('worker'), reAuthRequired, async (req, res) => {
+router.post('/worker/withdraw', roleGuard('worker'), async (req, res) => {
     try {
         const workerId = req.user.id;
-        const { amount_paise, bank_account_id } = req.body;
+        // ⭐ Fetch payout_method from the request
+        const { amount_paise, bank_account_id, payout_method } = req.body;
         const idempotencyKey = req.headers['x-idempotency-key'] || `withdraw_${workerId}_${Date.now()}`;
 
         if (!amount_paise || !bank_account_id) {
@@ -171,7 +172,8 @@ router.post('/worker/withdraw', roleGuard('worker'), reAuthRequired, async (req,
         const amount = parseInt(String(amount_paise), 10);
         if (isNaN(amount)) return fail(res, 'Invalid amount', 400);
 
-        const result = await withdrawalService.initiateWithdrawal(workerId, amount, bank_account_id, idempotencyKey);
+        // ⭐ Pass payout_method to the service
+        const result = await withdrawalService.initiateWithdrawal(workerId, amount, bank_account_id, payout_method, idempotencyKey);
         return ok(res, result);
     } catch (err) {
         return fail(res, err.message, err.status || 400, err.code);

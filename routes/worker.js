@@ -52,19 +52,25 @@ router.get('/jobs/:id', (req, res) =>
         if (!/^\d+$/.test(jobId)) {
             throw Object.assign(new Error('Invalid Job ID format'), { status: 400 });
         }
-        const [jobs] = await pool.query(`SELECT j.id, j.status, j.category, j.address, j.description, j.total_amount as amount,
+        
+        // ⭐ FIX: Added LEFT JOINs to fetch custom_title and custom_photos for the detail screen
+        const [jobs] = await pool.query(`
+             SELECT j.id, j.status, j.category, j.address, j.description, j.total_amount as amount,
                     j.arrived_at, j.worker_id, j.customer_id, j.inspection_expires_at,
                     j.inspection_started_at, j.job_started_at, j.job_ended_at,
                     j.work_started_at, j.work_ended_at,
                     j.followup_job_id, j.metadata, j.suspend_reason, j.suspend_reschedule_at,
                     j.hourly_rate, j.final_amount, j.estimated_duration_minutes, j.issue_notes,
-                    -- Include inspection extension fields so worker UI can lock/unlock request button correctly after refresh.
                     j.inspection_extension_otp_hash, j.inspection_extension_count, j.inspection_extended_until,
                     c.name as customer_name, 
-                    CASE WHEN j.worker_id = $2 THEN u.phone ELSE NULL END as customer_phone
+                    CASE WHEN j.worker_id = $2 THEN u.phone ELSE NULL END as customer_phone,
+                    ct.title as custom_title,
+                    ct.photos as custom_photos
              FROM jobs j
              LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
              LEFT JOIN users u ON j.customer_id = u.id
+             LEFT JOIN custom_job_instances cji ON j.id = cji.job_id
+             LEFT JOIN custom_job_templates ct ON cji.template_id = ct.id
              WHERE j.id = $1 AND (j.worker_id = $2 OR j.status IN ('open', 'searching'))`, [jobId, userId]
         );
         const job = jobs[0];
@@ -635,7 +641,6 @@ router.get('/earnings', handle(async (userId, pool) => {
  * GET /api/worker/available-jobs
  */
 router.get('/available-jobs', handle(async (userId, pool) => {
-    // 1. Get worker's category and service area
     const [profiles] = await pool.query(`
         SELECT category, service_area, is_verified, is_online, current_location
         FROM worker_profiles
@@ -645,34 +650,30 @@ router.get('/available-jobs', handle(async (userId, pool) => {
     const wp = profiles[0];
     if (!wp) throw Object.assign(new Error('Worker profile not found'), { status: 404 });
     
-    console.log(`[Worker] Available Jobs request for userId: ${userId}`);
-    console.log(`[Worker] Category: ${wp.category}, Online: ${wp.is_online}, Verified: ${wp.is_verified}`);
-    console.log(`[Worker] Has Service Area: ${!!wp.service_area}`);
-
     if (!wp.is_verified) return { jobs: [], is_online: wp.is_online, is_verified: false, message: 'Account pending verification' };
     if (!wp.is_online) return { jobs: [], is_online: false, is_verified: wp.is_verified, message: 'Go online to see available jobs' };
 
-    // Debug: Check total 'searching' jobs in this category globally
-    const [categoryCount] = await pool.query(`SELECT COUNT(*) as count FROM jobs WHERE status = 'searching' AND category = $1`, [wp.category]);
-    console.log(`[Worker] Global 'searching' jobs for category ${wp.category}: ${categoryCount[0].count}`);
-
-    // 2. Find jobs that match status ('searching' or 'no_worker_found') AND intersect with service area
-    // Remove strict category filter, but add is_match flag for UI highlighting.
+    // ⭐ FIX: Added LEFT JOINs to pull the custom_job_templates title and hourly rate into the feed
+    // ⭐ FIX: Modified WHERE clause to include (category='custom' AND status='open')
+    // ⭐ FIX: Added `j.category = 'custom'` to the is_match boolean so ANY worker sees them at the top
     const [jobs] = await pool.query(`
         SELECT j.id, j.category, j.status, j.address, j.description, j.latitude, j.longitude, j.created_at, j.total_amount,
                c.name as customer_name,
+               ct.title as custom_title,
+               ct.hourly_rate as custom_hourly_rate,
                ST_Distance(j.job_location, wp.current_location) / 1000 as distance_km,
-               (j.category = wp.category OR (wp.skills IS NOT NULL AND wp.skills::jsonb @> jsonb_build_array(j.category::text)))::boolean as is_match
+               (j.category = 'custom' OR j.category = wp.category OR (wp.skills IS NOT NULL AND wp.skills::jsonb @> jsonb_build_array(j.category::text)))::boolean as is_match
         FROM jobs j
         JOIN worker_profiles wp ON wp.user_id = $1
         LEFT JOIN customer_profiles c ON j.customer_id = c.user_id
-        WHERE j.status IN ('searching', 'no_worker_found')
+        LEFT JOIN custom_job_instances cji ON j.id = cji.job_id
+        LEFT JOIN custom_job_templates ct ON cji.template_id = ct.id
+        WHERE (j.status IN ('searching', 'no_worker_found') OR (j.category = 'custom' AND j.status = 'open'))
           AND ST_Intersects(j.job_location, wp.service_area)
         ORDER BY is_match DESC, j.created_at DESC
         LIMIT 50
     `, [userId]);
 
-    console.log(`[Worker] Found ${jobs.length} available jobs matching category and service area.`);
     return { jobs, is_online: true, is_verified: true };
 }));
 

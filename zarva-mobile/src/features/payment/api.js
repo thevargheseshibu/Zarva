@@ -21,10 +21,11 @@ export function getWorkerEarnings(jobId) {
 }
 
 /** Worker: initiate withdrawal */
-export function withdraw(amountPaise, bankAccountId, idempotencyKey) {
+export function withdraw(amountPaise, bankAccountId, payoutMethod, idempotencyKey) {
     return apiClient.post('/api/wallet/worker/withdraw', {
         amount_paise: amountPaise,
-        bank_account_id: bankAccountId
+        bank_account_id: bankAccountId,
+        payout_method: payoutMethod // ⭐ New
     }, {
         headers: idempotencyKey ? { 'X-Idempotency-Key': idempotencyKey } : {}
     });

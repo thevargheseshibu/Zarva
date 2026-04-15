@@ -1,6 +1,6 @@
 /**
  * services/withdrawal.service.js
- * Worker withdrawal and bank account management.
+ * Worker withdrawal and payment methods management.
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -13,47 +13,72 @@ const MAX_DAILY_WITHDRAWAL_PAISE = walletService.MAX_DAILY_WITHDRAWAL_PAISE;
 const MIN_SINGLE_WITHDRAWAL_PAISE = walletService.MIN_SINGLE_WITHDRAWAL_PAISE;
 
 /**
- * Add bank account (encrypted).
+ * Add or Update Payment Methods (Bank & UPI)
  */
 export async function addBankAccount(workerId, payload) {
-    const { account_holder_name, account_number, ifsc_code, bank_name, set_primary } = payload;
-
-    if (!account_holder_name || !account_number || !ifsc_code) {
-        throw Object.assign(new Error('account_holder_name, account_number, ifsc_code required'), { status: 400 });
-    }
-
     const pool = getPool();
-    let encryptedAccount;
-    try {
-        encryptedAccount = encrypt(account_number.replace(/\s/g, ''));
-    } catch (err) {
-        throw Object.assign(new Error('Encryption not configured. Set BANK_ACCOUNT_ENCRYPTION_KEY.'), { status: 500 });
+    
+    // ⭐ Auto-Migrate Schema for UPI support
+    await pool.query(`
+        ALTER TABLE worker_bank_accounts ADD COLUMN IF NOT EXISTS upi_id VARCHAR(100);
+        ALTER TABLE worker_bank_accounts ALTER COLUMN account_number_encrypted DROP NOT NULL;
+        ALTER TABLE worker_bank_accounts ALTER COLUMN ifsc_code DROP NOT NULL;
+        ALTER TABLE worker_bank_accounts ALTER COLUMN account_holder_name DROP NOT NULL;
+        ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS payout_method VARCHAR(20) DEFAULT 'bank';
+    `).catch(() => {}); // Ignore if already exists
+
+    const { id, account_holder_name, account_number, ifsc_code, bank_name, upi_id } = payload;
+
+    let encryptedAccount = null;
+    if (account_number) {
+        try {
+            encryptedAccount = encrypt(account_number.replace(/\s/g, ''));
+        } catch (err) {
+            throw Object.assign(new Error('Encryption not configured. Set BANK_ACCOUNT_ENCRYPTION_KEY.'), { status: 500 });
+        }
     }
 
-    if (set_primary) {
-        await pool.query(
-            `UPDATE worker_bank_accounts SET is_primary = FALSE WHERE worker_id = $1`,
-            [workerId]
-        );
+    if (!encryptedAccount && !upi_id) {
+        throw Object.assign(new Error('You must provide either Bank Account details or a valid UPI ID.'), { status: 400 });
     }
 
-    const [rows] = await pool.query(
-        `INSERT INTO worker_bank_accounts (worker_id, account_holder_name, account_number_encrypted, ifsc_code, bank_name, is_primary)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, account_holder_name, ifsc_code, bank_name, is_primary, is_verified, created_at`,
-        [workerId, account_holder_name, encryptedAccount, ifsc_code.toUpperCase(), bank_name || null, !!set_primary]
-    );
+    // Check if worker already has a record
+    const [existing] = await pool.query('SELECT id FROM worker_bank_accounts WHERE worker_id = $1 LIMIT 1', [workerId]);
 
-    return { bank_account: rows[0], masked_account: `****${account_number.slice(-4)}` };
+    let row;
+    if (existing[0]) {
+        // Update existing record (COALESCE keeps old data if new payload is empty, so we don't erase the encrypted account number if they only update UPI)
+        const [rows] = await pool.query(`
+            UPDATE worker_bank_accounts 
+            SET account_holder_name = COALESCE($1, account_holder_name),
+                account_number_encrypted = COALESCE($2, account_number_encrypted),
+                ifsc_code = COALESCE($3, ifsc_code),
+                bank_name = COALESCE($4, bank_name),
+                upi_id = COALESCE($5, upi_id)
+            WHERE id = $6
+            RETURNING id, account_holder_name, ifsc_code, bank_name, upi_id, is_primary, is_verified, created_at
+        `, [account_holder_name || null, encryptedAccount, ifsc_code ? ifsc_code.toUpperCase() : null, bank_name || null, upi_id || null, existing[0].id]);
+        row = rows[0];
+    } else {
+        // Insert new record
+        const [rows] = await pool.query(`
+            INSERT INTO worker_bank_accounts (worker_id, account_holder_name, account_number_encrypted, ifsc_code, bank_name, upi_id, is_primary)
+            VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+            RETURNING id, account_holder_name, ifsc_code, bank_name, upi_id, is_primary, is_verified, created_at
+        `, [workerId, account_holder_name || null, encryptedAccount, ifsc_code ? ifsc_code.toUpperCase() : null, bank_name || null, upi_id || null]);
+        row = rows[0];
+    }
+
+    return { bank_account: row };
 }
 
 /**
- * List worker's bank accounts (no decryption).
+ * List worker's bank accounts & UPI
  */
 export async function listBankAccounts(workerId) {
     const pool = getPool();
     const [rows] = await pool.query(
-        `SELECT id, account_holder_name, ifsc_code, bank_name, is_primary, is_verified, created_at
+        `SELECT id, account_holder_name, ifsc_code, bank_name, upi_id, is_primary, is_verified, created_at
          FROM worker_bank_accounts WHERE worker_id = $1 ORDER BY is_primary DESC, created_at ASC`,
         [workerId]
     );
@@ -61,24 +86,9 @@ export async function listBankAccounts(workerId) {
 }
 
 /**
- * Remove bank account.
- */
-export async function removeBankAccount(workerId, accountId) {
-    const pool = getPool();
-    const [rows] = await pool.query(
-        `DELETE FROM worker_bank_accounts WHERE id = $1 AND worker_id = $2 RETURNING id`,
-        [accountId, workerId]
-    );
-    if (!rows[0]) {
-        throw Object.assign(new Error('Bank account not found'), { status: 404 });
-    }
-    return { removed: true };
-}
-
-/**
  * Initiate withdrawal.
  */
-export async function initiateWithdrawal(workerId, amountPaise, bankAccountId, idempotencyKey) {
+export async function initiateWithdrawal(workerId, amountPaise, bankAccountId, payoutMethod, idempotencyKey) {
     if (amountPaise < MIN_SINGLE_WITHDRAWAL_PAISE || amountPaise > MAX_SINGLE_WITHDRAWAL_PAISE) {
         throw Object.assign(new Error(`Minimum withdrawal is ₹1,000. Maximum is ₹20,000 per transaction.`), { status: 400 });
     }
@@ -97,9 +107,7 @@ export async function initiateWithdrawal(workerId, amountPaise, bankAccountId, i
             `SELECT id FROM worker_bank_accounts WHERE id = $1 AND worker_id = $2`,
             [bankAccountId, workerId]
         );
-        if (!bankRows[0]) {
-            throw Object.assign(new Error('Invalid or unverified bank account'), { status: 400 });
-        }
+        if (!bankRows[0]) throw Object.assign(new Error('Invalid payment method configuration'), { status: 400 });
 
         const key = idempotencyKey || `withdraw_${workerId}_${Date.now()}`;
         const [existing] = await conn.query(
@@ -113,22 +121,20 @@ export async function initiateWithdrawal(workerId, amountPaise, bankAccountId, i
 
         const requestId = uuidv4();
         await conn.query(
-            `INSERT INTO withdrawal_requests (id, worker_id, amount_paise, bank_account_id, status, idempotency_key)
-             VALUES ($1, $2, $3, $4, 'pending', $5)`,
-            [requestId, workerId, amountPaise, bankAccountId, key]
+            `INSERT INTO withdrawal_requests (id, worker_id, amount_paise, bank_account_id, payout_method, status, idempotency_key)
+             VALUES ($1, $2, $3, $4, $5, 'pending', $6)`,
+            [requestId, workerId, amountPaise, bankAccountId, payoutMethod || 'bank', key]
         );
 
+        // Securely debit the ledger immediately so funds are locked in 'processing'
         await walletService.postWithdrawalEntries(workerId, amountPaise, requestId, conn);
 
         await conn.commit();
 
         const [wr] = await pool.query(
-            `SELECT id, amount_paise, status, initiated_at FROM withdrawal_requests WHERE id = $1`,
+            `SELECT id, amount_paise, status, payout_method, initiated_at FROM withdrawal_requests WHERE id = $1`,
             [requestId]
         );
-
-        // TODO: Trigger actual bank transfer via payment gateway
-        // onWithdrawalSuccess / onWithdrawalFailure callbacks
 
         return { withdrawal_request: wr[0], is_duplicate: false };
     } catch (err) {
@@ -137,4 +143,10 @@ export async function initiateWithdrawal(workerId, amountPaise, bankAccountId, i
     } finally {
         conn.release();
     }
+}
+
+export async function removeBankAccount(workerId, accountId) {
+    const pool = getPool();
+    await pool.query(`DELETE FROM worker_bank_accounts WHERE id = $1 AND worker_id = $2`, [accountId, workerId]);
+    return { removed: true };
 }

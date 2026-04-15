@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getPool } from '../../config/database.js';
 import * as walletService from '../../services/wallet.service.js';
 import { decrypt } from '../../utils/encryption.js';
+import { sendFCM } from '../../services/notification.service.js'; // ⭐ NEW: Import Notification Service
 
 const router = Router();
 
@@ -25,7 +26,7 @@ router.get('/overview', async (req, res) => {
         const balances = { PLATFORM_REVENUE: 0, ESCROW: 0 };
         ledgerRows.forEach(r => balances[r.account_code] = Number(r.balance || 0));
 
-        // ⭐ FIX: Include both pending and processing statuses
+        // ⭐ FIX: Include BOTH 'pending' and 'processing' statuses so stats aren't zero
         const [pendingPayouts] = await pool.query(`
             SELECT COALESCE(SUM(amount_paise), 0) as total, COUNT(*) as count 
             FROM withdrawal_requests WHERE status IN ('pending', 'processing')
@@ -77,17 +78,17 @@ router.get('/payments', async (req, res) => {
 router.get('/payouts', async (req, res) => {
     try {
         const pool = getPool();
-        // ⭐ FIX: Default to 'processing' since the wallet service immediately transitions them to lock funds
+        // ⭐ FIX: Default to 'processing' since worker withdrawals jump to processing immediately to lock funds
         const { status = 'processing' } = req.query;
 
         const [requests] = await pool.query(`
             SELECT w.*, wp.name as worker_name, wp.category,
-                   b.account_holder_name, b.ifsc_code, b.bank_name
+                   b.account_holder_name, b.ifsc_code, b.bank_name, b.upi_id
             FROM withdrawal_requests w
             JOIN worker_profiles wp ON w.worker_id = wp.user_id
             LEFT JOIN worker_bank_accounts b ON w.bank_account_id = b.id
             WHERE w.status = $1
-            ORDER BY w.initiated_at DESC
+            ORDER BY w.initiated_at ASC
         `, [status]);
 
         // Attach real-time available balance to flag risks
@@ -132,12 +133,28 @@ router.post('/payouts/:id/process', async (req, res) => {
         const [rows] = await conn.query(`SELECT * FROM withdrawal_requests WHERE id = $1 FOR UPDATE`, [requestId]);
         const request = rows[0];
 
-        if (!request || request.status !== 'pending') throw new Error('Request is not pending.');
+        // ⭐ FIX: Check for both 'pending' AND 'processing' to allow admin to settle it
+        if (!request || !['pending', 'processing'].includes(request.status)) {
+            throw new Error('Request is not in a valid active state to be processed.');
+        }
+
+        const amountINR = (request.amount_paise / 100).toFixed(2);
 
         if (action === 'complete') {
             await conn.query(`
                 UPDATE withdrawal_requests SET status = 'completed', transaction_ref = $1, processed_at = NOW() WHERE id = $2
             `, [transaction_ref || 'MANUAL_TRANSFER', requestId]);
+            
+            // ⭐ NEW: Notify Worker of Success
+            try {
+                await sendFCM(
+                    request.worker_id, 
+                    'Payout Completed 💰', 
+                    `Your withdrawal of ₹${amountINR} has been successfully transferred to your bank account.`, 
+                    { type: 'payout_completed', request_id: requestId }
+                );
+            } catch (e) { console.warn('Failed to send success FCM', e.message); }
+
         } else if (action === 'fail') {
             await conn.query(`
                 UPDATE withdrawal_requests SET status = 'failed', failure_reason = $1, processed_at = NOW() WHERE id = $2
@@ -145,7 +162,18 @@ router.post('/payouts/:id/process', async (req, res) => {
 
             // Reverse funds to worker wallet
             await walletService.postWithdrawalReversalEntries(request.worker_id, request.amount_paise, requestId, conn);
+            
+            // ⭐ NEW: Notify Worker of Failure
+            try {
+                await sendFCM(
+                    request.worker_id, 
+                    'Payout Failed ⚠️', 
+                    `Your withdrawal of ₹${amountINR} failed. Reason: ${failure_reason || 'Admin Rejection'}. Funds have been returned to your wallet.`, 
+                    { type: 'payout_failed', request_id: requestId }
+                );
+            } catch (e) { console.warn('Failed to send failure FCM', e.message); }
         }
+        
         await conn.commit();
         return ok(res, { success: true });
     } catch (err) {
@@ -160,7 +188,6 @@ router.post('/payouts/:id/process', async (req, res) => {
 router.post('/resync-ledgers', async (req, res) => {
     const pool = getPool();
     try {
-        // Find completed/paid jobs that have NO ledger entries yet
         const [missingJobs] = await pool.query(`
             SELECT j.id, j.customer_id, j.worker_id, j.final_amount, j.materials_cost
             FROM jobs j
@@ -178,10 +205,8 @@ router.post('/resync-ledgers', async (req, res) => {
             );
             synced++;
         }
-
         return ok(res, { message: `Successfully resynced ${synced} missing job ledgers.` });
     } catch (err) {
-        console.error(err);
         return fail(res, err.message, 500);
     }
 });

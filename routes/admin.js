@@ -18,6 +18,7 @@ import analyticsRouter from './admin/analytics.js';
 import ticketsRouter   from './admin/tickets.js';
 import walletRouter    from './admin/wallet.js';
 import financeRouter   from './admin/finance.js';
+import customJobsRouter from './admin/customJobs.js';
 import godModeRouter   from './admin/godMode.js';  // dynamic table PATCH + audit viewer
 import configLoader    from '../config/loader.js';
 
@@ -27,12 +28,13 @@ const router = Router();
 router.use(roleGuard(['admin', 'superadmin']));
 
 // ── Domain sub-routers ────────────────────────────────────────────────────────
-router.use('/users',     usersRouter);
-router.use('/jobs',      jobsRouter);
-router.use('/analytics', analyticsRouter);
-router.use('/tickets',   ticketsRouter);
-router.use('/wallet',    walletRouter);
-router.use('/finance',   financeRouter);
+router.use('/users',       usersRouter);
+router.use('/jobs',        jobsRouter);
+router.use('/analytics',   analyticsRouter);
+router.use('/tickets',     ticketsRouter);
+router.use('/wallet',      walletRouter);
+router.use('/finance',     financeRouter);
+router.use('/custom-jobs', customJobsRouter);
 
 // God-mode: dynamic table PATCH, audit log viewer, worker approve, density
 // mounts at /tables/:table/:id, /workers/:id/approve, /audit-logs

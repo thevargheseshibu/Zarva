@@ -161,24 +161,36 @@ export default function FinancePage() {
                              <Badge className="bg-zinc-800 text-zinc-400 border-zinc-700">Settled: {new Date(p.processed_at).toLocaleDateString()}</Badge>
                           )}
                         </div>
-                        <div className="text-sm text-zinc-400 space-y-1">
-                          <p><span className="text-zinc-500">Bank:</span> {p.bank_name} ({p.ifsc_code})</p>
-                          <p><span className="text-zinc-500">Holder:</span> {p.account_holder_name}</p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className="text-zinc-500">A/C:</span>
-                            <span className="font-mono text-zinc-300 bg-black/50 px-2 py-1 rounded">
-                              {decryptedAccounts[p.id] || '•••• •••• ••••'}
-                            </span>
-                            {!decryptedAccounts[p.id] && (
-                              <button onClick={() => revealAccount(p.id)} className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 ml-2">
-                                <Eye className="w-3 h-3" /> Reveal
-                              </button>
-                            )}
-                          </div>
-                          {payoutFilter === 'completed' && p.transaction_ref && (
-                            <p className="mt-2 text-emerald-400/80 font-mono text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/> UTR: {p.transaction_ref}</p>
-                          )}
-                        </div>
+                        
+                        {/* ⭐ FIX: Check payout method and render either UPI or Bank */}
+                        {p.payout_method === 'upi' ? (
+                            <div className="text-sm text-zinc-400 space-y-1">
+                                <p><span className="text-zinc-500">Method:</span> UPI Transfer</p>
+                                <p><span className="text-zinc-500">UPI ID:</span> <span className="font-mono text-blue-400 bg-blue-400/10 px-2 py-1 rounded">{p.upi_id}</span></p>
+                                {payoutFilter === 'completed' && p.transaction_ref && (
+                                  <p className="mt-2 text-emerald-400/80 font-mono text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/> UTR: {p.transaction_ref}</p>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-sm text-zinc-400 space-y-1">
+                                <p><span className="text-zinc-500">Bank:</span> {p.bank_name} ({p.ifsc_code})</p>
+                                <p><span className="text-zinc-500">Holder:</span> {p.account_holder_name}</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-zinc-500">A/C:</span>
+                                    <span className="font-mono text-zinc-300 bg-black/50 px-2 py-1 rounded">
+                                    {decryptedAccounts[p.id] || '•••• •••• ••••'}
+                                    </span>
+                                    {!decryptedAccounts[p.id] && (
+                                    <button onClick={() => revealAccount(p.id)} className="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 ml-2">
+                                        <Eye className="w-3 h-3" /> Reveal
+                                    </button>
+                                    )}
+                                </div>
+                                {payoutFilter === 'completed' && p.transaction_ref && (
+                                  <p className="mt-2 text-emerald-400/80 font-mono text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3"/> UTR: {p.transaction_ref}</p>
+                                )}
+                            </div>
+                        )}
                       </div>
                       
                       {/* Only show action buttons if still processing */}

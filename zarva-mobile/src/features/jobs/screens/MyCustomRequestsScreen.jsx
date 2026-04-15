@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTokens } from '@shared/design-system';
 import { View, Text, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import dayjs from 'dayjs';
 import { useT } from '@shared/i18n/useTranslation';
 import apiClient from '@infra/api/client';
@@ -42,17 +43,32 @@ export default function MyCustomRequestsScreen({ navigation }) {
     };
 
     const handlePostJob = async (templateId) => {
-        // Mock putting a job live
         try {
-            let locData = { latitude: 0, longitude: 0, address: "Default Address" }; // Fallback
-            if (locationOverride) {
-                locData = { latitude: locationOverride.lat, longitude: locationOverride.lng, address: "Mock Override Address" }
+            // ⭐ FIX: Request location to power the geospatial matching engine
+            let { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission required', 'Location access is required to post jobs to nearby workers.');
+                return;
             }
-            await apiClient.post(`/api/custom-jobs/templates/${templateId}/post`, { location: locData });
-            Alert.alert("Success", "Custom Job Posted Successfully!");
-            fetchTemplates();
+            
+            let loc = await Location.getCurrentPositionAsync({});
+            
+            const payload = {
+                location: {
+                    latitude: loc.coords.latitude,
+                    longitude: loc.coords.longitude,
+                    source: 'gps',
+                    location_st: `POINT(${loc.coords.longitude} ${loc.coords.latitude})`
+                }
+            };
+
+            const res = await apiClient.post(`/api/custom-jobs/templates/${templateId}/post`, payload);
+            
+            // ⭐ FIX: Transition properly to the searching UI
+            navigation.navigate('Searching', { jobId: res.data.job_id });
+
         } catch (err) {
-            Alert.alert("Error", err.response?.data?.error || "Failed to post job");
+            Alert.alert('Error', err.response?.data?.error || 'Failed to post job');
         }
     };
 
@@ -67,7 +83,7 @@ export default function MyCustomRequestsScreen({ navigation }) {
                             <Text style={styles.jobTypeTxt}>C</Text>
                         </View>
                         <View style={styles.jobInfo}>
-                            <Text style={styles.jobTitle}>{item.title || 'Custom Request'}</Text>
+                            <Text style={styles.jobTitle} numberOfLines={1}>{item.title || 'Custom Request'}</Text>
                             <Text style={styles.jobDate}>{dayjs(item.created_at).format('MMM D, h:mm A')}</Text>
                         </View>
                         <StatusPill status={item.status || 'pending'} />
@@ -146,15 +162,15 @@ const createStyles = (t) => StyleSheet.create({
     title: { color: t.text.primary, fontSize: t.typography.size.title, fontWeight: t.typography.weight.bold, letterSpacing: t.typography.tracking.title },
 
     listContent: { paddingHorizontal: t.spacing['2xl'], paddingBottom: 120 },
-    card: { padding: t.spacing['2xl'], marginBottom: t.spacing.lg, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border.default + '11', gap: t.spacing.md },
+    card: { padding: t.spacing['2xl'], marginBottom: t.spacing.lg, backgroundColor: t.background.surface, borderWidth: 1, borderColor: t.border.default + '11', gap: t.spacing.md, minHeight: 100 },
     cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     jobTypeBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: t.status.warning.base + '22', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: t.status.warning.base + '44' },
     jobTypeTxt: { color: t.status.warning.dark, fontSize: 16, fontWeight: '900' },
     jobInfo: { flex: 1, gap: 2 },
-    jobTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold },
+    jobTitle: { color: t.text.primary, fontSize: t.typography.size.body, fontWeight: t.typography.weight.bold, flex: 1, flexWrap: 'wrap', marginRight: 10 },
     jobDate: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.medium },
 
-    jobDesc: { color: t.text.secondary, fontSize: t.typography.size.caption, lineHeight: 20, fontStyle: 'italic', marginTop: 4 },
+    jobDesc: { color: t.text.secondary, fontSize: t.typography.size.caption, lineHeight: 20, fontStyle: 'italic', marginTop: 4, flexWrap: 'wrap' },
 
     metaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, padding: 12, backgroundColor: t.background.surfaceRaised, borderRadius: t.radius.md },
     metaLabel: { color: t.text.tertiary, fontSize: 10, fontWeight: t.typography.weight.bold, letterSpacing: 1 },

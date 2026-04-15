@@ -8,6 +8,7 @@ import MapPage from './pages/MapPage';
 import JobsPage from './pages/JobsPage';
 import DisputesPage from './pages/DisputesPage';
 import FinancePage from './pages/FinancePage';
+import CustomJobsPage from './pages/CustomJobsPage';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
           <Route path="/jobs" element={<JobsPage />} />
           <Route path="/disputes" element={<DisputesPage />} />
           <Route path="/finance" element={<FinancePage />} />
+          <Route path="/custom-jobs" element={<CustomJobsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

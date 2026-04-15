@@ -63,9 +63,9 @@ export const useWorkerWalletStore = create((set, get) => ({
         }
     },
 
-    requestWithdrawal: async (amountPaise, bankAccountId) => {
+    requestWithdrawal: async (amountPaise, bankAccountId, payoutMethod) => { // ⭐ New
         const idempotencyKey = `withdraw_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        return walletApi.withdraw(amountPaise, bankAccountId, idempotencyKey);
+        return walletApi.withdraw(amountPaise, bankAccountId, payoutMethod, idempotencyKey);
     },
 
     clearError: () => set({ error: null })
